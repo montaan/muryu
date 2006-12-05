@@ -1,0 +1,705 @@
+require 'postgres'
+require 'time'
+require 'date'
+
+
+class String
+
+  def to_table_name
+    gsub(/[A-Z]/){|i| "_#{i}"}[1..-1].to_s.downcase
+  end
+
+  def to_class_name
+    gsub(/_./){|i| i[1,1].upcase}.capitalize
+  end
+
+  def rsplit(*a)
+    reverse.split(*a).map{|k| k.reverse }.reverse
+  end
+
+  def cast(type)
+    (DB::TYPECASTS[type] || DB::TYPECASTS[:default])[self]
+  end
+
+end
+
+
+class NilClass
+
+  def cast(type)
+    nil
+  end
+
+end
+
+
+class Array
+
+  def to_hash
+    h = {}
+    each{|k,v| h[k] = v}
+    h
+  end
+
+end
+
+
+class Object
+
+  def eigenclass
+    class<<self
+      self
+    end
+  end
+
+end
+
+
+class StandardDateTime < DateTime
+  def to_s
+    strftime "%Y-%m-%d %H:%M:%S"
+  end
+end
+
+
+module DB
+
+  Conn = PGconn.new
+
+  TYPECASTS = {
+    "int4" => lambda{|i| i.to_i },
+    "int2" => lambda{|i| i.to_i },
+    "int8" => lambda{|i| i.to_i },
+
+    "float4" => lambda{|i| i.to_f },
+    "float8" => lambda{|i| i.to_f },
+
+    "bool" => lambda{|i| i == 't'},
+
+    "timestamp" => lambda{|i| StandardDateTime.parse i},
+
+    :default => lambda{|i|i}
+  }
+
+  class ForeignKey
+
+    attr_accessor :foreign_table_name, :foreign_column_name,
+                  :table_name, :column_name,
+                  :join_table_name,
+                  :join_table_column, :join_foreign_table_column
+
+    def initialize( table_name, column_name,
+                    foreign_table_name, foreign_column_name,
+                    join_table_name=nil,
+                    join_table_column=nil, join_foreign_table_column=nil
+                    )
+      @table_name = table_name
+      @column_name = column_name
+      @foreign_table_name = foreign_table_name
+      @foreign_column_name = foreign_column_name
+      @join_table_name = join_table_name
+      @join_table_column = join_table_column
+      @join_foreign_table_column = join_foreign_table_column
+    end
+
+    def join_table
+      Tables[join_table_name]
+    end
+
+    def foreign_table
+      Tables[foreign_table_name]
+    end
+
+    def get(obj, h={})
+      get_all(obj, {:limit => 1}.merge(h)).first
+    end
+
+    def get_all(obj, h={})
+      if join_table_name
+        foreign_table.find_all({
+          foreign_column_name =>
+             (join_table_name+"."+join_foreign_table_column).to_sym,
+          (join_table_name+"."+join_table_column) => obj[column_name]
+        }.merge(h))
+      else
+        foreign_table.find_all({foreign_column_name => obj[column_name]}.merge(h))
+      end
+    end
+
+    def cast(val, obj)
+      foreign_table.find({foreign_column_name => val})
+    end
+
+    def __comparison(lvl="")
+      Table.escape(foreign_table_name+lvl.succ)+"."+Table.escape(foreign_column_name)+
+      " = " +
+      if join_table_name
+        Table.escape(join_table_name+lvl.succ)+"."+
+        Table.escape(join_foreign_table_column) +
+        " AND " +
+        Table.escape(join_table_name+lvl.succ)+"."+
+        Table.escape(join_table_column) +
+        " = "
+      else
+        ""
+      end +
+      Table.escape(table_name+lvl)+"."+Table.escape(column_name)
+    end
+
+  end
+
+
+
+  class Table
+
+    def self.all_foreign_keys
+      @@all_foreign_keys ||= (
+        @@all_foreign_keys = Hash.new{|h,k| h[k] = Hash.new }
+        @@all_joins = Hash.new{|h,k| h[k] = Hash.new{|i,l| i[l] = {}} }
+        @@all_reverse_foreign_keys = Hash.new{|h,k| h[k] = Hash.new{|i,l| i[l] = {}} }
+        Conn.exec(%Q(
+          SELECT a.relname, i.attname, b.relname,j.attname
+          FROM pg_class a, pg_class b,pg_attribute i, pg_attribute j, pg_constraint
+          WHERE conrelid = a.oid
+            AND i.attrelid = a.oid
+            AND conkey[1] = i.attnum
+            AND confrelid = b.oid
+            AND j.attrelid = b.oid
+            AND confkey[1] = j.attnum
+            AND contype = 'f'
+        )).each do |tn,cn, ftn,fcn|
+          @@all_foreign_keys[tn][cn] = ForeignKey.new(tn,cn, ftn,fcn)
+          @@all_reverse_foreign_keys[ftn][tn][cn] = ForeignKey.new(ftn,fcn, tn,cn)
+        end
+        @@all_foreign_keys.each do |tn,cnfks|
+          if cnfks.size > 1
+            cnfks.each_with_index{|a,i|
+              cnfks.each_with_index{|b,j|
+                next if j <= i
+                add_join(a[1],b[1])
+              }
+            }
+          end
+        end
+        @@all_foreign_keys
+      )
+    end
+
+    def self.add_join(fk1,fk2)
+      ftn1 = fk1.foreign_table_name
+      fcn1 = fk1.foreign_column_name
+      tn = fk1.table_name
+      cn1 = fk1.column_name
+      ftn2 = fk2.foreign_table_name
+      fcn2 = fk2.foreign_column_name
+      cn2 = fk2.column_name
+      @@all_joins[ftn1][ftn2][tn] = ForeignKey.new(ftn1,fcn1,ftn2,fcn2, tn,cn1,cn2)
+      @@all_joins[ftn2][ftn1][tn] = ForeignKey.new(ftn2,fcn2,ftn1,fcn1, tn,cn2,cn1)
+    end
+
+    def self.all_reverse_foreign_keys
+      @@all_reverse_foreign_keys ||= (all_foreign_keys and @@all_reverse_foreign_keys)
+    end
+
+    def self.all_joins
+      @@all_joins ||= (all_foreign_keys and @@all_joins)
+    end
+
+    def self.foreign_keys
+      all_foreign_keys[table_name]
+    end
+
+    def self.reverse_foreign_keys
+      all_reverse_foreign_keys[table_name]
+    end
+
+    def self.joins
+      all_joins[table_name]
+    end
+
+    def self.columns
+      @columns ||= Conn.query("
+        select attname, typname
+        from pg_type t, pg_attribute a, pg_class c
+        WHERE relname = #{quote table_name}
+          and c.oid = attrelid
+          and t.oid = atttypid
+      ").to_hash
+    end
+
+    def self.column?(name)
+      columns.find{|c,t| c == name.to_s }
+    end
+
+    def self.foreign_key? k
+      columns[k.to_s+"_id"] and foreign_keys[k.to_s+"_id"]
+    end
+
+    def self.reverse_foreign_key? k
+      reverse_foreign_keys.has_key? k.to_s
+    end
+
+    def self.join? k
+      joins.has_key? k.to_s
+    end
+
+    def self.table_name= tn
+      if Tables.table? tn
+        @table_name = tn
+        @columns = nil
+        @foreign_keys = nil
+        __init_columns
+      end
+    end
+
+    def self.table_name
+      @table_name ||= to_s.split('::').last.to_table_name
+    end
+
+    def self.escape n
+      PGconn.escape(n.to_s).dump
+    end
+
+    def self.quote n
+      PGconn.quote n
+    end
+
+    def self.find_or_create(h)
+      if v = find(h)
+        v.to_hash
+      else
+        i = Conn.exec(%Q(SELECT nextval(#{quote( table_name + "_id_seq")}) ))[0][0].to_i
+        h[:id] = i
+        Conn.exec(%Q(
+          INSERT INTO #{escape table_name}
+          (#{h.keys.map{|k| escape k}.join(",")})
+          VALUES
+          (#{h.values.map{|v| quote v}.join(",")})
+        ))
+        id i
+      end
+    end
+
+    def self.delete(h)
+      if r = find(h)
+        Conn.exec(%Q(
+          DELETE FROM #{escape table_name}
+          WHERE id = #{quote r.id}
+        ))
+      end
+    end
+
+    def self.delete_all(h)
+      unless (rs=find_all(h)).empty?
+        Conn.exec(%Q(
+          DELETE FROM #{escape table_name}
+          WHERE id in (#{ rs.map{|r| quote r.id}.join(",") })
+        ))
+      end
+    end
+
+    def self.count
+      Conn.query("SELECT count(*) FROM #{escape table_name}").to_s.to_i
+    end
+
+    def self.find(h={})
+      find_all(h.merge(:limit => 1, :columns => :all)).first
+    end
+
+    def self.find_all(h={})
+      q = query(h)
+      idx = -1
+      q.map{|i| new q, idx+=1 }
+    end
+
+    def self.__comparison(k,v,lvl="0")
+      k = k.to_s
+      table = k.split(".").first
+      if foreign_key? table
+        fk = foreign_keys[table.to_s+"_id"]
+        comp = case v
+        when Table
+          return __comparison(table.to_s+"_id", v[fk.foreign_column_name], lvl)
+        else
+          k = k.sub(table+".","")
+          ft = fk.foreign_table
+          jt = fk.join_table_name
+          t, pr = ft.__comparison(k,v,lvl.succ)
+#           p [table_name, t, lvl]
+          t << [table_name, table_name+lvl]
+          t << [jt, jt+lvl.succ] if jt
+          t << [ft.table_name, ft.table_name+lvl.succ]
+          pr << fk.__comparison(lvl)
+          return [t,pr]
+        end
+      elsif table.size < k.size
+        k = k.sub(table+".","")
+        ft = Tables[table]
+        return ft.__comparison(k,v,lvl)
+      end
+      k = "#{escape(table_name+lvl)}.#{escape k}"
+      comp = get_comparison(k,v,lvl)
+      cmp_table = []
+      if v.is_a? Symbol
+        vs = v.to_s.split(".")
+        if vs.length > 1
+          cmp_table << vs[0] << vs[0]+lvl
+        end
+      end
+      [[table_name, table_name+lvl, *cmp_table], [comp]]
+    end
+
+    def self.get_comparison(k, v, lvl=nil)
+      if v.is_a? Array and ['<','>','in','not in','=','>=','<='] === v[0].to_s.downcase
+        cmp, v = v
+      else
+        cmp = nil
+      end
+      case v
+      when Regexp
+        "#{k} ~#{'*' if v.casefold?} #{
+          quote((v.inspect+" ").split("/")[1..-2].join("/"))
+        }"
+      when Range
+        min,max = v.to_a.sort
+        "#{k} >= #{quote min} AND #{k} <= #{quote max}"
+      when Symbol
+        vs = v.to_s.split(".")
+        vs[0] << lvl if vs.length > 1
+        k + " #{cmp || "="} " + vs.map{|i|escape i }.join(".")
+      when Array
+        if v[0][-2,2] == "()"
+          f = v[0][0...-2]
+          v = v[1..-1]
+        end
+        # problematic f(1,2,3,4) vs. (f(1),f(2),f(3),f(4)) ?
+        "#{k} #{cmp || (f ? "=" : "IN")} #{f}(#{v.map{|i| quote i}.join(",")})"
+      end or "#{k} #{cmp || "="} #{quote v}"
+    end
+
+    # handle foreign keys
+    # handle reverse foreign keys
+    # handle many to many keys
+    # handle table references (damn it)
+    # use table name as default table
+    def self.parse_order_by(order_by, desc, asc)
+      case order_by
+      when Array
+        order_by.map{|ob,d|
+          escape(ob.to_s) + " #{d}"
+        }.join(", ")
+      else
+        dir = ""
+        dir = " DESC" if desc
+        dir = " ASC" if asc
+        escape(order_by) + dir
+      end
+    end
+
+    def self.query(h={})
+      h = h.clone
+      order_by = h.delete:order_by
+      desc = h.delete:desc
+      asc = h.delete:desc
+      limit = h.delete:limit
+      offset = h.delete:offset
+      cols = h.delete:columns
+      case cols
+      when Array
+        cols = ([:id] + cols).uniq.compact
+      when :all
+        cols = columns.keys
+      else
+        cols = [:id, cols].uniq.compact
+      end
+      foreign_key_cols = h.keys.find_all{|k|
+        f = k.to_s.split(".",2).first
+        foreign_key?(f) or (k.to_s.size > f.size and Tables.table? f)
+      }
+      bad_cols = h.keys.find_all{|k| not columns[k.to_s]} - foreign_key_cols
+      unless bad_cols.empty?
+        raise(
+          "Inexisting column#{'s' if bad_cols.size > 1}: #{bad_cols.join(", ")}"
+        )
+      end
+      tables = []
+      predicates = []
+      h.map{|k,v| t, p = __comparison(k,v)
+        tables << t
+        predicates << p
+      }
+      tables = Hash[*tables.flatten.reverse]
+      predicates.flatten!
+      tn = table_name
+      tn = escape(tables.find_all{|n,t| t == table_name}.min[0]) unless tables.empty?
+      q =  %Q(SELECT #{cols.map{|c|tn+"."+escape(c)}.join(", ")})
+      q << %Q(\nFROM #{tables.map{|n,t| escape(t)+" "+escape(n) }.join(", ")}) unless tables.empty?
+      q << %Q(\nFROM #{escape table_name}) if tables.empty?
+      q << %Q(\nWHERE #{predicates.uniq.join(" AND ")}) unless predicates.empty?
+      q << %Q(\n#{%Q(ORDER BY #{parse_order_by order_by, desc, asc}) if order_by}
+        #{"LIMIT #{limit.to_i}" if limit}
+        #{"OFFSET #{offset.to_i}" if offset}
+      )
+#       puts q
+      Conn.exec(q)
+    rescue => e
+      puts q
+      raise
+    end
+
+
+    def initialize(id,idx=0)
+      case id
+      when PGresult
+        __assign_vars id, idx
+      when Hash
+        __assign_vars self.class.query(id), idx
+      else
+        __assign_vars self.class.query("id" => id)
+      end
+      @cache_queries = true
+    end
+
+    attr_accessor :cache_queries
+
+    def cache_queries?
+      @cache_queries
+    end
+
+    def [](x)
+      method_missing(x)
+    end
+
+    def []=(x,v)
+      method_missing(x.to_s+"=", v)
+    end
+
+    def quote *a
+      self.class.quote *a
+    end
+
+    def escape *a
+      self.class.escape *a
+    end
+
+    def to_hash
+      columns.map{|c,cl|
+        [c, __send__(c)]
+      }.to_hash
+    end
+
+    def columns
+      self.class.columns
+    end
+
+    def column? *a
+      self.class.column? *a
+    end
+
+    def foreign_keys
+      self.class.foreign_keys
+    end
+
+    def foreign_key? *a
+      self.class.foreign_key? *a
+    end
+
+    def reverse_foreign_keys
+      self.class.reverse_foreign_keys
+    end
+
+    def reverse_foreign_key? *a
+      self.class.reverse_foreign_key? *a
+    end
+
+    def joins
+      self.class.joins
+    end
+
+    def join? *a
+      self.class.join? *a
+    end
+
+    def table_name
+      self.class.table_name
+    end
+
+    def pin!(*cols)
+      __assign_vars self.class.query("id" => id, :columns => :all)
+    end
+
+    def pin_foreign_key!(fk, ivar_name)
+      instance_variable_set("@#{ivar_name}", fk.get(self, :columns => :all))
+    end
+
+    def pin_reverse_foreign_key!(fkeys, ivar_name)
+      v = fkeys.inject([]){|s,(n,f)| s += f.get_all(self, :columns => :all) }
+      instance_variable_set("@#{ivar_name}", v)
+    end
+
+    def method_missing(c, *a)
+      c = c.to_s
+      if c[-1,1] == "=" and not a.empty?
+        c = c[0..-2]
+        super unless column?(c)
+        Conn.exec(%Q(
+          UPDATE #{escape table_name}
+          SET #{escape c} = #{quote a[0]}
+          WHERE id = #{quote @id}
+        ))
+        instance_variable_set("@#{c}",a[0])
+      elsif column?(c)
+        if cache_queries?
+          pin!(c) unless instance_variables.include?("@#{c}")
+          instance_variable_get("@#{c}")
+        else
+          (Conn.exec(%Q(
+            SELECT #{escape c}
+            FROM #{escape table_name}
+            WHERE id = #{quote @id}
+          )).result.flatten.first).cast(columns[c])
+        end
+      elsif foreign_key?(c)
+        fk = foreign_keys[c+"_id"]
+        if cache_queries?
+          pin_foreign_key!(fk,c) unless instance_variables.include?("@#{c}")
+          instance_variable_get("@#{c}")
+        else
+          fk.get(self)
+        end
+      elsif reverse_foreign_key?(c)
+        fkeys = reverse_foreign_keys[c]
+        if cache_queries?
+          pin_reverse_foreign_key!(fkeys,c) unless instance_variables.include?("@#{c}")
+          instance_variable_get("@#{c}")
+        else
+          fkeys = reverse_foreign_keys[c]
+          fkeys.inject([]){|s,(n,f)| s += f.get_all(self) }
+        end
+      elsif join?(c)
+        fkeys = joins[c]
+        if cache_queries?
+          pin_reverse_foreign_key!(fkeys,c) unless instance_variables.include?("@#{c}")
+          instance_variable_get("@#{c}")
+        else
+          fkeys.inject([]){|s,(n,f)| s += f.get_all(self) }
+        end
+      elsif fk = foreign_keys.find{|a,k| a != table_name and
+                                         k.foreign_table.columns[c]}
+        if cache_queries?
+          pin_foreign_key!(fk[1],c) unless instance_variables.include?("@#{c}")
+          instance_variable_get("@#{c}").__send__(c)
+        else
+          fk[1].get(self).__send__(c)
+        end
+      elsif fk = reverse_foreign_keys.find{|a,k| a != table_name and
+                                                 Tables[a].columns[c[0..-2]]}
+        cs = c[0..-2]
+        if cache_queries?
+          a = fk[0]
+          pin_reverse_foreign_key!(fk[1],a) unless instance_variables.include?("@#{a}")
+          instance_variable_get("@#{a}").inject([]){|t,r| t << r.__send__(cs) }
+        else
+          fkeys = fk[1]
+          fkeys.inject([]) do |s,(n,f)|
+            s += f.get_all(self, :columns => [cs]).inject([]){|t,r| t << r.__send__(cs) }
+          end
+        end
+      elsif fk = joins.find{|a,k| a != table_name and
+                                  Tables[a].columns[c[0..-2]]}
+        cs = c[0..-2]
+        if cache_queries?
+          a = fk[0]
+          pin_reverse_foreign_key!(fk[1],a) unless instance_variables.include?("@#{a}")
+          instance_variable_get("@#{a}").inject([]){|t,r| t << r.__send__(cs) }
+        else
+          fkeys = fk[1]
+          fkeys.inject([]) do |s,(n,f)|
+            s += f.get_all(self, :columns => [cs]).inject([]){|t,r| t << r.__send__(cs) }
+          end
+        end
+      else
+        raise NameError, "Unknown column `#{c}'"
+      end
+    end
+
+  private
+
+    def __assign_vars(res,idx=0)
+      cols = columns
+      res.fields.zip(res[idx]){|k,v|
+        instance_variable_set( "@"+k, v.cast(cols[k.to_s]) )
+      }
+    end
+
+    def self.inherited(klass)
+      klass.table_name = klass.name.to_table_name
+    end
+
+    def self.__init_columns
+      columns.each{ |c,t|
+        define_method(c){|*a| method_missing(c,*a) }
+        define_method(c+"="){|*a| method_missing(c+"=",*a) }
+        eigenclass.__send__(:define_method,c) do |*a|
+          if a.empty?
+            data_type = columns[c]
+            Conn.query(%Q(
+              SELECT #{escape c}
+              FROM #{escape table_name}
+            )).flatten.map{|c| c.cast data_type }
+          else
+            q = %Q(
+              SELECT id
+              FROM #{escape table_name}
+              WHERE #{
+                a.map{|i|
+                  %Q(#{escape c} = #{quote a})
+                }.join(" OR ")
+              }
+            )
+            Conn.query(q).flatten.map{|i| new i }
+          end
+        end
+      }
+    end
+
+
+  end
+
+
+  module Tables
+
+    @@tables = {}
+
+    def self.tables
+      @@tables
+    end
+
+    def self.[](name)
+      if @@tables.has_key? name
+        @@tables[name]
+      else
+        c = Class.new(Table)
+        c.table_name = name
+        @@tables[name] = c
+      end
+    end
+
+    def self.const_missing(c)
+      if table? c.to_s.to_table_name
+        t = self[c.to_s.to_table_name]
+        const_set(c, t)
+      else
+        super
+      end
+    end
+
+    def self.table? tn
+      q = "SELECT oid FROM pg_class WHERE relname = #{Table.quote tn}"
+      Conn.query(q).size > 0
+    end
+
+  end
+
+
+end

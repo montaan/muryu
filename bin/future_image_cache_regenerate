@@ -1,0 +1,6 @@
+#!/usr/bin/ruby
+
+require 'future/imaging'
+
+ic = Future::ImageCache.new
+ic.regenerate!
