@@ -1,4 +1,4 @@
-Tables["groups"] = {
+tables["groups"] = {
   :name => [:text, 'not null', 'unique'],
   :owner_id => [['users', :id], 'not null', 'index']
 }

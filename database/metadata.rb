@@ -1,5 +1,5 @@
-Tables["metadata"] = {
+tables["metadata"] = {
 }
 
-Tables["mimetypes"] = {
+tables["mimetypes"] = {
 }

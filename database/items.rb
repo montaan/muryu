@@ -1,4 +1,4 @@
-Tables["items"] = {
+tables["items"] = {
   :continuous_index => [:serial, 'unique', 'not null'],
   :filename => [:text, 'unique', 'not null'],
   :size => [:bigint, 'not null', 'default 0'],
@@ -13,4 +13,4 @@ Tables["items"] = {
   :metadata_id => [['metadata', :id], 'not null'],
 }
 
-Indexes << ['items', 'filename']
+indexes << ['items', 'filename']

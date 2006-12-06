@@ -1,0 +1,117 @@
+require 'postgres'
+
+
+module DB
+
+
+class Creator
+include Enumerable
+
+  attr_accessor :tables, :joins, :indexes, :constraints, :descriptions
+
+  def initialize(filenames = [])
+    @descriptions = []
+    load *filenames
+  end
+
+  def clear
+    @descriptions.clear
+  end
+
+  def each(&b)
+    to_a.each(&b)
+  end
+
+  def join(*a)
+    to_a.join(*a)
+  end
+
+  def to_s
+    join("\n")
+  end
+
+  def load(*filenames)
+    @descriptions += filenames.map{|fn| File.read(fn.to_s) }
+    @descriptions.uniq!
+  end
+
+  def to_a
+    @tables = {}
+    @joins = []
+    @indexes = []
+    @constraints = []
+    @descriptions.each{|d| instance_eval d }
+    create_join_tables
+    create_tables + create_constraints + create_indexes
+  end
+  
+  def create_join_tables
+    joins.each do |from, to|
+      tables["join_#{from}_#{to}"] = {
+        "#{from}_id" => [[from, :id]],
+        "#{to}_id" => [[to, :id]]
+      }
+    end
+  end
+
+  def create_tables
+    tables.each do |table,columns|
+      columns.each do |colname, sig|
+        type = sig[0]
+        constraints = sig[1..-1]
+        index = sig.delete('index')
+        if type.is_a? Array # foreign key
+          constraints << [table, :foreign_key, colname, type]
+        end
+        if index and not constraints.include? 'unique'
+          indexes << [table, colname]
+        end
+      end
+      columns[:id] = [:serial, 'primary key']
+    end
+
+    tables.map do |table, columns|
+      table_sql = "CREATE TABLE #{PGconn.escape table.to_s} (\n  "
+      columns_sql = []
+      columns.each do |colname, sig|
+        type = sig[0]
+        constraints = sig[1..-1]
+        while type.is_a? Array # foreign key, collapse type
+          type = tables[type[0]][type[1]][0]
+          type = :int if type.to_s == 'serial'
+        end
+        columns_sql << "#{PGconn.escape colname.to_s} #{type} #{constraints.join(" ")}"
+      end
+      table_sql << columns_sql.join(",\n  ")
+      table_sql << "\n);"
+      table_sql
+    end
+  end
+
+  def create_constraints
+    constraints.map do |table, *args|
+      case args[0]
+      when :foreign_key
+        "ALTER TABLE #{PGconn.escape table.to_s} ADD CONSTRAINT #{PGconn.escape "#{table}_fkey_#{args[1..-1].join("_")}"}\n" +
+        " FOREIGN KEY (#{PGconn.escape args[1].to_s})"+
+        " REFERENCES #{PGconn.escape args[2][0].to_s}(#{PGconn.escape args[2][1].to_s});"
+      when :unique
+        "CREATE UNIQUE INDEX #{PGconn.escape "#{table}_unique_#{args[1].join("_")}"}\n" +
+        "  ON #{PGconn.escape table.to_s}(#{args[1].map{|a| PGconn.escape a.to_s}.join(",") });"
+      when String
+        args[0]
+      end
+    end
+  end
+
+  def create_indexes
+    indexes.map do |table, *cols|
+      "CREATE INDEX #{PGconn.escape "#{table}_#{cols.join("_")}"} ON " +
+      "#{PGconn.escape table.to_s}(#{cols.map{|c| PGconn.escape c.to_s}.join(",")});"
+    end
+  end
+
+end # Creator
+
+
+end # DB
