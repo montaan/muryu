@@ -70,12 +70,12 @@ include Enumerable
     tables.each do |table,columns|
       columns.each do |colname, sig|
         type = sig[0]
-        constraints = sig[1..-1]
+        options = sig[1..-1]
         index = sig.delete('index')
         if type.is_a? Array # foreign key
           constraints << [table, :foreign_key, colname, type]
         end
-        if index and not constraints.include? 'unique'
+        if index and not options.include? 'unique'
           indexes << [table, colname]
         end
       end
@@ -87,12 +87,12 @@ include Enumerable
       columns_sql = []
       columns.sort_by{|c| c.to_s }.each do |colname, sig|
         type = sig[0]
-        constraints = sig[1..-1]
+        options = sig[1..-1]
         while type.is_a? Array # foreign key, collapse type
           type = tables[type[0]][type[1]][0]
           type = :int if type.to_s == 'serial'
         end
-        columns_sql << "#{PGconn.escape colname.to_s} #{type} #{constraints.join(" ")}"
+        columns_sql << "#{PGconn.escape colname.to_s} #{type} #{options.join(" ")}"
       end
       table_sql << columns_sql.join(",\n  ")
       table_sql << "\n);"
@@ -105,7 +105,7 @@ include Enumerable
       case args[0]
       when :foreign_key
         "ALTER TABLE #{PGconn.escape table.to_s} ADD CONSTRAINT #{PGconn.escape "#{table}_fkey_#{args[1..-1].join("_")}"}\n" +
-        " FOREIGN KEY (#{PGconn.escape args[1].to_s})"+
+        "  FOREIGN KEY (#{PGconn.escape args[1].to_s})"+
         " REFERENCES #{PGconn.escape args[2][0].to_s}(#{PGconn.escape args[2][1].to_s});"
       when :unique
         "CREATE UNIQUE INDEX #{PGconn.escape "#{table}_unique_#{args[1].join("_")}"}\n" +
