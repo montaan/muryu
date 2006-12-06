@@ -10,12 +10,28 @@ include Enumerable
   attr_accessor :tables, :joins, :indexes, :constraints, :descriptions
 
   def initialize(filenames = [])
+    @tables = {}
+    @joins = []
+    @indexes = []
+    @constraints = []
     @descriptions = []
     load *filenames
   end
 
+  def clear_db
+    @tables.clear
+    @joins.clear
+    @indexes.clear
+    @constraints.clear
+  end
+
+  def clear_descriptions
+    @descriptions = []
+  end
+
   def clear
-    @descriptions.clear
+    clear_db
+    clear_descriptions
   end
 
   def each(&b)
@@ -36,10 +52,6 @@ include Enumerable
   end
 
   def to_a
-    @tables = {}
-    @joins = []
-    @indexes = []
-    @constraints = []
     @descriptions.each{|d| instance_eval d }
     create_join_tables
     create_tables + create_constraints + create_indexes
@@ -70,10 +82,10 @@ include Enumerable
       columns[:id] = [:serial, 'primary key']
     end
 
-    tables.map do |table, columns|
+    tables.sort_by{|c| c.to_s }.map do |table, columns|
       table_sql = "CREATE TABLE #{PGconn.escape table.to_s} (\n  "
       columns_sql = []
-      columns.each do |colname, sig|
+      columns.sort_by{|c| c.to_s }.each do |colname, sig|
         type = sig[0]
         constraints = sig[1..-1]
         while type.is_a? Array # foreign key, collapse type
@@ -89,7 +101,7 @@ include Enumerable
   end
 
   def create_constraints
-    constraints.map do |table, *args|
+    constraints.sort_by{|c| c.to_s }.map do |table, *args|
       case args[0]
       when :foreign_key
         "ALTER TABLE #{PGconn.escape table.to_s} ADD CONSTRAINT #{PGconn.escape "#{table}_fkey_#{args[1..-1].join("_")}"}\n" +
@@ -105,7 +117,7 @@ include Enumerable
   end
 
   def create_indexes
-    indexes.map do |table, *cols|
+    indexes.sort_by{|c| c.to_s }.map do |table, *cols|
       "CREATE INDEX #{PGconn.escape "#{table}_#{cols.join("_")}"} ON " +
       "#{PGconn.escape table.to_s}(#{cols.map{|c| PGconn.escape c.to_s}.join(",")});"
     end
