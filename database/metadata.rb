@@ -1,0 +1,5 @@
+Tables["metadata"] = {
+}
+
+Tables["mimetypes"] = {
+}
