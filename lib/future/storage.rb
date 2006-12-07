@@ -50,11 +50,11 @@ maybe something like this?
   end
 
   def create_unique_filename(filename)
-    today + (filename + "." + next_id
+    today + (filename + "." + next_id)
   end
 
   def next_id
-    DB.nextval('store_filename_seq'))
+    DB.nextval('store_filename_seq')
   end
 
   def today
