@@ -5,6 +5,11 @@ require 'fileutils'
 
 module Future
 
+# BasicStore only does three things:
+# * save files in such a way that contents are not duplicated (unless you ask
+#   it to)
+# * tell you whether a given file is stored
+# * allow you to read the data
 class BasicStore
   class FileSelector
     attr_reader :path, :sha1digest
@@ -66,6 +71,15 @@ maybe something like this?
     :sha1digest => nil,
     :preserve_name => false,
   }
+
+  # Stores the file, returning a FileSelector that references the data in the
+  # store.
+  # In order to save data associated to another file, give the sha1digest of
+  # the parent and use preserve_name, e.g.
+  #   mainselector = store.store("foo.html", html)
+  #   gifselector  = store.store("foo.gif", gifdata, 
+  #                              :sha1digest => mainselector.sha1digest, 
+  #                              :preserve_name => true)
   def store(filename, data, options = {})
     options = DEFAULT_STORE_OPTIONS.merge(options)
     digest  = options[:sha1digest] || Digest::SHA1.hexdigest(data)
