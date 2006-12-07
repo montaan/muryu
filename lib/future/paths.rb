@@ -38,6 +38,7 @@ end
 
 
 class << self
+  attr_accessor :salt
   attr_accessor :paths
   delegate_accessor :paths, :root_dir, :config_file, :cache_dir, :thumbnail_dir, :items_dir
 end
