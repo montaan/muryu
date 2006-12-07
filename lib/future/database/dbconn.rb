@@ -155,7 +155,6 @@ module DB
   end
 
 
-
   class Table
 
     def self.all_foreign_keys
@@ -539,8 +538,12 @@ module DB
     end
 
     def pin_reverse_foreign_key!(fkeys, ivar_name)
-      v = fkeys.inject([]){|s,(n,f)| s += f.get_all(self, :columns => :all) }
+      v = get_reverse_foreign_key fkeys
       instance_variable_set("@#{ivar_name}", v)
+    end
+
+    def get_reverse_foreign_key(fkeys)
+      fkeys.inject([]){|s,(n,f)| s += f.get_all(self, :columns => :all) }
     end
 
     def method_missing(c, *a)
