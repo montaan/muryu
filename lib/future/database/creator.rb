@@ -89,7 +89,8 @@ include Enumerable
         type = sig[0]
         options = sig[1..-1]
         while type.is_a? Array # foreign key, collapse type
-          type = tables[type[0]][type[1]][0]
+          tbl, col = type
+          type = tables[tbl][col][0]
           type = :int if type.to_s == 'serial'
         end
         columns_sql << "#{PGconn.escape colname.to_s} #{type} #{options.join(" ")}"
