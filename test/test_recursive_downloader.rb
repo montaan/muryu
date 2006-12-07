@@ -109,6 +109,18 @@ EOF
     assert_equal(files.split(/\n/), fetcher.downloaded_files.map{|x| x.to_s.gsub(/^file:#{base}/,"")}.sort)
   end
 
+  def test_fetch_references_css
+    uri = URI.parse("http://example.com/foo.css")
+    fetcher = DummyRecursiveDownloader.new(uri)
+    fetcher.set_contents(uri, "@charset 'euc-jp'; @import url(./dot.css);", "text/css")
+    fetcher.set_contents(uri + "dot.css", '@import "foo/bar.css"', "text/css")
+    fetcher.set_contents(uri + "foo/bar.css", "/* empty */", "text/css")
+    num_files = fetcher.download(:proxy => false)
+    assert_equal(3, num_files)
+    assert_equal(["http://example.com/dot.css", "http://example.com/foo.css", "http://example.com/foo/bar.css"], 
+                 fetcher.downloaded_files)
+  end
+
   def test_processed_file
     base = File.expand_path(File.dirname(__FILE__))
     base_uri = URI.parse("file://" + File.join(base, "data/"))

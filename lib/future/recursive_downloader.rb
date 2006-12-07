@@ -54,8 +54,25 @@ class RecursiveDownloader
   end
 
   def fetch_references_css(uri)
-    uri = URI.parse(uri.to_s).normalize.to_s
+    uri2  = URI.parse(uri.to_s).normalize
+    uri   = uri2.to_s
     raise "No data for #{uri}." unless io = @fetched[uri]
+    # TODO: skip comments 
+    io.rewind
+    csscode = io.read
+    child_uris = csscode.scan(/@import\s+url\(([^)]+)\)/).flatten
+    child_uris.concat(csscode.scan(/@import\s+"([^"]+)"/).flatten)
+    # ugh
+    child_uris.concat(csscode.scan(/@import\s+'([^"]+)'/).flatten)
+    io.rewind
+    child_uris.each do |child_uri|
+      resolved_uri = uri2.merge(child_uri).normalize
+      next if @fetched[resolved_uri.to_s] || @redirected[resolved_uri.to_s]
+      next if resolved_uri.query.to_s != ''
+      actual_uri, = fetch(resolved_uri)
+      @redirected[resolved_uri.to_s] = actual_uri
+      fetch_recursive(actual_uri)
+    end
   end
 
   def downloaded_files
