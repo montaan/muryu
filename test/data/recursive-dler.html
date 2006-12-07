@@ -1,0 +1,406 @@
+<!DOCTYPE html
+    PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+    "http://www.w3.org/TR/html4/loose.dtd">
+<html lang="en">
+<head>
+<link rel="shortcut icon" href="/favicon.ico">
+  <meta http-equiv="Content-Language" content="en">
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <meta http-equiv="Content-Script-Type" content="text/javascript; charset=euc-jp">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <meta name="generator" content="Hiki 0.8.6">
+  <title>eigenclass - Accessing the non-perishable information on eigenclass.org</title>
+  <link rel="stylesheet" type="text/css" href="theme/hiki_base.css" media="all">
+  <link rel="stylesheet" type="text/css" href="theme/dot-sky2/dot-sky2.css" media="all">
+    <style type="text/css"><!--
+      img.math {
+        vertical-align: middle;
+      }
+
+      div.displaymath {
+        text-align: center;
+      }
+    --></style>
+  <link rel="alternate" type="application/rss+xml" title="RSS" href="http://eigenclass.org/hiki.rb?c=rss;tags=blog">
+</head>
+
+<body>
+<a name="top"> </a>
+<div class="main">
+  <a style="margin: 0px;" href="http://eigenclass.org"><img style="border: none;" alt="eigenclass" src="/logo.png" /> </a> 
+  <div class="adminmenu"><span class="adminmenu"><a href="hiki.rb">MAIN</a></span>&nbsp;
+<span class="adminmenu"><a href="hiki.rb?c=index">Index</a></span>&nbsp;
+<span class="adminmenu"><a href="hiki.rb?c=search">Search</a></span>&nbsp;
+<span class="adminmenu"><a href="hiki.rb?c=recent">Changes</a></span>&nbsp;
+<span class="adminmenu"><a href="hiki.rb?c=pagerank_page">PageRank</a></span>&nbsp;
+<span class="adminmenu"><a href="hiki.rb?c=login;p=eigenclass.org+node+classification">Login</a></span></div>
+  <h1 class="header">Accessing the non-perishable information on eigenclass.org</h1>
+  
+  <div><div class="day">
+  
+  <div class="body">
+    <div class="section">
+      <p><a href="http://eigenclass.org" class="external">eigenclass.org</a> is a bit over one year old, and I've populated it with a fair
+amount of information and code. If you've been reading it, you'll know that I've tried to keep eigenclass.org as far as possible from the
+average(?) blog ("link to news story plus worthless
+comment" <img src="http://eigenclass.org/update.png" alt="update.png" /> <em>no, chris2: that doesn't refer to <a href="http://anarchaia.org" class="external">anarchaia</a> at all<span class="footnote"><a name="fm01" href="hiki.rb?eigenclass.org+node+classification#f01" title="I'll just say that it's one of the two (only) sites I visit almost every day. Oh, and self-depreciation gives one something to strive for...">*1</a></span></em>, "link to link to discussion of somebody else's work", shallow technical remarks &amp; rants...).
+Coming up with new, worthy stuff isn't easy and I've not always succeeded (I've often thought that it just wasn't good enough and was close to shutting down eigenclass.org for good a couple times),
+but there <em>are</em> some non-perishable bits of info here, and I'm trying to make them easier to access.</p>
+<p>I've been <a href="hiki.rb?Ruby">classifying some nodes</a>, and just committed a new plugin to
+generate page lists ranked by popularity defined as
+<div class="displaymath"><img class="math" src="hiki.rb?c=plugin;plugin=math_roff_download;p=eigenclass.org+node+classification;file_name=7a56e6ad28c1050e776a63e85e8fae7c.png" alt=" { page_views } over { age sup alpha} "></div><p>
+for <img class="math" src="hiki.rb?c=plugin;plugin=math_roff_download;p=eigenclass.org+node+classification;file_name=2c1743a391305fbf367df8e4f069f9f9.png" alt="alpha"> between 0.5 and 1. Here are the 25 most popular
+nodes on eigenclass.org for <img class="math" src="hiki.rb?c=plugin;plugin=math_roff_download;p=eigenclass.org+node+classification;file_name=e1454c34fe0a5719ac9e0164ecf95f6b.png" alt="alpha = 0.5">, you might find something of interest amongst them:
+<ul>
+<li><a href="hiki.rb?Changes+in+Ruby+1.9">Changes in Ruby 1.9 (47887)</a>
+<li><a href="hiki.rb">MAIN (87486)</a>
+<li><a href="hiki.rb?rcov+FAQ">rcov FAQ (2986)</a>
+<li><a href="hiki.rb?rcov">rcov: code coverage for Ruby (25964)</a>
+<li><a href="hiki.rb?purging+http+referers">Purging referrer URLs concurrently (22654)</a>
+<li><a href="hiki.rb?simple+full+text+search+engine">A simple full-text search engine in 200 lines of Ruby (6498)</a>
+<li><a href="hiki.rb?ruby-wmii+contrib">ruby-wmii configuration and plugins (&quot;community&quot;) (3874)</a>
+<li><a href="hiki.rb?wmii+ruby">ruby-wmii: Ruby configuration/scripting for the wmii window manager (11569)</a>
+<li><a href="hiki.rb?ruby+live+process+introspection">Inspecting a live Ruby process, easier if you cheat. (7316)</a>
+<li><a href="hiki.rb?ruby+internals+guide">Ruby internals: a self-study guide to the sources (7666)</a>
+<li><a href="hiki.rb?Usable+Ruby+folding+for+Vim">Usable Ruby folding for Vim (14503)</a>
+<li><a href="hiki.rb?Ruby">Ruby (14495)</a>
+<li><a href="hiki.rb?ruby+backtrace+data">A better Kernel#caller (9109)</a>
+<li><a href="hiki.rb?ruby+1.8.5+changelog">Changes in Ruby 1.8.5 (5038)</a>
+<li><a href="hiki.rb?tiny+prolog+in+ruby">Logic programming in Ruby: a tiny prolog interpreter and symbolic computation (4050)</a>
+<li><a href="hiki.rb?ruby+memory+fragmentation">When the GC is doing its job, but your app still needs too much RAM (1387)</a>
+<li><a href="hiki.rb?ruby+plugins">Plugins in your Ruby application (7780)</a>
+<li><a href="hiki.rb?Lexical+complexity+in+Ruby">How complex is your Ruby? Time for some lexical variability analysis (11434)</a>
+<li><a href="hiki.rb?feed+readership+estimate">Estimating how many people are subscribed to my RSS feeds (9584)</a>
+<li><a href="hiki.rb?method+arguments+via+introspection">Using introspection to get method arguments and other info (5623)</a>
+<li><a href="hiki.rb?crackme+ruby+pastime">A Ruby challenge: defuse the code bomb and test your Ruby fu (10558)</a>
+<li><a href="hiki.rb?ruby+wmii+bookmark+manager">A minimalistic yet much more powerful bookmark manager, kicking del.icio.us' and Firefox/you-name-it's ass (6999)</a>
+<li><a href="hiki.rb?ruby+branching+plan">Ruby's branching plan, a pic worth more than a ML thread (now with mput's explanation) (784)</a>
+<li><a href="hiki.rb?Enhanced+xmp+code+evaluation+and+annotation">Enhanced xmp code evaluation and annotation (10961)</a>
+<li><a href="hiki.rb?Turning+Hiki+into+a+simple+CMS">Turning Hiki into a simple CMS (10873)</a>
+</ul>
+</p>
+<hr />
+<h3><a name="l0"><span class="sanchor"> </span></a>classic stuff! - _why (2006-11-21 (Tue) 09:58:55)</h3>
+<p>Your frequency is actually totally amazing, given the depth you put into it.  Watching you put this out has been fascinating, Mauricio.</p>
+<p>Some of my absolute favorites: the "defuse the bomb" post, the ICFP solution, the wmii bookmark manager, and the recent fulltext search.  And, going back further, the old 5-line wiki and teensy blogs you had going on Ruby-Talk.</p>
+<h4><a name="l1"> </a>mfp 2006-11-22 (Wed) 15:43:31</h4>
+<p>What can I say... thanks for the praise.
+Glad to see you remember my little plastique.rb/challenge.rb. It's probably the most dense code I've written by the ingenuity(+effort) per line metric.</p>
+<p>hmmm it doesn't work for 1.8.5, I guess I'll have to update it.</p>
+<blockquote>
+<p>teensy blogs</p>
+</blockquote>
+<p>hehe from my side it just started to look like too frequent, too noisy posting</p>
+<h4><a name="l2"> </a>trans 2006-11-23 (Thr) 19:46:27</h4>
+<p>I agree. Amazing churn out. Great posts. Your 1.9 changelog has incalculable value. Thanks.</p>
+<h4><a name="l3"> </a>Baccarat 2006-12-06 (Wed) 07:35:26</h4>
+<p>Nice web site. Keep up the good work!</p>
+  <script language="JScript" type="text/jscript">
+  <!--
+   try {
+          xmlhttp = new ActiveXObject("Msxml2.XMLHTTP");
+  } catch (e) {
+          xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
+  }
+  // -->
+  </script>
+  <script language="JavaScript" type="text/javascript">
+  <!--
+  if(typeof XMLHttpRequest != 'undefined'){
+          xmlhttp = new XMLHttpRequest();
+  }
+  function preview_comment1(text) {
+          if (!document.getElementById) return;
+          if (!xmlhttp) return;
+          xmlhttp.open("GET", "hiki.rb?c=inline_preview;msg="+encodeURIComponent(text), true);
+          document.getElementById("preview_panecomment1").style.display = "";
+          document.getElementById("preview_panecomment1").innerHTML = "...";
+          xmlhttp.onreadystatechange=function() {
+                  if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
+                          document.getElementById("preview_panecomment1").innerHTML = xmlhttp.responseText;
+                  }
+  
+          }
+          xmlhttp.send(null)
+  }
+  // -->
+  </script>
+
+<form class="comment" action="hiki.rb" method="post">
+  <div>
+    Name:
+    <input type="text" name="name" value="" size="10"><br />
+    Comment:
+    <textarea id="msg_comment1" style="width: 100%;" wrap="virtual" rows="4" name="msg"></textarea><br />
+  
+    <input type="submit" name="comment" value="Post">
+    <input type="hidden" name="comment_no" value="1">
+    <input type="hidden" name="c" value="plugin">
+    <input type="hidden" name="p" value="eigenclass.org node classification">
+    <input type="hidden" name="plugin" value="comment_post">
+    <input type="hidden" name="style" value="0">
+    <input type="hidden" name="session_id" value="">
+    <input type="button" name=doPreviewcomment1 value="Preview" 
+              onClick="preview_comment1(document.getElementById('msg_comment1').value)">
+             <a href="hiki.rb?TextFormattingRules">TextFormattingRules</a> 
+  </div>
+  Preview:<div id="preview_panecomment1" style="display:none;">PREVIEW PANE</div>
+</form>
+
+<hr />
+  <script language="JScript" type="text/jscript">
+  <!--
+   try {
+          xmlhttp = new ActiveXObject("Msxml2.XMLHTTP");
+  } catch (e) {
+          xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
+  }
+  // -->
+  </script>
+  <script language="JavaScript" type="text/javascript">
+  <!--
+  if(typeof XMLHttpRequest != 'undefined'){
+          xmlhttp = new XMLHttpRequest();
+  }
+  function preview_bbs1(text) {
+          if (!document.getElementById) return;
+          if (!xmlhttp) return;
+          xmlhttp.open("GET", "hiki.rb?c=inline_preview;msg="+encodeURIComponent(text), true);
+          document.getElementById("preview_panebbs1").style.display = "";
+          document.getElementById("preview_panebbs1").innerHTML = "...";
+          xmlhttp.onreadystatechange=function() {
+                  if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
+                          document.getElementById("preview_panebbs1").innerHTML = xmlhttp.responseText;
+                  }
+  
+          }
+          xmlhttp.send(null)
+  }
+  // -->
+  </script>
+
+<div>
+<form action="hiki.rb" method="post" 
+      style="margin:0px auto;">
+  <p style="margin:0px auto; width:60%;">  Use this form to create a new top-level comment; for direct replies
+  to existing comments, use the text entries you'll find below.
+</ p>
+  <div>
+    Name: <input type="text" name="name" value="" size="10"> <br />
+    Subject: <input type="text" name="subject"><br />
+    <textarea style="width: 100%;" wrap="virtual" rows="10" name="msg" id="msg_bbs1"></textarea><br>
+    <input type="submit" name="comment" value="Post">
+    <input type="hidden" name="bbs_num" value="1">
+    <input type="hidden" name="bbs_level" value="1">
+    <input type="hidden" name="c" value="plugin">
+    <input type="hidden" name="p" value="eigenclass.org node classification">
+    <input type="hidden" name="plugin" value="bbs_post">
+    <input type="hidden" name="session_id" value="">
+    <input type="button" name=doPreviewbbs1 value="Preview" 
+              onClick="preview_bbs1(document.getElementById('msg_bbs1').value)">
+             <a href="hiki.rb?TextFormattingRules">TextFormattingRules</a> 
+  </div>
+  Preview:<div id="preview_panebbs1" style="display:none;">PREVIEW PANE</div>
+</form>
+</div>
+    </div>
+  </div>
+</div>
+</div>
+  <div class="day">
+    <div class="comment">
+      <div class="caption">
+        Last modified:2006/11/20 11:17:37<br>
+        Keyword(s):[<a href="hiki.rb?c=search;key=blog">blog</a>] [<a href="hiki.rb?c=search;key=ruby">ruby</a>] [<a href="hiki.rb?c=search;key=subpar">subpar</a>] [<a href="hiki.rb?c=search;key=eigenclass.org">eigenclass.org</a>]<br>
+        References:<br>
+        
+      </div>
+    </div>
+    <div><div class="footnote">
+  <p class="footnote"><a name="f01" href="hiki.rb?eigenclass.org+node+classification#fm01">*1</a>&nbsp;I'll just say that it's one of the two (only) sites I visit almost every day. Oh, and self-depreciation gives one something to strive for...
+</p>
+</div>
+<div class="referer">Referer |<a href="http://anarchaia.org/" title="http://anarchaia.org/"> 32</a> |<a href="http://eigenclass.org/hiki.rb?eigenclass.org+node+classification" title="http://eigenclass.org/hiki.rb?eigenclass.org node classification"> 26</a> |<a href="http://www.artima.com/forums/flat.jsp?forum=123&amp;thread=185569" title="http://www.artima.com/forums/flat.jsp?forum=123&amp;thread=185569"> 14</a> |<a href="http://eigenclass.org/" title="http://eigenclass.org/"> 10</a> |<a href="http://www.artima.com/buzz/community.jsp?forum=123" title="http://www.artima.com/buzz/community.jsp?forum=123"> 9</a> |<a href="http://eigenclass.org/hiki.rb" title="http://eigenclass.org/hiki.rb"> 9</a> |<a href="http://www.anarchaia.org/" title="http://www.anarchaia.org/"> 9</a> |<a href="http://www.rubycorner.com/" title="http://www.rubycorner.com/"> 7</a> |<a href="http://www.planetrubyonrails.com/" title="http://www.planetrubyonrails.com/"> 5</a> |<a href="http://planetruby.0x42.net/" title="http://planetruby.0x42.net/"> 5</a> |<a href="http://anarchaia.org/index.html" title="http://anarchaia.org/index.html"> 5</a> |<a href="http://anarchaia.org/archive/2006/11/20.html" title="http://anarchaia.org/archive/2006/11/20.html"> 4</a> |<a href="http://eigenclass.org/hiki.rb?popular+nodes" title="http://eigenclass.org/hiki.rb?popular nodes"> 4</a> |<a href="http://www.eigenclass.org/hiki.rb?eigenclass.org+node+classification" title="http://www.eigenclass.org/hiki.rb?eigenclass.org node classification"> 4</a> |<a href="http://rubycorner.com/" title="http://rubycorner.com/"> 3</a> |<a href="http://eigenclass.org/hiki.rb?c=search;key=ruby" title="http://eigenclass.org/hiki.rb?c=search;key=ruby"> 3</a> |<a href="http://eigenclass.org/hiki.rb?simple+full+text+search+engine" title="http://eigenclass.org/hiki.rb?simple full text search engine"> 2</a> |<a href="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-07-25:80/hiki.rb/ICFP06-00000000" title="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-07-25:80/hiki.rb/ICFP06-00000000"> 2</a> |<a href="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-09-23:80/hiki.rb/ruby+live+process+introspection-00000000" title="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-09-23:80/hiki.rb/ruby live process introspection-00000000"> 2</a> |<a href="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-07-12:80/hiki.rb/rubykaigi+2006+ruby+2.0+rubima+article-00000000" title="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-07-12:80/hiki.rb/rubykaigi 2006 ruby 2.0 rubima article-00000000"> 2</a> |<a href="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-08-25:80/hiki.rb/ruby+1.8.5+released-00000000" title="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-08-25:80/hiki.rb/ruby 1.8.5 released-00000000"> 2</a> |<a href="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-10-21:80/hiki.rb/vim+ruby+screencasts-00000000" title="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-10-21:80/hiki.rb/vim ruby screencasts-00000000"> 2</a> |<a href="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-10-12:80/hiki.rb/Changes+in+Ruby+1.9+update+5-00000000" title="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-10-12:80/hiki.rb/Changes in Ruby 1.9 update 5-00000000"> 2</a> |<a href="http://eigenclass.org/hiki.rb?c=search;key=blog" title="http://eigenclass.org/hiki.rb?c=search;key=blog"> 2</a> |<a href="http://eigenclass.org/hiki.rb?rcov" title="http://eigenclass.org/hiki.rb?rcov"> 2</a> |<a href="http://eigenclass.org/hiki.rb?c=search;key=comment" title="http://eigenclass.org/hiki.rb?c=search;key=comment"> 2</a> |<a href="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-11-06:80/hiki.rb/irb+ri+completion-00000000" title="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-11-06:80/hiki.rb/irb ri completion-00000000"> 2</a> |<a href="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-08-06:80/hiki.rb/comment+preview+encodings-00000000" title="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-08-06:80/hiki.rb/comment preview encodings-00000000"> 2</a> |<a href="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-10-31:80/hiki.rb/making+ruby+ri+faster-00000000" title="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-10-31:80/hiki.rb/making ruby ri faster-00000000"> 2</a> |<a href="http://eigenclass.org/hiki.rb?Changes+in+Ruby+1.9" title="http://eigenclass.org/hiki.rb?Changes in Ruby 1.9"> 2</a> |<a href="http://eigenclass.org/hiki.rb?c=search;key=eigenclass.org" title="http://eigenclass.org/hiki.rb?c=search;key=eigenclass.org"> 2</a> |<a href="http://eigenclass.org/hiki.rb?simple+suffix+arrays+vs+ferret+benchmark" title="http://eigenclass.org/hiki.rb?simple suffix arrays vs ferret benchmark"> 2</a> |<a href="http://eigenclass.org/hiki.rb?fastri" title="http://eigenclass.org/hiki.rb?fastri"> 2</a> |<a href="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-09-15:80/hiki.rb/ruby+internals+guide-00000000" title="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-09-15:80/hiki.rb/ruby internals guide-00000000"> 2</a> |<a href="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-08-22:80/hiki.rb/ruby-wmii+plugins+by+Nathan+Howell-00000000" title="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-08-22:80/hiki.rb/ruby-wmii plugins by Nathan Howell-00000000"> 2</a> |<a href="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-07-15:80/hiki.rb/ruby+xmpfilter+0.2.0-00000000" title="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-07-15:80/hiki.rb/ruby xmpfilter 0.2.0-00000000"> 2</a> |<a href="http://eigenclass.org/hiki.rb?c=search;key=code" title="http://eigenclass.org/hiki.rb?c=search;key=code"> 2</a> |<a href="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-07-10:80/hiki.rb/bounded+space+instance_exec-00000000" title="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-07-10:80/hiki.rb/bounded space instance_exec-00000000"> 2</a> |<a href="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-11-10:80/hiki.rb/fastri+0.1.1-00000000" title="http://eigenclass.org/hiki.rb/tag:eigenclass.org,2006-11-10:80/hiki.rb/fastri 0.1.1-00000000"> 2</a> |<a href="http://eigenclass.org/hiki.rb?c=search;key=update" title="http://eigenclass.org/hiki.rb?c=search;key=update"> 2</a> |<a href="http://www.trawlr.com/users/ben/items/RubyOnRails" title="http://www.trawlr.com/users/ben/items/RubyOnRails"> 1</a> |<a href="http://debianlinux.net/ruby/" title="http://debianlinux.net/ruby/"> 1</a> |<a href="http://eigenclass.org/hiki.rb/hiki.rb?crackme+ruby+pastime" title="http://eigenclass.org/hiki.rb/hiki.rb?crackme ruby pastime"> 1</a> |<a href="http://eigenclass.org/hiki.rb?c=search;key=ri" title="http://eigenclass.org/hiki.rb?c=search;key=ri"> 1</a> |<a href="http://eigenclass.org/hiki.rb?fastri+0.2.0" title="http://eigenclass.org/hiki.rb?fastri 0.2.0"> 1</a> |<a href="http://eigenclass.org/hiki.rb?fastri+0.1.1" title="http://eigenclass.org/hiki.rb?fastri 0.1.1"> 1</a> |<a href="http://eigenclass.org/hiki.rb?c=edit;p=eigenclass.org+node+classification" title="http://eigenclass.org/hiki.rb?c=edit;p=eigenclass.org node classification"> 1</a> |<a href="http://eigenclass.org/hiki.rb?call_stack" title="http://eigenclass.org/hiki.rb?call_stack"> 1</a> |<a href="http://www.cs.utexas.edu/~akkartik/feed.cgi?agg/agg.html" title="http://www.cs.utexas.edu/~akkartik/feed.cgi?agg/agg.html"> 1</a> |<a href="http://www.artima.com/buzz/community.jsp?forum=123&amp;blogger=eigenclass" title="http://www.artima.com/buzz/community.jsp?forum=123&amp;blogger=eigenclass"> 1</a> |</div></div>
+  </div>
+</div>
+
+<hr style="display: none">
+<div class="sidebar">
+  <p>Incremental search   <script language="JScript" type="text/jscript">
+  <!--
+   try {
+          xmlhttp = new ActiveXObject("Msxml2.XMLHTTP");
+  } catch (e) {
+          xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
+  }
+  // -->
+  </script>
+  <script language="JavaScript" type="text/javascript">
+  <!--
+  if(typeof XMLHttpRequest != 'undefined'){
+          xmlhttp = new XMLHttpRequest();
+  }
+  function invoke1(key) {
+          if (!document.getElementById) return;
+          if (!xmlhttp) return;
+          xmlhttp.open("GET", "hiki.rb?c=search;key="+encodeURI(key), true);
+          document.getElementById("search_spinner1").style.display = '';
+          xmlhttp.onreadystatechange=function() {
+                  if (xmlhttp.readyState == 4 && xmlhttp.status == 200) {
+                          document.getElementById("result1").innerHTML = xmlhttp.responseText;
+                          document.getElementById("search_spinner1").style.display = 'none';
+                  }
+  
+          }
+          xmlhttp.send(null)
+  }
+  // -->
+  </script>
+  <form method="GET" action="hiki.rb">
+    <input type="hidden" value="search_orig" name="c">
+    <input  maxlength="50" name="key" onkeyup="invoke1(this.value)" 
+            onfocus="invoke1(this.value)">
+    <input type="submit" style="font-size: 75%;" value="Search">
+<img alt="..." id="search_spinner1" src="/loading.gif" 
+         style="display:none;" />
+  </form>
+  <div id="result1"> </div><p>
+</p>
+<hr />
+<ul>
+<li><img src="http://eigenclass.org/xml.png" alt="xml.png" /> <a href="http://eigenclass.org/hiki.rb?c=rss;tags=blog" class="external">RDF (RSS 1.0)</a> - <a href="http://eigenclass.org/hiki.rb?c=rss;format=1;tags=blog" class="external">RSS 2.0</a></li>
+<li><a href="hiki.rb?ruby+blog">WEBlog.Ruby</a></li>
+<li><a href="hiki.rb?Ruby">Ruby (classified nodes)</a></li>
+</ul>
+<h5><a name="s0"> </a>Releases</h5>
+<ul>
+<li><a href="hiki.rb?rcov">rcov </a>: code coverage for Ruby</li>
+<li><a href="hiki.rb?wmii+ruby">ruby-wmii</a>: wmii WM scripting in Ruby</li>
+<li><a href="hiki.rb?call_stack">call_stack </a>: making ruby-breakpoint work with Ruby 1.8.5</li>
+<li><a href="hiki.rb?xmpfilter">xmpfilter </a>: automagic test assertions/expectations</li>
+<li><a href="hiki.rb?fastri">FastRI </a>: faster, smarter RI docs for Ruby</li>
+</ul>
+<h5><a name="s1"> </a><a href="hiki.rb?popular+nodes">View popular nodes</a></h5>
+<h5><a name="s2"> </a>Recent</h5>
+<ul>
+<li title="2006-12-06 "><a href="hiki.rb?rcov+FAQ">rcov FAQ</a> <span class="recent2">(20h)</span>
+<li title="2006-12-05 "><a href="hiki.rb?ruby+branching+plan">Ruby's branching plan, a pic worth more than a ML thread (now with mput's explanation)</a> <span class="recent2">(1d)</span>
+<li title="2006-12-04 "><a href="hiki.rb?ftsearch+repository+accessible">Outperforming Ferret at searching, 3X faster indexing, code online</a> <span class="recent2">(2d)</span>
+<li title="2006-12-02 "><a href="hiki.rb?ruby+memory+fragmentation">When the GC is doing its job, but your app still needs too much RAM</a> <span class="recent2">(4d)</span>
+<li title="2006-11-29 "><a href="hiki.rb?ruby-wmii+contrib">ruby-wmii configuration and plugins (&quot;community&quot;)</a> <span class="recent2">(7d)</span>
+<li title="2006-11-26 "><a href="hiki.rb?indexing+optimization+ftsearch+vs+ferret">Indexing faster than Ferret with some algorithmic help (an order of magnitude faster than Lucene? can't be)</a> <span class="recent2">(10d)</span>
+<li title="2006-11-23 "><a href="hiki.rb?simple+suffix+arrays+vs+ferret+benchmark">Naïve suffix array search engine vs. Ferret vs. Lucene</a> <span class="recent2">(13d)</span>
+<li title="2006-11-20 "><a href="hiki.rb?eigenclass.org+node+classification">Accessing the non-perishable information on eigenclass.org</a> <span class="recent2">(16d)</span>
+<li title="2006-11-20 "><a href="hiki.rb?popular+nodes">Popular nodes on eigenclass.org</a> <span class="recent2">(16d)</span>
+<li title="2006-11-16 "><a href="hiki.rb?fastri+0.2.0">FastRI 0.2.0: full-text searching, smarter search strategies</a> <span class="recent2">(20d)</span>
+<li title="2006-11-16 "><a href="hiki.rb?simple+full+text+search+engine">A simple full-text search engine in 200 lines of Ruby</a> <span class="recent2">(20d)</span>
+</ul>
+
+<h5><a name="s3"> </a><a href="hiki.rb?popular+nodes">Popular</a></h5>
+<ul>
+<li><a href="hiki.rb?Changes+in+Ruby+1.9">Changes in Ruby 1.9 (47887)</a>
+<li><a href="hiki.rb?rcov+FAQ">rcov FAQ (2986)</a>
+<li><a href="hiki.rb">MAIN (87486)</a>
+<li><a href="hiki.rb?ruby-wmii+contrib">ruby-wmii configuration and plugins (&quot;community&quot;) (3874)</a>
+<li><a href="hiki.rb?rcov">rcov: code coverage for Ruby (25964)</a>
+<li><a href="hiki.rb?simple+full+text+search+engine">A simple full-text search engine in 200 lines of Ruby (6498)</a>
+<li><a href="hiki.rb?purging+http+referers">Purging referrer URLs concurrently (22654)</a>
+<li><a href="hiki.rb?wmii+ruby">ruby-wmii: Ruby configuration/scripting for the wmii window manager (11569)</a>
+<li><a href="hiki.rb?ruby+live+process+introspection">Inspecting a live Ruby process, easier if you cheat. (7316)</a>
+<li><a href="hiki.rb?ruby+internals+guide">Ruby internals: a self-study guide to the sources (7666)</a>
+<li><a href="hiki.rb?ruby+memory+fragmentation">When the GC is doing its job, but your app still needs too much RAM (1387)</a>
+<li><a href="hiki.rb?ruby+branching+plan">Ruby's branching plan, a pic worth more than a ML thread (now with mput's explanation) (784)</a>
+<li><a href="hiki.rb?tiny+prolog+in+ruby">Logic programming in Ruby: a tiny prolog interpreter and symbolic computation (4050)</a>
+</ul>
+
+<h5><a name="s4"> </a>Most seen (all time)</h5>
+<ul>
+<li><a href="hiki.rb">MAIN (87486)</a>
+<li><a href="hiki.rb?Changes+in+Ruby+1.9">Changes in Ruby 1.9 (47887)</a>
+<li><a href="hiki.rb?rcov">rcov: code coverage for Ruby (25964)</a>
+<li><a href="hiki.rb?purging+http+referers">Purging referrer URLs concurrently (22654)</a>
+<li><a href="hiki.rb?Usable+Ruby+folding+for+Vim">Usable Ruby folding for Vim (14503)</a>
+<li><a href="hiki.rb?Ruby">Ruby (14495)</a>
+<li><a href="hiki.rb?wmii+ruby">ruby-wmii: Ruby configuration/scripting for the wmii window manager (11569)</a>
+<li><a href="hiki.rb?Lexical+complexity+in+Ruby">How complex is your Ruby? Time for some lexical variability analysis (11434)</a>
+<li><a href="hiki.rb?Enhanced+xmp+code+evaluation+and+annotation">Enhanced xmp code evaluation and annotation (10961)</a>
+<li><a href="hiki.rb?Turning+Hiki+into+a+simple+CMS">Turning Hiki into a simple CMS (10873)</a>
+<li><a href="hiki.rb?crackme+ruby+pastime">A Ruby challenge: defuse the code bomb and test your Ruby fu (10558)</a>
+<li><a href="hiki.rb?Continuations+are+so+much+easier+to+grasp+than+2ch">Continuations are so much easier to grasp than 2ch and Japanese (10285)</a>
+<li><a href="hiki.rb?A+blog+quine">A blog quine and deferred type checks in Ruby (9913)</a>
+<li><a href="hiki.rb?feed+readership+estimate">Estimating how many people are subscribed to my RSS feeds (9584)</a>
+<li><a href="hiki.rb?Pattern+matching+over+Ruby+objects">Pattern matching over Ruby objects (9580)</a>
+<li><a href="hiki.rb?xmp+redux%3A+expanding+test+assertions+for+profit">xmp redux: expanding test assertions for profit (9475)</a>
+<li><a href="hiki.rb?Hash+default+block">Hashes with default procs as memoized functions (9126)</a>
+<li><a href="hiki.rb?ruby+backtrace+data">A better Kernel#caller (9109)</a>
+<li><a href="hiki.rb?Rename+and+reject+methods+from+included+modules">Picking and renaming methods from included modules---tastes like Eiffel? (8557)</a>
+<li><a href="hiki.rb?Usable+Ruby+folding+for+Vim+---+update+2">Usable Ruby folding for Vim, second update (8418)</a>
+</ul>
+
+<hr />
+
+</div>
+
+<div class="footer">Generated by <a href="http://hikiwiki.org/">Hiki</a> 0.8.6 (2006-08-08).<br>
+Powered by <a href="http://www.ruby-lang.org/">Ruby</a> 1.8.3 (2005-10-25).<br>
+Founded by Mauricio Fernandez.<br>
+                <script type="text/javascript"><!--
+                var highlightStyle = new Object();
+                highlightStyle.color = "#fff";
+                highlightStyle.backgroundColor = "#f00";
+                
+                var highlightElem = null;
+                var saveStyle = null;
+                
+                function highlightElement(name) {
+                        if (highlightElem) {
+                                for (var key in saveStyle) {
+                                        highlightElem.style[key] = saveStyle[key];
+                                }
+                                highlightElem = null;
+                        }
+                
+                        highlightElem = getHighlightElement(name);
+                        if (!highlightElem) return;
+                
+                        saveStyle = new Object();
+                        for (var key in highlightStyle) {
+                                saveStyle[key] = highlightElem.style[key];
+                                highlightElem.style[key] = highlightStyle[key];
+                        }
+                }
+                
+                function getHighlightElement(name) {
+                        for (var i=0; i<document.anchors.length; ++i) {
+                                var anchor = document.anchors[i];
+                                if (anchor.name == name) {
+                                        var elem;
+                                        if (anchor.parentElement) {
+                                                elem = anchor.parentElement;
+                                        } else if (anchor.parentNode) {
+                                                elem = anchor.parentNode;
+                                        }
+                                        return elem;
+                                }
+                        }
+                        return null;
+                }
+                
+                if (document.location.hash) {
+                        highlightElement(document.location.hash.substr(1));
+                }
+                
+                hereURL = document.location.href.split(/#/)[0];
+                for (var i=0; i<document.links.length; ++i) {
+                        if (hereURL == document.links[i].href.split(/#/)[0]) {
+                                document.links[i].onclick = handleLinkClick;
+                        }
+                }
+                
+                function handleLinkClick() {
+                        highlightElement(this.hash.substr(1));
+                }
+                // --></script>
+</div>
+</body>
+</html>
