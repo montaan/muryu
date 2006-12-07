@@ -73,17 +73,17 @@ class TestRecursiveDownloader < Test::Unit::TestCase
   class DummyRecursiveDownloader < Future::RecursiveDownloader
     def set_contents(uri, data, content_type = "application/octect-stream")
       @contents ||= {}
-      @contents[uri] = [data, content_type]
+      @contents[uri.to_s] = [data, content_type]
     end
 
     def get_contents(uri)
-      (@contents ||= {})[uri] || ["", "application/octect-stream"]
+      (@contents ||= {})[uri.to_s] || ["", "application/octect-stream"]
     end
 
     def fetch(uri, options = {})
       data, content_type = get_contents(uri)
       io = @fetched[uri.to_s] = StringIO.new(data)
-      @redirected[uri.to_s] = uri
+      @redirected[uri.to_s] = uri.to_s
       class << io; self end.module_eval do 
         define_method(:content_type) { content_type }
       end
