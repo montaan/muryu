@@ -90,9 +90,6 @@ class TestRecursiveDownloader < Test::Unit::TestCase
     fetcher.set_contents(uri, File.read(uri.path), "text/html")
     num_files = fetcher.download(:proxy => false)
   files = <<EOF
-/data/hiki.rb?c=plugin;plugin=math_roff_download;p=eigenclass.org+node+classification;file_name=2c1743a391305fbf367df8e4f069f9f9.png
-/data/hiki.rb?c=plugin;plugin=math_roff_download;p=eigenclass.org+node+classification;file_name=7a56e6ad28c1050e776a63e85e8fae7c.png
-/data/hiki.rb?c=plugin;plugin=math_roff_download;p=eigenclass.org+node+classification;file_name=e1454c34fe0a5719ac9e0164ecf95f6b.png
 /data/recursive-dler.html
 /data/theme/dot-sky2/dot-sky2.css
 /data/theme/hiki_base.css

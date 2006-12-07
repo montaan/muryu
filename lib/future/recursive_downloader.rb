@@ -27,6 +27,8 @@ class RecursiveDownloader
         # FIXME: check type = "text/javascript", etc?
         if (src = res.attributes["src"])
           resolved_uri = uri.merge(src).normalize
+          next if @fetched[resolved_uri] || @redirected[resolved_uri]
+          next if resolved_uri.query.to_s != ''
           fetch(resolved_uri)
         end
       end
@@ -36,6 +38,7 @@ class RecursiveDownloader
         if (src = res.attributes["href"])
           resolved_uri = uri.merge(src).normalize
           next if @fetched[resolved_uri] || @redirected[resolved_uri]
+          next if resolved_uri.query.to_s != ''
           actual_uri, = fetch(resolved_uri)
           @redirected[resolved_uri] = actual_uri
           fetch_recursive(actual_uri)
