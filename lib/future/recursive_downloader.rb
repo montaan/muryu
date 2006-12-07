@@ -22,6 +22,30 @@ class RecursiveDownloader
     @fetched.size
   end
 
+  def downloaded_files
+    @fetched.keys
+  end
+
+  BASIC_LINK_RESOLVER = lambda do |src, dest| 
+    File.basename(dest.path)
+  end
+
+  def processed_file(uri, &resolver_block)
+    uri = URI.parse(uri.to_s).normalize.to_s
+    resolver_block ||= BASIC_LINK_RESOLVER
+    actual_uri = @redirected[uri]
+    case
+    when @html_process_pending[actual_uri]
+      StringIO.new(rewrite_html(actual_uri, &resolver_block))
+    when @css_process_pending[actual_uri]
+      StringIO.new(rewrite_css(actual_uri, &resolver_block))
+    else
+      @fetched[actual_uri]
+    end
+  end
+
+
+  private
   def fetch_references_html(uri)
     uri = URI.parse(uri.to_s).normalize.to_s
     raise "No data for #{uri}." unless io = @fetched[uri]
@@ -75,30 +99,6 @@ class RecursiveDownloader
     end
   end
 
-  def downloaded_files
-    @fetched.keys
-  end
-
-  BASIC_LINK_RESOLVER = lambda do |src, dest| 
-    File.basename(dest.path)
-  end
-
-  def processed_file(uri, &resolver_block)
-    uri = URI.parse(uri.to_s).normalize.to_s
-    resolver_block ||= BASIC_LINK_RESOLVER
-    actual_uri = @redirected[uri]
-    case
-    when @html_process_pending[actual_uri]
-      StringIO.new(rewrite_html(actual_uri, &resolver_block))
-    when @css_process_pending[actual_uri]
-      StringIO.new(rewrite_css(actual_uri, &resolver_block))
-    else
-      @fetched[actual_uri]
-    end
-  end
-
-
-  private
   REWRITE_ATTRIBUTE_DATA = {
     "//img" => "src", "//script" => "src", 
     "//a[@href]" => "href", "//link[@type='text/css']" => "href"
