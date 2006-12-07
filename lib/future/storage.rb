@@ -26,7 +26,7 @@ class BasicStore
     :default_name => "data",
     :levels => 2
   }
-  def initialize(base_path = Paths.cache_dir, options = {})
+  def initialize(base_path = Paths.items_dir, options = {})
     options = DEFAULT_INIT_OPTIONS.merge(options)
     @base_path    = base_path
     @default_name = options[:default_name]
