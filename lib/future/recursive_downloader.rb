@@ -53,6 +53,13 @@ class RecursiveDownloader
     doc = Hpricot(io)
     fetch_references_html_src(uri2, doc)
     fetch_references_html_href(uri2, doc)
+    fetch_embedded_style_imports(uri2, doc)
+  end
+
+  def fetch_embedded_style_imports(uri, doc)
+    doc.search("//style[@type='text/css']") do |res|
+      fetch_references_from_css_code(uri, res.inner_html)
+    end
   end
 
   def fetch_references_html_src(uri, doc)
@@ -89,16 +96,18 @@ class RecursiveDownloader
     uri2  = URI.parse(uri.to_s).normalize
     uri   = uri2.to_s
     raise "No data for #{uri}." unless io = @fetched[uri]
-    # TODO: skip comments 
     io.rewind
-    csscode = io.read
+    fetch_references_from_css_code(uri2, io.read)
+    io.rewind
+  end
+
+  def fetch_references_from_css_code(uri, csscode)
     child_uris = csscode.scan(/@import\s+url\(([^)]+)\)/).flatten
     child_uris.concat(csscode.scan(/@import\s+"([^"]+)"/).flatten)
     # ugh
     child_uris.concat(csscode.scan(/@import\s+'([^"]+)'/).flatten)
-    io.rewind
     child_uris.each do |child_uri|
-      resolved_uri = uri2.merge(child_uri).normalize
+      resolved_uri = uri.merge(child_uri).normalize
       next if @fetched[resolved_uri.to_s] || @redirected[resolved_uri.to_s]
       next if resolved_uri.query.to_s != ''
       actual_uri, = fetch(resolved_uri)
