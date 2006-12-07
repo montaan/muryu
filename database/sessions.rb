@@ -1,7 +1,5 @@
 tables["sessions"] = {
-  :user_id => [["users", :id], 'not null'],
-  :session_id => [:text, 'not null']
+  :user_id => [["users", :id], 'not null', 'index'],
+  :session_id => [:text, 'not null', 'unique']
 }
-
-constraints << ["sessions", :unique, [:user_id, :session_id]]
 
