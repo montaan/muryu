@@ -41,15 +41,26 @@ class BasicStore
   def store(filename, data, options = {})
     options = DEFAULT_STORE_OPTIONS.merge(options)
     digest  = options[:sha1digest] || Digest::SHA1.hexdigest(data)
+
     levels, rest = split_sha1(digest)
     relpath = File.join(File.join(*levels), rest)
-    path    = File.join(@base_path, relpath)
+    path    = File.join(transient_dir, relpath)
+
     FileUtils.mkdir_p(path)
     basename = options[:preserve_name] ? filename : @default_name
     dest     = File.join(path, basename)
+
+    return nil if File.exist?(dest)
+
     tmpname  = File.join(path, "#{Process.pid}-#{Thread.object_id}")
     File.open(tmpname, "wb"){|f| f.write data}
     File.rename(tmpname, dest)
+
+    FileUtils.mkdir_p(File.join(permanent_dir, *levels))
+    link_dst = File.join(permanent_dir, relpath)
+    unless File.exist?(link_dst)
+      FileUtils.ln_s(path, link_dst)
+    end
 
     FileSelector.new(:path => File.join(relpath, basename), 
                      :sha1digest => digest)
@@ -75,13 +86,21 @@ class BasicStore
   def include?(fileselector)
     if (sha1 = fileselector.sha1digest)
       levels, rest = split_sha1(sha1)
-      File.directory?(File.join(@base_path, File.join(*levels), rest))
+      File.exist?(File.join(@base_path, File.join(*levels), rest))
     else
-      File.directory(File.join(@base_path, fileselector.path))
+      File.exist?(File.join(@base_path, fileselector.path))
     end
   end
 
   private
+  def transient_dir
+    File.join(@base_path, Time.now.strftime("%Y-%m-%d"))
+  end
+
+  def permanent_dir
+    @base_path
+  end
+
   def split_sha1(hexdigest)
     re_pref = "(..)" * @levels
     captures = /#{re_pref}(.*)$/.match(hexdigest).captures
