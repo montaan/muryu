@@ -81,6 +81,12 @@ module DB
     :default => lambda{|i|i}
   }
 
+
+  def self.nextval(sequence_name)
+    DB::Conn.query("SELECT nextval(#{DB::Table.quote sequence_name})").to_s.to_i
+  end
+  
+
   class ForeignKey
 
     attr_accessor :foreign_table_name, :foreign_column_name,

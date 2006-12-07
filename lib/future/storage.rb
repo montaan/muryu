@@ -34,6 +34,34 @@ class BasicStore
     FileUtils.mkdir_p(@base_path)
   end
 
+=begin
+maybe something like this?
+
+  def store(io, filename=@default_name)
+    fn = create_unique_filename(filename)
+    (@base_path + fn).open('wb'){|f| f.write io.read(65536) until io.eof? }
+    fn
+  end
+
+  def open(fn,*a,&b)
+    fn = Pathname.new(fn) unless fn.is_a? Pathname
+    full_fn = @base_path + fn
+    full_fn.open(*a,&b)
+  end
+
+  def create_unique_filename(filename)
+    today + (filename + "." + next_id
+  end
+
+  def next_id
+    DB.nextval('store_filename_seq'))
+  end
+
+  def today
+    Time.now.strftime("%Y-%m-%d")
+  end
+=end
+
   DEFAULT_STORE_OPTIONS = {
     :sha1digest => nil,
     :preserve_name => false,

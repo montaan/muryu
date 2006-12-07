@@ -7,13 +7,14 @@ module DB
 class Creator
 include Enumerable
 
-  attr_accessor :tables, :joins, :indexes, :constraints, :descriptions
+  attr_accessor :tables, :joins, :indexes, :constraints, :sequences, :descriptions
 
   def initialize(filenames = [])
     @tables = {}
     @joins = []
     @indexes = []
     @constraints = []
+    @sequences = []
     @descriptions = []
     load *filenames
   end
@@ -23,6 +24,7 @@ include Enumerable
     @joins.clear
     @indexes.clear
     @constraints.clear
+    @sequences.clear
   end
 
   def clear_descriptions
@@ -54,7 +56,7 @@ include Enumerable
   def to_a
     @descriptions.each{|d| instance_eval d }
     create_join_tables
-    create_tables + create_constraints + create_indexes
+    create_tables + create_constraints + create_indexes + create_sequences
   end
   
   def create_join_tables
@@ -121,6 +123,12 @@ include Enumerable
     indexes.sort_by{|c| c.to_s }.map do |table, *cols|
       "CREATE INDEX #{PGconn.escape "#{table}_#{cols.join("_")}"} ON " +
       "#{PGconn.escape table.to_s}(#{cols.map{|c| PGconn.escape c.to_s}.join(",")});"
+    end
+  end
+
+  def create_sequences
+    sequences.sort_by{|c| c.to_s }.map do |seqname, *args|
+      "CREATE SEQUENCE #{PGconn.escape seqname.to_s} #{args.join(' ')};"
     end
   end
 
