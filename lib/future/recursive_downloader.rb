@@ -51,11 +51,16 @@ class RecursiveDownloader
     raise "No data for #{uri}." unless io = @fetched[uri]
     uri2 = URI.parse(uri)
     doc = Hpricot(io)
+    fetch_references_html_src(uri2, doc)
+    fetch_references_html_href(uri2, doc)
+  end
+
+  def fetch_references_html_src(uri, doc)
     %w[img script].each do |resource|
       doc.search(resource).each do |res|
         # FIXME: check type = "text/javascript", etc?
         if (src = res.attributes["src"])
-          resolved_uri = uri2.merge(src).normalize
+          resolved_uri = uri.merge(src).normalize
           next if @fetched[resolved_uri.to_s] || @redirected[resolved_uri.to_s]
           next if resolved_uri.query.to_s != ''
           actual_uri, = fetch(resolved_uri)
@@ -63,10 +68,13 @@ class RecursiveDownloader
         end
       end
     end
+  end
+
+  def fetch_references_html_href(uri, doc)
     %w{//link[@type='text/css']}.each do |query|
       doc.search(query).each do |res|
         if (src = res.attributes["href"])
-          resolved_uri = uri2.merge(src).normalize
+          resolved_uri = uri.merge(src).normalize
           next if @fetched[resolved_uri.to_s] || @redirected[resolved_uri.to_s]
           next if resolved_uri.query.to_s != ''
           actual_uri, = fetch(resolved_uri)
