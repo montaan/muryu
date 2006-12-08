@@ -6,14 +6,16 @@ include Future
 c = CGI.new
 user = c.authenticated?
 
+changeset = []
+
 if user
   if c.has_key? 'redo'
-    user.redo
+    changeset = user.redo
   else
-    user.undo
+    changeset = user.undo
   end
 end
 
 c.print c.header('type' => 'application/javascript')
-c.print '"OK"'
+c.print changeset.to_json
 
