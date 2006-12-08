@@ -15,5 +15,5 @@ edits = c['edits'] if c.has_key? 'edits'
 items = Items.search(query, user)
 items.apply_edits(edits)
 
-CGI.print CGI.header("type" => "text/plain")
-CGI.print "OK"
+c.print c.header("type" => "text/plain")
+c.print "OK"
