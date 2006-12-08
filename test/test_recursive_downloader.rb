@@ -134,7 +134,8 @@ EOF
     num_files = fetcher.download(:proxy => false)
     assert_equal(4, num_files)
     processed_file = File.join(File.expand_path(File.dirname(__FILE__)), "data", "recursive-downloader2-processed.html")
-    assert_equal(File.read(processed_file),
+    expected = File.read(processed_file).gsub(/\$BASE_PATH\$/, base_uri.to_s)
+    assert_equal(expected,
                  fetcher.processed_file(uri).string)
   end
 
