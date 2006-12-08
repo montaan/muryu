@@ -3,8 +3,8 @@ require 'future'
 
 include Future
 
-cgi = CGI.new
-user = cgi.authenticated? || Users.anonymous
+c = CGI.new
+user = c.authenticated? || Users.anonymous
 
 config = {
   :tags => c['tags'],
@@ -19,6 +19,6 @@ Items.add_local_archives(c['local_archive'], config)
 Items.add_urls(c['url'], config)
 Items.add_archive_urls(c['archive_url'], config)
 
-CGI.print CGI.header("type" => 'text/plain')
-CGI.print 'OK'
+c.print c.header("type" => 'text/plain')
+c.print 'OK'
 
