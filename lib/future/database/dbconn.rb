@@ -270,19 +270,19 @@ module DB
     end
 
     def self.find_or_create(h)
-      if v = find(h)
-        v.to_hash
-      else
-        i = Conn.exec(%Q(SELECT nextval(#{quote( table_name + "_id_seq")}) ))[0][0].to_i
-        h[:id] = i
-        Conn.exec(%Q(
-          INSERT INTO #{escape table_name}
-          (#{h.keys.map{|k| escape k}.join(",")})
-          VALUES
-          (#{h.values.map{|v| quote v}.join(",")})
-        ))
-        id i
-      end
+      find(h) or create(h)
+    end
+
+    def self.create(h)
+      i = Conn.exec(%Q(SELECT nextval(#{quote( table_name + "_id_seq")}) ))[0][0].to_i
+      h[:id] = i
+      Conn.exec(%Q(
+        INSERT INTO #{escape table_name}
+        (#{h.keys.map{|k| escape k}.join(",")})
+        VALUES
+        (#{h.values.map{|v| quote v}.join(",")})
+      ))
+      id i
     end
 
     def self.delete(h)
