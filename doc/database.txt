@@ -1,0 +1,1 @@
+database schema is for postgresql 8.1

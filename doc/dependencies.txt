@@ -1,0 +1,45 @@
+
+List of external dependencies required to run the app locally.
+
+Libraries
+=========
+Only libs not in Ruby's stdlib.
+(require, gem name)
+
+rubygems	rubygems
+mp3info		ruby-mp3info
+postgres	postgres
+mechanize	mechanize
+redcloth	redcloth
+ferret		ferret
+imlib2		imlib2-ruby
+inline		RubyInline
+
+Programs
+========
+
+Database
+--------
+postgresql-8.1
+
+
+Converters
+----------
+(executable, debian package)
+pdfinfo		xpdf-utils
+pdftotext	xpdf-utils
+ps2ascii	gs-common
+html2text	html2text
+mplayer		mplayer
+identify	imagemagick
+convert		imagemagick
+antiword	antiword
+ppthtml		ppthtml
+extract		extract
+exif		exif
+
+Misc
+----
+wc
+C toolchain for Ruby::Inline
+
