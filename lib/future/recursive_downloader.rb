@@ -141,6 +141,25 @@ class RecursiveDownloader
     doc.to_s
   end
 
+  def rewrite_css(uri, &resolver_block)
+    uri2 = URI.parse(uri.to_s).normalize
+    uri  = uri2.to_s
+    io   = @fetched[uri].rewind
+    data = io.read
+    @fetched[uri].rewind
+
+    data.gsub(/@import\s+(url\([^)]+\)|"[^"]+"|'[^']+')/) do |import_txt|
+      rel_uri = /@import\s+(?:url\(([^)]+)\)|"([^"]+)"|'([^']+)')/.match(import_txt).captures.compact[0]
+      resolved_uri = uri2.merge(rel_uri).normalize
+      if (actual_uri = @redirected[resolved_uri.to_s])
+        new_rel_uri = resolver_block.call(uri, actual_uri)
+        %{@import "#{new_rel_uri.to_s}"}
+      else
+        "@import url(#{resolved_uri.to_s})"
+      end
+    end
+  end
+
   def fetch(uri, options = {})
     io = OpenURI.open_loop(uri, options)
     @fetched[io.base_uri.to_s] = io
