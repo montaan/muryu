@@ -2,6 +2,7 @@
 require 'future/paths'
 require 'digest/sha1'
 require 'fileutils'
+require 'stringio'
 
 module Future
 
@@ -73,7 +74,7 @@ maybe something like this?
   }
 
   # Stores the file, returning a FileSelector that references the data in the
-  # store.
+  # store. +data+ is either a String or an IO (responds to #eof?, #read).
   # In order to save data associated to another file, give the sha1digest of
   # the parent and use preserve_name, e.g.
   #   mainselector = store.store("foo.html", html)
@@ -82,7 +83,26 @@ maybe something like this?
   #                              :preserve_name => true)
   def store(filename, data, options = {})
     options = DEFAULT_STORE_OPTIONS.merge(options)
-    digest  = options[:sha1digest] || Digest::SHA1.hexdigest(data)
+
+    case data
+    when String
+      io = StringIO.new(data)
+    else
+      # data is assumed to be an IO (#read)
+      io = data
+    end
+
+    digest   = options[:sha1digest]
+    sha1     = Digest::SHA1.new unless digest
+    tmpname0 = File.join(permanent_dir, "#{Process.pid}-#{Thread.object_id}")
+    File.open(tmpname0, "wb") do |f|
+      until io.eof?
+        dat = io.read(65536)
+        f.write(dat)
+        sha1 << dat if sha1
+      end
+    end
+    digest ||= sha1.hexdigest
 
     levels, rest = split_sha1(digest)
     relpath = File.join(File.join(*levels), rest)
@@ -95,7 +115,7 @@ maybe something like this?
     return nil if File.exist?(dest)
 
     tmpname  = File.join(path, "#{Process.pid}-#{Thread.object_id}")
-    File.open(tmpname, "wb"){|f| f.write data}
+    FileUtils.mv(tmpname0, tmpname)
     File.rename(tmpname, dest)
 
     FileUtils.mkdir_p(File.join(permanent_dir, *levels))

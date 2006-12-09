@@ -22,7 +22,15 @@ class TestBasicStorage < Test::Unit::TestCase
     assert_equal("e6/5e/d8dde2b3df94e9a63c509a62b356b82de03f/data", ret.path)
   end
 
-  def test_store_parts
+  def test_store_io
+    io = StringIO.new(DATA)
+    ret = @store.store("foo.txt", io)
+    assert_kind_of(Future::BasicStore::FileSelector, ret)
+    assert_equal("e65ed8dde2b3df94e9a63c509a62b356b82de03f", ret.sha1digest)
+    assert_equal("e6/5e/d8dde2b3df94e9a63c509a62b356b82de03f/data", ret.path)
+  end
+
+  def test_store_children
     html = "foo"
     ret = @store.store("foo.gif", "1234", :sha1digest => Digest::SHA1.hexdigest(html),
                        :preserve_name => true)
@@ -41,6 +49,17 @@ class TestBasicStorage < Test::Unit::TestCase
     assert_equal(DATA, @store.read(ret))
     sel = Future::BasicStore::FileSelector.new(:sha1digest => ret.sha1digest)
     assert_equal(DATA, @store.read(sel))
+  end
+
+  def test_read_children
+    html = "foo"
+    @store.store("foo.html", html)
+    ret = @store.store("foo.gif", "1234", :sha1digest => Digest::SHA1.hexdigest(html),
+                       :preserve_name => true)
+    assert_equal("1234", @store.read(ret))
+    ret = @store.store("foo.jpg", "5678", :sha1digest => Digest::SHA1.hexdigest(html),
+                       :preserve_name => true)
+    assert_equal("5678", @store.read(ret))
   end
 
   def test_open
