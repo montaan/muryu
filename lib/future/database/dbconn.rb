@@ -64,7 +64,7 @@ end
 
 module DB
 
-  Conn = PGconn.new
+  Conn ||= PGconn.new
 
   TYPECASTS = {
     "int4" => lambda{|i| i.to_i },
@@ -401,7 +401,7 @@ module DB
       end
     end
 
-    def self.query(h={})
+    def self.parse_query(h)
       h = h.clone
       order_by = h.delete:order_by
       desc = h.delete:desc
@@ -445,10 +445,14 @@ module DB
         #{"LIMIT #{limit.to_i}" if limit}
         #{"OFFSET #{offset.to_i}" if offset}
       )
-#       puts q
+      q
+    end
+
+    def self.query(h={})
+      q = parse_query h
       Conn.exec(q)
     rescue => e
-      puts q
+      STDERR.puts q
       raise
     end
 
