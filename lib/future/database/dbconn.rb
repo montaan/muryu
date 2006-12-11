@@ -64,7 +64,7 @@ end
 
 module DB
 
-  Conn ||= PGconn.new
+  Conn = PGconn.new unless defined? Conn
 
   TYPECASTS = {
     "int4" => lambda{|i| i.to_i },
