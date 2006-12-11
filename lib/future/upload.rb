@@ -9,12 +9,10 @@ class Uploader
     @store = store
   end
 
-  def store_item(io, filename, timestamp, owner_name, groups, mimetype, metadata)
+  def store_item(io, filename, timestamp, owner_name, groups, can_modify, mimetype, metadata)
     owner = DB::Tables::Users.find(:name => owner_name)
     # FIXME: appropriate exception
     raise ArgumentError unless owner
-    groups = groups.map{|gname| DB::Tables::Users.find(:name => gname)}
-    # FIXME: groups column not in items yet, access_control won't work
     # TODO: wrap in transaction
     handle = @store.store(filename, io)
     mimetype = MimeInfo.get(filename.to_s)
@@ -26,5 +24,11 @@ class Uploader
                              :created_at => timestamp, :modified_at => timestamp, 
                              :mimetype_id => mimetype_id, :metadata_id => metadata_id, 
                              :owner_id => owner.id)
+    groups.each do |gname|
+      group = DB::Tables::Groups.find(:name => gname)}
+      # foreign key magic in dbconn.rb ?
+      DB::Tables::ItemsGroups.create(:item_id => item.id, :group_id => group.id, 
+                                     :can_modify => can_modify)
+    end
   end
 end
