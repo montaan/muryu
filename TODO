@@ -1,1 +1,38 @@
-# write a todo list
+* Port tile drawing code from tilegen.rb
+
+* Tests for dbconn #parse_query
+
+* Tests for image cache
+
+
+* Implement the public API used by
+- login.cgi
+  * create new session for user, redirect to wanted page on success
+- logout.cgi
+  * delete existing session
+
+- tags.cgi
+- sets.cgi
+  * create new set
+  * view list of my sets & shared sets
+  * edit set (i.e. change name & visibility)
+- groups.cgi
+  * create new group
+  * view groups you're a member of
+  * edit groups that you have modify rights to
+- users.cgi
+  * register new user
+  * view user infos
+  * edit user infos
+
+- tile.cgi
+- tile_info.cgi
+
+- upload.cgi
+
+- items.cgi
+- edit_items.cgi
+
+- undo.cgi
+
+
