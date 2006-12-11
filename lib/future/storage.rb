@@ -13,10 +13,12 @@ module Future
 # * allow you to read the data
 class BasicStore
   class FileSelector
-    attr_reader :path, :sha1digest
+    attr_reader :path, :full_path, :sha1digest, :size
     DEFAULT_OPTIONS = {
       :sha1digest => nil,
       :path       => nil,
+      :full_path  => nil,
+      :size       => 0,
     }
     def initialize(options = {})
       options = DEFAULT_OPTIONS.merge(options)
@@ -25,6 +27,8 @@ class BasicStore
       end
       @path       = options[:path]
       @sha1digest = options[:sha1digest]
+      @size       = options[:size]
+      @full_path  = options[:full_path]
     end
   end
 
@@ -94,12 +98,14 @@ maybe something like this?
 
     digest   = options[:sha1digest]
     sha1     = Digest::SHA1.new unless digest
+    size     = 0
     tmpname0 = File.join(permanent_dir, "#{Process.pid}-#{Thread.object_id}")
     File.open(tmpname0, "wb") do |f|
       until io.eof?
         dat = io.read(65536)
         f.write(dat)
         sha1 << dat if sha1
+        size += dat.size
       end
     end
     digest ||= sha1.hexdigest
@@ -112,20 +118,21 @@ maybe something like this?
     basename = options[:preserve_name] ? filename : @default_name
     dest     = File.join(path, basename)
 
-    return nil if File.exist?(dest)
+    unless File.exist?(dest)
+      tmpname  = File.join(path, "tmp#{Process.pid}-#{Thread.object_id}")
+      FileUtils.mv(tmpname0, tmpname)
+      File.rename(tmpname, dest)
 
-    tmpname  = File.join(path, "#{Process.pid}-#{Thread.object_id}")
-    FileUtils.mv(tmpname0, tmpname)
-    File.rename(tmpname, dest)
-
-    FileUtils.mkdir_p(File.join(permanent_dir, *levels))
-    link_dst = File.join(permanent_dir, relpath)
-    unless File.exist?(link_dst)
-      FileUtils.ln_s(path, link_dst)
+      FileUtils.mkdir_p(File.join(permanent_dir, *levels))
+      link_dst = File.join(permanent_dir, relpath)
+      unless File.exist?(link_dst)
+        FileUtils.ln_s(path, link_dst)
+      end
     end
 
     FileSelector.new(:path => File.join(relpath, basename), 
-                     :sha1digest => digest)
+                     :full_path => dest,
+                     :sha1digest => digest, :size => size)
   end
 
   def read(fileselector)
