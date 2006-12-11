@@ -1,0 +1,6 @@
+#!/usr/bin/env ruby
+
+require 'future/simulation/wikipedia_crawler.rb'
+
+crawler = Future::Simulation::WikipediaCrawler.new(:users => 100, :concurrent_downloads => 10)
+crawler.fetch(100)
