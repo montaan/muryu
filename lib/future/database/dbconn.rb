@@ -64,7 +64,10 @@ end
 
 module DB
 
-  Conn = PGconn.new unless defined? Conn
+  unless defined? Conn
+    Conn = PGconn.new($database_host, $database_port, $database_options,
+                      nil, $database, $database_login, $database_passwd)
+  end
 
   TYPECASTS = {
     "int4" => lambda{|i| i.to_i },
