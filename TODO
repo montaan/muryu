@@ -12,6 +12,7 @@
   * delete existing session
 
 - tags.cgi
+  * list tags
 - sets.cgi
   * create new set
   * view list of my sets & shared sets

@@ -9,6 +9,10 @@ include Enumerable
 
   attr_accessor :tables, :joins, :indexes, :constraints, :sequences, :descriptions
 
+  GEOMETRIC_TYPES = [
+    'point', 'line', 'lseg', 'box', 'path', 'polygon', 'circle'
+  ]
+
   def initialize(filenames = [])
     @tables = {}
     @joins = []
@@ -75,6 +79,7 @@ include Enumerable
         options = sig[1..-1]
         index = sig.delete('index')
         if type.is_a? Array # foreign key
+          type << :id if type.size < 2
           constraints << [table, :foreign_key, colname, type]
         end
         if index and not options.include? 'unique'
@@ -88,19 +93,24 @@ include Enumerable
       table_sql = "CREATE TABLE #{PGconn.escape table.to_s} (\n  "
       columns_sql = []
       columns.sort_by{|c| c.to_s }.each do |colname, sig|
-        type = sig[0]
+        type = get_type sig
         options = sig[1..-1]
-        while type.is_a? Array # foreign key, collapse type
-          tbl, col = type
-          type = tables[tbl][col][0]
-          type = :int if type.to_s == 'serial'
-        end
         columns_sql << "#{PGconn.escape colname.to_s} #{type} #{options.join(" ")}"
       end
       table_sql << columns_sql.join(",\n  ")
       table_sql << "\n);"
       table_sql
     end
+  end
+
+  def get_type sig
+    type = sig[0]
+    while type.is_a? Array # foreign key, collapse type
+      tbl, col = type
+      type = tables[tbl][col][0]
+      type = :int if type.to_s == 'serial'
+    end
+    type.to_s
   end
 
   def create_constraints
@@ -119,10 +129,21 @@ include Enumerable
     end
   end
 
+  def geometric? sig
+    return false if sig.nil?
+    GEOMETRIC_TYPES.include? get_type(sig)
+  end
+
   def create_indexes
-    indexes.sort_by{|c| c.to_s }.map do |table, *cols|
-      "CREATE INDEX #{PGconn.escape "#{table}_#{cols.join("_")}"} ON " +
-      "#{PGconn.escape table.to_s}(#{cols.map{|c| PGconn.escape c.to_s}.join(",")});"
+    indexes.sort_by{|c| c.to_s }.map do |table, cols, index_type|
+      cols = [cols] unless cols.is_a? Array
+      index_type ||= if cols.find{|col| geometric? tables[table][col] }
+        "rtree"
+      else
+        "btree"
+      end
+      "CREATE INDEX #{PGconn.escape "#{table}_#{cols.join("_").gsub(/[^0-9a-z_]/i,'_')}"} ON " +
+      "#{PGconn.escape table.to_s} USING #{index_type} (#{cols.map{|c| PGconn.escape c.to_s}.join(",")});"
     end
   end
 
