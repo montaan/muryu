@@ -240,7 +240,7 @@ module DB
     end
 
     def self.foreign_key? k
-      columns[k.to_s+"_id"] and foreign_keys[k.to_s+"_id"]
+      foreign_keys[k.to_s] or (columns[k.to_s+"_id"] and foreign_keys[k.to_s+"_id"])
     end
 
     def self.reverse_foreign_key? k
@@ -266,14 +266,32 @@ module DB
 
     def self.escape n
       PGconn.escape(n.to_s).dump
+    rescue => e
+      raise ArgumentError, "Can't escape #{n.inspect}."
     end
 
     def self.quote n
-      PGconn.quote n
+      case n
+      when DB::Table
+        PGconn.quote n.id
+      else
+        PGconn.quote n.to_s
+      end
+    rescue => e
+      raise ArgumentError, "Can't quote #{n.inspect}."
     end
 
     def self.find_or_create(h)
       find(h) or create(h)
+    end
+
+    def self.ground_column_name(column_name)
+      return column_name if columns.include? column_name.to_s
+      fkey = foreign_key?(column_name.to_s)
+      if fkey
+        return fkey.column_name
+      end
+      raise ArgumentError, "Invalid column name #{column_name} for #{table_name}"
     end
 
     def self.create(h)
@@ -281,14 +299,14 @@ module DB
       h[:id] = i
       Conn.exec(%Q(
         INSERT INTO #{escape table_name}
-        (#{h.keys.map{|k| escape k}.join(",")})
+        (#{h.keys.map{|k| escape ground_column_name(k)}.join(",")})
         VALUES
         (#{h.values.map{|v| quote v}.join(",")})
       ))
-      id i
+      id(i)[0]
     end
 
-    def self.delete(h)
+    def self.delete(h={})
       if r = find(h)
         Conn.exec(%Q(
           DELETE FROM #{escape table_name}
@@ -297,7 +315,7 @@ module DB
       end
     end
 
-    def self.delete_all(h)
+    def self.delete_all(h={})
       unless (rs=find_all(h)).empty?
         Conn.exec(%Q(
           DELETE FROM #{escape table_name}
@@ -323,11 +341,10 @@ module DB
     def self.__comparison(k,v,lvl="0")
       k = k.to_s
       table = k.split(".").first
-      if foreign_key? table
-        fk = foreign_keys[table.to_s+"_id"]
+      if fk = foreign_key?(table)
         comp = case v
         when Table
-          return __comparison(table.to_s+"_id", v[fk.foreign_column_name], lvl)
+          return __comparison(fk.column_name, v[fk.foreign_column_name], lvl)
         else
           k = k.sub(table+".","")
           ft = fk.foreign_table
@@ -357,8 +374,9 @@ module DB
       [[table_name, table_name+lvl, *cmp_table], [comp]]
     end
 
+    COMPARISON_OPS = ['<','>','in','not in','=','>=','<=']
     def self.get_comparison(k, v, lvl=nil)
-      if v.is_a? Array and ['<','>','in','not in','=','>=','<='] === v[0].to_s.downcase
+      if v.is_a? Array and COMPARISON_OPS.include?(v[0].to_s.downcase)
         cmp, v = v
       else
         cmp = nil
@@ -376,8 +394,8 @@ module DB
         vs[0] << lvl if vs.length > 1
         k + " #{cmp || "="} " + vs.map{|i|escape i }.join(".")
       when Array
-        if v[0][-2,2] == "()"
-          f = v[0][0...-2]
+        if v[0].to_s[-2,2] == "()"
+          f = v[0].to_s[0...-2]
           v = v[1..-1]
         end
         # problematic f(1,2,3,4) vs. (f(1),f(2),f(3),f(4)) ?
@@ -455,8 +473,8 @@ module DB
       q = parse_query h
       Conn.exec(q)
     rescue => e
-      STDERR.puts q
-      raise
+      raise ArgumentError,
+            "Failed to execute query (#{e.message}): #{q}"
     end
 
 

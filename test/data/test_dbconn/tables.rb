@@ -4,11 +4,15 @@ tables['employees'] = {
   :first_name => [:text], 
   :last_name => [:text],
   :salary => [:int],
-  :starting_date => [:datetime]
+  :starting_date => [:timestamp],
+  :department_id => [['departments']]
 }
 tables['departments'] = {
-  :name => [:text]
+  :name => [:text, 'not null']
 }
 
-tables['c']
+tables['department_chiefs'] = {
+  :department_id => [['departments'], 'unique', 'not null'],
+  :employee_id => [['employees'], 'not null']
+}
 

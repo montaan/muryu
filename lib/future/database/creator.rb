@@ -48,9 +48,11 @@ include Enumerable
     to_a.join(*a)
   end
 
-  def to_s
+  def to_sql
     join("\n")
   end
+
+  alias_method :to_s, :to_sql
 
   def load(*filenames)
     @descriptions += filenames.map{|fn| File.read(fn.to_s) }
@@ -111,6 +113,8 @@ include Enumerable
       type = :int if type.to_s == 'serial'
     end
     type.to_s
+  rescue => e
+    raise ArgumentError, "Unable to create type from #{sig.inspect} (#{e.message})"
   end
 
   def create_constraints
