@@ -26,26 +26,28 @@ include Future
   end
 
   def test_group
+    UsersGroups.delete_all("group.namespace" => 'groups')
+    Groups.delete_all(:namespace => 'groups')
     assert(Groups.rfind_all(@user, :name => 'foo fighters').empty?)
     assert(Groups.rfind_all(@user2, :name => 'foo fighters').empty?)
 
-    ff = Groups.create(:name => 'foo fighters', :owner => @user, :public => false)
-    assert(Groups.rfind_all(@user, :name => 'foo fighters').size == 1)
-    assert(Groups.rfind_all(@user2, :name => 'foo fighters').empty?)
+    ff = Groups.rcreate(:name => 'foo fighters', :owner => @user, :public => false)
+    assert_equal(ff, Groups.rfind(@user, :name => 'foo fighters'))
+    assert_equal(nil, Groups.rfind(@user2, :name => 'foo fighters'))
     
-    bb = Groups.create(:name => 'baz buzzers', :owner => @user2, :public => true)
-    assert(Groups.rfind_all(@user, :name => 'baz buzzers').size == 1)
-    assert(Groups.rfind_all(@user2, :name => 'baz buzzers').size == 1)
+    bb = Groups.rcreate(:name => 'baz buzzers', :owner => @user2, :public => true)
+    assert(Groups.rfind(@user, :name => 'baz buzzers'))
+    assert(Groups.rfind(@user2, :name => 'baz buzzers'))
 
-    ff.add_member @user2
-    assert(Groups.rfind_all(@user2, :name => 'foo fighters').size == 1)
+    ff.add_member @user, @user2
+    assert(Groups.rfind(@user2, :name => 'foo fighters'))
     
-    ff.remove_member @user2
-    assert(Groups.rfind_all(@user2, :name => 'foo fighters').empty?)
+    ff.remove_member @user, @user2
+    assert_equal([], Groups.rfind_all(@user2, :name => 'foo fighters'))
 
-    Groups.delete(:name => 'baz buzzers')
-    assert(Groups.rfind_all(@user, :name => 'baz buzzers').size == 0)
-    assert(Groups.rfind_all(@user2, :name => 'baz buzzers').size == 0)
+    Groups.rdelete(@user2, :name => 'baz buzzers')
+    assert_equal([], Groups.rfind_all(@user, :name => 'baz buzzers'))
+    assert_equal([], Groups.rfind_all(@user2, :name => 'baz buzzers'))
   end
   
 end
