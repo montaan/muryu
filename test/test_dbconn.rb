@@ -22,7 +22,13 @@ class DBConnTest < Test::Unit::TestCase
       require "#{path}/../lib/future/database/creator"
       c = DB::Creator.new Dir["#{path}/data/test_dbconn/*.rb"]
       require "#{path}/../lib/future/database/dbconn"
-      DB::Conn.exec c.to_sql
+      begin
+        stderr = STDERR.clone
+        STDERR.reopen("/dev/null")
+        DB::Conn.exec c.to_sql
+      ensure
+        STDERR.reopen(stderr)
+      end
       ObjectSpace.define_finalizer( self, FinalizeDB.finish )
       @@setup_done = true
     end
