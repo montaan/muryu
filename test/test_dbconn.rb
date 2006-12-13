@@ -99,12 +99,21 @@ class DBConnTest < Test::Unit::TestCase
   end
 
   def test_foreign_keys
+    create_company
+    assert_equal('accounting', @emp.find(:first_name => 'Lucy').department.name)
   end
 
   def test_reverse_foreign_keys
+    create_company
+    lucy = @emp.find(:first_name => 'Lucy')
+    lucys_department = lucy.departments[0]
+    assert_equal(['Bob', 'Lucy'], lucys_department.employees.map{|e| e.first_name}.sort)
   end
 
   def test_joins
+    create_company
+    lucy = @emp.find(:first_name => 'Lucy')
+    assert_equal(['accounting'], lucy.names)
   end
 
 

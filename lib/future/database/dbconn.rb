@@ -239,8 +239,9 @@ module DB
       columns.find{|c,t| c == name.to_s }
     end
 
-    def self.foreign_key? k
-      foreign_keys[k.to_s] or (columns[k.to_s+"_id"] and foreign_keys[k.to_s+"_id"])
+    def self.foreign_key? k, ignore_direct=false
+      (ignore_direct and foreign_keys[k.to_s]) or
+      (columns[k.to_s+"_id"] and foreign_keys[k.to_s+"_id"])
     end
 
     def self.reverse_foreign_key? k
@@ -336,12 +337,15 @@ module DB
       q = query(h)
       idx = -1
       q.map{|i| new q, idx+=1 }
+    rescue
+      p h
+      raise
     end
 
     def self.__comparison(k,v,lvl="0")
       k = k.to_s
       table = k.split(".").first
-      if fk = foreign_key?(table)
+      if fk = foreign_key?(table.to_s)
         comp = case v
         when Table
           return __comparison(fk.column_name, v[fk.foreign_column_name], lvl)
@@ -350,7 +354,6 @@ module DB
           ft = fk.foreign_table
           jt = fk.join_table_name
           t, pr = ft.__comparison(k,v,lvl.succ)
-#           p [table_name, t, lvl]
           t << [table_name, table_name+lvl]
           t << [jt, jt+lvl.succ] if jt
           t << [ft.table_name, ft.table_name+lvl.succ]
@@ -459,8 +462,11 @@ module DB
       tn = table_name
       tn = escape(tables.find_all{|n,t| t == table_name}.min[0]) unless tables.empty?
       q =  %Q(SELECT #{cols.map{|c|tn+"."+escape(c)}.join(", ")})
-      q << %Q(\nFROM #{tables.map{|n,t| escape(t)+" "+escape(n) }.join(", ")}) unless tables.empty?
-      q << %Q(\nFROM #{escape table_name}) if tables.empty?
+      q << if tables.empty?
+        %Q(\nFROM #{escape table_name})
+      else
+        %Q(\nFROM #{tables.map{|n,t| escape(t)+" "+escape(n) }.join(", ")})
+      end
       q << %Q(\nWHERE #{predicates.uniq.join(" AND ")}) unless predicates.empty?
       q << %Q(\n#{%Q(ORDER BY #{parse_order_by order_by, desc, asc}) if order_by}
         #{"LIMIT #{limit.to_i}" if limit}
@@ -593,7 +599,7 @@ module DB
             WHERE id = #{quote @id}
           )).result.flatten.first).cast(columns[c])
         end
-      elsif foreign_key?(c)
+      elsif foreign_key?(c, true)
         fk = foreign_keys[c+"_id"]
         if cache_queries?
           pin_foreign_key!(fk,c) unless instance_variables.include?("@#{c}")
