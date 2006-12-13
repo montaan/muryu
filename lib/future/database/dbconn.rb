@@ -451,7 +451,7 @@ module DB
       h = h.clone
       order_by = h.delete:order_by
       desc = h.delete:desc
-      asc = h.delete:desc
+      asc = h.delete:asc
       limit = h.delete:limit
       offset = h.delete:offset
       cols = h.delete:columns
