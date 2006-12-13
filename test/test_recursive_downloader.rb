@@ -1,8 +1,5 @@
-
-
 require 'test/unit'
-$:.unshift File.join(File.dirname(__FILE__), "..", "lib")
-$:.unshift "lib"
+require File.join(File.dirname(__FILE__), "set_include_path.rb")
 
 require 'future/recursive_downloader.rb'
 

@@ -1,4 +1,5 @@
 require 'test/unit'
+require File.join(File.dirname(__FILE__), "set_include_path.rb")
 
 $own_path = File.expand_path(File.dirname(__FILE__))
 

@@ -1,5 +1,6 @@
 require 'test/unit'
-require File.dirname(__FILE__) + '/../lib/future/database/creator.rb'
+require File.join(File.dirname(__FILE__), "set_include_path.rb")
+require 'future/database/creator'
 
 class CreatorTest < Test::Unit::TestCase
 

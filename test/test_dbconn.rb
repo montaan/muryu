@@ -1,4 +1,9 @@
 require 'test/unit'
+require File.join(File.dirname(__FILE__), "set_include_path.rb")
+
+require 'future/config'
+require "future/database/creator"
+require "future/database/dbconn"
 
 class FinalizeDB
   def self.finish
@@ -19,9 +24,10 @@ class DBConnTest < Test::Unit::TestCase
       `dropdb #{$database} 2> /dev/null`
       `createdb #{$database}`
       path = File.dirname __FILE__
-      require "#{path}/../lib/future/database/creator"
       c = DB::Creator.new Dir["#{path}/data/test_dbconn/*.rb"]
-      require "#{path}/../lib/future/database/dbconn"
+      conf = Future::Config
+      DB.establish_connection(conf.host, conf.port, conf.options,
+                              $database, conf.login, conf.password)
       begin
         stderr = STDERR.clone
         STDERR.reopen("/dev/null")

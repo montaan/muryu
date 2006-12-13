@@ -1,0 +1,23 @@
+development:
+  host:
+  port:
+  options:
+  database:
+  login:
+  password:
+
+test:
+  host:
+  port:
+  options:
+  database:
+  login:
+  password:
+
+production:
+  host:
+  port:
+  options:
+  database:
+  login:
+  password:

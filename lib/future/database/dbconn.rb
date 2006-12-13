@@ -1,3 +1,4 @@
+require 'future/config'
 require 'postgres'
 require 'time'
 require 'date'
@@ -63,10 +64,16 @@ end
 
 
 module DB
+  def self.establish_connection(host, port, options, database, login, password)
+    remove_const(:Conn) if defined? Conn
+    const_set(:Conn, PGconn.new(host, port, options, nil, database, login, password))
+  end
 
-  unless defined? Conn
-    Conn = PGconn.new($database_host, $database_port, $database_options,
-                      nil, $database, $database_login, $database_passwd)
+  unless defined? @Conn
+    conf = Future::Config
+    conf.load_environment
+    establish_connection(conf.host, conf.port, conf.options, conf.database,
+                         conf.login, conf.password)
   end
 
   TYPECASTS = {
