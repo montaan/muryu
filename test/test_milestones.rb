@@ -5,7 +5,8 @@ $own_path = File.expand_path(File.dirname(__FILE__))
 class Milestones < Test::Unit::TestCase
 
   def check_milestone(milestone)
-    system("ruby", $own_path + "/milestone_runner.rb", "-r", milestone)
+    args = ["ruby", $own_path + "/milestone_runner.rb", milestone]
+    system(*args)
   end
 
   def test_milestones
