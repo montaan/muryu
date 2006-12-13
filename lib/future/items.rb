@@ -6,6 +6,18 @@ module Future
 DB::Tables::Items
 class Items < DB::Tables::Items
 
+  def read
+    File.open(internal_path, "rb"){|f| f.read}
+  end
+
+  def open
+    if block_given?
+      File.open(internal_path, "rb"){|f| yield f}
+    else
+      File.open(internal_path, "rb")
+    end
+  end
+
   def thumbnails
     @thumbnails ||= {}
   end
