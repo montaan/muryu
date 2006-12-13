@@ -188,5 +188,12 @@ class DBConnTest < Test::Unit::TestCase
     c.close
   end
 
+  def test_foreign_key_find
+    create_company
+    lucy = @emp.find(:first_name => 'Lucy')
+    assert_equal(lucy, @dcs.find(:employee => lucy).employee)
+    assert_equal(lucy, @dcs.find(:employee_id => lucy).employee)
+  end
+
 
 end
