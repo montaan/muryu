@@ -63,11 +63,15 @@ class Uploader
     dir = today user
     preferred_filename = preferred_filename.sub(/#{Regexp.escape(ext)}\Z/i, '')
     base = File.join(dir, sanitize(preferred_filename))
-    latest = Items.find(:path => /^#{base}(\.[0-9]+)?#{Regexp.escape(ext)}/, :order_by => [[:path, :desc]])
-    if latest
-      fn = latest.path
-      num = (fn =~ /^#{base}#{Regexp.escape(ext)}/) ? 1 : fn.split(".")[-2].to_i+1
-      base + ".#{num}" + ext
+    latest_numbered = Items.find(:path => /^#{base}\.[0-9]+?#{Regexp.escape(ext)}/, 
+                                 :order_by => [[:path, :desc]])
+    # FIXME: breaks after .999
+    if latest_numbered
+      fn = latest_numbered.path
+      num = fn.split(".")[-2].to_i + 1
+      base + (".%03d" % num) + ext
+    elsif Items.find(:path => "#{base}#{ext}")
+      base + ".001" + ext
     else
       base + ext
     end
@@ -85,6 +89,10 @@ class Uploader
     e.message =~ /violates unique constraint/
   end
 
+  # how many times we try to store the file until we give up since getting an
+  # unused path seems impossible
+  MAX_ATTEMPS = 10
+
   # store item to db and file store
   def store_item(io, preferred_filename, owner, groups, metadata_info)
     handle = @store.store(preferred_filename, io)
@@ -92,13 +100,13 @@ class Uploader
     major, minor = mimetype.to_s.split("/")
     metadata = MetadataExtractor[ handle.full_path, mimetype.to_s ]
     item = nil
-    filename = preferred_filename
+    attemps = MAX_ATTEMPS
     begin
       DB.transaction do
         mimetype_id = Mimetypes.find_or_create(:major => major, :minor => minor)
         # create new metadata to avoid nasty surprises with metadata edits?
         metadata_id = Metadata.create(metadata)
-        filename = create_unique_filename filename, owner, mimetype.extname
+        filename = create_unique_filename(preferred_filename, owner, mimetype.extname)
         item = Items.create(
                             :path => filename, :size => handle.size,
                             :internal_path => handle.full_path,
@@ -116,7 +124,7 @@ class Uploader
         end
       end
     rescue => e
-      retry if filename_violation? e # watch out for infinite loop
+      retry if filename_violation?(e) && (attemps -= 1) > 0
       raise
     end
     item
