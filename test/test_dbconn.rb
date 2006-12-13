@@ -154,5 +154,33 @@ class DBConnTest < Test::Unit::TestCase
     assert_equal(['accounting'], lucy.names)
   end
 
+  def test_transaction
+    create_company
+    c = PGconn.new(nil,nil,nil,nil,$database)
+    orig_salary = @emp.find(:first_name => 'Lucy').salary
+    DB.transaction do
+      @emp.find(:first_name => 'Lucy').salary = 1000
+      assert_equal(
+        orig_salary,
+        c.query("select salary from employees where first_name = 'Lucy'").to_s.to_i
+      )
+    end
+    assert_equal(1000, @emp.find(:first_name => 'Lucy').salary)
+    assert_equal(
+      1000,
+      c.query("select salary from employees where first_name = 'Lucy'").to_s.to_i
+    )
+    DB.transaction do
+      @emp.find(:first_name => 'Lucy').salary = 12000
+      DB.rollback
+    end
+    assert_equal(1000, @emp.find(:first_name => 'Lucy').salary)
+    assert_equal(
+      1000,
+      c.query("select salary from employees where first_name = 'Lucy'").to_s.to_i
+    )
+    c.close
+  end
+
 
 end

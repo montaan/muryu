@@ -84,6 +84,28 @@ module DB
     :default => lambda{|i|i}
   }
 
+  # Isolation level can be 'READ COMMITTED' or 'SERIALIZABLE'.
+  # Access mode can be 'READ WRITE' or 'READ ONLY'.
+  def self.transaction(isolation_level='read committed', access_mode='read write')
+    Conn.exec('BEGIN')
+    Conn.exec('SET TRANSACTION ISOLATION LEVEL '+isolation_level+' '+access_mode)
+    rv = yield
+    Conn.exec('COMMIT')
+    rv
+  rescue TransactionRollback
+    return false
+  rescue
+    Conn.exec('ROLLBACK')
+    raise
+  end
+
+  def self.rollback
+    Conn.exec('ROLLBACK')
+    raise TransactionRollback
+  end
+
+  class TransactionRollback < StandardError
+  end
 
   def self.nextval(sequence_name)
     DB::Conn.query("SELECT nextval(#{DB::Table.quote sequence_name})").to_s.to_i
