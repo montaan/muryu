@@ -1,28 +1,6 @@
 $:.unshift "lib" if File.directory? "lib"
 require 'rake/testtask'
 
-desc "Run the functional and unit tests."
-Rake::TestTask.new(:test) do |t|
-  t.test_files = FileList['test/test*.rb']
-  t.verbose = true
-end
-
-require 'rcov/rcovtask'
-desc "Run rcov."
-Rcov::RcovTask.new do |t|
-  t.test_files = FileList['test/test_*.rb'].to_a.reject{|x| /test_functional/ =~ x}
-  t.verbose = true
-end
-
-desc "Save current coverage state for later comparisons."
-Rcov::RcovTask.new(:rcovsave) do |t|
-  t.rcov_opts << "--save"
-  t.test_files = FileList['test/test_*.rb'].to_a.reject{|x| /test_functional/ =~ x}
-  t.verbose = true
-end
-
-task :default => :test
-
 require 'future/config'
 require 'future/database/creator'
 namespace :db do
@@ -52,8 +30,43 @@ namespace :db do
   end
 end
 
+desc "Run the functional and unit tests."
+Rake::TestTask.new(:test) do |t|
+  t.test_files = FileList['test/test*.rb']
+  t.verbose = true
+end
 task :test => "db:test:prepare"
+
+namespace :test do
+  Rake::TestTask.new(:unit) do |t|
+    t.test_files = FileList['test/test*.rb'].to_a - ["test/test_milestones.rb"]
+    t.verbose = true
+  end
+  task :unit => "db:test:prepare"
+
+  Rake::TestTask.new(:milestones => "db:test:prepare") do |t|
+    t.test_files = ["test/test_milestones.rb"]
+    t.verbose = true
+  end
+  task :milestones => "db:test:prepare"
+end
+
+require 'rcov/rcovtask'
+desc "Run rcov."
+Rcov::RcovTask.new do |t|
+  t.test_files = FileList['test/test_*.rb'].to_a.reject{|x| /test_functional/ =~ x}
+  t.verbose = true
+end
 task :rcov => "db:test:prepare"
-task :rcov_save => "db:test:prepare"
+
+desc "Save current coverage state for later comparisons."
+Rcov::RcovTask.new(:rcovsave) do |t|
+  t.rcov_opts << "--save"
+  t.test_files = FileList['test/test_*.rb'].to_a.reject{|x| /test_functional/ =~ x}
+  t.verbose = true
+end
+task :rcovsave => "db:test:prepare"
+
+task :default => :test
 
 # vim: set sw=2 ft=ruby:
