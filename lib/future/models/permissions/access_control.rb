@@ -1,5 +1,5 @@
 require 'future/base'
-require 'future/permissions/authentication'
+require 'future/models/permissions/authentication'
 
 
 module Future

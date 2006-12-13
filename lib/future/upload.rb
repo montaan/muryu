@@ -3,7 +3,8 @@
 require 'future/base'
 require 'future/metadata'
 require 'future/storage'
-require 'future/groups'
+require 'future/models/groups'
+require 'future/models/metadata'
 
 module Future
 

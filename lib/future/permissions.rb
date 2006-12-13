@@ -1,2 +1,2 @@
-require 'future/permissions/authentication'
-require 'future/permissions/access_control'
+require 'future/models/permissions/authentication'
+require 'future/models/permissions/access_control'

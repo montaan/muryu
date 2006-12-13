@@ -1,5 +1,5 @@
 require 'future/base'
-require 'future/items'
+require 'future/models/items'
 require 'rubygems'
 require 'ferret'
 
