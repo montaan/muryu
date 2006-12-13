@@ -49,17 +49,17 @@ module AccessControlClass
     rfind_all(user, h.merge(:limit => 1, :columns => :all)).first
   end
 
-  def create(h)
+  def rcreate(h)
     h = h.clone
-    ugroup = h[:owner].group
+    ugroup = (h[:owner] || Users.find(:user_id => h[:owner_id])).group
     if h.delete(:public)
       pgroup = Groups.public
     end
     it = super(h)
-    DB::Tables.const_get(to_s+"Groups").create(
+    DB::Tables.const_get(to_s.split(/::/).last+"Groups").create(
       :group_id => ugroup, "#{table_name[0..-2]}_id" => it, :can_modify => true
     )
-    DB::Tables.const_get(to_s+"Groups").create(
+    DB::Tables.const_get(to_s.split(/::/).last+"Groups").create(
       :group_id => pgroup, "#{table_name[0..-2]}_id" => it, :can_modify => false
     ) if pgroup
     it
