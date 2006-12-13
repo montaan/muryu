@@ -1,4 +1,5 @@
 require 'future/base'
+require 'future/permissions/authentication'
 
 
 module Future

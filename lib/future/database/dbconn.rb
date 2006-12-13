@@ -512,6 +512,8 @@ module DB
         __assign_vars id, idx
       when Hash
         __assign_vars self.class.query(id), idx
+      when Fixnum
+        @id = id
       else
         __assign_vars self.class.query("id" => id)
       end

@@ -9,27 +9,36 @@ require 'future/metadata/mime_info'
 module Future
 
 
-class Items
+class Items < DB::Tables::Items
 
   def update_metadata
-    md = DB::Tables::Metadata.find_or_create(:item_id => id)
+    md = Metadata.find_or_create(:item_id => id)
     autodetect_metadata.each{|k,v|
       md[k] = v
     }
   end
 
   def autodetect_metadata
-    Metadata[Future.items_dir+filename, mimetype]
+    MetadataExtractor[Future.items_dir+filename, mimetype]
   end
   
 end
 
 
+class Metadata < DB::Tables::Metadata
+end
+
+
+class Mimetypes < DB::Tables::Mimetypes
+end
+
+
 # Extracts metadata from a file.
 #
-# Future::Metadata['foo.png']
+# Future::MetadataExtractor['foo.png']
 #
-module Metadata
+### renamed due to name conflict with Metadata
+module MetadataExtractor
 extend self
 
   def audio_mpeg(fn)

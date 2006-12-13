@@ -84,6 +84,16 @@ class Users < DB::Tables::Users
     Sessions.terminate_all(id)
   end
 
+  def group
+    Groups.find(:namespace => 'users', :name => name)
+  end
+
+  def groups
+    UserGroups.find_all(:user_id => self, :columns => ['group_id']).map{|ug|
+      ug.group_id
+    }.uniq.map{|gid| Groups.new gid }
+  end
+
 end
 
 
