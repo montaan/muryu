@@ -540,12 +540,12 @@ module DB
       method_missing(x.to_s+"=", v)
     end
 
-    def quote *a
-      self.class.quote *a
+    def quote(*a)
+      self.class.quote(*a)
     end
 
-    def escape *a
-      self.class.escape *a
+    def escape(*a)
+      self.class.escape(*a)
     end
 
     def to_hash
@@ -558,32 +558,32 @@ module DB
       self.class.columns
     end
 
-    def column? *a
-      self.class.column? *a
+    def column?(*a)
+      self.class.column?(*a)
     end
 
     def foreign_keys
       self.class.foreign_keys
     end
 
-    def foreign_key? *a
-      self.class.foreign_key? *a
+    def foreign_key?(*a)
+      self.class.foreign_key?(*a)
     end
 
     def reverse_foreign_keys
       self.class.reverse_foreign_keys
     end
 
-    def reverse_foreign_key? *a
-      self.class.reverse_foreign_key? *a
+    def reverse_foreign_key?(*a)
+      self.class.reverse_foreign_key?(*a)
     end
 
     def joins
       self.class.joins
     end
 
-    def join? *a
-      self.class.join? *a
+    def join?(*a)
+      self.class.join?(*a)
     end
 
     def table_name
