@@ -23,4 +23,37 @@ end
 
 task :default => :test
 
+require 'future/config'
+require 'future/database/creator'
+namespace :db do
+  namespace :test do
+    desc "Create empty test database and load the schema."
+    task :prepare do
+      ENV["FUTURE_ENV"] = "test"
+      Future::Config.load_environment
+      conf = Future::Config
+      opts = []
+      opts << "-h #{conf.host}" if conf.host
+      opts << "-h #{conf.port}" if conf.port
+      opts << "-U #{conf.login}" if conf.login
+      sh "dropdb #{opts.join(" ")} #{conf.database} || true"
+      sh "createdb #{opts.join(" ")} #{conf.database}"
+      require 'future/database/dbconn'
+      DB.establish_connection(conf.host, conf.port, conf.options,
+                              conf.database, conf.login, conf.password)
+      begin
+        stderr = STDERR.clone
+        STDERR.reopen("/dev/null")
+        DB::Conn.exec DB::Creator.new(Dir[File.join("database", "*.rb")]).to_sql
+      ensure
+        STDERR.reopen(stderr)
+      end
+    end
+  end
+end
+
+task :test => "db:test:prepare"
+task :rcov => "db:test:prepare"
+task :rcov_save => "db:test:prepare"
+
 # vim: set sw=2 ft=ruby:

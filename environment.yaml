@@ -10,7 +10,7 @@ test:
   host:
   port:
   options:
-  database:
+  database: future_test
   login:
   password:
 
