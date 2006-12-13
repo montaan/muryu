@@ -43,7 +43,7 @@ class Users < DB::Tables::Users
       :name => username,
       :password => password_hash
     )
-    g = Groups.find_or_create(:namespace => "users", :name => username)
+    g = Groups.find_or_create(:namespace => "users", :name => username, :owner_id => u)
     UsersGroups.find_or_create(:user_id => u.id, :group_id => g.id, :can_modify => true)
     u
   end
@@ -61,8 +61,19 @@ class Users < DB::Tables::Users
     find( :id => session.user_id )
   end
 
+  def self.login(username, password_hash, session_id)
+    u = authenticate(username, password_hash)
+    u.start_session(session_id)
+    u
+  end
+
+  def logout
+    terminate_session(@session)
+  end
+
   def start_session(session_id)
     Sessions.start(session_id, id)
+    @session = session_id
   end
 
   def terminate_session(session_id)

@@ -701,7 +701,7 @@ module DB
     end
 
     def self.inherited(klass)
-      klass.table_name = klass.name.to_table_name
+      klass.table_name = klass.to_s.to_table_name
     end
 
     def self.__init_columns

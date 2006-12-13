@@ -1,4 +1,5 @@
 require 'future/base'
+require 'future/permissions'
 require 'future/metadata'
 require 'future/imaging'
 require 'future/search'

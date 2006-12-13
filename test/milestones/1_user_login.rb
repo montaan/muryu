@@ -13,21 +13,15 @@ include Future
     Users.login("foo", "bar", "my_session")
   end
 
-  def unregister
-    Users.unregister("foo")
-  end
-
   def test_user_login
-    assert(!Users.find(:name => 'foo'))
-    register
+    u = register
     assert(Users.find(:name => 'foo'))
+    u.terminate_all_sessions
     assert(!Sessions.find(:session_id => 'my_session', 'user.name' => 'foo'))
     user = login
     assert(Sessions.find(:session_id => 'my_session', 'user.name' => 'foo'))
     user.logout
     assert(!Sessions.find(:session_id => 'my_session', 'user.name' => 'foo'))
-    unregister
-    assert(!Users.find(:name => 'foo'))
   end
   
 end
