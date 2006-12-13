@@ -99,7 +99,7 @@ maybe something like this?
     digest   = options[:sha1digest]
     sha1     = Digest::SHA1.new unless digest
     size     = 0
-    tmpname0 = File.join(permanent_dir, "#{Process.pid}-#{Thread.object_id}")
+    tmpname0 = File.join(permanent_dir, "tmp#{Process.pid}-#{Thread.object_id}")
     File.open(tmpname0, "wb") do |f|
       until io.eof?
         dat = io.read(65536)
