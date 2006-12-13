@@ -29,6 +29,7 @@ class Uploader
   #   [:tags => tags]
   #   [:sets => sets]
   #   [:mime_type => mime_type]
+  #   [:can_modify => whether specified groups have write access]
   # }
   #
   # Change this / upload.cgi / both to easiest to work with API.
@@ -54,8 +55,9 @@ class Uploader
       :source   => options[:source],
       :referrer => options[:referrer],
       :user     => options[:user],
+      :can_modify => options[:can_modify]
     }
-    store_item(*[:io, :filename, :user, :groups, :metadata_info].map{|f| options[f]})
+    store_item(*[:io, :filename, :user, :groups, :can_modify, :metadata_info].map{|f| options[f]})
   end
 
   # finds user/YYYY/MM-DD/preferred_filename[.n].ext that doesn't exist yet
@@ -94,7 +96,7 @@ class Uploader
   MAX_ATTEMPS = 10
 
   # store item to db and file store
-  def store_item(io, preferred_filename, owner, groups, metadata_info)
+  def store_item(io, preferred_filename, owner, groups, can_modify, metadata_info)
     handle = @store.store(preferred_filename, io)
     mimetype = metadata_info[:mime_type] || MimeInfo.get(handle.full_path)
     major, minor = mimetype.to_s.split("/")
@@ -106,9 +108,9 @@ class Uploader
         mimetype_id = Mimetypes.find_or_create(:major => major, :minor => minor)
         # create new metadata to avoid nasty surprises with metadata edits?
         metadata_id = Metadata.create(metadata)
-        filename = create_unique_filename(preferred_filename, owner, mimetype.extname)
+        path = create_unique_filename(preferred_filename, owner, mimetype.extname)
         item = Items.create(
-                            :path => filename, :size => handle.size,
+                            :path => path, :size => handle.size,
                             :internal_path => handle.full_path,
                             :source => metadata_info[:source], :referrer => metadata_info[:referrer],
                             :sha1_hash => handle.sha1digest, :deleted => false,
