@@ -29,7 +29,7 @@ class ImageCache
   end
 
   def item_at(index)
-    DB::Items.find(:continuous_index => index+1, :columns => [:deleted, :filename])
+    DB::Items.find(:continuous_index => index+1, :columns => [:deleted, :path])
   end
 
   # Updates the thumbnail stored at index.

@@ -35,7 +35,7 @@ module ItemSearch
       [:modified_at, :yes, :untokenized],
       [:deleted, :yes, :untokenized],
       [:user, :yes, :untokenized],
-      [:filename, :yes, :untokenized],
+      [:path, :yes, :untokenized],
       [:basename, :yes, :yes, 2.0],
       [:filetype, :yes, :yes, 0.5],
       [:source, :yes, :yes, 3.0],
@@ -129,12 +129,12 @@ module ItemSearch
         items[i] = nil
         if j = @index[item.id.to_s] and
            StandardDateTime.parse(j[:modified_at]) == @last_modified_at
-          STDERR.puts "Skipping reindexing #{j[:filename]}"
+          STDERR.puts "Skipping reindexing #{j[:path]}"
           next
         end
         i += 1
         STDERR.write "\r (#{i.to_s.rjust(nsz.to_s.size)}/#{nsz}) #{
-                      item.filename}".ljust(80)[0,80]
+                      item.path}".ljust(80)[0,80]
         ii = item_info(item)
         @index << ii
         @last_modified_at = ii[:modified_at]
@@ -152,14 +152,14 @@ module ItemSearch
         :created_at => item.created_at.strftime( "%Y%m%d%H%M%S"),
         :modified_at => item.modified_at.strftime( "%Y%m%d%H%M%S"),
         :deleted => item.deleted.to_s,
-        :filename => item.filename.to_s,
+        :filename => item.path.to_s,
         :size => item.size.to_i,
-        :basename => File.basename(item.filename.to_s).gsub(/[a-z][A-Z]/){|m| m[0,1]+" "+m[1,1]}.split(/[_\/\.]/i).join(" "),
+        :basename => File.basename(item.path.to_s).gsub(/[a-z][A-Z]/){|m| m[0,1]+" "+m[1,1]}.split(/[_\/\.]/i).join(" "),
         :filetype => item.filetype.major + " " + item.filetype.minor,
         :source => item.source.to_s.gsub(/[a-z][A-Z]/){|m| m[0,1]+" "+m[1,1]}.split(/[_\/\.]/i).join(" "),
         :referrer => item.referrer.to_s.gsub(/[a-z][A-Z]/){|m| m[0,1]+" "+m[1,1]}.split(/[_\/\.]/i).join(" "),
         :title => (item.titles+[item.title]).cjoin(", "),
-        :content => extract_content(item.filename, item.filetype),
+        :content => extract_content(item.path, item.filetype),
         :author => item.authors.cjoin(" "),
         :album => item.albums.cjoin(" "),
         :genre => item.genres.cjoin(" "),

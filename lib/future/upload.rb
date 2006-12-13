@@ -84,7 +84,6 @@ class Uploader
         filename = create_unique_filename preferred_filename, owner, mimetype.ext
         item = Items.create(
               :filename => filename, :size => handle.size,
-              :source => source, :referrer => referrer,
               :sha1_hash => handle.sha1digest, :deleted => false,
               :mimetype_id => mimetype_id, :metadata_id => metadata_id,
               :owner_id => owner.id)

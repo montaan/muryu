@@ -1,6 +1,6 @@
 tables["items"] = {
   :continuous_index => [:serial, 'unique', 'not null'],
-  :filename => [:text, 'unique', 'not null'],
+  :path => [:text, 'unique', 'not null'],
   :size => [:bigint, 'not null', 'default 0'],
   :sha1_hash => ['character(40)'],
   :deleted => [:boolean, 'not null', 'default false'],
