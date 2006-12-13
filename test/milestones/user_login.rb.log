@@ -1,0 +1,11 @@
+Loaded suite /home/kig/code/repos/future/test/milestone_runner
+Started
+E
+Finished in 0.000343 seconds.
+
+  1) Error:
+test_user_login(TestLogin):
+NameError: uninitialized constant TestLogin::Users
+    /home/kig/code/repos/future/test/milestones/user_login.rb:21:in `test_user_login'
+
+1 tests, 0 assertions, 0 failures, 1 errors
