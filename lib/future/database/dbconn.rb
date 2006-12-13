@@ -496,6 +496,12 @@ module DB
       @cache_queries = true
     end
 
+    def ==(other)
+      (other.is_a? Table) and 
+      (self.table_name == other.table_name) and
+      (id == other.id)
+    end
+
     attr_accessor :cache_queries
 
     def cache_queries?
@@ -584,7 +590,7 @@ module DB
         super unless column?(c)
         Conn.exec(%Q(
           UPDATE #{escape table_name}
-          SET #{escape c} = #{quote a[0]}
+          SET #{escape c} = #{quote a[0].to_s.cast(columns[c])}
           WHERE id = #{quote @id}
         ))
         instance_variable_set("@#{c}",a[0])

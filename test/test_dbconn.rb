@@ -67,6 +67,44 @@ class DBConnTest < Test::Unit::TestCase
     assert_equal('Thomas',
                  @dcs.find("department.name" => 'office supplies').employee.first_name
                  )
+    assert_equal(
+      @emp.find_all("last_name" => /bennett/i, :order_by => [['first_name', :asc]]),
+      @emp.find_all("department.name" => "accounting", :order_by => 'first_name')
+    )
+    assert_equal(
+      @emp.find_all(
+        "last_name" => /bennett/i,
+        :order_by => [['first_name', :asc]],
+        :limit => 1, :offset => 0
+      ),
+      @emp.find_all('first_name' => /bob/i)
+    )
+    assert_equal(
+      @emp.find_all(
+        "last_name" => /bennett/i,
+        :order_by => [['first_name', :asc]],
+        :limit => 1, :offset => 1
+      ),
+      @emp.find_all('first_name' => /lucy/i)
+    )
+    assert_equal(
+      ['Alice', 'Lucy', 'Bob', 'Thomas'],
+      @emp.find_all(:order_by => [['last_name', :asc], ['salary', :desc]]).
+      map{|e| e.first_name}
+    )
+    assert_equal(
+      ['Alice', 'Bob', 'Lucy', 'Thomas'],
+      @emp.find_all(:order_by => [['last_name', :asc], ['salary', :asc]]).
+      map{|e| e.first_name}
+    )
+  end
+
+  def test_changes
+    create_company
+    @emp.find_all(:salary => [:<=, 10000]).each{|e|
+      e.salary *= 1.2
+    }
+    assert_equal(12000, @emp.find(:first_name => 'Bob').salary)
   end
 
   def create_company
@@ -83,7 +121,7 @@ class DBConnTest < Test::Unit::TestCase
     employees = [
       ['Bob', 'Bennett', 10000, Time.parse('2003-10-08'), deps[0]],
       ['Lucy', 'Bennett', 12000, Time.parse('2002-07-12'), deps[0]],
-      ['Alice', 'Ashcroft', 9000, Time.parse('2005-04-20'), deps[1]],
+      ['Alice', 'Ashcroft', 9000, '2005-04-20', deps[1]],
       ['Thomas', 'Thompson', 11000, Time.parse('2004-08-04'), deps[2]]
     ]
     employees.each do |f,l,s,sd,d|
