@@ -20,8 +20,8 @@ class Milestones < Test::Unit::TestCase
     puts "-----------------"
     puts passed.map{|f| File.basename f}
     puts
-    puts "Failed milestones"
-    puts "-----------------"
+    puts "Milestones still ahead"
+    puts "----------------------"
     puts failed.map{|f| File.basename f}
     puts
     puts "Completed: %.1f%" % (100 * passed.size.to_f / (passed+failed).size)
