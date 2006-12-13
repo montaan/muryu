@@ -15,11 +15,6 @@ include Future
     @user2 = Users.login("baz", "qux", "mah_session")
   end
 
-  def unregister
-    Users.unregister("foo")
-    Users.unregister("baz")
-  end
-  
   def setup
     register
     login
