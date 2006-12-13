@@ -20,7 +20,7 @@ include Enumerable
     @constraints = []
     @sequences = []
     @descriptions = []
-    load *filenames
+    load(*filenames)
   end
 
   def clear_db
