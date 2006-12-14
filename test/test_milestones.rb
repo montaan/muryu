@@ -7,7 +7,9 @@ class Milestones < Test::Unit::TestCase
 
   def check_milestone(milestone)
     args = ["ruby", $own_path + "/milestone_runner.rb", milestone]
-    system(*args)
+    r = system(*args)
+    print "."
+    r
   end
 
   def test_milestones
