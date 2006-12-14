@@ -49,6 +49,7 @@ class Users < DB::Tables::Users
     )
     g = Groups.find_or_create(:namespace => "users", :name => username, :owner_id => u)
     UsersGroups.find_or_create(:user_id => u.id, :group_id => g.id, :can_modify => true)
+    UsersGroups.find_or_create(:user_id => u.id, :group_id => Groups.public, :can_modify => false)
     u
   end
 

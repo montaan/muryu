@@ -12,9 +12,9 @@ class Milestones < Test::Unit::TestCase
 
   def test_milestones
     milestone_path = $own_path + "/milestones"
-    passed, failed = Dir[milestone_path + "/*.rb"].sort.partition{|ms|
-      check_milestone(ms)
-    }
+    passed, failed = Dir[milestone_path + "/*.rb"].
+                      sort_by{|ms| File.basename(ms).to_i }.
+                      partition{|ms| check_milestone(ms) }
 
     puts
     puts "Passed milestones"

@@ -20,6 +20,8 @@ include Future
     item.add_tag "sad"
     item.add_tag "bad"
     assert_equal ['bad','funny','sad'], item.tags.map{|t|t.name}.sort
+    item.tags.each{|t| item.remove_tag t.name }
+    assert_equal [], item.tags.map{|t|t.name}.sort
   end
 
 end

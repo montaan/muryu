@@ -86,7 +86,7 @@ class Groups < DB::Tables::Groups
 extend AccessControlClass
 
   def self.public
-    find_or_create("namespace" => "global", "name" => "public")
+    find_or_create("owner_id" => 1, "namespace" => "global", "name" => "public")
   end
 
   def self.rfind_all(user, h={})
