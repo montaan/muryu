@@ -8,26 +8,32 @@ module Future
 module AccessControl
 
   def permissions(user)
-    access_vectors = (groups & user.groups)
-    return false if access_vectors.empty?
+    w = writable_by(user)
+    r = w || readable_by(user)
+    return false unless r
     permissions = [:read]
-    permissions << [:write] if access_vectors.find{|g| g.can_modify }
+    permissions << [:write] if w
     permissions
   end
 
   def readable_by(user)
-    find("groups" => user.groups)
+    (groups & user.groups)
   end
 
   def writable_by(user)
-    find("groups" => user.groups, "groups.can_modify" => true)
+    grs = (groups & user.groups)
+    return false if grs.empty?
+    DB::Tables.const_get(self.class.to_s.split(/::/).last+"Groups").find(
+      :group_id => grs.map{|g|g.id},
+      :can_modify => true
+    )
   end
 
   def write(user)
     if writable_by user
       yield self
     else
-      raise "#{user.name} can't modify #{namespace}:#{name}"
+      raise "#{user.name} can't modify #{inspect}"
     end
   end
 

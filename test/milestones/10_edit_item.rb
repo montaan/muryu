@@ -5,8 +5,37 @@ require 'future'
 class Milestone < Test::Unit::TestCase
 include Future
 
-  def test_fail
-    assert false
+  def test_item_permissions
+    user = Users.register('foo', 'bar')
+    user2 = Users.register("baz", "qux")
+
+    itemh = {:user => user, :text => "Private post"}
+    item = Uploader.upload itemh
+    assert_equal(item, Items.rfind(user, :id => item))
+    assert_equal(nil, Items.rfind(user2, :id => item))
+    item.write(user) do
+      item.add_tag 'super'
+    end
+    assert_equal(['super'], item.tags.map{|t|t.name})
+    assert_raise(RuntimeError) do
+      item.write(user2) do
+        item.add_tag 'bad'
+      end
+    end
+    
+    itemh = {:user => user, :text => "Public post",
+            :groups => [[Groups.public, true]]}
+    item = Uploader.upload itemh
+    assert_equal(item, Items.rfind(user, :id => item))
+    assert_equal(item, Items.rfind(user2, :id => item))
+    item.write(user) do
+      item.add_tag 'super'
+    end
+    assert_equal(['super'], item.tags.map{|t|t.name})
+    item.write(user2) do
+      item.add_tag 'bad'
+    end
+    assert_equal(['bad','super'], item.tags.map{|t|t.name}.sort)
   end
 
 end

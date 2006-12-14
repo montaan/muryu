@@ -94,7 +94,7 @@ class Users < DB::Tables::Users
   end
 
   def groups
-    UserGroups.find_all(:user_id => self, :columns => ['group_id']).map{|ug|
+    UsersGroups.find_all(:user_id => self, :columns => ['group_id']).map{|ug|
       ug.group_id
     }.uniq.map{|gid| Groups.new gid }
   end

@@ -439,6 +439,7 @@ module DB
       end or "#{k} #{cmp || "="} #{quote v}"
     end
 
+    ### FIXME
     # handle foreign keys
     # handle reverse foreign keys
     # handle many to many keys
@@ -535,6 +536,14 @@ module DB
       (other.is_a? Table) and 
       (self.table_name == other.table_name) and
       (id == other.id)
+    end
+
+    def hash
+      @id
+    end
+
+    def eql?(other)
+      self == other
     end
 
     attr_accessor :cache_queries
