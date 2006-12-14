@@ -5,6 +5,9 @@ require 'future'
 class Milestone < Test::Unit::TestCase
 include Future
   DATADIR = File.expand_path(File.dirname(__FILE__) + "/../data")
+  def setup
+    Users.register('foo', 'bar')
+  end
 
   def test_create_text_post
     user = Users.login('foo', 'bar', 'my_session')
