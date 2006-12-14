@@ -5,7 +5,7 @@ require 'future'
 class Milestone < Test::Unit::TestCase
 include Future
 
-  def test_item_visibility_in_tag_search
+  def test_item_visibility
     user = Users.register("foo_list_items", 'bar')
     user2 = Users.register("baz_list_items", "qux")
 
@@ -18,21 +18,25 @@ include Future
     end
     (1..50).each do |i|
       item = {:user => user2, :text => "Private post #{i}"}
-      Uploader.upload item
+      it = Uploader.upload item
       it.add_tag 'list_items'
     end
     (1..20).each do |i|
       item = {:user => user2, :text => "Private post #{i}",
               :groups => [[user.group, false]]}
-      Uploader.upload item
+      it = Uploader.upload item
       it.add_tag 'list_items'
     end
     assert_equal(
-      30, Items.rfind_all(user, "tags.name" => 'list_items').size
+      30, Items.rfind_all(user).size
     )
     assert_equal(
-      70, Items.rfind_all(user2, "tags.name" => 'list_items').size
+      70, Items.rfind_all(user2).size
     )
+  end
+
+  def test_item_tag_search
+    assert false
   end
 
   def test_item_full_text_search
