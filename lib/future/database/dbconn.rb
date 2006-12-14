@@ -64,16 +64,20 @@ end
 
 
 module DB
-  def self.establish_connection(host, port, options, database, login, password)
+  def self.establish_connection(options)
     remove_const(:Conn) if defined? Conn
-    const_set(:Conn, PGconn.new(host, port, options, nil, database, login, password))
+    const_set(:Conn, PGconn.new(options[:host], options[:port], 
+                                options[:options], nil, 
+                                options[:database], options[:login],
+                                options[:password]))
   end
 
-  unless defined? @Conn
-    conf = Future::Config
-    conf.load_environment
-    establish_connection(conf.host, conf.port, conf.options, conf.database,
-                         conf.login, conf.password)
+  def self.const_missing(const_name)
+    if const_name == :Conn
+      establish_connection(Future.database_configuration)
+    else
+      super
+    end
   end
 
   TYPECASTS = {
@@ -94,20 +98,20 @@ module DB
   # Isolation level can be 'READ COMMITTED' or 'SERIALIZABLE'.
   # Access mode can be 'READ WRITE' or 'READ ONLY'.
   def self.transaction(isolation_level='read committed', access_mode='read write')
-    Conn.exec('BEGIN')
-    Conn.exec('SET TRANSACTION ISOLATION LEVEL '+isolation_level+' '+access_mode)
+    DB::Conn.exec('BEGIN')
+    DB::Conn.exec('SET TRANSACTION ISOLATION LEVEL '+isolation_level+' '+access_mode)
     rv = yield
-    Conn.exec('COMMIT')
+    DB::Conn.exec('COMMIT')
     rv
   rescue TransactionRollback
     return false
   rescue
-    Conn.exec('ROLLBACK')
+    DB::Conn.exec('ROLLBACK')
     raise
   end
 
   def self.rollback
-    Conn.exec('ROLLBACK')
+    DB::Conn.exec('ROLLBACK')
     raise TransactionRollback
   end
 
@@ -194,7 +198,7 @@ module DB
         @@all_foreign_keys = Hash.new{|h,k| h[k] = Hash.new }
         @@all_joins = Hash.new{|h,k| h[k] = Hash.new{|i,l| i[l] = {}} }
         @@all_reverse_foreign_keys = Hash.new{|h,k| h[k] = Hash.new{|i,l| i[l] = {}} }
-        Conn.exec(%Q(
+        DB::Conn.exec(%Q(
           SELECT a.relname, i.attname, b.relname,j.attname
           FROM pg_class a, pg_class b,pg_attribute i, pg_attribute j, pg_constraint
           WHERE conrelid = a.oid
@@ -255,7 +259,7 @@ module DB
     end
 
     def self.columns
-      @columns ||= Conn.query("
+      @columns ||= DB::Conn.query("
         select attname, typname
         from pg_type t, pg_attribute a, pg_class c
         WHERE relname = #{quote table_name}
@@ -325,9 +329,9 @@ module DB
     end
 
     def self.create(h)
-      i = Conn.exec(%Q(SELECT nextval(#{quote( table_name + "_id_seq")}) ))[0][0].to_i
+      i = DB::Conn.exec(%Q(SELECT nextval(#{quote( table_name + "_id_seq")}) ))[0][0].to_i
       h[:id] = i
-      Conn.exec(%Q(
+      DB::Conn.exec(%Q(
         INSERT INTO #{escape table_name}
         (#{h.keys.map{|k| escape ground_column_name(k)}.join(",")})
         VALUES
@@ -338,7 +342,7 @@ module DB
 
     def self.delete(h={})
       if r = find(h)
-        Conn.exec(%Q(
+        DB::Conn.exec(%Q(
           DELETE FROM #{escape table_name}
           WHERE id = #{quote r.id}
         ))
@@ -347,7 +351,7 @@ module DB
 
     def self.delete_all(h={})
       unless (rs=find_all(h)).empty?
-        Conn.exec(%Q(
+        DB::Conn.exec(%Q(
           DELETE FROM #{escape table_name}
           WHERE id in (#{ rs.map{|r| quote r.id}.join(",") })
         ))
@@ -355,7 +359,7 @@ module DB
     end
 
     def self.count
-      Conn.query("SELECT count(*) FROM #{escape table_name}").to_s.to_i
+      DB::Conn.query("SELECT count(*) FROM #{escape table_name}").to_s.to_i
     end
 
     def self.find(h={})
@@ -506,7 +510,7 @@ module DB
 
     def self.query(h={})
       q = parse_query h
-      Conn.exec(q)
+      DB::Conn.exec(q)
     rescue => e
       raise ArgumentError,
             "Failed to execute query (#{e.message}): #{q}"
@@ -619,7 +623,7 @@ module DB
       if c[-1,1] == "=" and not a.empty?
         c = c[0..-2]
         super unless column?(c)
-        Conn.exec(%Q(
+        DB::Conn.exec(%Q(
           UPDATE #{escape table_name}
           SET #{escape c} = #{quote a[0].to_s.cast(columns[c])}
           WHERE id = #{quote @id}
@@ -630,7 +634,7 @@ module DB
           pin!(c) unless instance_variables.include?("@#{c}")
           instance_variable_get("@#{c}")
         else
-          (Conn.exec(%Q(
+          (DB::Conn.exec(%Q(
             SELECT #{escape c}
             FROM #{escape table_name}
             WHERE id = #{quote @id}
@@ -720,7 +724,7 @@ module DB
         eigenclass.__send__(:define_method,c) do |*a|
           if a.empty?
             data_type = columns[c]
-            Conn.query(%Q(
+            DB::Conn.query(%Q(
               SELECT #{escape c}
               FROM #{escape table_name}
             )).flatten.map{|c| c.cast data_type }
@@ -734,7 +738,7 @@ module DB
                 }.join(" OR ")
               }
             )
-            Conn.query(q).flatten.map{|i| new i }
+            DB::Conn.query(q).flatten.map{|i| new i }
           end
         end
       }
@@ -773,7 +777,7 @@ module DB
 
     def self.table? tn
       q = "SELECT oid FROM pg_class WHERE relname = #{Table.quote tn}"
-      Conn.query(q).size > 0
+      DB::Conn.query(q).size > 0
     end
 
   end

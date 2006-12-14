@@ -25,9 +25,8 @@ class DBConnTest < Test::Unit::TestCase
       `createdb #{$database}`
       path = File.dirname __FILE__
       c = DB::Creator.new Dir["#{path}/data/test_dbconn/*.rb"]
-      conf = Future::Config
-      DB.establish_connection(conf.host, conf.port, conf.options,
-                              $database, conf.login, conf.password)
+      conf = Future.database_configuration
+      DB.establish_connection(conf.merge(:database => $database))
       begin
         stderr = STDERR.clone
         STDERR.reopen("/dev/null")

@@ -1,5 +1,5 @@
 
-require 'future/paths'
+require 'future/config'
 require 'future/utils'
 require 'open-uri'
 require 'hpricot'

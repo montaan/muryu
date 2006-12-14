@@ -1,5 +1,5 @@
 
-require 'future/paths'
+require 'future/config'
 require 'digest/sha1'
 require 'fileutils'
 require 'stringio'
