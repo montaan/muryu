@@ -1,4 +1,5 @@
 
+require 'future/config'
 begin
   require 'rubygems'
 rescue LoadError
@@ -7,6 +8,30 @@ end
 require 'cgi'
 require 'uri'
 
+require 'logger'
+module Kernel
+  def log(message, subsystem = "", level = Logger::INFO)
+    if block_given?
+      t0 = Time.new
+      ret = yield message
+      dt = Time.new - t0
+      Future.logger.log(level, "#{subsystem} (#{dt})   #{message.strip}")
+      ret
+    else
+      Future.logger.log(level, "#{subsystem}   #{message.strip}")
+    end
+  end
+
+  def log_info(message, subsystem = nil, &block)
+    subsystem ||= caller(1).first
+    log(message, subsystem, Logger::INFO, &block) 
+  end
+
+  def log_debug(message, subsystem = nil, &block)
+    subsystem ||= caller(1).first
+    log(message, subsystem, Logger::DEBUG, &block)
+  end
+end
 
 class Module
 
