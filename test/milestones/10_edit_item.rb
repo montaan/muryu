@@ -40,12 +40,13 @@ include Future
 
   def test_item_delete
     user = Users.register('foo', 'bar')
+    Items.delete_all
     itemh = {:user => user, :text => "Private post"}
     item = Uploader.upload itemh
     assert(Items.rfind_all(user).include?(item))
     
     item.rdelete(user)
-    assert(not Items.rfind_all(user).include?(item))
+    assert(!Items.rfind_all(user).include?(item))
 
     item.rundelete(user)
     assert(Items.rfind_all(user).include?(item))

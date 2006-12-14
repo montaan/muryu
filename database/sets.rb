@@ -1,4 +1,5 @@
 tables["sets"] = {
-  :name => [:text],
-  :namespace => [:text]
+  :name => [:text, 'index'],
+  :namespace => [:text, 'index'],
+  :deleted => [:boolean, 'not null', 'default false']
 }

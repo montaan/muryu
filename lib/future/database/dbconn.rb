@@ -96,6 +96,21 @@ module DB
     :default => lambda{|i|i}
   }
 
+  REVERSE_CASTS = {
+    "int4" => lambda{|i| i.to_i },
+    "int2" => lambda{|i| i.to_i },
+    "int8" => lambda{|i| i.to_i },
+
+    "float4" => lambda{|i| i.to_f },
+    "float8" => lambda{|i| i.to_f },
+
+    "bool" => lambda{|i| i == true},
+
+    "timestamp" => lambda{|i| quote StandardDateTime.parse(i).to_s},
+
+    :default => lambda{|i| quote i}
+  }
+
   # Isolation level can be 'READ COMMITTED' or 'SERIALIZABLE'.
   # Access mode can be 'READ WRITE' or 'READ ONLY'.
   def self.transaction(isolation_level='read committed', access_mode='read write')
@@ -629,27 +644,33 @@ module DB
       fkeys.inject([]){|s,(n,f)| s += f.get_all(self, :columns => :all) }
     end
 
+    def cast_quote(value, type)
+      REVERSE_CASTS[type][value]
+    end
+
     def method_missing(c, *a)
       c = c.to_s
       if c[-1,1] == "=" and not a.empty?
         c = c[0..-2]
         super unless column?(c)
-        DB::Conn.exec(%Q(
+        q = %Q(
           UPDATE #{escape table_name}
-          SET #{escape c} = #{quote a[0].to_s.cast(columns[c])}
+          SET #{escape c} = #{cast_quote(a[0], columns[c])}
           WHERE id = #{quote @id}
-        ))
+        )
+        DB::Conn.exec(q)
         instance_variable_set("@#{c}",a[0])
       elsif column?(c)
         if cache_queries?
           pin!(c) unless instance_variables.include?("@#{c}")
           instance_variable_get("@#{c}")
         else
-          (DB::Conn.exec(%Q(
+          q = %Q(
             SELECT #{escape c}
             FROM #{escape table_name}
             WHERE id = #{quote @id}
-          )).result.flatten.first).cast(columns[c])
+          )
+          (DB::Conn.exec(q).result.flatten.first).cast(columns[c])
         end
       elsif foreign_key?(c, true)
         fk = foreign_keys[c+"_id"]

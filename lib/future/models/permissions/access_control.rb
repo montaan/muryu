@@ -37,12 +37,25 @@ module AccessControl
     end
   end
 
+  def rdelete(user)
+    write(user) do
+      self.deleted = true
+    end
+  end
+
+  def rundelete(user)
+    write(user) do
+      self.deleted = false
+    end
+  end
+
 end
 
 
 module AccessControlClass
 
   def rfind_all(user, h={})
+    h = {:deleted => false}.merge(h) if columns['deleted']
     qs = parse_query(h)
     qs = qs.split(/\n/)
     qs[1].sub!("FROM", "FROM groups g, users_groups ug, #{table_name}_groups tg,")
