@@ -533,6 +533,10 @@ module DB
       @cache_queries = true
     end
 
+    def <=>(other)
+      id <=> other.id
+    end
+
     def ==(other)
       (other.is_a? Table) and 
       (self.table_name == other.table_name) and
