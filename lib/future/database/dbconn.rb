@@ -538,13 +538,10 @@ module DB
       (self.table_name == other.table_name) and
       (id == other.id)
     end
+    alias_method :eql?, :==
 
     def hash
       @id
-    end
-
-    def eql?(other)
-      self == other
     end
 
     attr_accessor :cache_queries
