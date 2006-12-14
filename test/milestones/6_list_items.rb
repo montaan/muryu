@@ -35,4 +35,24 @@ include Future
     )
   end
 
+  def test_item_full_text_search
+    assert false
+  end
+
+  def test_item_dont_show_deleted
+    assert false
+  end
+
+  def test_item_select_by_set
+    assert false
+  end
+
+  def test_item_select_by_group
+    assert false
+  end
+
+  def test_item_sort_by_creation_date
+    assert false
+  end
+
 end
