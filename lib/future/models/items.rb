@@ -3,8 +3,28 @@ require 'future/base'
 
 module Future
 
-DB::Tables::Items
+class Tags < DB::Tables::Tags
+end
+
+class ItemsTags < DB::Tables::ItemsTags
+end
+
 class Items < DB::Tables::Items
+
+  def add_tag(tag_name)
+    tag_name = tag_name.name if tag_name.is_a? DB::Table
+    t = Tags.find_or_create(:name => tag_name)
+    ItemsTags.find_or_create(:item => self, :tag => t)
+    remove_instance_variable :@tags if @tags
+  end
+
+  def remove_tag(tag_name)
+    tag_name = tag_name.name if tag_name.is_a? DB::Table
+    t = Tags.find(:name => tag_name)
+    return unless t
+    ItemsTags.delete_all(:item => self, :tag => t)
+    remove_instance_variable :@tags if @tags
+  end
 
   def read
     File.open(internal_path, "rb"){|f| f.read}

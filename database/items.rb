@@ -16,5 +16,3 @@ tables["items"] = {
   :mimetype_id => [['mimetypes', :id], 'not null', 'default 15'],
   :metadata_id => [['metadata', :id], 'not null'],
 }
-
-indexes << ['items', 'path']
