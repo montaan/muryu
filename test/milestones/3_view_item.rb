@@ -15,7 +15,7 @@ include Future
     assert_equal(nil, Items.rfind(user2, :id => i))
     
     item = {:user => user, :text => "Public post",
-            :groups => [[user.group, true], [Groups.public, false]]}
+            :groups => [[Groups.public, false]]}
     j = Uploader.upload item
     assert_equal(j, Items.rfind(user, :id => j))
     assert_equal(j, Items.rfind(user2, :id => j))

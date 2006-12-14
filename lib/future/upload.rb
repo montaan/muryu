@@ -39,7 +39,7 @@ class Uploader
   # from the page and turn them into separate items.
   #
   def handle(options)
-    options = {:groups => [[options[:user].group, true]], :tags => [], :sets => []}.merge(options)
+    options = {:groups => [], :tags => [], :sets => []}.merge(options)
     unless options[:io]
       if options[:text]
         options[:io] = StringIO.new(options[:text])
@@ -117,9 +117,11 @@ class Uploader
                             :sha1_hash => handle.sha1digest, :deleted => false,
                             :mimetype_id => mimetype_id, :metadata_id => metadata_id,
                             :owner_id => owner.id, :created_at => Time.now.to_s)
-        groups.each do |group, can_modify|
-          ItemsGroups.create(:item_id => item.id, :group_id => group.id,
-                             :can_modify => can_modify)
+        ([[owner.group, true]] + groups).each do |group, can_modify|
+          ItemsGroups.find_or_create(
+            :item_id => item.id,
+            :group_id => group.id,
+            :can_modify => can_modify)
         end
       end
     rescue => e
