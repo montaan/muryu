@@ -123,7 +123,7 @@ include Enumerable
       when :foreign_key
         "ALTER TABLE #{PGconn.escape table.to_s} ADD CONSTRAINT #{PGconn.escape "#{table}_fkey_#{args[1..-1].join("_")}"}\n" +
         "  FOREIGN KEY (#{PGconn.escape args[1].to_s})"+
-        " REFERENCES #{PGconn.escape args[2][0].to_s}(#{PGconn.escape args[2][1].to_s});"
+        " REFERENCES #{PGconn.escape args[2][0].to_s}(#{PGconn.escape args[2][1].to_s}) ON DELETE CASCADE;"
       when :unique
         "CREATE UNIQUE INDEX #{PGconn.escape "#{table}_unique_#{args[1].join("_")}"}\n" +
         "  ON #{PGconn.escape table.to_s}(#{args[1].map{|a| PGconn.escape a.to_s}.join(",") });"

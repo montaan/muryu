@@ -37,10 +37,10 @@ class CreatorTest < Test::Unit::TestCase
       "CREATE INDEX baz_foo ON baz USING btree (foo);"
     ].sort
     constraints = [
-      "ALTER TABLE foo ADD CONSTRAINT foo_fkey_baz_baz_id\n  FOREIGN KEY (baz) REFERENCES baz(id);",
-      "ALTER TABLE foo ADD CONSTRAINT foo_fkey_bat_baz_bat\n  FOREIGN KEY (bat) REFERENCES baz(bat);",
-      "ALTER TABLE baz ADD CONSTRAINT baz_fkey_foo_foo_id\n  FOREIGN KEY (foo) REFERENCES foo(id);",
-      "ALTER TABLE baz ADD CONSTRAINT baz_fkey_bat_bat_name\n  FOREIGN KEY (bat) REFERENCES bat(name);"
+      "ALTER TABLE foo ADD CONSTRAINT foo_fkey_baz_baz_id\n  FOREIGN KEY (baz) REFERENCES baz(id) ON DELETE CASCADE;",
+      "ALTER TABLE foo ADD CONSTRAINT foo_fkey_bat_baz_bat\n  FOREIGN KEY (bat) REFERENCES baz(bat) ON DELETE CASCADE;",
+      "ALTER TABLE baz ADD CONSTRAINT baz_fkey_foo_foo_id\n  FOREIGN KEY (foo) REFERENCES foo(id) ON DELETE CASCADE;",
+      "ALTER TABLE baz ADD CONSTRAINT baz_fkey_bat_bat_name\n  FOREIGN KEY (bat) REFERENCES bat(name) ON DELETE CASCADE;"
     ].sort
     assert_equal(@creator.to_a, (tables+constraints+indexes))
   end
@@ -53,9 +53,9 @@ class CreatorTest < Test::Unit::TestCase
     bar = "CREATE TABLE bar (\n  foo int ,\n  id serial primary key,\n  i int \n);"
     tables = [bar, foo]
     constraints = [
-      "ALTER TABLE bar ADD CONSTRAINT bar_fkey_foo_foo_id\n  FOREIGN KEY (foo) REFERENCES foo(id);",
+      "ALTER TABLE bar ADD CONSTRAINT bar_fkey_foo_foo_id\n  FOREIGN KEY (foo) REFERENCES foo(id) ON DELETE CASCADE;",
       "CREATE UNIQUE INDEX bar_unique_foo_i\n  ON bar(foo,i);",
-      "ALTER TABLE foo ADD CONSTRAINT foo_fkey_bar_bar_id\n  FOREIGN KEY (bar) REFERENCES bar(id);"
+      "ALTER TABLE foo ADD CONSTRAINT foo_fkey_bar_bar_id\n  FOREIGN KEY (bar) REFERENCES bar(id) ON DELETE CASCADE;"
     ]
     assert_equal(@creator.to_a, (tables+constraints))
   end
