@@ -66,6 +66,7 @@ end
 module DB
   def self.establish_connection(options)
     remove_const(:Conn) if defined? Conn
+    log_info("Establishing DB connection #{options.inspect}", "dbconn")
     const_set(:Conn, PGconn.new(options[:host], options[:port], 
                                 options[:options], nil, 
                                 options[:database], options[:login],
@@ -331,21 +332,19 @@ module DB
     def self.create(h)
       i = DB::Conn.exec(%Q(SELECT nextval(#{quote( table_name + "_id_seq")}) ))[0][0].to_i
       h[:id] = i
-      DB::Conn.exec(%Q(
+      log_debug(%Q[
         INSERT INTO #{escape table_name}
         (#{h.keys.map{|k| escape ground_column_name(k)}.join(",")})
         VALUES
-        (#{h.values.map{|v| quote v}.join(",")})
-      ))
+        (#{h.values.map{|v| quote v}.join(",")})], "dbconn"){|sql| DB::Conn.exec(sql) }
       id(i)[0]
     end
 
     def self.delete(h={})
       if r = find(h)
-        DB::Conn.exec(%Q(
+        log_debug(%Q(
           DELETE FROM #{escape table_name}
-          WHERE id = #{quote r.id}
-        ))
+          WHERE id = #{quote r.id}), "dbconn"){|sql| DB::Conn.exec(sql) }
       end
     end
 
@@ -359,7 +358,9 @@ module DB
     end
 
     def self.count
-      DB::Conn.query("SELECT count(*) FROM #{escape table_name}").to_s.to_i
+      log_debug("SELECT count(*) FROM #{escape table_name}", "dbconn") do |sql|
+        DB::Conn.query(sql).to_s.to_i
+      end
     end
 
     def self.find(h={})
@@ -511,7 +512,7 @@ module DB
 
     def self.query(h={})
       q = parse_query h
-      DB::Conn.exec(q)
+      log_debug(q, "dbconn") { DB::Conn.exec(q) }
     rescue => e
       raise ArgumentError,
             "Failed to execute query (#{e.message}): #{q}"
