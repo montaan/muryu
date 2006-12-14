@@ -67,11 +67,12 @@ class << self
     FileUtils.mkdir_p(log_dir)
     logger = Logger.new(log_dir + "#{environment}.log")
     logger.level = log_level
+    logger
   end
 end
 
 @environment = ENV["FUTURE_ENV"] || "development"
-@log_level   = @environment == "production" ? :info : :debug
+@log_level   = @environment == "production" ? Logger::INFO : Logger::DEBUG
 
 self.paths = Paths.new
 if config_file.exist?
