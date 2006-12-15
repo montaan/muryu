@@ -1,5 +1,4 @@
 
-require 'future/config'
 begin
   require 'rubygems'
 rescue LoadError
@@ -142,3 +141,5 @@ class Numeric
 
 end
 
+# done at the end, since future/config depends on stuff defined here
+require 'future/config'
