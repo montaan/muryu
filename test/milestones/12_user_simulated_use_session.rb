@@ -16,14 +16,12 @@ include Future
     create_new_todo_post
     upload_a_wikipedia_article_and_some_images
     find_all_items_related_to_the_article
+    search_for_mountain_pictures
+    view_the_third_mountain_picture
   end
 
   def look_at_urgent_todo_for_work_and_home
-    Items.rfind_all(@user,
-      "set.name" => "urgent", # note: set visibility
-      "set.name" => "todo",   # and again
-      "tag.name" => ["work", "home"]
-    )
+    Items.rsearch(@user, 'set:urgent set:todo tag:work|home')
     Sets[@user, 'urgent'] &
     Sets[@user, 'todo'] &
     Tags[@user, ['work', 'home']]
@@ -33,6 +31,7 @@ include Future
            items_sets is, sets s,
            items_sets isd, sets sd,
            items_tags it, tags t
+           
       WHERE i.id = is.item_id
         AND s.id = is.set_id
         AND s.name = 'urgent'
@@ -48,11 +47,7 @@ include Future
   end
 
   def remove_all_done_items_from_urgent
-    Items.rdelete_all(@user,
-      "set.name" => "urgent", # note: set visibility
-      "set.name" => "done",
-      "set.name" => ['!=', 'todo'] # this is harder
-    )
+    Items.rdelete_search(@user, 'set:urgent set:done !set:todo')
     Sets[@user, 'urgent'] &
     Sets[@user, 'done'] &
     ~Sets[@user, 'todo']
@@ -85,6 +80,13 @@ include Future
 
   def find_all_items_related_to_the_article
     @article.related_items
+  end
+
+  def search_for_mountain_pictures
+    Items.search('mountain')
+  end
+
+  def view_the_third_mountain_picture
   end
 
 end
