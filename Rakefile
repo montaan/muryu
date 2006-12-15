@@ -3,29 +3,36 @@ require 'rake/testtask'
 
 ENV["FUTURE_ROOT"] = "."
 ENV["FUTURE_ENV"]  = "test"
+
+def create_new_db(environment)
+  Future.setup_environment(environment)
+  conf = Future.database_configuration
+  opts = []
+  opts << "-h #{conf[:host]}" if conf[:host]
+  opts << "-h #{conf[:port]}" if conf[:port]
+  opts << "-U #{conf[:login]}" if conf[:login]
+  sh "dropdb #{opts.join(" ")} #{conf[:database]} || true"
+  sh "createdb #{opts.join(" ")} #{conf[:database]}"
+  require 'future/database/dbconn'
+  begin
+    stderr = STDERR.clone
+    STDERR.reopen("/dev/null")
+    DB::Conn.exec DB::Creator.new(Dir[File.join("database", "*.rb")]).to_sql
+  ensure
+    STDERR.reopen(stderr)
+  end
+end
+
 require 'future/config'
 require 'future/database/creator'
 namespace :db do
   namespace :test do
     desc "Create empty test database and load the schema."
-    task :prepare do
-      conf = Future.database_configuration
-      opts = []
-      opts << "-h #{conf[:host]}" if conf[:host]
-      opts << "-h #{conf[:port]}" if conf[:port]
-      opts << "-U #{conf[:login]}" if conf[:login]
-      sh "dropdb #{opts.join(" ")} #{conf[:database]} || true"
-      sh "createdb #{opts.join(" ")} #{conf[:database]}"
-      require 'future/database/dbconn'
-      begin
-        stderr = STDERR.clone
-        STDERR.reopen("/dev/null")
-        DB::Conn.exec DB::Creator.new(Dir[File.join("database", "*.rb")]).to_sql
-      ensure
-        STDERR.reopen(stderr)
-      end
-    end
+    task(:prepare){ create_new_db("test") }
   end
+
+  desc "Creates an empty development database."
+  task(:clear){ create_new_db("development") }
 end
 
 desc "Run the functional and unit tests."
