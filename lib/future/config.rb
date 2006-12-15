@@ -69,17 +69,23 @@ class << self
     logger.level = log_level
     logger
   end
+
+
+  def setup_environment(environment)
+    @environment = environment
+    @log_level   = @environment == "production" ? Logger::INFO : Logger::DEBUG
+    self.paths = Paths.new
+    self.database_configuration = nil # reset so we can see if they were modified
+    self.logger = nil
+    if config_file.exist?
+      load config_file
+    end
+
+    self.database_configuration  ||= default_database_configuration
+    self.logger ||= default_logger
+  end
 end
 
-@environment = ENV["FUTURE_ENV"] || "development"
-@log_level   = @environment == "production" ? Logger::INFO : Logger::DEBUG
-
-self.paths = Paths.new
-if config_file.exist?
-  load config_file
-end
-
-self.database_configuration  ||= default_database_configuration
-self.logger ||= default_logger
+setup_environment(ENV["FUTURE_ENV"] || "development")
 
 end # Future
