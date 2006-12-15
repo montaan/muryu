@@ -3,6 +3,10 @@ require 'future/utils'
 require 'open-uri'
 require 'hpricot'
 require 'thread'
+require 'future/upload'
+require 'future/models/permissions/access_control'
+
+Thread.abort_on_exception = true
 
 module Future
 module Simulation
@@ -38,6 +42,8 @@ class User
     @P_shared     = options[:P_shared] / total
     @P_public     = options[:P_public] / total
     @P_private    = options[:P_private] / total
+
+    @db_user      = Users.register(username, username)
   end
 
   def visit_next_page
@@ -62,7 +68,8 @@ class User
       links = links.select{|l| l && !@visited_urls[l] && @crawler.may_visit?(l) }
       next_page = links[rand(links.size)]
       next_page ||= @crawler.random_page
-      @crawler.store_page(uri.to_s, text, @username, random_access_group, @time)
+      text.rewind
+      @crawler.store_page(uri.to_s, text, @db_user, random_access_group, @time)
       @page = next_page
     end
   end
@@ -70,11 +77,12 @@ class User
   def random_access_group
     x = rand()
     if x <= @P_public
-      :public
+      Groups.public
     elsif x <= @P_public + @P_shared
-      @groups[rand(@groups.size)] || :public
+      g = @db_user.groups
+      g[rand(g.size)]
     else
-      :private
+      @db_user.group
     end
   end
 end
@@ -89,10 +97,11 @@ class WikipediaCrawler
     options  = DEFAULT_INITIALIZE_OPTIONS.merge(options)
     @users   = (0...options[:users]).map do |i|
       username = "user_#{i}"
-      groups = [*((options[:groups] || {})[username])] + [username]
+      groups = [*((options[:groups] || {})[username])]
       User.new(username, groups, self, options)
     end
-    @queue   = Queue.new
+    @queue    = Queue.new
+    @db_mutex = Mutex.new
     options[:concurrent_downloads].times{ @queue.push(true) }
   end
 
@@ -109,8 +118,12 @@ class WikipediaCrawler
   end
 
   # Turn the upload into an item and insert into the DB
-  def store_page(url, contents, username, access_group, timestamp)
-    puts "storing #{url} of size #{contents.size} by user #{username}, for #{access_group} at #{timestamp}"
+  def store_page(url, contents, user, group, timestamp)
+    puts "storing #{url} of size #{contents.size} by user #{user.name}, for #{group.name} at #{timestamp}"
+    @db_mutex.synchronize do 
+      Uploader.upload(:filename => File.dirname(URI.parse(url).path), :user => user,
+                      :source => url, :io => contents, :groups => [group])
+    end
   end
 
   def random_page
