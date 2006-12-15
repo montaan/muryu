@@ -121,7 +121,7 @@ class Uploader
           ItemsGroups.find_or_create(
             :item_id => item.id,
             :group_id => group.id,
-            :can_modify => can_modify)
+            :can_modify => can_modify ? true : false)
         end
       end
     rescue => e
