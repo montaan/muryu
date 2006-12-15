@@ -452,6 +452,8 @@ module DB
         end
         # problematic f(1,2,3,4) vs. (f(1),f(2),f(3),f(4)) ?
         "#{k} #{cmp || (f ? "=" : "IN")} #{f}(#{v.map{|i| quote i}.join(",")})"
+      when nil
+        "#{k} #{cmp || "="} FALSE"
       end or "#{k} #{cmp || "="} #{quote v}"
     end
 
