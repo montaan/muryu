@@ -569,6 +569,12 @@ module DB
       @cache_queries
     end
 
+    def to_hash
+      columns.map{|c,cl|
+        [c, __send__(c)]
+      }.to_hash
+    end
+    
     def [](x)
       method_missing(x)
     end
@@ -577,55 +583,14 @@ module DB
       method_missing(x.to_s+"=", v)
     end
 
-    def quote(*a)
-      self.class.quote(*a)
-    end
-
-    def escape(*a)
-      self.class.escape(*a)
-    end
-
-    def to_hash
-      columns.map{|c,cl|
-        [c, __send__(c)]
-      }.to_hash
-    end
-
-    def columns
-      self.class.columns
-    end
-
-    def column?(*a)
-      self.class.column?(*a)
-    end
-
-    def foreign_keys
-      self.class.foreign_keys
-    end
-
-    def foreign_key?(*a)
-      self.class.foreign_key?(*a)
-    end
-
-    def reverse_foreign_keys
-      self.class.reverse_foreign_keys
-    end
-
-    def reverse_foreign_key?(*a)
-      self.class.reverse_foreign_key?(*a)
-    end
-
-    def joins
-      self.class.joins
-    end
-
-    def join?(*a)
-      self.class.join?(*a)
-    end
-
-    def table_name
-      self.class.table_name
-    end
+    delegate('self.class',
+             :quote, :escape,
+             :columns, :column?,
+             :foreign_keys, :foreign_key?,
+             :reverse_foreign_keys, :reverse_foreign_key?,
+             :joins, :join?,
+             :table_name
+             )
 
     def pin!(*cols)
       __assign_vars self.class.query("id" => id, :columns => :all)
