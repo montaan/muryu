@@ -222,25 +222,42 @@ module DB
 
   class Table
 
-    def self.escape n
-      PGconn.escape(n.to_s).dump
-    rescue => e
-      raise ArgumentError, "Can't escape #{n.inspect}."
-    end
+    DEFAULT_COLS = [
+      'cmax', 'xmax', 'ctid', 'cmin', 'xmin', 'tableoid'
+    ]
 
-    def self.quote n
-      case n
-      when DB::Table
-        PGconn.quote n.id
-      else
-        PGconn.quote n.to_s
+    class << self
+
+      # Escapes +n+ as an SQL name.
+      def escape n
+        DBconn.escape(n.to_s).dump
+      rescue => e
+        raise ArgumentError, "Can't escape #{n.inspect}: #{e} #{e.message}"
       end
-    rescue => e
-      raise ArgumentError, "Can't quote #{n.inspect}."
-    end
 
-    def self.all_foreign_keys
-      @@all_foreign_keys ||= (
+      # Quotes +n+ as an SQL variable.
+      def quote n
+        case n
+        when DB::Table
+          DBconn.quote n.id
+        else
+          DBconn.quote n.to_s
+        end
+      rescue => e
+        raise ArgumentError, "Can't quote #{n.inspect}: #{e} #{e.message}"
+      end
+
+      # Gets all foreign keys for the table.
+      # Gathers out foreign keys, joins and reverse foreign keys if they don't
+      # exist yet.
+      def all_foreign_keys
+        @@all_foreign_keys ||= (
+          gather_foreign_keys
+          @@all_foreign_keys
+        )
+      end
+
+      def gather_foreign_keys
         @@all_foreign_keys = Hash.new{|h,k| h[k] = Hash.new }
         @@all_joins = Hash.new{|h,k| h[k] = Hash.new{|i,l| i[l] = {}} }
         @@all_reverse_foreign_keys = Hash.new{|h,k| h[k] = Hash.new{|i,l| i[l] = {}} }
@@ -268,289 +285,291 @@ module DB
             }
           end
         end
-        @@all_foreign_keys
-      )
-    end
-
-    def self.add_join(fk1,fk2)
-      ftn1 = fk1.foreign_table_name
-      fcn1 = fk1.foreign_column_name
-      tn = fk1.table_name
-      cn1 = fk1.column_name
-      ftn2 = fk2.foreign_table_name
-      fcn2 = fk2.foreign_column_name
-      cn2 = fk2.column_name
-      @@all_joins[ftn1][ftn2][tn] = ForeignKey.new(ftn1,fcn1,ftn2,fcn2, tn,cn1,cn2)
-      @@all_joins[ftn2][ftn1][tn] = ForeignKey.new(ftn2,fcn2,ftn1,fcn1, tn,cn2,cn1)
-    end
-
-    def self.all_reverse_foreign_keys
-      @@all_reverse_foreign_keys ||= (all_foreign_keys and @@all_reverse_foreign_keys)
-    end
-
-    def self.all_joins
-      @@all_joins ||= (all_foreign_keys and @@all_joins)
-    end
-
-    def self.foreign_keys
-      all_foreign_keys[table_name]
-    end
-
-    def self.reverse_foreign_keys
-      all_reverse_foreign_keys[table_name]
-    end
-
-    def self.joins
-      all_joins[table_name]
-    end
-
-    DEFAULT_COLS = [
-      'cmax', 'xmax', 'ctid', 'cmin', 'xmin', 'tableoid'
-    ].map{|c| quote c }
-
-    def self.columns
-      @columns ||= DB::Conn.query("
-        select attname, typname
-        from pg_type t, pg_attribute a, pg_class c
-        WHERE relname = #{quote table_name}
-          and c.oid = attrelid
-          and t.oid = atttypid
-          and attname NOT IN (#{DEFAULT_COLS.join(",")})
-      ").to_hash
-    end
-
-    def self.column?(name)
-      columns.find{|c,t| c == name.to_s }
-    end
-
-    def self.foreign_key? k, ignore_direct=false
-      (ignore_direct and foreign_keys[k.to_s]) or
-      (columns[k.to_s+"_id"] and foreign_keys[k.to_s+"_id"])
-    end
-
-    def self.reverse_foreign_key? k
-      reverse_foreign_keys.has_key? k.to_s
-    end
-
-    def self.join? k
-      joins.has_key? k.to_s
-    end
-
-    def self.table_name= tn
-      if Tables.table? tn
-        @table_name = tn
-        @columns = nil
-        @foreign_keys = nil
-        __init_columns
       end
-    end
 
-    def self.table_name
-      @table_name ||= to_s.split('::').last.to_table_name
-    end
-
-    def self.find_or_create(h)
-      find(h) or create(h)
-    end
-
-    def self.ground_column_name(column_name)
-      return column_name if columns.include? column_name.to_s
-      fkey = foreign_key?(column_name.to_s)
-      if fkey
-        return fkey.column_name
+      def add_join(fk1,fk2)
+        ftn1 = fk1.foreign_table_name
+        fcn1 = fk1.foreign_column_name
+        tn = fk1.table_name
+        cn1 = fk1.column_name
+        ftn2 = fk2.foreign_table_name
+        fcn2 = fk2.foreign_column_name
+        cn2 = fk2.column_name
+        @@all_joins[ftn1][ftn2][tn] = ForeignKey.new(ftn1,fcn1,ftn2,fcn2, tn,cn1,cn2)
+        @@all_joins[ftn2][ftn1][tn] = ForeignKey.new(ftn2,fcn2,ftn1,fcn1, tn,cn2,cn1)
       end
-      raise ArgumentError, "Invalid column name #{column_name} for #{table_name}"
-    end
 
-    def self.create(h)
-      i = DB::Conn.exec(%Q(SELECT nextval(#{quote( table_name + "_id_seq")}) ))[0][0].to_i
-      h[:id] = i
-      sql = %Q[INSERT INTO #{escape table_name}
-        (#{h.keys.map{|k| escape ground_column_name(k)}.join(",")})
-        VALUES
-        (#{h.values.map{|v| quote v}.join(",")})]
-      DB::Conn.exec(sql)
-      id(i)[0]
-    end
-
-    def self.delete(h={})
-      if r = find(h)
-        sql = %Q(
-          DELETE FROM #{escape table_name}
-          WHERE id = #{quote r.id})
-        DB::Conn.exec(sql)
-      end
-    end
-
-    def self.delete_all(h={})
-      unless (rs=find_all(h)).empty?
-        DB::Conn.exec(%Q(
-          DELETE FROM #{escape table_name}
-          WHERE id in (#{ rs.map{|r| quote r.id}.join(",") })
-        ))
-      end
-    end
-
-    def self.count
-      sql = "SELECT count(*) FROM #{escape table_name}"
-      DB::Conn.query(sql).to_s.to_i
-    end
-
-    def self.find(h={})
-      find_all(h.merge(:limit => 1, :columns => :all)).first
-    end
-
-    def self.find_all(h={})
-      q = query(h)
-      idx = -1
-      q.map{|i| new q, idx+=1 }
-    rescue
-      p h
-      raise
-    end
-
-    def self.__comparison(k,v,lvl="0")
-      k = k.to_s
-      table = k.split(".").first
-      if fk = foreign_key?(table.to_s)
-        comp = case v
-        when Table
-          return __comparison(fk.column_name, v[fk.foreign_column_name], lvl)
-        else
-          k = k.sub(table+".","")
-          ft = fk.foreign_table
-          jt = fk.join_table_name
-          t, pr = ft.__comparison(k,v,lvl.succ)
-          t << [table_name, table_name+lvl]
-          t << [jt, jt+lvl.succ] if jt
-          t << [ft.table_name, ft.table_name+lvl.succ]
-          pr << fk.__comparison(lvl)
-          return [t,pr]
-        end
-      elsif table.size < k.size
-        k = k.sub(table+".","")
-        ft = Tables[table]
-        return ft.__comparison(k,v,lvl)
-      end
-      k = "#{escape(table_name+lvl)}.#{escape k}"
-      comp = get_comparison(k,v,lvl)
-      cmp_table = []
-      if v.is_a? Symbol
-        vs = v.to_s.split(".")
-        if vs.length > 1
-          cmp_table << vs[0] << vs[0]+lvl
-        end
-      end
-      [[table_name, table_name+lvl, *cmp_table], [comp]]
-    end
-
-    COMPARISON_OPS = ['<','>','in','not in','=','>=','<=']
-    def self.get_comparison(k, v, lvl=nil)
-      if v.is_a? Array and COMPARISON_OPS.include?(v[0].to_s.downcase)
-        cmp, v = v
-      else
-        cmp = nil
-      end
-      case v
-      when Regexp
-        "#{k} ~#{'*' if v.casefold?} #{
-          quote((v.inspect+" ").split("/")[1..-2].join("/"))
-        }"
-      when Range
-        min,max = v.to_a.sort
-        "#{k} >= #{quote min} AND #{k} <= #{quote max}"
-      when Symbol
-        vs = v.to_s.split(".")
-        vs[0] << lvl if vs.length > 1
-        k + " #{cmp || "="} " + vs.map{|i|escape i }.join(".")
-      when Array
-        if v[0].to_s[-2,2] == "()"
-          f = v[0].to_s[0...-2]
-          v = v[1..-1]
-        end
-        # problematic f(1,2,3,4) vs. (f(1),f(2),f(3),f(4)) ?
-        "#{k} #{cmp || (f ? "=" : "IN")} #{f}(#{v.map{|i| quote i}.join(",")})"
-      when nil
-        "#{k} #{cmp || "="} FALSE"
-      end or "#{k} #{cmp || "="} #{quote v}"
-    end
-
-    ### FIXME
-    # handle foreign keys
-    # handle reverse foreign keys
-    # handle many to many keys
-    # handle table references (damn it)
-    # use table name as default table
-    def self.parse_order_by(order_by, desc, asc)
-      case order_by
-      when Array
-        order_by.map{|ob,d|
-          escape(ob.to_s) + " #{d}"
-        }.join(", ")
-      else
-        dir = ""
-        dir = " DESC" if desc
-        dir = " ASC" if asc
-        escape(order_by) + dir
-      end
-    end
-
-    def self.parse_query(h)
-      h = h.clone
-      order_by = h.delete:order_by
-      desc = h.delete:desc
-      asc = h.delete:asc
-      limit = h.delete:limit
-      offset = h.delete:offset
-      cols = h.delete:columns
-      case cols
-      when Array
-        cols = ([:id] + cols).uniq.compact
-      when :all
-        cols = columns.keys
-      else
-        cols = [:id, cols].uniq.compact
-      end
-      foreign_key_cols = h.keys.find_all{|k|
-        f = k.to_s.split(".",2).first
-        foreign_key?(f) or (k.to_s.size > f.size and Tables.table? f)
-      }
-      bad_cols = h.keys.find_all{|k| not columns[k.to_s]} - foreign_key_cols
-      unless bad_cols.empty?
-        raise(
-          "Inexisting column#{'s' if bad_cols.size > 1}: #{bad_cols.join(", ")}"
+      def all_reverse_foreign_keys
+        @@all_reverse_foreign_keys ||= (
+          gather_foreign_keys
+          @@all_reverse_foreign_keys
         )
       end
-      tables = []
-      predicates = []
-      h.map{|k,v| t, p = __comparison(k,v)
-        tables << t
-        predicates << p
-      }
-      tables = Hash[*tables.flatten.reverse]
-      predicates.flatten!
-      tn = table_name
-      tn = escape(tables.find_all{|n,t| t == table_name}.min[0]) unless tables.empty?
-      q =  %Q(SELECT #{cols.map{|c|tn+"."+escape(c)}.join(", ")})
-      q << if tables.empty?
-        %Q(\nFROM #{escape table_name})
-      else
-        %Q(\nFROM #{tables.map{|n,t| escape(t)+" "+escape(n) }.join(", ")})
-      end
-      q << %Q(\nWHERE #{predicates.uniq.join(" AND ")}) unless predicates.empty?
-      q << %Q(\n#{%Q(ORDER BY #{parse_order_by order_by, desc, asc}) if order_by}
-        #{"LIMIT #{limit.to_i}" if limit}
-        #{"OFFSET #{offset.to_i}" if offset}
-      )
-      q
-    end
 
-    def self.query(h={})
-      q = parse_query h
-      DB::Conn.exec(q)
-    rescue => e
-      raise ArgumentError,
-            "Failed to execute query (#{e.message}): #{q}"
+      def all_joins
+        @@all_joins ||= (
+          gather_foreign_keys
+          @@all_joins
+        )
+      end
+
+      def foreign_keys
+        all_foreign_keys[table_name]
+      end
+
+      def reverse_foreign_keys
+        all_reverse_foreign_keys[table_name]
+      end
+
+      def joins
+        all_joins[table_name]
+      end
+
+      def columns
+        @columns ||= DB::Conn.query("
+          select attname, typname
+          from pg_type t, pg_attribute a, pg_class c
+          WHERE relname = #{quote table_name}
+            and c.oid = attrelid
+            and t.oid = atttypid
+            and attname NOT IN (#{DEFAULT_COLS.map{|c| quote c }.join(",")})
+        ").to_hash
+      end
+
+      def column?(name)
+        columns.find{|c,t| c == name.to_s }
+      end
+
+      def foreign_key? k, ignore_direct=false
+        (ignore_direct and foreign_keys[k.to_s]) or
+        (columns[k.to_s+"_id"] and foreign_keys[k.to_s+"_id"])
+      end
+
+      def reverse_foreign_key? k
+        reverse_foreign_keys.has_key? k.to_s
+      end
+
+      def join? k
+        joins.has_key? k.to_s
+      end
+
+      def table_name= tn
+        if Tables.table? tn
+          @table_name = tn
+          @columns = nil
+          @foreign_keys = nil
+          __init_columns
+        end
+      end
+
+      def table_name
+        @table_name ||= to_s.split('::').last.to_table_name
+      end
+
+      def find_or_create(h)
+        find(h) or create(h)
+      end
+
+      def ground_column_name(column_name)
+        return column_name if columns.include? column_name.to_s
+        fkey = foreign_key?(column_name.to_s)
+        if fkey
+          return fkey.column_name
+        end
+        raise ArgumentError, "Invalid column name #{column_name} for #{table_name}"
+      end
+
+      def create(h)
+        i = DB::Conn.exec(%Q(SELECT nextval(#{quote( table_name + "_id_seq")}) ))[0][0].to_i
+        h[:id] = i
+        sql = %Q[INSERT INTO #{escape table_name}
+          (#{h.keys.map{|k| escape ground_column_name(k)}.join(",")})
+          VALUES
+          (#{h.values.map{|v| quote v}.join(",")})]
+        DB::Conn.exec(sql)
+        id(i)[0]
+      end
+
+      def delete(h={})
+        if r = find(h)
+          sql = %Q(
+            DELETE FROM #{escape table_name}
+            WHERE id = #{quote r.id})
+          DB::Conn.exec(sql)
+        end
+      end
+
+      def delete_all(h={})
+        unless (rs=find_all(h)).empty?
+          DB::Conn.exec(%Q(
+            DELETE FROM #{escape table_name}
+            WHERE id in (#{ rs.map{|r| quote r.id}.join(",") })
+          ))
+        end
+      end
+
+      def count
+        sql = "SELECT count(*) FROM #{escape table_name}"
+        DB::Conn.query(sql).to_s.to_i
+      end
+
+      def find(h={})
+        find_all(h.merge(:limit => 1, :columns => :all)).first
+      end
+
+      def find_all(h={})
+        q = query(h)
+        idx = -1
+        q.map{|i| new q, idx+=1 }
+      rescue
+        p h
+        raise
+      end
+
+      def __comparison(k,v,lvl="0")
+        k = k.to_s
+        table = k.split(".").first
+        if fk = foreign_key?(table.to_s)
+          comp = case v
+          when Table
+            return __comparison(fk.column_name, v[fk.foreign_column_name], lvl)
+          else
+            k = k.sub(table+".","")
+            ft = fk.foreign_table
+            jt = fk.join_table_name
+            t, pr = ft.__comparison(k,v,lvl.succ)
+            t << [table_name, table_name+lvl]
+            t << [jt, jt+lvl.succ] if jt
+            t << [ft.table_name, ft.table_name+lvl.succ]
+            pr << fk.__comparison(lvl)
+            return [t,pr]
+          end
+        elsif table.size < k.size
+          k = k.sub(table+".","")
+          ft = Tables[table]
+          return ft.__comparison(k,v,lvl)
+        end
+        k = "#{escape(table_name+lvl)}.#{escape k}"
+        comp = get_comparison(k,v,lvl)
+        cmp_table = []
+        if v.is_a? Symbol
+          vs = v.to_s.split(".")
+          if vs.length > 1
+            cmp_table << vs[0] << vs[0]+lvl
+          end
+        end
+        [[table_name, table_name+lvl, *cmp_table], [comp]]
+      end
+
+      COMPARISON_OPS = ['<','>','in','not in','=','>=','<=']
+      def get_comparison(k, v, lvl=nil)
+        if v.is_a? Array and COMPARISON_OPS.include?(v[0].to_s.downcase)
+          cmp, v = v
+        else
+          cmp = nil
+        end
+        case v
+        when Regexp
+          "#{k} ~#{'*' if v.casefold?} #{
+            quote((v.inspect+" ").split("/")[1..-2].join("/"))
+          }"
+        when Range
+          min,max = v.to_a.sort
+          "#{k} >= #{quote min} AND #{k} <= #{quote max}"
+        when Symbol
+          vs = v.to_s.split(".")
+          vs[0] << lvl if vs.length > 1
+          k + " #{cmp || "="} " + vs.map{|i|escape i }.join(".")
+        when Array
+          if v[0].to_s[-2,2] == "()"
+            f = v[0].to_s[0...-2]
+            v = v[1..-1]
+          end
+          # problematic f(1,2,3,4) vs. (f(1),f(2),f(3),f(4)) ?
+          "#{k} #{cmp || (f ? "=" : "IN")} #{f}(#{v.map{|i| quote i}.join(",")})"
+        when nil
+          "#{k} #{cmp || "="} FALSE"
+        end or "#{k} #{cmp || "="} #{quote v}"
+      end
+
+      ### FIXME
+      # handle foreign keys
+      # handle reverse foreign keys
+      # handle many to many keys
+      # handle table references (damn it)
+      # use table name as default table
+      def parse_order_by(order_by, desc, asc)
+        case order_by
+        when Array
+          order_by.map{|ob,d|
+            escape(ob.to_s) + " #{d}"
+          }.join(", ")
+        else
+          dir = ""
+          dir = " DESC" if desc
+          dir = " ASC" if asc
+          escape(order_by) + dir
+        end
+      end
+
+      def parse_query(h)
+        h = h.clone
+        order_by = h.delete:order_by
+        desc = h.delete:desc
+        asc = h.delete:asc
+        limit = h.delete:limit
+        offset = h.delete:offset
+        cols = h.delete:columns
+        case cols
+        when Array
+          cols = ([:id] + cols).uniq.compact
+        when :all
+          cols = columns.keys
+        else
+          cols = [:id, cols].uniq.compact
+        end
+        foreign_key_cols = h.keys.find_all{|k|
+          f = k.to_s.split(".",2).first
+          foreign_key?(f) or (k.to_s.size > f.size and Tables.table? f)
+        }
+        bad_cols = h.keys.find_all{|k| not columns[k.to_s]} - foreign_key_cols
+        unless bad_cols.empty?
+          raise(
+            "Inexisting column#{'s' if bad_cols.size > 1}: #{bad_cols.join(", ")}"
+          )
+        end
+        tables = []
+        predicates = []
+        h.map{|k,v| t, p = __comparison(k,v)
+          tables << t
+          predicates << p
+        }
+        tables = Hash[*tables.flatten.reverse]
+        predicates.flatten!
+        tn = table_name
+        tn = escape(tables.find_all{|n,t| t == table_name}.min[0]) unless tables.empty?
+        q =  %Q(SELECT #{cols.map{|c|tn+"."+escape(c)}.join(", ")})
+        q << if tables.empty?
+          %Q(\nFROM #{escape table_name})
+        else
+          %Q(\nFROM #{tables.map{|n,t| escape(t)+" "+escape(n) }.join(", ")})
+        end
+        q << %Q(\nWHERE #{predicates.uniq.join(" AND ")}) unless predicates.empty?
+        q << %Q(\n#{%Q(ORDER BY #{parse_order_by order_by, desc, asc}) if order_by}
+          #{"LIMIT #{limit.to_i}" if limit}
+          #{"OFFSET #{offset.to_i}" if offset}
+        )
+        q
+      end
+
+      def query(h={})
+        q = parse_query h
+        DB::Conn.exec(q)
+      rescue => e
+        raise ArgumentError,
+              "Failed to execute query (#{e.message}): #{q}"
+      end
+
     end
 
 
