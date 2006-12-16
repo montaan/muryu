@@ -22,6 +22,8 @@ include Future
 
   def look_at_urgent_todo_for_work_and_home
     Items.rsearch(@user, 'set:urgent set:todo tag:work|home')
+    # sql INTERSECTs ~2x slower than flat select with NOT IN as EXCEPT
+    # according to psql's EXPLAIN at least...
     Sets[@user, 'urgent'] &
     Sets[@user, 'todo'] &
     Tags[@user, ['work', 'home']]

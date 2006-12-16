@@ -26,6 +26,16 @@ class Items < DB::Tables::Items
     remove_instance_variable :@tags if @tags
   end
 
+  def add_set(set)
+    ItemsSets.find_or_create(:item => self, :set => set)
+    remove_instance_variable :@sets if @sets
+  end
+
+  def remove_set(set)
+    ItemsSets.delete_all(:item => self, :set => set)
+    remove_instance_variable :@sets if @sets
+  end
+
   def read
     File.open(internal_path, "rb"){|f| f.read}
   end

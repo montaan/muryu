@@ -58,7 +58,16 @@ class Uploader
       :user     => options[:user],
       :can_modify => options[:can_modify]
     }
-    store_item(*[:io, :filename, :user, :groups, :can_modify, :metadata_info].map{|f| options[f]})
+    item = store_item(*[:io, :filename, :user, :groups, :can_modify, :metadata_info].map{|f| options[f]})
+    options[:tags].each do |tag|
+      item.add_tag tag
+    end
+    options[:sets].each do |set_name|
+      set_name = set_name.name if set_name.is_a? DB::Table
+      set = Sets.rfind_or_create(options[:user], :name => set_name)
+      item.add_set set
+    end
+    item
   end
 
   # finds user/YYYY/MM-DD/preferred_filename[.n].ext that doesn't exist yet
@@ -123,6 +132,7 @@ class Uploader
             :group_id => group.id,
             :can_modify => can_modify ? true : false)
         end
+        
       end
     rescue => e
       retry if filename_violation?(e) && (attemps -= 1) > 0

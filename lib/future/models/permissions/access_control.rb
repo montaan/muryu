@@ -54,8 +54,18 @@ end
 
 module AccessControlClass
 
+  def find_parse_args(user, h)
+    h = h.clone
+    h.delete(:public)
+    h
+  end
+
+  def create_parse_args(h)
+    h
+  end
+
   def rfind_all(user, h={})
-    h = {:deleted => false}.merge(h) if columns['deleted']
+    h = find_parse_args(user, h)
     qs = parse_query(h)
     qs = qs.split(/\n/)
     qs[1].sub!("FROM", "FROM groups g, users_groups ug, #{table_name}_groups tg,")
@@ -72,7 +82,7 @@ module AccessControlClass
 
     q = DB::Conn.exec(qs.join("\n"))
     idx = -1
-    q.map{|i| new q, idx+=1 }
+    q.map{|i| new q, idx+=1 }.uniq
   rescue
     p h
     raise
@@ -82,9 +92,14 @@ module AccessControlClass
     rfind_all(user, h.merge(:limit => 1, :columns => :all)).first
   end
 
+  def rfind_or_create(user, h)
+    rfind(user, h) or rcreate(h.merge(:owner => user))
+  end
+
   def rcreate(h)
-    h = h.clone
-    ugroup = (h[:owner] || Users.find(:id => h[:owner_id])).group
+    h = create_parse_args(h).merge(h)
+    user = (h[:owner] || Users.find(:id => h[:owner_id]))
+    ugroup = user.group
     if h.delete(:public)
       pgroup = Groups.public
     end
@@ -97,13 +112,6 @@ module AccessControlClass
     ) if pgroup
     it
   end
-
-end
-
-
-class Items < DB::Tables::Items
-include AccessControl
-extend AccessControlClass
 
 end
 
@@ -130,7 +138,7 @@ extend AccessControlClass
     end
     q = DB::Conn.exec(qs.join("\n"))
     idx = -1
-    q.map{|i| new q, idx+=1 }
+    q.map{|i| new q, idx+=1 }.uniq
   rescue
     p h
     raise
@@ -187,10 +195,6 @@ extend AccessControlClass
 
   def delete(user)
     write(user) do
-      ItemsGroups.delete_all(:group_id => id)
-      LandmarksGroups.delete_all(:group_id => id)
-      SetsGroups.delete_all(:group_id => id)
-      UsersGroups.delete_all(:group_id => id)
       self.class.delete(:id => id)
     end
   end
@@ -210,12 +214,41 @@ extend AccessControlClass
 end
 
 
+class Items < DB::Tables::Items
+include AccessControl
+extend AccessControlClass
+
+  def self.find_parse_args(user, h)
+    {:deleted => false}.merge(h)
+  end
+
+end
+
+
 class Sets < DB::Tables::Sets
 include AccessControl
 extend AccessControlClass
 
+  def self.find_parse_args(user, h)
+    h = h.clone
+    dh = {:deleted => false}
+    dh[:namespace] = []
+    dh[:namespace] << "public" if h[:public] != false
+    dh[:namespace] << "user:#{user.name}" if h[:public] != true
+    h.delete :public
+    dh.merge(h)
+  end
+
+  def self.create_parse_args(h)
+    dh = {:deleted => false}
+    dh[:namespace] = h[:public] ? "public" : "user:#{h[:owner].name}"
+    dh.merge(h)
+  end
+
 end
 class SetsGroups < DB::Tables::SetsGroups
+end
+class ItemsSets < DB::Tables::ItemsSets
 end
 
 

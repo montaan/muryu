@@ -18,40 +18,40 @@ include Future
     s = Sets.rfind_or_create(@foo, :name => 'todo')
     t1 = Uploader.upload :user => @foo, :text => "Write a todo", :sets => [s]
     t2 = Uploader.upload :user => @foo, :text => "Remove the first item", :sets => [s]
-    assert_equal([t1,t2], s.items(:order_by => 'created_at'))
+    assert_equal([t1,t2], s.items.sort)
   end
 
   def test_set_visibility
     s = Sets.rfind_or_create(@foo, :name => 'todo')
     s2 = Sets.rfind_or_create(@baz, :name => 'todo')
 
-    assert_equal([s], s.rfind_all(@foo, :name => 'todo'))
-    assert_equal([s2], s.rfind_all(@bar, :name => 'todo'))
+    assert_equal([s], Sets.rfind_all(@foo, :name => 'todo'))
+    assert_equal([s2], Sets.rfind_all(@baz, :name => 'todo'))
 
     s3 = Sets.rfind_or_create(@foo, :name => 'todo', :public => true)
-    assert_equal([s, s3], s.rfind_all(@foo, :name => 'todo').sort)
-    assert_equal([s2, s3], s.rfind_all(@bar, :name => 'todo').sort)
+    assert_equal([s, s3], Sets.rfind_all(@foo, :name => 'todo').sort)
+    assert_equal([s2, s3], Sets.rfind_all(@baz, :name => 'todo').sort)
   end
 
   def test_set_delete
     s = Sets.rfind_or_create(@foo, :name => 'todo')
-    assert_equal([s], s.rfind_all(@foo, :name => 'todo'))
+    assert_equal([s], Sets.rfind_all(@foo, :name => 'todo'))
     s.rdelete(@foo)
-    assert_equal([], s.rfind_all(@foo, :name => 'todo'))
-    assert_equal([s], s.rfind_all(@foo, :name => 'todo', :deleted => true))
+    assert_equal([], Sets.rfind_all(@foo, :name => 'todo'))
+    assert_equal([s], Sets.rfind_all(@foo, :name => 'todo', :deleted => true))
     s.rundelete(@foo)
-    assert_equal([s], s.rfind_all(@foo, :name => 'todo'))
+    assert_equal([s], Sets.rfind_all(@foo, :name => 'todo'))
   end
 
   def test_set_edit
     s = Sets.rfind_or_create(@foo, :name => 'todo')
     t1 = Uploader.upload :user => @foo, :text => "Write a todo", :sets => [s]
     t2 = Uploader.upload :user => @foo, :text => "Remove the first item", :sets => [s]
-    assert_equal([t1,t2], s.items(:order_by => 'created_at'))
+    assert_equal([t1,t2], s.items.sort)
     
     s.name = 'my todo'
     s = Sets.rfind_or_create(@foo, :name => 'my todo')
-    assert_equal([t1,t2], s.items(:order_by => 'created_at'))
+    assert_equal([t1,t2], s.items.sort)
     assert !Sets.rfind(@foo, :name => 'todo')
   end
 
