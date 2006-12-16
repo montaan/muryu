@@ -64,10 +64,23 @@ end
 
 
 module DB
+
+  class DBconn < PGconn
+
+    def exec(query, log_level = Logger::DEBUG, subsystem = "dbconn")
+      log("DBconn#exec: "+query, subsystem, log_level) { super(query) }
+    end
+
+    def query(query, log_level = Logger::DEBUG, subsystem = "dbconn")
+      log("DBconn#query: "+query, subsystem, log_level) { super(query) }
+    end
+  
+  end
+
   def self.establish_connection(options)
     remove_const(:Conn) if defined? Conn
     log_info("Establishing DB connection #{options.inspect}", "dbconn")
-    const_set(:Conn, PGconn.new(options[:host], options[:port], 
+    const_set(:Conn, DBconn.new(options[:host], options[:port],
                                 options[:options], nil, 
                                 options[:database], options[:login],
                                 options[:password]))
@@ -209,6 +222,23 @@ module DB
 
   class Table
 
+    def self.escape n
+      PGconn.escape(n.to_s).dump
+    rescue => e
+      raise ArgumentError, "Can't escape #{n.inspect}."
+    end
+
+    def self.quote n
+      case n
+      when DB::Table
+        PGconn.quote n.id
+      else
+        PGconn.quote n.to_s
+      end
+    rescue => e
+      raise ArgumentError, "Can't quote #{n.inspect}."
+    end
+
     def self.all_foreign_keys
       @@all_foreign_keys ||= (
         @@all_foreign_keys = Hash.new{|h,k| h[k] = Hash.new }
@@ -274,6 +304,10 @@ module DB
       all_joins[table_name]
     end
 
+    DEFAULT_COLS = [
+      'cmax', 'xmax', 'ctid', 'cmin', 'xmin', 'tableoid'
+    ].map{|c| quote c }
+
     def self.columns
       @columns ||= DB::Conn.query("
         select attname, typname
@@ -281,6 +315,7 @@ module DB
         WHERE relname = #{quote table_name}
           and c.oid = attrelid
           and t.oid = atttypid
+          and attname NOT IN (#{DEFAULT_COLS.join(",")})
       ").to_hash
     end
 
@@ -314,23 +349,6 @@ module DB
       @table_name ||= to_s.split('::').last.to_table_name
     end
 
-    def self.escape n
-      PGconn.escape(n.to_s).dump
-    rescue => e
-      raise ArgumentError, "Can't escape #{n.inspect}."
-    end
-
-    def self.quote n
-      case n
-      when DB::Table
-        PGconn.quote n.id
-      else
-        PGconn.quote n.to_s
-      end
-    rescue => e
-      raise ArgumentError, "Can't quote #{n.inspect}."
-    end
-
     def self.find_or_create(h)
       find(h) or create(h)
     end
@@ -347,19 +365,20 @@ module DB
     def self.create(h)
       i = DB::Conn.exec(%Q(SELECT nextval(#{quote( table_name + "_id_seq")}) ))[0][0].to_i
       h[:id] = i
-      log_debug(%Q[
-        INSERT INTO #{escape table_name}
+      sql = %Q[INSERT INTO #{escape table_name}
         (#{h.keys.map{|k| escape ground_column_name(k)}.join(",")})
         VALUES
-        (#{h.values.map{|v| quote v}.join(",")})], "dbconn"){|sql| DB::Conn.exec(sql) }
+        (#{h.values.map{|v| quote v}.join(",")})]
+      DB::Conn.exec(sql)
       id(i)[0]
     end
 
     def self.delete(h={})
       if r = find(h)
-        log_debug(%Q(
+        sql = %Q(
           DELETE FROM #{escape table_name}
-          WHERE id = #{quote r.id}), "dbconn"){|sql| DB::Conn.exec(sql) }
+          WHERE id = #{quote r.id})
+        DB::Conn.exec(sql)
       end
     end
 
@@ -373,9 +392,8 @@ module DB
     end
 
     def self.count
-      log_debug("SELECT count(*) FROM #{escape table_name}", "dbconn") do |sql|
-        DB::Conn.query(sql).to_s.to_i
-      end
+      sql = "SELECT count(*) FROM #{escape table_name}"
+      DB::Conn.query(sql).to_s.to_i
     end
 
     def self.find(h={})
@@ -529,7 +547,7 @@ module DB
 
     def self.query(h={})
       q = parse_query h
-      log_debug(q, "dbconn") { DB::Conn.exec(q) }
+      DB::Conn.exec(q)
     rescue => e
       raise ArgumentError,
             "Failed to execute query (#{e.message}): #{q}"
