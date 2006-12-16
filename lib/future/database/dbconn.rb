@@ -287,6 +287,24 @@ module DB
         end
       end
 
+      def all_columns
+        @@all_columns ||= gather_columns
+      end
+
+      def gather_columns
+        cols = Hash.new{|h,k| h[k] = {} }
+        DB::Conn.query("
+          select relname, attname, typname
+          from pg_type t, pg_attribute a, pg_class c
+          WHERE c.oid = attrelid
+            and t.oid = atttypid
+            and attname NOT IN (#{DEFAULT_COLS.map{|c| quote c }.join(",")})
+        ").each{|t,c,tp|
+          cols[t][c] = tp
+        }
+        cols
+      end
+
       def add_join(fk1,fk2)
         ftn1 = fk1.foreign_table_name
         fcn1 = fk1.foreign_column_name
@@ -326,14 +344,7 @@ module DB
       end
 
       def columns
-        @columns ||= DB::Conn.query("
-          select attname, typname
-          from pg_type t, pg_attribute a, pg_class c
-          WHERE relname = #{quote table_name}
-            and c.oid = attrelid
-            and t.oid = atttypid
-            and attname NOT IN (#{DEFAULT_COLS.map{|c| quote c }.join(",")})
-        ").to_hash
+        all_columns[table_name]
       end
 
       def column?(name)
