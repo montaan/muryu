@@ -17,7 +17,6 @@ end
 
 module Mimetype
 
-  # Default thumbnailer uses the mimetype icon as the thumbnail.
   def thumbnail(filename, thumb_filename, thumb_size=128)
     if to_s =~ /video/
       video_thumbnail(filename, thumb_filename, thumb_size)
