@@ -13,7 +13,6 @@ module Future
 #
 # Future::MetadataExtractor['foo.png']
 #
-### renamed due to name conflict with Metadata
 module MetadataExtractor
 extend self
 

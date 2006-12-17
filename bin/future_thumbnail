@@ -1,0 +1,7 @@
+#!/usr/bin/ruby
+
+require 'future/imaging/thumbnailer'
+
+fn, tfn = *ARGV
+
+Pathname.new(fn).thumbnail(tfn)
