@@ -133,7 +133,7 @@ extend AccessControlClass
     ws0 = "WHERE (groups0.public OR (ug.user_id = #{user.id}
             AND ug.group_id = groups0.id)) "
     if qs[2] =~ /^WHERE/
-      qs[2].sub!("WHERE", ws0 + " AND ")
+      qs[2].sub!("WHERE", ws + " AND ")
     else
       qs.insert(2, ws)
     end
