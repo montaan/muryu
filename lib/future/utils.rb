@@ -11,13 +11,18 @@ require 'logger'
 module Kernel
   def log(message, subsystem = "", level = Logger::INFO)
     if block_given?
-      t0 = Time.new
-      ret = yield message
-      dt = Time.new - t0
-      Future.logger.log(level, "#{subsystem} (#{dt})   #{message.strip}")
+      begin
+        t0 = Time.new
+        ret = yield message
+        dt = Time.new - t0
+      ensure
+        Future.logger.log(level, "#{subsystem} (#{dt})   #{message.strip}")
+        Future.logger.log(Logger::DEBUG, caller.join("\n")) if $DEBUG
+      end
       ret
     else
       Future.logger.log(level, "#{subsystem}   #{message.strip}")
+      Future.logger.log(Logger::DEBUG, caller.join("\n")) if $DEBUG
     end
   end
 
