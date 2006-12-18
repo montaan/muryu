@@ -207,12 +207,10 @@ module DB
     def get_all(obj, h={})
       if join_table_name
         foreign_table.find_all({
-          foreign_column_name =>
-             (join_table_name+"."+join_foreign_table_column).to_sym,
-          (join_table_name+"."+join_table_column) => obj[column_name]
+          foreign_column_name => obj[join_table_name].map{|tn| tn[join_foreign_table_column]}
         }.merge(h))
       else
-        foreign_table.find_all({foreign_column_name => obj[column_name]}.merge(h))
+        foreign_table.find_all({foreign_column_name => [obj[column_name]]}.merge(h))
       end
     end
 
@@ -472,71 +470,6 @@ module DB
         raise
       end
 
-      def __comparison(k,v,lvl="0")
-        k = k.to_s
-        table = k.split(".").first
-        if fk = foreign_key?(table.to_s)
-          comp = case v
-          when Table
-            return __comparison(fk.column_name, v[fk.foreign_column_name], lvl)
-          else
-            k = k.sub(table+".","")
-            ft = fk.foreign_table
-            jt = fk.join_table_name
-            t, pr = ft.__comparison(k,v,lvl.succ)
-            t << [table_name, table_name+lvl]
-            t << [jt, jt+lvl.succ] if jt
-            t << [ft.table_name, ft.table_name+lvl.succ]
-            pr << fk.__comparison(lvl)
-            return [t,pr]
-          end
-        elsif table.size < k.size
-          k = k.sub(table+".","")
-          ft = Tables[table]
-          return ft.__comparison(k,v,lvl)
-        end
-        k = "#{escape(table_name+lvl)}.#{escape k}"
-        comp = get_comparison(k,v,lvl)
-        cmp_table = []
-        if v.is_a? Symbol
-          vs = v.to_s.split(".")
-          if vs.length > 1
-            cmp_table << vs[0] << vs[0]+lvl
-          end
-        end
-        [[table_name, table_name+lvl, *cmp_table], [comp]]
-      end
-
-      COMPARISON_OPS = ['<','>','in','not in','=','>=','<=']
-      def get_comparison(k, v, lvl=nil)
-        if v.is_a? Array and COMPARISON_OPS.include?(v[0].to_s.downcase)
-          cmp, v = v
-        else
-          cmp = nil
-        end
-        case v
-        when Regexp
-          "#{k} ~#{'*' if v.casefold?} #{
-            quote((v.inspect+" ").split("/")[1..-2].join("/"))
-          }"
-        when Range
-          min,max = v.to_a.sort
-          "#{k} >= #{quote min} AND #{k} <= #{quote max}"
-        when Symbol
-          vs = v.to_s.split(".")
-          vs[0] << lvl if vs.length > 1
-          k + " #{cmp || "="} " + vs.map{|i|escape i }.join(".")
-        when Array
-          if v[0].to_s[-2,2] == "()"
-            f = v[0].to_s[0...-2]
-            v = v[1..-1]
-          end
-          # problematic f(1,2,3,4) vs. (f(1),f(2),f(3),f(4)) ?
-          "#{k} #{cmp || (f ? "=" : "IN")} #{f}(#{v.map{|i| quote i}.join(",")})"
-        when nil
-          "#{k} #{cmp || "="} FALSE"
-        end or "#{k} #{cmp || "="} #{quote v}"
-      end
 
       ### FIXME
       # handle foreign keys
@@ -616,10 +549,11 @@ module DB
             end
             comparisons << [fk, val_comps] unless val_comps.empty?
           else
-            bad_cols << fk
+            bad_cols << key
           end
         }
         unless bad_cols.empty?
+          p h
           raise(
             "Inexisting column#{'s' if bad_cols.size > 1}: #{bad_cols.join(", ")}"
           )
@@ -664,12 +598,16 @@ module DB
         pre = ""
         set_predicate, pre = pre, set_predicate if set_predicate == "NOT"
         pre, set_predicate = "NOT", "ANY" if set_predicate == "NOT ANY"
+        if values.size == 1 and not values[0].is_a? SQLString
+          set_predicate = ''
+        end
         pre << " " unless pre.empty?
         set_predicate += " " unless set_predicate.empty?
         pre +
         "#{escape tbl}.#{escape col} "+
         "#{value_predicate} #{set_predicate}"+
         "(#{values.map do |v|
+              v = v['id'] if v.is_a? DB::Table # replace id with the referred column...
               cast_quote(v, table.columns[col])
             end.join(",")
          })"
@@ -703,26 +641,30 @@ module DB
         parse_from_where_into_sql(from, where)
       end
       
-      VALUE_PREDICATES = [:<, :>, :'=', :'!=', :>=, :<=]
+      VALUE_PREDICATES = [:<, :>, :'=', :'!=', :>=, :<=, :'~', :'~*']
       def extract_value_predicate(val)
         if VALUE_PREDICATES.include? val[0]
           val.shift
         else
-          :'='
+          if val[0].is_a? Regexp
+            :"~#{'*' if val[0].casefold?}"
+          else
+            :'='
+          end
         end
       end
 
       def expand_key(key)
         keys = key.split(".")
         if keys.size == 1 and column? keys[0]
-          fk = [self, key]
+          fk = [key]
         else
           tbl = expand_column_name(keys.shift)
           fk = [tbl] + keys.map{|col|
             next unless tbl
             tbl = (tbl.foreign_table.expand_column_name(col) rescue false)
           }
-          fk = false unless fk.last
+          return false unless fk.last
         end
         fk << fk.last.foreign_column_name if fk.last.is_a? ForeignKey
         fk
@@ -770,11 +712,12 @@ module DB
         q
       end
 
-      def new_parse_query(h)
+      def parse_query(h)
         parse_query_into_sql_array(h).join("\n")
+        #old_parse_query(h)
       end
 
-      def parse_query(h)
+      def old_parse_query(h)
         h = h.clone
         order_by = h.delete:order_by
         desc = h.delete:desc
@@ -824,17 +767,86 @@ module DB
         q
       end
 
+      def __comparison(k,v,lvl="0")
+        k = k.to_s
+        table = k.split(".").first
+        if fk = foreign_key?(table.to_s)
+          comp = case v
+          when Table
+            return __comparison(fk.column_name, v[fk.foreign_column_name], lvl)
+          else
+            k = k.sub(table+".","")
+            ft = fk.foreign_table
+            jt = fk.join_table_name
+            t, pr = ft.__comparison(k,v,lvl.succ)
+            t << [table_name, table_name+lvl]
+            t << [jt, jt+lvl.succ] if jt
+            t << [ft.table_name, ft.table_name+lvl.succ]
+            pr << fk.__comparison(lvl)
+            return [t,pr]
+          end
+        elsif table.size < k.size
+          k = k.sub(table+".","")
+          ft = Tables[table]
+          return ft.__comparison(k,v,lvl)
+        end
+        k = "#{escape(table_name+lvl)}.#{escape k}"
+        comp = get_comparison(k,v,lvl)
+        cmp_table = []
+        if v.is_a? Symbol
+          vs = v.to_s.split(".")
+          if vs.length > 1
+            cmp_table << vs[0] << vs[0]+lvl
+          end
+        end
+        [[table_name, table_name+lvl, *cmp_table], [comp]]
+      end
+
+      COMPARISON_OPS = ['<','>','in','not in','=','>=','<=']
+      def get_comparison(k, v, lvl=nil)
+        if v.is_a? Array and COMPARISON_OPS.include?(v[0].to_s.downcase)
+          cmp, v = v
+        else
+          cmp = nil
+        end
+        case v
+        when Regexp
+          "#{k} ~#{'*' if v.casefold?} #{
+            quote((v.inspect+" ").split("/")[1..-2].join("/"))
+          }"
+        when Range
+          min,max = v.to_a.sort
+          "#{k} >= #{quote min} AND #{k} <= #{quote max}"
+        when Symbol
+          vs = v.to_s.split(".")
+          vs[0] << lvl if vs.length > 1
+          k + " #{cmp || "="} " + vs.map{|i|escape i }.join(".")
+        when Array
+          if v[0].to_s[-2,2] == "()"
+            f = v[0].to_s[0...-2]
+            v = v[1..-1]
+          end
+          # problematic f(1,2,3,4) vs. (f(1),f(2),f(3),f(4)) ?
+          "#{k} #{cmp || (f ? "=" : "IN")} #{f}(#{v.map{|i| quote i}.join(",")})"
+        when nil
+          "#{k} #{cmp || "="} FALSE"
+        end or "#{k} #{cmp || "="} #{quote v}"
+      end
+
       def query(h={})
         q = parse_query h
         DB::Conn.exec(q)
-      rescue => e
-        raise ArgumentError,
-              "Failed to execute query (#{e.message}): #{q}"
       end
 
       def cast_quote(value, type)
-        return "NULL" if value.nil?
-        return value if value.is_a? SQLString
+        case value
+        when nil
+          return "NULL"
+        when SQLString
+          return value
+        when Regexp
+          value = (value.inspect+" ").split("/")[1..-2].join("/")
+        end
         (REVERSE_CASTS[type] || REVERSE_CASTS[:default])[value]
       end
 
