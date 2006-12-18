@@ -140,6 +140,9 @@ module DB
     :default => lambda{|i| DB::Table.quote i}
   }
 
+  class SQLString < String
+  end
+
   # Isolation level can be 'READ COMMITTED' or 'SERIALIZABLE'.
   # Access mode can be 'READ WRITE' or 'READ ONLY'.
   def self.transaction(isolation_level='read committed', access_mode='read write')
@@ -590,16 +593,28 @@ module DB
       def parse_query_hash_into_comparison_arrays(h)
         h = h.clone
         bad_cols = []
-        comparisons = h.map{|key, vals|
+        comparisons = []
+        h.each{|key, vals|
           key = key.to_s
           fk = expand_key(key)
           if fk
             vals = [vals] unless vals.is_a? Array
             vals = [vals] unless vals[0].is_a? Array
-            [fk, vals.map{|val|
+            val_comps = []
+            vals.each do |val|
               set_predicate = val.predicate
-              [set_predicate, extract_value_predicate(val), val]
-            }]
+              val_pred = extract_value_predicate(val)
+              if set_predicate == "ALL"
+                val.each{|v| comparisons << [fk, [["", val_pred, [v]]]] }
+              elsif set_predicate == "NOT ANY"
+                fk2 = fk.clone
+                fk2[-1] = "id"
+                comparisons << [fk2, [["NOT ANY", :"=", [not_any_sql_string(fk, val_pred, val)]]]]
+              else
+                val_comps << [set_predicate, val_pred, val]
+              end
+            end
+            comparisons << [fk, val_comps] unless val_comps.empty?
           else
             bad_cols << fk
           end
@@ -612,6 +627,18 @@ module DB
         comparisons
       end
 
+      def not_any_sql_string(fk, val_pred, val)
+        q = []
+        q << "SELECT id"
+        f,w = parse_comparison_arrays_into_from_where([[fk, [["ANY", val_pred, val]]]])
+        q.push *parse_from_where_into_sql(f,w)
+        sql q.join(" ")
+      end
+
+      def sql(str)
+        SQLString.new(str)
+      end
+
       def parse_comparison_arrays_into_from_where(arrays)
         idx = 0
         from = [escape(table_name)]
@@ -621,29 +648,46 @@ module DB
           table = self
           cols.each_with_index do |fk, lvl|
             if fk.is_a? ForeignKey
-              f = fk.foreign_table_name
-              table = fk.foreign_table
-              tbl = "#{f}_#{idx}_#{lvl}"
-              from << "#{escape f} #{escape tbl}"
-              j = fk.join_table_name
-              from << "#{escape j} #{escape "#{j}_#{idx}_#{lvl}"}" if j
-              if lvl == 0
-                where << fk.where_comparison("", "_#{idx}_#{lvl}")
-              else
-                where << fk.where_comparison("#{idx}_#{lvl-1}", "_#{idx}_#{lvl}")
-              end
+              table, tbl = parse_column_address_segment(fk, idx, lvl, from, where)
             else
-              vals.each do |set_predicate, value_predicate, values|
-                where << "#{escape tbl}.#{escape fk} "+
-                "#{value_predicate} #{set_predicate} "+
-                "(#{values.map do |v|
-                      cast_quote(v, table.columns[fk])
-                    end.join(",")})"
+              vals.map do |set_predicate, value_predicate, values|
+                where << parse_value_comparison(table, tbl, fk,
+                                     set_predicate, value_predicate, values)
               end
             end
           end
         end
         [from, where]
+      end
+
+      def parse_value_comparison(table, tbl, col, set_predicate, value_predicate, values)
+        pre = ""
+        set_predicate, pre = pre, set_predicate if set_predicate == "NOT"
+        pre, set_predicate = "NOT", "ANY" if set_predicate == "NOT ANY"
+        pre << " " unless pre.empty?
+        set_predicate += " " unless set_predicate.empty?
+        pre +
+        "#{escape tbl}.#{escape col} "+
+        "#{value_predicate} #{set_predicate}"+
+        "(#{values.map do |v|
+              cast_quote(v, table.columns[col])
+            end.join(",")
+         })"
+      end
+      
+      def parse_column_address_segment(fk, idx, lvl, from, where)
+        f = fk.foreign_table_name
+        table = fk.foreign_table
+        tbl = "#{f}_#{idx}_#{lvl}"
+        from << "#{escape f} #{escape tbl}"
+        j = fk.join_table_name
+        from << "#{escape j} #{escape "#{j}_#{idx}_#{lvl}"}" if j
+        if lvl == 0
+          where << fk.where_comparison("", "_#{idx}_#{lvl}")
+        else
+          where << fk.where_comparison("#{idx}_#{lvl-1}", "_#{idx}_#{lvl}")
+        end
+        [table, tbl]
       end
 
       def parse_from_where_into_sql(from, where)
@@ -790,6 +834,7 @@ module DB
 
       def cast_quote(value, type)
         return "NULL" if value.nil?
+        return value if value.is_a? SQLString
         (REVERSE_CASTS[type] || REVERSE_CASTS[:default])[value]
       end
 
