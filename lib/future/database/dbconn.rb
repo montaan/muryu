@@ -612,9 +612,9 @@ module DB
         comparisons
       end
 
-      def parse_comparison_arrays_into_subqueries(arrays)
+      def parse_comparison_arrays_into_from_where(arrays)
         idx = 0
-        from = [table_name]
+        from = [escape table_name]
         where = []
         arrays.each_with_index do |(cols, vals), idx|
           tbl = table_name
@@ -634,11 +634,11 @@ module DB
               end
             else
               vals.each do |set_predicate, value_predicate, values|
-                where << "#{escape tbl}.#{escape fk} #{value_predicate} #{set_predicate} (#{
-                  values.map do |v|
-                    cast_quote(v, table.columns[fk])
-                  end.join(",")
-                })"
+                where << "#{escape tbl}.#{escape fk} "+
+                "#{value_predicate} #{set_predicate} "+
+                "(#{values.map do |v|
+                      cast_quote(v, table.columns[fk])
+                    end.join(",")})"
               end
             end
           end
@@ -647,12 +647,15 @@ module DB
       end
 
       def parse_from_where_into_sql(from, where)
-        "FROM #{from.join(", ")}\nWHERE (#{where.join(")\n  AND (")})"
+        q = []
+        q << "FROM #{from.join(",\n     ")}"
+        q << "WHERE (#{where.join(")\n  AND (")})" unless where.empty?
+        q
       end
 
-      def parse_query_hash_into_sql(hash)
+      def parse_query_hash_into_sql_array(hash)
         arrays = parse_query_hash_into_comparison_arrays(hash)
-        from, where = parse_comparison_arrays_into_subqueries(arrays)
+        from, where = parse_comparison_arrays_into_from_where(arrays)
         parse_from_where_into_sql(from, where)
       end
       
@@ -695,6 +698,36 @@ module DB
             false
           end
         end
+      end
+
+      def parse_query_into_sql_array(h)
+        h = h.clone
+        order_by = h.delete:order_by
+        desc = h.delete:desc
+        asc = h.delete:asc
+        limit = h.delete:limit
+        offset = h.delete:offset
+        cols = h.delete:columns
+        case cols
+        when Array
+          cols = ([:id] + cols).uniq.compact
+        when :all
+          cols = columns.keys
+        else
+          cols = [:id, cols].uniq.compact
+        end
+        tn = escape(table_name)
+        q = []
+        q << %Q(SELECT #{cols.map{|c|tn+"."+escape(c)}.join(", ")})
+        q.push *parse_query_hash_into_sql_array(h)
+        q << %Q(ORDER BY #{parse_order_by order_by, desc, asc}) if order_by
+        q << %Q(LIMIT #{limit.to_i}) if limit
+        q << %Q(OFFSET #{offset.to_i}) if offset
+        q
+      end
+
+      def new_parse_query(h)
+        parse_query_into_sql_array(h).join("\n")
       end
 
       def parse_query(h)
