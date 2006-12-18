@@ -601,6 +601,14 @@ module DB
         if values.size == 1 and not values[0].is_a? SQLString
           set_predicate = ''
         end
+        if values.size == 0 && set_predicate == "ANY" || set_predicate == "ALL"
+          case value_predicate
+          when :'!='
+            return "TRUE"
+          else 
+            return "FALSE"
+          end
+        end
         pre << " " unless pre.empty?
         set_predicate += " " unless set_predicate.empty?
         pre +
