@@ -615,14 +615,14 @@ module DB
           v = v['id'] if v.is_a? DB::Table # replace id with the referred column...
           cast_quote(v, table.columns[col])
         end.join(",")
-        if set_predicate.empty?
-          pre + "#{escape tbl}.#{escape col} #{value_predicate} (#{quoted_vals})"
+        if set_predicate.empty? || values[0].is_a?(SQLString)
+          delimiters = ["", ""]
         else
-          pre +
-          "#{escape tbl}.#{escape col} " +
-          "#{value_predicate} #{set_predicate} " +
-          "(ARRAY[#{quoted_vals}])"
+          delimiters = ["ARRAY[", "]"]
         end
+
+        pre + "#{escape tbl}.#{escape col} " + "#{value_predicate} #{set_predicate} " +
+        "(" + delimiters.first + quoted_vals + delimiters.last + ")"
       end
       
       def parse_column_address_segment(fk, idx, lvl, from, where)
