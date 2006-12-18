@@ -74,11 +74,15 @@ module AccessControlClass
         AND tg.group_id = g.id"
     wst0 = " AND tg.#{table_name[0..-2]}_id = #{table_name}0.id"
     wst = " AND tg.#{table_name[0..-2]}_id = #{table_name}.id"
-    if qs[2] =~ /^WHERE/
-      qs[2].sub!("WHERE", ws + wst + " AND ")
-    else
-      qs.insert(2, ws + wst)
+    set = false
+    qs.each do |line|
+      if /^WHERE/ =~ line
+        line.sub!("WHERE", ws + wst + " AND ")
+        set = true
+        break
+      end
     end
+    qs << (ws + wst) unless set
 
     q = DB::Conn.exec(qs.join("\n"))
     idx = -1
@@ -132,11 +136,15 @@ extend AccessControlClass
             AND ug.group_id = groups.id)) "
     ws0 = "WHERE (groups0.public OR (ug.user_id = #{user.id}
             AND ug.group_id = groups0.id)) "
-    if qs[2] =~ /^WHERE/
-      qs[2].sub!("WHERE", ws + " AND ")
-    else
-      qs.insert(2, ws)
+    set = false
+    qs.each do |line|
+      if /^WHERE/ =~ line
+        line.sub!("WHERE", ws + " AND ")
+        set = true
+        break
+      end
     end
+    qs << ws unless set
     q = DB::Conn.exec(qs.join("\n"))
     idx = -1
     q.map{|i| new q, idx+=1 }.uniq
