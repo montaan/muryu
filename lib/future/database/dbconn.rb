@@ -36,7 +36,7 @@ end
 
 class Array
 
-  attr_accessor :predicate
+  attr_writer :predicate
 
   def to_hash
     h = {}
@@ -55,7 +55,7 @@ class Array
   end
 
   def predicate
-    @predicate || 'ANY'
+    @predicate ||= 'ANY'
   end
 
 end
@@ -566,7 +566,7 @@ module DB
         q = []
         q << "SELECT id"
         f,w = parse_comparison_arrays_into_from_where([[fk, [["ANY", val_pred, val]]]])
-        q.push *parse_from_where_into_sql(f,w)
+        q.push(*parse_from_where_into_sql(f,w))
         sql q.join(" ")
       end
 
@@ -717,7 +717,7 @@ module DB
         tn = escape(table_name)
         q = []
         q << %Q(SELECT #{cols.map{|c|tn+"."+escape(c)}.join(", ")})
-        q.push *parse_query_hash_into_sql_array(h)
+        q.push(*parse_query_hash_into_sql_array(h))
         q << %Q(ORDER BY #{parse_order_by order_by, desc, asc}) if order_by
         q << %Q(LIMIT #{limit.to_i}) if limit
         q << %Q(OFFSET #{offset.to_i}) if offset

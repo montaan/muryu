@@ -30,8 +30,8 @@ class Paths
     end
   end
 
-  attr_reader *constants.map{|c| c.downcase}
-  pathname_writer *constants.map{|c| c.downcase}
+  attr_reader(*constants.map{|c| c.downcase})
+  pathname_writer(*constants.map{|c| c.downcase})
 
   def initialize
     self.class.constants.each do |c|

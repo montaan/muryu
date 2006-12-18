@@ -258,7 +258,8 @@ end
 =end
 module Mimetype
 
-	attr_accessor :mimetype, :mimetypes, :descriptions
+	attr_accessor :mimetype, :mimetypes
+        attr_writer   :descriptions
 	
 	# Returns the Mimetype corresponding to type_name.
 	#
