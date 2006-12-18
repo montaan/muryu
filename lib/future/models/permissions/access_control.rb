@@ -88,8 +88,9 @@ module AccessControlClass
     idx = -1
     q.map{|i| new q, idx+=1 }.uniq
   rescue
-    p h
-    puts qs.join("\n")
+    log_debug("BAD QUERY")
+    log_debug(h.inspect)
+    log_debug(qs.join("\n"))
     raise
   end
   
@@ -149,7 +150,9 @@ extend AccessControlClass
     idx = -1
     q.map{|i| new q, idx+=1 }.uniq
   rescue
-    p h
+    log_debug("BAD QUERY")
+    log_debug(h.inspect)
+    log_debug(qs.join("\n"))
     raise
   end
 
