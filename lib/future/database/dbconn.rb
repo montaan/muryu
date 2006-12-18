@@ -621,7 +621,7 @@ module DB
           pre +
           "#{escape tbl}.#{escape col} " +
           "#{value_predicate} #{set_predicate} " +
-          "('{#{quoted_vals}}')"
+          "(ARRAY[#{quoted_vals}])"
         end
       end
       
