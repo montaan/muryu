@@ -75,7 +75,7 @@ module AccessControlClass
     wst0 = " AND tg.#{table_name[0..-2]}_id = #{table_name}0.id"
     wst = " AND tg.#{table_name[0..-2]}_id = #{table_name}.id"
     if qs[2] =~ /^WHERE/
-      qs[2].sub!("WHERE", ws + wst0 + " AND ")
+      qs[2].sub!("WHERE", ws + wst + " AND ")
     else
       qs.insert(2, ws + wst)
     end
@@ -85,6 +85,7 @@ module AccessControlClass
     q.map{|i| new q, idx+=1 }.uniq
   rescue
     p h
+    puts qs.join("\n")
     raise
   end
   
