@@ -36,10 +36,26 @@ end
 
 class Array
 
+  attr_accessor :predicate
+
   def to_hash
     h = {}
     each{|k,v| h[k] = v}
     h
+  end
+
+  def +@
+    @predicate = 'ALL'
+    self
+  end
+
+  def -@
+    @predicate = 'NOT ANY'
+    self
+  end
+
+  def predicate
+    @predicate || 'ANY'
   end
 
 end
@@ -215,6 +231,22 @@ module DB
         ""
       end +
       Table.escape(table_name+lvl)+"."+Table.escape(column_name)
+    end
+    
+    def where_comparison(table_lvl="", foreign_lvl="")
+      Table.escape(foreign_table_name+foreign_lvl)+"."+Table.escape(foreign_column_name)+
+      " = " +
+      if join_table_name
+        Table.escape(join_table_name+foreign_lvl)+"."+
+        Table.escape(join_foreign_table_column) +
+        " AND " +
+        Table.escape(join_table_name+foreign_lvl)+"."+
+        Table.escape(join_table_column) +
+        " = "
+      else
+        ""
+      end +
+      Table.escape(table_name+table_lvl)+"."+Table.escape(column_name)
     end
 
   end
@@ -507,7 +539,6 @@ module DB
       # handle foreign keys
       # handle reverse foreign keys
       # handle many to many keys
-      # handle table references (damn it)
       # use table name as default table
       def parse_order_by(order_by, desc, asc)
         case order_by
@@ -520,6 +551,149 @@ module DB
           dir = " DESC" if desc
           dir = " ASC" if asc
           escape(order_by) + dir
+        end
+      end
+
+      # Parses a query hash of format
+      # 
+      # { key => values }
+      # 
+      # into an array of format
+      # 
+      # [[column_address, [[set_predicate, value_predicate, values], ...]], ...]
+      # 
+      # column_address ::= [foreign_keys]column_name
+      # foreign_keys ::= foreign_key, [foreign_keys]
+      # 
+      # Expressiveness problems:
+      #  - column name should be in values
+      #  - procedure calls not handled, value keys?
+      #    e.g. lower(sets.owner.name) == substring(sets.namespace, 6)
+      #
+      # key ::= [table_names]column_name
+      # table_names ::= ( foreign_key
+      #                  | reverse_foreign_key
+      #                  | join
+      #                ).[table_names]
+      #                | e
+      #
+      # values ::= [value_set_comparisons]
+      # value_set_comparisons ::= value_set_comparison, value_set_comparisons
+      #                           | value_set_comparison
+      # value_set_comparison ::= set_predicate[value_array]
+      # set_predicate ::= + | - | e
+      # value_array ::= [value_predicate,] value_array_values
+      # value_predicate ::= < | <= | > | >= | = | !=
+      # value_array_values ::= value, value_array_values | value
+      #
+      #
+      def parse_query_hash_into_comparison_arrays(h)
+        h = h.clone
+        bad_cols = []
+        comparisons = h.map{|key, vals|
+          key = key.to_s
+          fk = expand_key(key)
+          if fk
+            vals = [vals] unless vals.is_a? Array
+            vals = [vals] unless vals[0].is_a? Array
+            [fk, vals.map{|val|
+              set_predicate = val.predicate
+              [set_predicate, extract_value_predicate(val), val]
+            }]
+          else
+            bad_cols << fk
+          end
+        }
+        unless bad_cols.empty?
+          raise(
+            "Inexisting column#{'s' if bad_cols.size > 1}: #{bad_cols.join(", ")}"
+          )
+        end
+        comparisons
+      end
+
+      def parse_comparison_arrays_into_subqueries(arrays)
+        idx = 0
+        from = [table_name]
+        where = []
+        arrays.each_with_index do |(cols, vals), idx|
+          tbl = table_name
+          table = self
+          cols.each_with_index do |fk, lvl|
+            if fk.is_a? ForeignKey
+              f = fk.foreign_table_name
+              table = fk.foreign_table
+              tbl = "#{f}_#{idx}_#{lvl}"
+              from << "#{escape f} #{escape tbl}"
+              j = fk.join_table_name
+              from << "#{escape j} #{escape "#{j}_#{idx}_#{lvl}"}" if j
+              if lvl == 0
+                where << fk.where_comparison("", "_#{idx}_#{lvl}")
+              else
+                where << fk.where_comparison("#{idx}_#{lvl-1}", "_#{idx}_#{lvl}")
+              end
+            else
+              vals.each do |set_predicate, value_predicate, values|
+                where << "#{escape tbl}.#{escape fk} #{value_predicate} #{set_predicate} (#{
+                  values.map do |v|
+                    cast_quote(v, table.columns[fk])
+                  end.join(",")
+                })"
+              end
+            end
+          end
+        end
+        [from, where]
+      end
+
+      def parse_from_where_into_sql(from, where)
+        "FROM #{from.join(", ")}\nWHERE (#{where.join(")\n  AND (")})"
+      end
+
+      def parse_query_hash_into_sql(hash)
+        arrays = parse_query_hash_into_comparison_arrays(hash)
+        from, where = parse_comparison_arrays_into_subqueries(arrays)
+        parse_from_where_into_sql(from, where)
+      end
+      
+      VALUE_PREDICATES = [:<, :>, :'=', :'!=', :>=, :<=]
+      def extract_value_predicate(val)
+        if VALUE_PREDICATES.include? val[0]
+          val.shift
+        else
+          :'='
+        end
+      end
+
+      def expand_key(key)
+        keys = key.split(".")
+        if keys.size == 1 and column? keys[0]
+          fk = [self, key]
+        else
+          tbl = expand_column_name(keys.shift)
+          fk = [tbl] + keys.map{|col|
+            next unless tbl
+            tbl = (tbl.foreign_table.expand_column_name(col) rescue false)
+          }
+          fk = false unless fk.last
+        end
+        fk << fk.last.foreign_column_name if fk.last.is_a? ForeignKey
+        fk
+      end
+        
+      def expand_column_name(name)
+        if column?(name)
+          name
+        else # foreign table reference
+          if foreign_key? name
+            foreign_keys[name] || foreign_keys[name+"_id"]
+          elsif reverse_foreign_key? name
+            reverse_foreign_keys[name].to_a[0]
+          elsif join? name
+            joins[name]["#{table_name}_#{name}"]
+          else # invalid key
+            false
+          end
         end
       end
 
@@ -581,6 +755,11 @@ module DB
               "Failed to execute query (#{e.message}): #{q}"
       end
 
+      def cast_quote(value, type)
+        return "NULL" if value.nil?
+        (REVERSE_CASTS[type] || REVERSE_CASTS[:default])[value]
+      end
+
     end
 
 
@@ -632,7 +811,7 @@ module DB
              :foreign_keys, :foreign_key?,
              :reverse_foreign_keys, :reverse_foreign_key?,
              :joins, :join?,
-             :table_name
+             :table_name, :cast_quote
              )
 
     def pin!(*cols)
@@ -650,11 +829,6 @@ module DB
 
     def fetch_reverse_foreign_keys(fkeys)
       fkeys.inject([]){|s,(n,f)| s += f.get_all(self, :columns => :all) }
-    end
-
-    def cast_quote(value, type)
-      return "NULL" if value.nil?
-      (REVERSE_CASTS[type] || REVERSE_CASTS[:default])[value]
     end
 
     def get_column(c)
