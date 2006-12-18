@@ -5,6 +5,9 @@ require 'future'
 class Milestone < Test::Unit::TestCase
 include Future
 
+  user = Users.register("foo", "bar")
+  it = Uploader.upload(:user => user, :text => "Some random private post")
+
   def test_tags
     item = Items.find
     item.remove_tag "funny"
