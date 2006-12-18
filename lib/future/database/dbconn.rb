@@ -611,15 +611,18 @@ module DB
           end
         end
         pre << " " unless pre.empty?
-        set_predicate += " " unless set_predicate.empty?
-        pre +
-        "#{escape tbl}.#{escape col} "+
-        "#{value_predicate} #{set_predicate}"+
-        "(#{values.map do |v|
-              v = v['id'] if v.is_a? DB::Table # replace id with the referred column...
-              cast_quote(v, table.columns[col])
-            end.join(",")
-         })"
+        quoted_vals = values.map do |v|
+          v = v['id'] if v.is_a? DB::Table # replace id with the referred column...
+          cast_quote(v, table.columns[col])
+        end.join(",")
+        if set_predicate.empty?
+          pre + "#{escape tbl}.#{escape col} #{value_predicate} (#{quoted_vals})"
+        else
+          pre +
+          "#{escape tbl}.#{escape col} " +
+          "#{value_predicate} #{set_predicate} " +
+          "('{#{quoted_vals}}')"
+        end
       end
       
       def parse_column_address_segment(fk, idx, lvl, from, where)
