@@ -614,7 +614,7 @@ module DB
 
       def parse_comparison_arrays_into_from_where(arrays)
         idx = 0
-        from = [escape table_name]
+        from = [escape(table_name)]
         where = []
         arrays.each_with_index do |(cols, vals), idx|
           tbl = table_name
