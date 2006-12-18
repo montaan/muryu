@@ -431,7 +431,8 @@ module DB
           VALUES
           (#{h.values.map{|v| quote v}.join(",")})]
         DB::Conn.exec(sql)
-        id(i)[0]
+        #id(i)[0]
+        new(i)
       end
 
       def delete(h={})
