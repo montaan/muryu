@@ -69,6 +69,8 @@ module AccessControlClass
     h["groups"] = [h["groups"]] if h["groups"] and not h["groups"][0].is_a? Array
     h["groups"] ||= []
     h["groups"] << user.groups
+    ### FIXME find_all.uniq is a hack to get around DISTINCT failing for whatever reason
+    ###       but introduces bugs with OFFSET and LIMIT :(
     find_all(h).uniq
   end
   
