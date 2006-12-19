@@ -1,5 +1,18 @@
 require 'future/metadata'
+require 'fileutils'
 require 'pathname'
+
+class Pathname
+
+  def mkdir_p
+    FileUtils.mkdir_p(to_s)
+  end
+
+  def glob(subpath, *args)
+    self.class.glob((self+subpath).to_s, *args)
+  end
+
+end
 
 
 class Pathname
@@ -37,7 +50,7 @@ module Mimetype
   end
 
   def image_thumbnail(filename, thumb_filename, thumb_size)
-    system("convert", filename, "-scale", "#{thumb_size}x#{thumb_size}>", thumb_filename)
+    system("convert", "#{filename}[0]", "-scale", "#{thumb_size}x#{thumb_size}>", thumb_filename)
     File.exist?(thumb_filename)
   end
 
