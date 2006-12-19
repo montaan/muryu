@@ -4,6 +4,11 @@
 
 * Tests for image cache
 
+* Better thumbnailers for document formats (convert doesn't scale pdfs as 
+  vector graphics, so can't get BIG images, probably also missing cropped scale)
+  - needed to use tilemap for reading documents (along with a special
+    thumbnail handling for multipage docs: big header page with all doc pages on
+    on the side as tiny, zoom in to read)
 
 * Implement the public API used by
 - login.cgi

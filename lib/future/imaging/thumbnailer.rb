@@ -50,7 +50,7 @@ module Mimetype
   end
 
   def image_thumbnail(filename, thumb_filename, thumb_size)
-    system("convert", "#{filename}[0]", "-scale", "#{thumb_size}x#{thumb_size}>", thumb_filename)
+    system("convert", "#{filename}[0]", "-scale", "#{thumb_size}x#{thumb_size}", thumb_filename)
     File.exist?(thumb_filename)
   end
 
