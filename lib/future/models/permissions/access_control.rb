@@ -4,6 +4,8 @@ require 'future/models/permissions/authentication'
 
 module Future
 
+class PermissionError < StandardError
+end
 
 module AccessControl
 
@@ -33,7 +35,7 @@ module AccessControl
     if writable_by user
       yield self
     else
-      raise "#{user.name} can't modify #{inspect}"
+      raise PermissionError, "#{user.name} can't modify #{inspect}"
     end
   end
 
@@ -171,7 +173,7 @@ extend AccessControlClass
     if writable_by user
       yield self
     else
-      raise "#{user.name} can't modify #{namespace}:#{name}"
+      raise PermissionError, "#{user.name} can't modify #{namespace}:#{name}"
     end
   end
 

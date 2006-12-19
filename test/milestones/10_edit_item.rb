@@ -17,7 +17,7 @@ include Future
       item.add_tag 'super'
     end
     assert_equal(['super'], item.tags.map{|t|t.name})
-    assert_raise(RuntimeError) do
+    assert_raise(PermissionError) do
       item.write(user2) do
         item.add_tag 'bad'
       end
