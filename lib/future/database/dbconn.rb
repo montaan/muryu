@@ -466,9 +466,6 @@ module DB
         q = query(h)
         idx = -1
         q.map{|i| new q, idx+=1 }
-      rescue
-        p h
-        raise
       end
 
 
@@ -541,9 +538,7 @@ module DB
               if set_predicate == "ALL"
                 val.each{|v| comparisons << [fk, [["", val_pred, [v]]]] }
               elsif set_predicate == "NOT ANY"
-                fk2 = fk.clone
-                fk2[-1] = "id"
-                comparisons << [fk2, [["NOT ANY", :"=", [not_any_sql_string(fk, val_pred, val)]]]]
+                comparisons << [["id"], [["NOT ANY", :"=", [not_any_sql_string(fk, val_pred, val)]]]]
               else
                 val_comps << [set_predicate, val_pred, val]
               end
@@ -554,7 +549,6 @@ module DB
           end
         }
         unless bad_cols.empty?
-          p h
           raise(
             "Inexisting column#{'s' if bad_cols.size > 1}: #{bad_cols.join(", ")}"
           )
@@ -564,10 +558,10 @@ module DB
 
       def not_any_sql_string(fk, val_pred, val)
         q = []
-        q << "SELECT id"
+        q << "SELECT #{escape table_name}.id"
         f,w = parse_comparison_arrays_into_from_where([[fk, [["ANY", val_pred, val]]]])
         q.push(*parse_from_where_into_sql(f,w))
-        sql q.join(" ")
+        sql q.join("\n")
       end
 
       def sql(str)

@@ -108,16 +108,20 @@ include Future
   end
 
   def test_item_dont_show_deleted
+    d = 0
+    ud = 0
     (1..50).each do |i|
       item = {:user => user2, :text => "Private post #{i}"}
       it = Uploader.upload item
-      it.deleted = true if i <= 20
+      it.deleted = true if i < 20
+      ud += 1 if i >= 20
+      d += 1 if i < 20
     end
     assert_equal(
-      30, Items.rfind_all(user2).size
+      ud, Items.rfind_all(user2).size
     )
     assert_equal(
-      20, Items.rfind_all(user2, :deleted => true).size
+      d, Items.rfind_all(user2, :deleted => true).size
     )
   end
 
@@ -152,7 +156,7 @@ include Future
       55, Items.rfind_all(user2, "sets.name" => ["one", "two"]).size
     )
     assert_equal(
-      5, Items.rfind_all(user2, "sets.name" => ["one"], "sets.name" => -["two"]).size
+      5, Items.rfind_all(user2, "sets.name" => [["one"], -["two"]]).size
     )
   end
 
@@ -187,7 +191,7 @@ include Future
       55, Items.rfind_all(user2, "groups.name" => ["one", "two"]).size
     )
     assert_equal(
-      5, Items.rfind_all(user2, "groups.name" => ["one"], "groups.name" => -["two"]).size
+      5, Items.rfind_all(user2, "groups.name" => [["one"], -["two"]]).size
     )
   end
 
@@ -195,6 +199,8 @@ include Future
     its = (1..30).map do |i|
       item = {:user => user2, :text => "one two"}
       it = Uploader.upload item
+      it.created_at = "2006-10-#{i}"
+      it
     end
     assert_equal(its, Items.rfind_all(user2, :order_by => [['created_at', :asc]]))
     assert_equal(its.reverse, Items.rfind_all(user2, :order_by => [['created_at', :desc]]))

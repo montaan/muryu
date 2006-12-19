@@ -66,32 +66,10 @@ module AccessControlClass
 
   def rfind_all(user, h={})
     h = find_parse_args(user, h)
-    qs = parse_query(h)
-    qs = qs.split(/\n/)
-    qs[1].sub!("FROM", "FROM groups g, users_groups ug, #{table_name}_groups tg,")
-    ws = "WHERE ug.user_id = #{user.id}
-        AND ug.group_id = g.id
-        AND tg.group_id = g.id"
-    wst0 = " AND tg.#{table_name[0..-2]}_id = #{table_name}0.id"
-    wst = " AND tg.#{table_name[0..-2]}_id = #{table_name}.id"
-    set = false
-    qs.each do |line|
-      if /^WHERE/ =~ line
-        line.sub!("WHERE", ws + wst + " AND ")
-        set = true
-        break
-      end
-    end
-    qs << (ws + wst) unless set
-
-    q = DB::Conn.exec(qs.join("\n"))
-    idx = -1
-    q.map{|i| new q, idx+=1 }.uniq
-  rescue
-    log_debug("BAD QUERY")
-    log_debug(h.inspect)
-    log_debug(qs.join("\n"))
-    raise
+    h["groups"] = [h["groups"]] if h["groups"] and not h["groups"][0].is_a? Array
+    h["groups"] ||= []
+    h["groups"] << user.groups
+    find_all(h).uniq
   end
   
   def rfind(user, h={})
@@ -135,8 +113,6 @@ extend AccessControlClass
     qs[1].sub!("FROM", "FROM users_groups ug,")
     ws = "WHERE (groups.public OR (ug.user_id = #{user.id}
             AND ug.group_id = groups.id)) "
-    ws0 = "WHERE (groups0.public OR (ug.user_id = #{user.id}
-            AND ug.group_id = groups0.id)) "
     set = false
     qs.each do |line|
       if /^WHERE/ =~ line
