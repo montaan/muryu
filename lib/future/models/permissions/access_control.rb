@@ -69,11 +69,7 @@ module AccessControlClass
     h["groups"] = [h["groups"]] if h["groups"] and not h["groups"][0].is_a? Array
     h["groups"] ||= []
     h["groups"] << user.groups
-    ### FIXME find_all.uniq is a hack to get around DISTINCT failing for whatever reason
-    ###       but introduces bugs with OFFSET and LIMIT :(
-    ###       The reason you get dupes is: (item.groups & user.groups).size > 1
-    ###       I.e. the list is unique for item.id, item.groups[i] and not item.id :|
-    find_all(h).uniq
+    find_all(h)
   end
   
   def rfind(user, h={})
@@ -112,9 +108,11 @@ extend AccessControlClass
   end
 
   def self.rfind_all(user, h={})
+    # no OR support in parse_query so need to do this :|
+    # same bug applies as in AccessControlClass#find_all
     qs = parse_query(h)
     qs = qs.split(/\n/)
-    qs[1].sub!("FROM", "FROM users_groups ug,")
+    qs[2].sub!("FROM", "FROM users_groups ug,")
     ws = "WHERE (groups.public OR (ug.user_id = #{user.id}
             AND ug.group_id = groups.id)) "
     set = false
@@ -128,7 +126,7 @@ extend AccessControlClass
     qs << ws unless set
     q = DB::Conn.exec(qs.join("\n"))
     idx = -1
-    q.map{|i| new q, idx+=1 }.uniq
+    q.map{|i| new q, idx+=1 }
   rescue
     log_debug("BAD QUERY")
     log_debug(h.inspect)
