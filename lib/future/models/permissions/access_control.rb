@@ -71,6 +71,8 @@ module AccessControlClass
     h["groups"] << user.groups
     ### FIXME find_all.uniq is a hack to get around DISTINCT failing for whatever reason
     ###       but introduces bugs with OFFSET and LIMIT :(
+    ###       The reason you get dupes is: (item.groups & user.groups).size > 1
+    ###       I.e. the list is unique for item.id, item.groups[i] and not item.id :|
     find_all(h).uniq
   end
   
