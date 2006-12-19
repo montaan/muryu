@@ -2,9 +2,9 @@
 
 require 'future/imaging/thumbnailer'
 
-fn, tfn, sz = *ARGV
+fn, tfn, sz, *args = *ARGV
 
 sz = sz.to_i
 sz = 128 if sz < 1
 
-Pathname.new(fn).thumbnail(tfn, sz)
+Pathname.new(fn).thumbnail(tfn, sz, *args)
