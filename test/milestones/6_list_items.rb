@@ -17,27 +17,29 @@ include Future
   end
 
   def test_item_visibility
-    (1..10).each do |i|
+    user_posts = (1..10).map do |i|
       item = {:user => user, :text => "Private post #{i}"}
       it = Uploader.upload item
-      it.add_tag 'list_items'
     end
-    (1..50).each do |i|
+    user2_posts = (1..50).map do |i|
       item = {:user => user2, :text => "Private post #{i}"}
       it = Uploader.upload item
-      it.add_tag 'list_items'
     end
-    (1..20).each do |i|
+    shared_posts = (1..20).map do |i|
       item = {:user => user2, :text => "Private post #{i}",
               :groups => [[user.group, false]]}
       it = Uploader.upload item
-      it.add_tag 'list_items'
     end
     assert_equal(
       30, Items.rfind_all(user).size
     )
     assert_equal(
       70, Items.rfind_all(user2).size
+    )
+    assert_equal(
+      user_posts[5, 5],
+      Items.rfind_all(user,
+                      :order_by => [["id", :asc]], :limit => 5, :offset => 5)
     )
   end
 
@@ -108,20 +110,20 @@ include Future
   end
 
   def test_item_dont_show_deleted
-    d = 0
-    ud = 0
+    d = []
+    ud = []
     (1..50).each do |i|
       item = {:user => user2, :text => "Private post #{i}"}
       it = Uploader.upload item
-      it.deleted = true if i < 20
-      ud += 1 if i >= 20
-      d += 1 if i < 20
+      it.deleted = true if i <= 20
+      ud << it if i > 20
+      d << it if i <= 20
     end
     assert_equal(
-      ud, Items.rfind_all(user2).size
+      ud, Items.rfind_all(user2).sort
     )
     assert_equal(
-      d, Items.rfind_all(user2, :deleted => true).size
+      d, Items.rfind_all(user2, :deleted => true).sort
     )
   end
 
