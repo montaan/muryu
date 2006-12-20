@@ -126,6 +126,9 @@ class Uploader
                             :sha1_hash => handle.sha1digest, :deleted => false,
                             :mimetype_id => mimetype_id, :metadata_id => metadata_id,
                             :owner_id => owner.id, :created_at => Time.now.to_s)
+        if "text/plain" == mimetype.to_s
+          Itemtexts.find_or_create(:sha1_hash => handle.sha1digest, :text => item.read)
+        end
         ([[owner.group, true]] + groups).each do |group, can_modify|
           ItemsGroups.find_or_create(
             :item_id => item.id,
