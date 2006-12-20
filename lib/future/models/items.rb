@@ -150,6 +150,38 @@ extend SearchableClass
     /\A\(null\)\Z/i
   ]
 
+  def self.rfind_all_fts(user, query, h = {})
+    h = find_parse_args(user, h)
+    h["groups"] = [h["groups"]] if h["groups"] and not h["groups"][0].is_a? Array
+    h["groups"] ||= []
+    h["groups"] << user.groups
+    find_all_fts(query, h)
+  end
+
+  def self.find_all_fts(query, h={})
+    qs = parse_query(h)
+    qs = qs.split(/\n/)
+    qs[2].sub!("FROM", "FROM itemtexts itexts,")
+    ws = "WHERE ((itexts.sha1_hash = items.sha1_hash) AND itexts.fti_vector @@ to_tsquery(#{quote(query)}))"
+    set = false
+    qs.each do |line|
+      if /^WHERE/ =~ line
+        line.sub!("WHERE", ws + " AND ")
+        set = true
+        break
+      end
+    end
+    qs << ws unless set
+    q = DB::Conn.exec(qs.join("\n"))
+    idx = -1
+    q.map{|i| new q, idx+=1 }
+  rescue
+    log_debug("BAD QUERY")
+    log_debug(h.inspect)
+    log_debug(qs.join("\n"))
+    raise
+  end
+
 end
 
 

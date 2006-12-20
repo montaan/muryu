@@ -33,10 +33,12 @@ include Future
       it = Uploader.upload item
     end
     assert_equal(
-      35, Items.rfind_all(user2, "tokens.token" => "one").size
+      #35, Items.rfind_all(user2, "tokens.token" => "one").size
+      35, Items.rfind_all_fts(user2, "one").size
     )
     assert_equal(
-      50, Items.rfind_all(user2, "tokens.token" => "two").size
+      #50, Items.rfind_all(user2, "tokens.token" => "two").size
+      50, Items.rfind_all_fts(user2, "two").size
     )
 #     assert_equal(
 #       30, Items.rfind_all(user2, :text => "one two").size
@@ -45,7 +47,8 @@ include Future
 #       0, Items.rfind_all(user2, :text => "two one").size
 #     )
     assert_equal(
-      30, Items.rfind_all(user2, "tokens.token" => +["two", "one"]).size
+      #30, Items.rfind_all(user2, "tokens.token" => +["two", "one"]).size
+      30, Items.rfind_all_fts(user2, "two&one").size
     )
   end
 
