@@ -10,6 +10,9 @@ end
 class ItemsTags < DB::Tables::ItemsTags
 end
 
+class Itemtexts < DB::Tables::Itemtexts
+end
+
 class Items < DB::Tables::Items
 include Searchable
 extend SearchableClass

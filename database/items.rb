@@ -17,6 +17,11 @@ tables["items"] = {
   :metadata_id => [['metadata', :id], 'not null'],
 }
 
+tables["itemtexts"] = {
+  :sha1_hash => ['character(40)', 'unique', 'not null'],
+  :text => [:text]
+}
+
 tables["tokens"] = {
   :token => [:text, 'unique', 'index']
 }
