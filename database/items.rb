@@ -16,3 +16,13 @@ tables["items"] = {
   :mimetype_id => [['mimetypes', :id], 'not null', 'default 15'],
   :metadata_id => [['metadata', :id], 'not null'],
 }
+
+tables["tokens"] = {
+  :token => [:text, 'unique', 'index']
+}
+
+tables["items_tokens"] = {
+  :token_id => [['tokens', :id]],
+  :item_id => [['items', :id], 'index']
+}
+constraints << ['items_tokens', :unique, [:token_id, :item_id]]

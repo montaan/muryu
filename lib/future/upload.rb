@@ -116,7 +116,7 @@ class Uploader
     begin
       DB.transaction do
         mimetype_id = Mimetypes.find_or_create(:major => major, :minor => minor)
-        # create new metadata to avoid nasty surprises with metadata edits?
+        # create new metadata to avoid nasty surprises with metadata edits
         metadata_id = Metadata.create(metadata)
         path = create_unique_filename(preferred_filename, owner, mimetype.extname)
         item = Items.create(
@@ -132,7 +132,6 @@ class Uploader
             :group_id => group.id,
             :can_modify => can_modify ? true : false)
         end
-        
       end
     rescue => e
       retry if filename_violation?(e) && (attemps -= 1) > 0

@@ -1,4 +1,5 @@
 require 'future/base'
+require 'future/models/searchable'
 
 
 module Future
@@ -10,6 +11,12 @@ class ItemsTags < DB::Tables::ItemsTags
 end
 
 class Items < DB::Tables::Items
+include Searchable
+extend SearchableClass
+
+  def get_text
+    read
+  end
 
   def add_tag(tag_name)
     tag_name = tag_name.name if tag_name.is_a? DB::Table
