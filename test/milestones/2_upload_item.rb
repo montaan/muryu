@@ -31,6 +31,8 @@ include Future
       metadata = Metadata.find(:id => i.metadata_id)
       assert_equal(191, metadata.width)
       assert_equal(174, metadata.height)
+      assert(i.thumbnail)
+      assert(File.exist?(i.thumbnail))
     end
   end
 

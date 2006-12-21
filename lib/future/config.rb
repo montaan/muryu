@@ -17,6 +17,7 @@ class Paths
   LOG_DIR = ROOT_DIR + 'log'
   CACHE_DIR = ROOT_DIR + 'cache'
   THUMBNAIL_DIR = ROOT_DIR + 'thumbnails'
+  TILE_CACHE_DIR = ROOT_DIR + 'tile_cache'
   ICON_DIR = ROOT_DIR + 'icons'
   ITEMS_DIR = ROOT_DIR + 'items'
 
@@ -44,6 +45,7 @@ end
 class << self
   attr_accessor :salt
   attr_accessor :paths
+  attr_accessor :empty_tile
   attr_reader   :environment
   attr_accessor :logger, :log_level, :database_configuration
 
@@ -73,6 +75,7 @@ class << self
     @log_level   = @environment == "production" ? Logger::INFO : Logger::DEBUG
     self.paths = Paths.new
     self.database_configuration = nil # reset so we can see if they were modified
+    self.empty_tile = tile_cache_dir + 'empty.jpg'
     self.logger = nil
     if config_file.exist?
       load config_file
