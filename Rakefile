@@ -4,8 +4,6 @@ require 'rake/testtask'
 ENV["FUTURE_ROOT"] = "."
 ENV["FUTURE_ENV"]  = "test"
 
-TSEARCH2_SQL = "/usr/share/postgresql/8.1/contrib/tsearch2.sql"
-
 def create_new_db(environment)
   Future.setup_environment(environment)
   conf = Future.database_configuration
@@ -22,10 +20,6 @@ def create_new_db(environment)
     DB::Conn.exec DB::Creator.new(Dir[File.join("database", "*.rb")]).to_sql
   ensure
     STDERR.reopen(stderr)
-  end
-  system  "psql #{conf[:database]} < #{TSEARCH2_SQL} >/dev/null"
-  Dir[File.join("database", "*.sql")].each do |file|
-    system "psql #{conf[:database]} < #{file}"
   end
   locale = `locale`[/LANG=(.*)/,1]
   puts "locale: #{locale}"

@@ -12,7 +12,8 @@ module Future
 class ImageCache
 
   attr_accessor :cache_dir
-  attr_reader :cache_image_size, :cache_pyramid_size, :max_thumbnail_size
+  attr_reader :cache_image_size, :cache_pyramid_size,
+              :max_thumbnail_size, :max_zoom
 
   def initialize(cache_dir = Future.cache_dir + 'image_cache',
                  cache_image_type = 'png',
@@ -24,6 +25,11 @@ class ImageCache
     @cache_dir = cache_dir
     @cache_pyramids = []
     @cache_pyramid_size = cache_pyramid_size
+    @max_zoom = (Math.log(max_thumbnail_size) / Math.log(2)).to_i
+  end
+
+  def thumb_size_at_zoom(zoom)
+    2**zoom.to_i
   end
 
   def regenerate!
@@ -56,6 +62,14 @@ class ImageCache
     else
       raise ArgumentError, 'Invalid index, should be a valid continuous_index for item.'
     end
+  end
+
+  # Draws cache image at +index+ and zoom level +zoom+ on +image+ at +x+,+y+.
+  #
+  def draw_image_at(index, zoom, image, x, y)
+    cache_pyramid = cache_pyramid_for(index)
+    pyramid_index = (index) % @cache_pyramid_size
+    cache_pyramid.draw_image_at(pyramid_index, zoom, image, x, y)
   end
 
   # Retrieves the image cache pyramid for the given index.
@@ -101,8 +115,8 @@ class ImageCachePyramid
     @levels = (0..(Math.log(max_thumbnail_size) / Math.log(2)).to_i)
   end
 
-  def image_stack_for(index, batch=nil)
-    @levels.map do |lvl|
+  def image_stack_for(index, batch=nil, levels=@levels)
+    levels.map do |lvl|
       image_for(lvl, index, batch)
     end
   end
@@ -114,8 +128,8 @@ class ImageCachePyramid
     batch[[@pyramid_dir, level, wanted_image]] ||= CacheImage.new(File.join(@pyramid_dir, level.to_s, wanted_image.to_s), @image_size, 1 << level, @image_type)
   end
 
-  def at(index, batch=nil)
-    image_stack = image_stack_for(index, batch)
+  def at(index, batch=nil, levels=@levels)
+    image_stack = image_stack_for(index, batch, levels)
     image_stack.each_with_index do |cache_img, i|
       thumb_size = 1 << i
       thumbs_per_cache_img = (@image_size / thumb_size) ** 2
@@ -142,6 +156,13 @@ class ImageCachePyramid
         cache_img.save
         cache_img.delete!
       end
+    end
+  end
+
+  def draw_image_at(index, level, image, x, y, batch=nil)
+    at(index, batch, [level]) do |cache_img, cache_idx|
+      cache_img.draw_image_at(cache_idx, image, x, y)
+      cache_img.delete! unless batch
     end
   end
 
@@ -186,6 +207,7 @@ class CacheImage
     simg = img.crop_scaled(0,0,img.width,img.height,iw,ih)
     @image.blend!(simg, 0,0, iw,ih, x*thumb_size, y*thumb_size, iw,ih)
     simg.delete!(true)
+    @changed = true
   end
 
   def clear_at(idx)
@@ -193,10 +215,21 @@ class CacheImage
     x = idx % thumbs_per_row
     y = idx / thumbs_per_row
     @image.fill_rectangle([x*thumb_size,y*thumb_size, thumb_size,thumb_size])
+    @changed = true
+  end
+
+  def draw_image_at(idx, img, ix, iy)
+    x = idx % thumbs_per_row
+    y = idx / thumbs_per_row
+    sz = thumb_size
+    img.blend!(@image, x*sz, y*sz, sz, sz, ix, iy, sz, sz)
   end
 
   def save
-    @image.save @filename
+    if @changed
+      @image.save @filename
+      @changed = false
+    end
   end
 
   def delete!(*a)
