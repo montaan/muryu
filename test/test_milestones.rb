@@ -16,16 +16,21 @@ class Milestones < Test::Unit::TestCase
     milestone_path = $own_path + "/milestones"
     passed, failed = Dir[milestone_path + "/*.rb"].
                       sort_by{|ms| File.basename(ms).to_f }.
-                      partition{|ms| check_milestone(ms) }
+                      map{|ms|
+                        t = Time.now.to_f
+                        res = check_milestone(ms)
+                        elapsed = Time.now.to_f - t
+                        [ms, res, elapsed]
+                      }.partition{|ms,res,t| res}
 
     puts
     puts "Passed milestones"
     puts "-----------------"
-    puts passed.map{|f| File.basename f}
+    puts passed.map{|f,r,t| File.basename(f) + " \t(%.1fs)".%([t])}
     puts
     puts "Milestones still ahead"
     puts "----------------------"
-    puts failed.map{|f| File.basename f}
+    puts failed.map{|f,r,t| File.basename(f) + " \t(%.1fs)".%([t])}
     puts
     puts "Completed: %.1f%" % (100 * passed.size.to_f / (passed+failed).size)
     puts 
