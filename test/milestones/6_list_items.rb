@@ -8,55 +8,55 @@ include Future
   attr_reader :user, :user2
 
   def setup
-    Users.delete_all
+    Items.delete_all
     @user = Users.register("foo_list_items", 'bar')
     @user2 = Users.register("baz_list_items", "qux")
   end
 
   def teardown
-    Users.delete_all
+    Items.delete_all
   end
 
   def test_item_visibility
-    user_posts = (1..10).map do |i|
+    user_posts = (1..1).map do |i|
       item = {:user => user, :text => "Private post #{i}"}
       it = Uploader.upload item
     end
-    user2_posts = (1..50).map do |i|
+    user2_posts = (1..5).map do |i|
       item = {:user => user2, :text => "Private post #{i}"}
       it = Uploader.upload item
     end
-    shared_posts = (1..20).map do |i|
+    shared_posts = (1..2).map do |i|
       item = {:user => user2, :text => "Private post #{i}",
               :groups => [[user.group, false]]}
       it = Uploader.upload item
     end
     assert_equal(
-      30, Items.rfind_all(user).size
+      3, Items.rfind_all(user).size
     )
     assert_equal(
-      70, Items.rfind_all(user2).size
+      7, Items.rfind_all(user2).size
     )
     assert_equal(
-      user_posts[5, 5],
-      Items.rfind_all(user,
-                      :order_by => [["id", :asc]], :limit => 5, :offset => 5)
+      user2_posts[3, 2],
+      Items.rfind_all(user2,
+                      :order_by => [["id", :asc]], :limit => 2, :offset => 3)
     )
   end
 
   def test_item_tag_search
-    (1..50).each do |i|
+    (1..5).each do |i|
       item = {:user => user2, :text => "Private post #{i}"}
       it = Uploader.upload item
       it.add_tag 'tag_items'
     end
-    (1..20).each do |i|
+    (1..2).each do |i|
       item = {:user => user2, :text => "Private post #{i}",
               :groups => [[user.group, false]]}
       it = Uploader.upload item
       it.add_tag 'list_items'
     end
-    (1..20).each do |i|
+    (1..2).each do |i|
       item = {:user => user2, :text => "Private post #{i}",
               :groups => [[user.group, false]]}
       it = Uploader.upload item
@@ -64,23 +64,23 @@ include Future
       it.add_tag 'tag_items'
     end
     assert_equal(
-      40, Items.rfind_all(user2, "tags.name" => "list_items").size
+      4, Items.rfind_all(user2, "tags.name" => "list_items").size
     )
     assert_equal(
-      70, Items.rfind_all(user2, "tags.name" => "tag_items").size
+      7, Items.rfind_all(user2, "tags.name" => "tag_items").size
     )
     assert_equal(
-      20, Items.rfind_all(user2, "tags.name" => +["list_items", "tag_items"]).size
+      2, Items.rfind_all(user2, "tags.name" => +["list_items", "tag_items"]).size
     )
     assert_equal(
-      90, Items.rfind_all(user2, "tags.name" => ["list_items", "tag_items"]).size
+      9, Items.rfind_all(user2, "tags.name" => ["list_items", "tag_items"]).size
     )
   end
 
   def test_item_dont_show_deleted
     d = []
     ud = []
-    (1..50).each do |i|
+    (1..5).each do |i|
       item = {:user => user2, :text => "Private post #{i}"}
       it = Uploader.upload item
       it.deleted = true if i <= 20
@@ -103,27 +103,27 @@ include Future
               :groups => [[user.group, false]]}
       it = Uploader.upload item
     end
-    (1..30).each do |i|
+    (1..3).each do |i|
       item = {:user => user2, :text => "one two", :sets => [s1, s2],
               :groups => [[user.group, false]]}
       it = Uploader.upload item
     end
-    (1..20).each do |i|
+    (1..4).each do |i|
       item = {:user => user2, :text => "two", :sets => [s2],
               :groups => [[user.group, false]]}
       it = Uploader.upload item
     end
     assert_equal(
-      35, Items.rfind_all(user2, "sets.name" => "one").size
+      8, Items.rfind_all(user2, "sets.name" => "one").size
     )
     assert_equal(
-      50, Items.rfind_all(user2, "sets.name" => "two").size
+      7, Items.rfind_all(user2, "sets.name" => "two").size
     )
     assert_equal(
-      30, Items.rfind_all(user2, "sets.name" => +["one", "two"]).size
+      3, Items.rfind_all(user2, "sets.name" => +["one", "two"]).size
     )
     assert_equal(
-      55, Items.rfind_all(user2, "sets.name" => ["one", "two"]).size
+      12, Items.rfind_all(user2, "sets.name" => ["one", "two"]).size
     )
     assert_equal(
       5, Items.rfind_all(user2, "sets.name" => [["one"], -["two"]]).size
@@ -138,27 +138,27 @@ include Future
               :groups => [[user.group, false], [g1, false]]}
       it = Uploader.upload item
     end
-    (1..30).each do |i|
+    (1..3).each do |i|
       item = {:user => user2, :text => "one two",
               :groups => [[user.group, false], [g1, false], [g2, false]]}
       it = Uploader.upload item
     end
-    (1..20).each do |i|
+    (1..4).each do |i|
       item = {:user => user2, :text => "two",
               :groups => [[user.group, false], [g2, false]]}
       it = Uploader.upload item
     end
     assert_equal(
-      35, Items.rfind_all(user2, "groups.name" => "one").size
+      8, Items.rfind_all(user2, "groups.name" => "one").size
     )
     assert_equal(
-      50, Items.rfind_all(user2, "groups.name" => "two").size
+      7, Items.rfind_all(user2, "groups.name" => "two").size
     )
     assert_equal(
-      30, Items.rfind_all(user2, "groups.name" => +["one", "two"]).size
+      3, Items.rfind_all(user2, "groups.name" => +["one", "two"]).size
     )
     assert_equal(
-      55, Items.rfind_all(user2, "groups.name" => ["one", "two"]).size
+      12, Items.rfind_all(user2, "groups.name" => ["one", "two"]).size
     )
     assert_equal(
       5, Items.rfind_all(user2, "groups.name" => [["one"], -["two"]]).size
@@ -166,7 +166,7 @@ include Future
   end
 
   def test_item_sort_by_creation_date
-    its = (1..30).map do |i|
+    its = (1..3).map do |i|
       item = {:user => user2, :text => "one two"}
       it = Uploader.upload item
       it.created_at = "2006-10-#{i}"
