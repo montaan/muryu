@@ -1,5 +1,6 @@
 require 'future/metadata'
 require 'future/utils'
+require 'fileutils'
 
 
 module Mimetype
@@ -36,23 +37,30 @@ module Mimetype
       scale_fac = 1
     end
     density = scale_fac * 72
+    tmp_filename = File.join(File.dirname(thumb_filename), 
+                             ".tmp#{Process.pid}-#{Thread.object_id}#{thumb_filename[/.[^.]+$/]}")
     args = ["-density", density.to_s,
             "#{filename}[#{page}]",
             "-scale", "#{thumb_size}x#{thumb_size}",
             "-crop", crop.to_s,
-            thumb_filename]
+            tmp_filename]
     system("convert", *args)
-    File.exist?(thumb_filename)
+    if File.exist?(tmp_filename)
+      File.rename(tmp_filename, thumb_filename)
+      true
+    else
+      false
+    end
   end
 
   def video_thumbnail(filename, thumb_filename, thumb_size, page, crop)
-    video_cache_dir = Future.cache_dir + 'videotemp'
+    video_cache_dir = Future.cache_dir + 'videotemp-#{Process.pid}-#{Thread.object_id}'
     video_cache_dir.mkdir_p
-    video_cache_dir.glob("*").each{|e| e.unlink }
     system("mplayer", "-nosound", "-ss", page.to_s, "-vf", "scale",
            "-vo", "jpeg:outdir=#{video_cache_dir}", "-frames", "10", filename)
     j = Dir[video_cache_dir + "*.jpg"].sort.last
     image_thumbnail(j, thumb_filename, thumb_size, 0, crop) if j
+    FileUtils.rm_rf video_cache_dir
     File.exist?(thumb_filename)
   end
   
