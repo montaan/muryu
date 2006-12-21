@@ -1,5 +1,5 @@
 require 'future/imaging/image_cache'
-
+require 'digest/sha1'
 
 module Future
 
@@ -13,10 +13,13 @@ extend self
     tile = TileDrawer.new.draw_tile(indexes, *tile_args)
     Future.tile_cache_dir.mkdir_p
     if tile
-      ### FIXME thread safety, query string uniqueness, cache badness
+      ### FIXME cache badness
       r,x,y,z,w,h = *tile_args
-      fn = Future.tile_cache_dir + "tile_#{query}_#{[r,"#{w}x#{h}",z,x,y].join("_")}.jpg"
-      tile.save(fn.to_s)
+      qtext = sanitize_query(query)
+      fn = Future.tile_cache_dir + %!tile_#{qtext}_#{[r,"#{w}x#{h}",z,x,y].join("_")}.jpg!
+      tmp = Future.tile_cache_dir + "tmptile-#{Process.pid}-#{Thread.object_id}.jpg"
+      tile.save(tmp)
+      File.rename(tmp, fn.to_s)
     else
       fn = Future.empty_tile
       unless fn.exist?
@@ -26,6 +29,18 @@ extend self
       end
     end
     fn.open('rb', &block)
+  end
+
+  private
+  def sanitize_query(query)
+    str = query.to_a.sort_by{|k,v| k}.map do |key, val| 
+      [key, val].map{|str| str.to_s.gsub(/[^A-Za-z0-9_]/){|x| "%%%02X" % x[0]}}.join("_")
+    end.join("+")
+    if str.size < 40
+      str
+    else
+      Digest::Sha1.hexdigest(str)
+    end
   end
 
 end
