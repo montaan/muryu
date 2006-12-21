@@ -1,5 +1,4 @@
 require 'future/base'
-require 'fileutils'
 require 'imlib2'
 
 
@@ -34,7 +33,14 @@ class ImageCache
 
   def regenerate!
     items = DB::Items.count
-    (0...items).each{|i| update_cache_at(i) }
+    (0..items / 100).each do |batch_start|
+      batch do
+        (batch_start*100..(batch_start+1)*100).each do |i|
+          break if i >= items
+          update_cache_at(i)
+        end
+      end
+    end
   end
 
   def item_at(index)
@@ -69,7 +75,7 @@ class ImageCache
   def draw_image_at(index, zoom, image, x, y)
     cache_pyramid = cache_pyramid_for(index)
     pyramid_index = (index) % @cache_pyramid_size
-    cache_pyramid.draw_image_at(pyramid_index, zoom, image, x, y)
+    cache_pyramid.draw_image_at(pyramid_index, zoom, image, x, y, @batch_ops)
   end
 
   # Retrieves the image cache pyramid for the given index.
@@ -81,6 +87,11 @@ class ImageCache
     )
   end
 
+  # Executes editing ops in batch, saving edited images only after
+  # processing everything. 
+  # 
+  # Watch out for excessive memory usage when doing batches.
+  # 
   def batch
     if @batch_ops
       yield
@@ -131,7 +142,7 @@ class ImageCachePyramid
   def at(index, batch=nil, levels=@levels)
     image_stack = image_stack_for(index, batch, levels)
     image_stack.each_with_index do |cache_img, i|
-      thumb_size = 1 << i
+      thumb_size = 1 << levels[i]
       thumbs_per_cache_img = (@image_size / thumb_size) ** 2
       yield(cache_img, index % thumbs_per_cache_img)
     end

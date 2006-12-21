@@ -57,17 +57,24 @@ class TileDrawer
     @image_cache = image_cache
   end
 
-  def draw_tile(layouter, indexes, x, y, zoom, w, h)
-    tile = Imlib2::Image.new(w,h)
+  def draw_tile(layouter_name, indexes, x, y, zoom, w, h)
+    layouter = LAYOUTERS[layouter_name.to_s]
+    raise ArgumentError, "Bad layouter_name: #{layouter_name.inspect}" unless layouter
     sz = @image_cache.thumb_size_at_zoom(zoom)
-    layout(layouter).each(indexes, x, y, sz, w, h) do |i, ix, iy|
-      @image_cache.draw_image_at(i, zoom, tile, ix, iy)
+    empty_tile = true
+    layouter.each(indexes, x, y, sz, w, h) do |i, ix, iy|
+      empty_tile = false
+      break
+    end
+    return false if empty_tile
+    tile = Imlib2::Image.new(w,h)
+    tile.clear
+    @image_cache.batch do
+      layouter.each(indexes, x, y, sz, w, h) do |i, ix, iy|
+        @image_cache.draw_image_at(i, zoom, tile, ix, iy)
+      end
     end
     tile
-  end
-
-  def layout(layouter)
-    LAYOUTERS[layouter.to_s]
   end
 
 end # TileDrawer

@@ -6,6 +6,8 @@ end
 
 require 'cgi'
 require 'uri'
+require 'pathname'
+require 'fileutils'
 
 require 'logger'
 module Kernel
@@ -36,6 +38,37 @@ module Kernel
     log(message, subsystem, Logger::DEBUG, &block)
   end
 end
+
+
+class Range
+
+  def [](i)
+    self.begin + i
+  end
+
+end
+
+
+class Pathname
+
+  def mkdir_p
+    FileUtils.mkdir_p(to_s)
+  end
+
+  def glob(subpath, *args)
+    self.class.glob((self+subpath).to_s, *args)
+  end
+
+  def thumbnail(thumb_filename, *args)
+    mimetype.thumbnail(self, thumb_filename, *args)
+  end
+
+  def mimetype
+    MimeInfo.get to_s
+  end
+
+end
+
 
 class Module
 

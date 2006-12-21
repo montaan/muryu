@@ -33,11 +33,20 @@ include Future
     td = TileDrawer.new(@image_cache)
     indexes = (0...photos.size).to_a
     x,y,w,h = 0, 0, 256, 256
-    zoom = 4
-    tilefile = Pathname.new(File.dirname(__FILE__)) +
-               "data/tile_drawer_test_photographs.jpg"
-    tile = td.draw_tile(:rows, indexes, x, y, zoom, w, h)
-    tile.save(tilefile.to_s)
+    pn = Pathname.new(File.dirname(__FILE__)).join("data", "tile_drawer_output")
+    pn.rmtree if pn.exist?
+    pn.mkdir
+    (0..7).each{|zoom|
+      (0..20).each{|x|
+        tilefile = pn + "#{zoom}_#{x}_#{y}.jpg"
+        tile = td.draw_tile(:rows, indexes, x*w, y*h, zoom, w, h)
+        if tile
+          tile.save(tilefile.to_s)
+        else
+          break
+        end
+      }
+    }
   end
 
 end

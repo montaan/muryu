@@ -1,31 +1,5 @@
 require 'future/metadata'
-require 'fileutils'
-require 'pathname'
-
-class Pathname
-
-  def mkdir_p
-    FileUtils.mkdir_p(to_s)
-  end
-
-  def glob(subpath, *args)
-    self.class.glob((self+subpath).to_s, *args)
-  end
-
-end
-
-
-class Pathname
-
-  def thumbnail(thumb_filename, *args)
-    mimetype.thumbnail(self, thumb_filename, *args)
-  end
-
-  def mimetype
-    MimeInfo.get to_s
-  end
-
-end
+require 'future/utils'
 
 
 module Mimetype
