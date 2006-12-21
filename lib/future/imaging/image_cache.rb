@@ -130,11 +130,11 @@ class CacheImage
 
   attr_reader :directory, :image_size, :image, :filename, :thumb_size, :thumbs_per_row
 
-  def initialize(directory, image_size, thumb_size)
-    @directory = directory
+  def initialize(file_prefix, image_size, thumb_size, image_type_suffix = '.png')
+    @directory = File.dirname(file_prefix)
     @image_size = image_size
     FileUtils.mkdir_p(@directory)
-    @filename = File.join(@directory, 'cache.png')
+    @filename = file_prefix + image_type_suffix
     @thumb_size = thumb_size
     @thumbs_per_row = (image_size / thumb_size)
     if File.exist? filename
