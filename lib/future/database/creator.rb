@@ -7,7 +7,7 @@ module DB
 class Creator
 include Enumerable
 
-  attr_accessor :tables, :joins, :indexes, :constraints, :sequences, :descriptions
+  attr_accessor :tables, :joins, :indexes, :constraints, :sequences, :descriptions, :pre_sql, :post_sql
 
   GEOMETRIC_TYPES = [
     'point', 'line', 'lseg', 'box', 'path', 'polygon', 'circle'
@@ -20,6 +20,8 @@ include Enumerable
     @constraints = []
     @sequences = []
     @descriptions = []
+    @pre_sql = []
+    @post_sql = []
     load(*filenames)
   end
 
@@ -29,6 +31,8 @@ include Enumerable
     @indexes.clear
     @constraints.clear
     @sequences.clear
+    @pre_sql.clear
+    @post_sql.clear
   end
 
   def clear_descriptions
@@ -62,7 +66,12 @@ include Enumerable
   def to_a
     @descriptions.each{|d| instance_eval d }
     create_join_tables
-    create_tables + create_constraints + create_indexes + create_sequences
+    pre_sql +
+    create_tables +
+    create_constraints +
+    create_indexes +
+    create_sequences +
+    post_sql
   end
   
   def create_join_tables

@@ -20,6 +20,7 @@ class ImageCache
     @cache_image_size = cache_image_size
     @max_thumbnail_size = max_thumbnail_size
     @cache_dir = cache_dir
+    @cache_pyramids = []
     @cache_pyramid_size = cache_pyramid_size
   end
 
@@ -79,8 +80,8 @@ class ImageCachePyramid
     @cache_dir = cache_dir
     @toplevel_index = toplevel_index
     @image_size = image_size
-    @pyramid_dir = File.join(@cache_dir, @toplevel_index)
-    @levels = (0...(Math.log(max_thumbnail_size) / Math.log(2)).to_i)
+    @pyramid_dir = File.join(@cache_dir, @toplevel_index.to_s)
+    @levels = (0..(Math.log(max_thumbnail_size) / Math.log(2)).to_i)
   end
 
   def image_stack_for(index)
@@ -91,8 +92,8 @@ class ImageCachePyramid
 
   def image_for(level, index)
     items_per_image = (@image_size / (1 << level)) ** 2
-    wanted_image = index % items_per_image
-    CacheImage.new(File.join(@pyramid_dir, level, wanted_image), @image_size, 1 << level)
+    wanted_image = index / items_per_image
+    CacheImage.new(File.join(@pyramid_dir, level.to_s, wanted_image.to_s), @image_size, 1 << level)
   end
 
   def at(index)
@@ -108,14 +109,16 @@ class ImageCachePyramid
     image = Imlib2::Image.load(image_filename)
     at(index) do |cache_img, cache_idx|
       cache_img.draw_at(cache_idx, image)
+      cache_img.save
       cache_img.delete!
     end
     image.delete!(true)
   end
 
-  def clear_at(index, image_filename)
+  def clear_at(index)
     at(index) do |cache_img, cache_idx|
       cache_img.clear_at(cache_idx)
+      cache_img.save
       cache_img.delete!
     end
   end
@@ -125,7 +128,7 @@ end
 
 class CacheImage
 
-  attr_reader :directory, :image_size, :image, :filename, :thumb_size
+  attr_reader :directory, :image_size, :image, :filename, :thumb_size, :thumbs_per_row
 
   def initialize(directory, image_size, thumb_size)
     @directory = directory
@@ -159,7 +162,7 @@ class CacheImage
     iw = (@thumb_size.to_f*img.width / larger).round
     ih = (@thumb_size.to_f*img.height / larger).round
     simg = img.crop_scaled(0,0,img.width,img.height,iw,ih)
-    @image.blend!(simg, 0,0, iw,ih, x,y, iw,ih)
+    @image.blend!(simg, 0,0, iw,ih, x*thumb_size, y*thumb_size, iw,ih)
     simg.delete!(true)
   end
 
@@ -167,7 +170,11 @@ class CacheImage
     init_ctx
     x = idx % thumbs_per_row
     y = idx / thumbs_per_row
-    @image.fill_rectangle([x,y, iw,ih])
+    @image.fill_rectangle([x*thumb_size,y*thumb_size, thumb_size,thumb_size])
+  end
+
+  def save
+    @image.save @filename
   end
 
   def delete!(*a)
