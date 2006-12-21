@@ -9,10 +9,10 @@ require 'ostruct'
 class ImageCacheTest < Test::Unit::TestCase
 include Future
 
-  def cache_setup name
+  def cache_setup name, type='png'
     cache_path = Pathname.new(File.dirname(__FILE__)) + "data/image_cache_#{name}"
     cache_path.rmtree if cache_path.exist?
-    @image_cache = ImageCache.new cache_path
+    @image_cache = ImageCache.new cache_path, type
   end
 
   def item(thumbnail, deleted=false)
@@ -21,53 +21,74 @@ include Future
 
   def test_add_image
     cache_setup 'add'
-    (0..10).each do |i|
-      @image_cache.update_cache_at(
-        i,
-        item(File.join(File.dirname(__FILE__), "data/images/#{i}.png"), false)
-      )
+    @image_cache.batch do
+      (0..10).each do |i|
+        @image_cache.update_cache_at(
+          i,
+          item(File.join(File.dirname(__FILE__), "data/images/#{i}.png"), false)
+        )
+      end
     end
   end
 
   def test_update_image
     cache_setup 'update'
-    (0..10).each do |i|
-      @image_cache.update_cache_at(
-        i,
-        item(File.join(File.dirname(__FILE__), "data/images/#{i}.png"), false)
-      )
-    end
-    (0..10).each do |i|
-      @image_cache.update_cache_at(
-        i,
-        item(File.join(File.dirname(__FILE__), "data/images/#{10-i}.png"), false)
-      )
+    @image_cache.batch do
+      (0..10).each do |i|
+        @image_cache.update_cache_at(
+          i,
+          item(File.join(File.dirname(__FILE__), "data/images/#{i}.png"), false)
+        )
+      end
+      (0..10).each do |i|
+        @image_cache.update_cache_at(
+          i,
+          item(File.join(File.dirname(__FILE__), "data/images/#{10-i}.png"), false)
+        )
+      end
     end
   end
 
   def test_delete_image
     cache_setup 'delete'
-    (0..10).each do |i|
-      @image_cache.update_cache_at(
-        i,
-        item(File.join(File.dirname(__FILE__), "data/images/#{i}.png"), false)
-      )
-    end
-    (0..10).each do |i|
-      @image_cache.update_cache_at(
-        i,
-        item(File.join(File.dirname(__FILE__), "data/images/#{i}.png"), true)
-      )
+    @image_cache.batch do
+      (0..10).each do |i|
+        @image_cache.update_cache_at(
+          i,
+          item(File.join(File.dirname(__FILE__), "data/images/#{i}.png"), false)
+        )
+      end
+      (0..10).each do |i|
+        @image_cache.update_cache_at(
+          i,
+          item(File.join(File.dirname(__FILE__), "data/images/#{i}.png"), true)
+        )
+      end
     end
   end
 
   def test_tile_span
     cache_setup 'tile_span'
-    (0..10).each do |i|
-      @image_cache.update_cache_at(
-        2**i,
-        item(File.join(File.dirname(__FILE__), "data/images/#{i}.png"), false)
-      )
+    @image_cache.batch do
+      (0..10).each do |i|
+        @image_cache.update_cache_at(
+          2**i,
+          item(File.join(File.dirname(__FILE__), "data/images/#{i}.png"), false)
+        )
+      end
+    end
+  end
+
+  def test_photographs
+    cache_setup 'photos'
+    photos = Dir[File.join(File.dirname(__FILE__), "data/images/*.JPG")]
+    @image_cache.batch do
+      photos.each_with_index do |photo, i|
+        @image_cache.update_cache_at(
+          i,
+          item(photo, false)
+        )
+      end
     end
   end
 

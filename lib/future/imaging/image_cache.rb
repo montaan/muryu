@@ -15,8 +15,10 @@ class ImageCache
   attr_reader :cache_image_size, :cache_pyramid_size, :max_thumbnail_size
 
   def initialize(cache_dir = Future.cache_dir + 'image_cache',
+                 cache_image_type = 'png',
                  cache_image_size = 512, max_thumbnail_size = 128)
     cache_pyramid_size = cache_image_size ** 2
+    @cache_image_type = cache_image_type
     @cache_image_size = cache_image_size
     @max_thumbnail_size = max_thumbnail_size
     @cache_dir = cache_dir
@@ -47,9 +49,9 @@ class ImageCache
       cache_pyramid = cache_pyramid_for(index)
       pyramid_index = (index) % @cache_pyramid_size
       if item.deleted
-        cache_pyramid.clear_at(pyramid_index)
+        cache_pyramid.clear_at(pyramid_index, @batch_ops)
       else
-        cache_pyramid.update_at(pyramid_index, item.thumbnail)
+        cache_pyramid.update_at(pyramid_index, item.thumbnail, @batch_ops)
       end
     else
       raise ArgumentError, 'Invalid index, should be a valid continuous_index for item.'
@@ -61,8 +63,22 @@ class ImageCache
   def cache_pyramid_for(index)
     pyramid = index / @cache_pyramid_size
     @cache_pyramids[pyramid] ||= ImageCachePyramid.new(
-      @cache_dir, pyramid, @cache_image_size, @max_thumbnail_size
+      @cache_dir, pyramid, @cache_image_type, @cache_image_size, @max_thumbnail_size
     )
+  end
+
+  def batch
+    if @batch_ops
+      yield
+    else
+      @batch_ops = {}
+      yield
+      @batch_ops.each do |addr, img|
+        img.save
+        img.delete!
+      end
+      @batch_ops = false
+    end
   end
 
 end
@@ -76,28 +92,30 @@ end
 #
 class ImageCachePyramid
 
-  def initialize(cache_dir, toplevel_index, image_size=512, max_thumbnail_size=128)
+  def initialize(cache_dir, toplevel_index, image_type='png', image_size=512, max_thumbnail_size=128)
     @cache_dir = cache_dir
     @toplevel_index = toplevel_index
+    @image_type = image_type
     @image_size = image_size
     @pyramid_dir = File.join(@cache_dir, @toplevel_index.to_s)
     @levels = (0..(Math.log(max_thumbnail_size) / Math.log(2)).to_i)
   end
 
-  def image_stack_for(index)
+  def image_stack_for(index, batch=nil)
     @levels.map do |lvl|
-      image_for(lvl, index)
+      image_for(lvl, index, batch)
     end
   end
 
-  def image_for(level, index)
+  def image_for(level, index, batch=nil)
     items_per_image = (@image_size / (1 << level)) ** 2
     wanted_image = index / items_per_image
-    CacheImage.new(File.join(@pyramid_dir, level.to_s, wanted_image.to_s), @image_size, 1 << level)
+    batch = {} unless batch
+    batch[[@pyramid_dir, level, wanted_image]] ||= CacheImage.new(File.join(@pyramid_dir, level.to_s, wanted_image.to_s), @image_size, 1 << level, @image_type)
   end
 
-  def at(index)
-    image_stack = image_stack_for(index)
+  def at(index, batch=nil)
+    image_stack = image_stack_for(index, batch)
     image_stack.each_with_index do |cache_img, i|
       thumb_size = 1 << i
       thumbs_per_cache_img = (@image_size / thumb_size) ** 2
@@ -105,21 +123,25 @@ class ImageCachePyramid
     end
   end
 
-  def update_at(index, image_filename)
+  def update_at(index, image_filename, batch = nil)
     image = Imlib2::Image.load(image_filename)
-    at(index) do |cache_img, cache_idx|
+    at(index, batch) do |cache_img, cache_idx|
       cache_img.draw_at(cache_idx, image)
-      cache_img.save
-      cache_img.delete!
+      unless batch
+        cache_img.save
+        cache_img.delete!
+      end
     end
     image.delete!(true)
   end
 
-  def clear_at(index)
-    at(index) do |cache_img, cache_idx|
+  def clear_at(index, batch = nil)
+    at(index, batch) do |cache_img, cache_idx|
       cache_img.clear_at(cache_idx)
-      cache_img.save
-      cache_img.delete!
+      unless batch
+        cache_img.save
+        cache_img.delete!
+      end
     end
   end
 
@@ -130,11 +152,11 @@ class CacheImage
 
   attr_reader :directory, :image_size, :image, :filename, :thumb_size, :thumbs_per_row
 
-  def initialize(file_prefix, image_size, thumb_size, image_type_suffix = '.png')
+  def initialize(file_prefix, image_size, thumb_size, image_type_suffix = 'png')
     @directory = File.dirname(file_prefix)
     @image_size = image_size
     FileUtils.mkdir_p(@directory)
-    @filename = file_prefix + image_type_suffix
+    @filename = file_prefix + "." + image_type_suffix
     @thumb_size = thumb_size
     @thumbs_per_row = (image_size / thumb_size)
     if File.exist? filename
