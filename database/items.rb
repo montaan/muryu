@@ -1,5 +1,5 @@
 tables["items"] = {
-  :continuous_index => [:serial, 'unique', 'not null'],
+  :image_index => [:serial, 'unique', 'not null'],
   :path => [:text, 'unique', 'not null'],
   :internal_path => [:text, 'not null'],
   :size => [:bigint, 'not null', 'default 0'],

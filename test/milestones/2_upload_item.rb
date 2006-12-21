@@ -32,7 +32,7 @@ include Future
       assert_equal(191, metadata.width)
       assert_equal(174, metadata.height)
       assert(i.thumbnail)
-      assert(File.exist?(i.thumbnail))
+      assert(i.thumbnail.exist?)
     end
   end
 

@@ -214,6 +214,20 @@ extend AccessControlClass
     {:deleted => false}.merge(h)
   end
 
+  def rdelete(user)
+    write(user) do
+      self.deleted = true
+      update_image_cache
+    end
+  end
+
+  def rundelete(user)
+    write(user) do
+      self.deleted = false
+      update_image_cache
+    end
+  end
+
 end
 
 

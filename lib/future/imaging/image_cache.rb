@@ -250,4 +250,7 @@ class CacheImage
 end
 
 
+Future.image_cache = ImageCache.new
+
+
 end

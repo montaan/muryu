@@ -136,6 +136,7 @@ class Uploader
             :can_modify => can_modify ? true : false)
         end
       end
+      item.update_thumbnail
     rescue => e
       retry if filename_violation?(e) && (attemps -= 1) > 0
       raise

@@ -62,24 +62,25 @@ extend SearchableClass
     end
   end
 
-  def thumbnails
-    @thumbnails ||= {}
+  def thumbnail(sz=256)
+    Future.thumbnail_dir.join(*sha1_hash.scan(/(..)(..)(.*)/)[0]) + "#{sz}.png"
   end
 
-  def thumbnail(sz=160)
-    thumbnails[sz] ||= (
-      f = Future.thumbnail_dir + "thumb_#{sz}/#{filename}.jpg"
-      unless f.exist?
-        icon = Future.thumbnail_dir + ("mimetypes_#{sz}/"+mimetype.tr("/","-")+".png")
-        icon = Future.thumbnail_dir + ("mimetypes_#{sz}/"+mimetype.split("/").first.to_s+".png") unless icon.exist?
-        icon = Future.thumbnail_dir + ("mimetypes_#{sz}/default.png") unless icon.exist?
-        icon = URI.escape(icon.to_s)
-        f = icon
-      end
-      f
-    )
+  def update_thumbnail
+    tn = thumbnail(256)
+    unless tn.exist?
+      puts 'thumbnailing', internal_path, tn
+      tn.dirname.mkdir_p
+      Mimetype[mimetype.to_s].thumbnail(internal_path, tn.to_s, 256)
+      puts 'done thumbnailing'
+    end
+    update_image_cache
   end
 
+  def update_image_cache
+    Future.image_cache.update_cache_at(image_index, self)
+  end
+  
   def mimetype
     [major, minor].join("/")
   end

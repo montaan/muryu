@@ -45,7 +45,7 @@ end
 class << self
   attr_accessor :salt
   attr_accessor :paths
-  attr_accessor :empty_tile
+  attr_accessor :empty_tile, :image_cache
   attr_reader   :environment
   attr_accessor :logger, :log_level, :database_configuration
 
