@@ -69,10 +69,8 @@ extend SearchableClass
   def update_thumbnail
     tn = thumbnail(256)
     unless tn.exist?
-      puts 'thumbnailing', internal_path, tn
       tn.dirname.mkdir_p
       Mimetype[mimetype.to_s].thumbnail(internal_path, tn.to_s, 256)
-      puts 'done thumbnailing'
     end
     update_image_cache
   end

@@ -21,9 +21,6 @@ def create_new_db(environment)
   ensure
     STDERR.reopen(stderr)
   end
-  locale = `locale`[/LANG=(.*)/,1]
-  puts "locale: #{locale}"
-  DB::Conn.exec "UPDATE pg_ts_cfg SET locale='#{locale}'"
 end
 
 require 'future/config'

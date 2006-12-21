@@ -13,7 +13,7 @@ extend self
     tile = TileDrawer.new.draw_tile(indexes, *tile_args)
     Future.tile_cache_dir.mkdir_p
     if tile
-      ### FIXME
+      ### FIXME thread safety, query string uniqueness, cache badness
       r,x,y,z,w,h = *tile_args
       fn = Future.tile_cache_dir + "tile_#{query}_#{[r,"#{w}x#{h}",z,x,y].join("_")}.jpg"
       tile.save(fn.to_s)

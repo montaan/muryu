@@ -820,3 +820,6 @@ CREATE OPERATOR CLASS tsvector_ops
 --update pg_ts_dict set dict_initoption='/usr/local/share/ispell/english.syn' where dict_id=5;
 END;
 ]
+locale = `locale`[/LANG=(.*)/,1]
+puts "locale: #{locale}"
+pre_sql << "UPDATE pg_ts_cfg SET locale='#{locale}';"

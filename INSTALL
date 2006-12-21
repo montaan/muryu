@@ -1,0 +1,6 @@
+
+database setup:
+
+dropdb $USER; 
+createdb $USER; 
+future_database_generate database/ | sudo -u postgres psql $USER

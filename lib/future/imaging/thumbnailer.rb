@@ -8,11 +8,10 @@ module Mimetype
     if to_s =~ /video/
       page ||= 5.7
       video_thumbnail(filename, thumb_filename, thumb_size, page, crop)
-    else
+    elsif to_s =~ /image|pdf|postscript|html/
       page ||= 0
       image_thumbnail(filename, thumb_filename, thumb_size, page, crop)
-    end or
-    icon_thumbnail(filename, thumb_filename, thumb_size, crop)
+    end or icon_thumbnail(filename, thumb_filename, thumb_size, crop)
   end
 
   def icon_thumbnail(filename, thumb_filename, thumb_size=128, crop='0x0+0+0')
@@ -21,7 +20,7 @@ module Mimetype
 
   def icon(thumb_size)
     ancestors.map do |klass|
-      Future.icon_dir + thumb_size.to_s + (klass.to_s.gsub(/\//, '_')+".png")
+      Future.icon_dir + (klass.to_s.gsub(/\//, '_')+".png")
     end.find{|pn| pn.exist? }
   end
 
