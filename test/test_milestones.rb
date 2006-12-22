@@ -14,9 +14,9 @@ class Milestones < Test::Unit::TestCase
 
   def test_milestones
     milestone_path = $own_path + "/milestones"
-    passed, failed = Dir[milestone_path + "/*.rb"].
-                      sort_by{|ms| File.basename(ms).to_f }.
-                      map{|ms|
+    milestones = Dir[milestone_path + "/*.rb"].sort_by{|ms| File.basename(ms).to_f }
+    max_len = milestones.map{|m| File.basename(m).size }.max
+    passed, failed = milestones.map{|ms|
                         t = Time.now.to_f
                         res = check_milestone(ms)
                         elapsed = Time.now.to_f - t
@@ -26,11 +26,11 @@ class Milestones < Test::Unit::TestCase
     puts
     puts "Passed milestones"
     puts "-----------------"
-    puts passed.map{|f,r,t| File.basename(f) + " \t(%.1fs)".%([t])}
+    puts passed.map{|f,r,t| File.basename(f).ljust(max_len) + " (%.1fs)".%([t])}
     puts
     puts "Milestones still ahead"
     puts "----------------------"
-    puts failed.map{|f,r,t| File.basename(f) + " \t(%.1fs)".%([t])}
+    puts failed.map{|f,r,t| File.basename(f).ljust(max_len) + " (%.1fs)".%([t])}
     puts
     puts "Completed: %.1f%" % (100 * passed.size.to_f / (passed+failed).size)
     puts 

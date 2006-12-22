@@ -37,6 +37,11 @@ extend self
   end
 
   def info(user, query, *tile_args, &block)
+    ### FIXME Query optimization problematic (again.)
+    ###       Want to get a list of fields for the items, but don't want to do
+    ###       infos.map{|k,v| Items.find(:image_index => i, :columns => ...)}
+    ###       and Items.find_all(:image_index => infos.keys, :columns => ...)
+    ###       will likely run into query size limit.
     indexes = Items.rfind_all(user, query.merge(:columns => [:image_index])).
                     map{|i| i.image_index }
     infos = {}
