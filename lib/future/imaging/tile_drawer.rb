@@ -67,12 +67,12 @@ class TileDrawer
     @image_cache = image_cache
   end
 
-  def draw_tile(indexes, layouter_name, x, y, zoom, w, h)
+  def draw_tile(indexes, layouter_name, x, y, zoom, w, h, *layouter_args)
     layouter = LAYOUTERS[layouter_name.to_s]
     raise ArgumentError, "Bad layouter_name: #{layouter_name.inspect}" unless layouter
     sz = @image_cache.thumb_size_at_zoom(zoom)
     empty_tile = true
-    layouter.each(indexes, x, y, sz, w, h) do |i, ix, iy|
+    layouter.each(indexes, x, y, sz, w, h, *layouter_args) do |i, ix, iy|
       empty_tile = false
       break
     end
@@ -80,18 +80,18 @@ class TileDrawer
     tile = Imlib2::Image.new(w,h)
     tile.clear
     @image_cache.batch do
-      layouter.each(indexes, x, y, sz, w, h) do |i, ix, iy|
+      layouter.each(indexes, x, y, sz, w, h, *layouter_args) do |i, ix, iy|
         @image_cache.draw_image_at(i, zoom, tile, ix, iy)
       end
     end
     tile
   end
 
-  def tile_info(indexes, layouter_name, x, y, zoom, w, h)
+  def tile_info(indexes, layouter_name, x, y, zoom, w, h, *layouter_args)
     layouter = LAYOUTERS[layouter_name.to_s]
     raise ArgumentError, "Bad layouter_name: #{layouter_name.inspect}" unless layouter
     sz = @image_cache.thumb_size_at_zoom(zoom)
-    layouter.each(indexes, x, y, sz, w, h) do |i, ix, iy|
+    layouter.each(indexes, x, y, sz, w, h, *layouter_args) do |i, ix, iy|
       yield(i, ix, iy, sz)
     end
   end
@@ -102,13 +102,14 @@ class TileDrawer
 
     def each(indexes, x, y, sz, w, h,
                   row_offset = sz / 2, columns = 200, rows = 5)
+      row_offset ||= sz / 2
       bigrow_height = (rows*sz) + row_offset
       bigrow_img_count = columns * rows
       
       item_count = indexes.size
-      bigrows = (item_count.to_f / bigrow_img_count).ceil.to_i
+      bigrows = ((item_count-1) / bigrow_img_count) + 1
       
-      all_rows = bigrows * 5
+      all_rows = bigrows * rows
       
       first_bigrow_in_view = y / bigrow_height
       last_bigrow_in_view = (y+h) / bigrow_height
@@ -122,7 +123,7 @@ class TileDrawer
       y_offset = y - first_row_y
       
       first_column_in_view = x / sz
-      last_column_in_view = (x+h) / sz
+      last_column_in_view = (x+w) / sz
 
       (first_row_in_view..last_row_in_view).each_with_index do |r,i|
         next if r > all_rows or r < 0
@@ -133,7 +134,7 @@ class TileDrawer
           next if c >= columns or c < 0
           ix = j*sz - x%sz
           next if ix >= w
-          iindex = bigrow * bigrow_img_count + c * rows + r
+          iindex = (bigrow * bigrow_img_count) + (c * rows) + (r % rows)
           index = indexes[iindex]
           next unless index
           yield(index, ix, iy)
