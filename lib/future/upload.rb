@@ -127,13 +127,13 @@ class Uploader
 
     log_debug("Top-level page is #{toplevel.to_s}.", "upload.rb")
     find_unique_name = lambda do |dest|
-      if fn = fname_map[dest]
+      if fn = fname_map[dest.to_s]
         fn
       else
         fname = File.basename(URI.parse(dest.to_s).path)
         fname = "_" + fname while filenames[fname]
         filenames[fname] = true
-        fname_map[dest]  = fname
+        fname_map[dest.to_s]  = fname
       end
     end
     uris.each do |uri|
@@ -142,7 +142,7 @@ class Uploader
       pending << [fname, io]
     end
     # FIXME: raise exception?
-    top_io = downloader.processed_file(toplevel){|src, dest, io| fname_map[dest] || "ERROR!!" }
+    top_io = downloader.processed_file(toplevel){|src, dest, io| fname_map[dest.to_s] || "store_remote_item_error" }
 
     topname = File.basename(toplevel)
     topname = "index.html" if topname.empty?
