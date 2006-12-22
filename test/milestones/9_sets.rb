@@ -8,9 +8,11 @@ include Future
   def setup
     @foo = Users.register('foo', 'bar')
     @baz = Users.register('baz', 'qux')
+    Future.image_cache.batch_start
   end
 
   def teardown
+    Future.image_cache.batch_end
     Users.delete_all # delete cascade wipes the whole database
   end
 

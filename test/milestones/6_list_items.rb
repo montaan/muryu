@@ -11,10 +11,12 @@ include Future
     Items.delete_all
     @user = Users.register("foo_list_items", 'bar')
     @user2 = Users.register("baz_list_items", "qux")
+    Future.image_cache.batch_start
   end
 
   def teardown
     Items.delete_all
+    Future.image_cache.batch_end
   end
 
   def test_item_visibility

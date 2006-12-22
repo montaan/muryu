@@ -33,9 +33,9 @@ class ImageCache
 
   def regenerate!
     items = DB::Items.count
-    (0..items / 100).each do |batch_start|
+    (0..items / 100).each do |batch_idx|
       batch do
-        (batch_start*100..(batch_start+1)*100).each do |i|
+        (batch_idx*100..(batch_idx+1)*100).each do |i|
           break if i >= items
           update_cache_at(i)
         end
@@ -96,8 +96,19 @@ class ImageCache
     if @batch_ops
       yield
     else
-      @batch_ops = {}
+      batch_start
       yield
+      batch_end
+    end
+  end
+
+  def batch_start
+    batch_end
+    @batch_ops = {}
+  end
+
+  def batch_end
+    if @batch_ops
       @batch_ops.each do |addr, img|
         img.save
         img.delete!

@@ -7,6 +7,11 @@ include Future
   DATADIR = File.expand_path(File.dirname(__FILE__) + "/../data")
   def setup
     Users.register('foo', 'bar')
+    Future.image_cache.batch_start
+  end
+
+  def teardown
+    Future.image_cache.batch_end
   end
 
   def test_create_text_post

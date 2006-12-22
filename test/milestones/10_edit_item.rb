@@ -5,6 +5,14 @@ require 'future'
 class Milestone < Test::Unit::TestCase
 include Future
 
+  def setup
+    Future.image_cache.batch_start
+  end
+
+  def teardown
+    Future.image_cache.batch_end
+  end
+
   def test_item_permissions
     user = Users.register('foo', 'bar')
     user2 = Users.register("baz", "qux")

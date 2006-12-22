@@ -10,10 +10,12 @@ include Future
   def setup
     @user = Users.register("foo_list_items", 'bar')
     @user2 = Users.register("baz_list_items", "qux")
+    Future.image_cache.batch_start
   end
 
   def teardown
     Users.delete_all
+    Future.image_cache.batch_end
   end
 
   def test_item_full_text_search
