@@ -125,7 +125,12 @@ class Uploader
     log_debug("Page #{toplevel}, children #{uris.join(" ")}", "upload.rb")
     pending = []
 
-    log_debug("Top-level page is #{toplevel.to_s}.", "upload.rb")
+    topname = File.basename(toplevel)
+    topname = "index.html" if topname.empty?
+    topname.gsub(/(\.[^.]+)?$/, ".html")
+    fname_map[toplevel] = topname
+    log_debug("Top-level page is #{toplevel.to_s} (#{topname}).", "upload.rb")
+
     find_unique_name = lambda do |dest|
       if fn = fname_map[dest.to_s]
         fn
@@ -144,9 +149,6 @@ class Uploader
     # FIXME: raise exception?
     top_io = downloader.processed_file(toplevel){|src, dest, io| fname_map[dest.to_s] || "store_remote_item_error" }
 
-    topname = File.basename(toplevel)
-    topname = "index.html" if topname.empty?
-    topname.gsub(/(\.[^.]+)?$/, ".html")
     item = store_item(top_io, topname, owner, groups, can_modify, metadata_info)
 
     pending.each do |fname, io|
