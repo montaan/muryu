@@ -113,9 +113,9 @@ extend self
     nil
   end
 
-  def extract(filename, mimetype=MimeInfo.get(filename.to_s).to_s)
+  def extract(filename, mimetype=MimeInfo.get(filename.to_s))
     filename = filename.to_s
-    major,minor = mimetype.gsub("-","_").split("/")
+    major,minor = mimetype.to_s.gsub("-","_").split("/")
     mn = [major,minor].join("_")
     new_methods = public_methods(false)
     if new_methods.include?( mn )

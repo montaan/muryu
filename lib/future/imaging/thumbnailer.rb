@@ -5,6 +5,47 @@ require 'fileutils'
 
 module Mimetype
 
+  # Converts wanted page|layer|time of filename into an image,
+  # scales the image to fit inside a thumbsize x thumbsize rectangle and
+  # crops a WxH+X+Y rectangle out of the scaled image. Saves the image to
+  # thumbnail.
+  #
+  #
+  # Examples:
+  #
+  # Creating tiles from a PDF:
+  #
+  #   pdf = 'gsp0606.pdf'.to_pn
+  #   tn_sz = pdf.dimensions.max
+  #   pdf.pages.times do |page|
+  #     (0 .. pdf.width / 256).each do |x|
+  #       (0 .. pdf.height / 256).each do |y|
+  #         pdf.thumbnail(pdf.to_s+"_#{page}_#{y}_#{x}.jpg", tn_sz, page,
+  #                       "256x256+#{x*256}+#{y*256}")
+  #       end
+  #     end
+  #   end
+  #
+  #
+  # At specific size:
+  #
+  #   pdf = 'gsp0606.pdf'.to_pn
+  #   tn_sz = 2048
+  #   pdf.pages.times do |page|
+  #     4.times do |x|
+  #       4.times do |y|
+  #         pdf.thumbnail(pdf.to_s+"_#{page}_#{y}_#{x}.jpg", tn_sz, page,
+  #                       "512x512+#{x*512}+#{y*512}")
+  #       end
+  #     end
+  #   end
+  #
+  #
+  # Or just:
+  # 
+  #   pdf = 'gsp0606.pdf'.to_pn
+  #   pdf.create_tiles    # (256, 1024, [3,4]){|pg,x,y| "#{pg}_#{y}_#{x}.png" }
+  #
   def thumbnail(filename, thumb_filename, thumb_size=128, page=nil, crop='0x0+0+0')
     if to_s =~ /video/
       page ||= 5.7
@@ -26,27 +67,25 @@ module Mimetype
   end
 
   def image_thumbnail(filename, thumb_filename, thumb_size, page=0, crop='0x0+0+0')
-    dimstrs = `identify "#{filename}"[0]`.scan(/ [0-9]+x[0-9]+ /)
-    return false if dimstrs.empty?
-    dims = dimstrs[0].strip.split("x").map{|c|c.to_f}
+    dims = filename.to_pn.dimensions
+    return false unless dims[0] and dims[1]
+    scale_fac = 1
     if dims.min < thumb_size
-      scale_fac = thumb_size / dims.min
+      scale_fac = thumb_size / dims.min.to_f
     elsif dims.max > thumb_size
-      scale_fac = thumb_size / dims.max
-    else
-      scale_fac = 1
+      scale_fac = thumb_size / dims.max.to_f
     end
     density = scale_fac * 72
-    tmp_filename = File.join(File.dirname(thumb_filename), 
-                             ".tmp#{Process.pid}-#{Thread.object_id}#{thumb_filename[/.[^.]+$/]}")
+    tfn = thumb_filename.to_pn
+    tmp_filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.object_id}#{tfn.extname}"
     args = ["-density", density.to_s,
             "#{filename}[#{page}]",
             "-scale", "#{thumb_size}x#{thumb_size}",
             "-crop", crop.to_s,
-            tmp_filename]
+            tmp_filename.to_s]
     system("convert", *args)
-    if File.exist?(tmp_filename)
-      File.rename(tmp_filename, thumb_filename)
+    if tmp_filename.exist?
+      tmp_filename.rename(tfn)
       true
     else
       false

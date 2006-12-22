@@ -8,6 +8,7 @@ require 'cgi'
 require 'uri'
 require 'pathname'
 require 'fileutils'
+require 'ostruct'
 
 require 'logger'
 module Kernel
@@ -37,6 +38,22 @@ module Kernel
     subsystem ||= caller(1).first
     log(message, subsystem, Logger::DEBUG, &block)
   end
+
+  def pn(str, *args)
+    str.to_s.to_pn(*args)
+  end
+  
+end
+
+
+class String
+
+  def to_pn(*rest)
+    pn = Pathname.new(self)
+    pn = pn.join(*rest) unless rest.empty?
+    pn
+  end
+
 end
 
 
@@ -51,6 +68,12 @@ end
 
 class Pathname
 
+  def to_pn(*rest)
+    pn = self
+    pn = pn.join(*rest) unless rest.empty?
+    pn
+  end
+
   def mkdir_p
     FileUtils.mkdir_p(to_s)
   end
@@ -64,9 +87,41 @@ class Pathname
   end
 
   def mimetype
-    MimeInfo.get to_s
+    @mimetype ||= MimeInfo.get(to_s)
   end
 
+  def width
+    metadata.width
+  end
+
+  def height
+    metadata.height
+  end
+
+  def pages
+    @pages ||= (metadata.pages || 1)
+  end
+  
+  def dimensions
+    @dimensions ||= [metadata.width, metadata.height]
+  end
+
+  def metadata
+    @metadata ||= OpenStruct.new(Future::MetadataExtractor[self, mimetype])
+  end
+
+  def create_tiles(tile_size=256, image_size=dimensions.max, pages=(0...pages), &block)
+    block = lambda{|pg, x, y| to_s+"_#{pg}_#{y}_#{x}.jpg"} unless block_given?
+    pages.each do |page|
+      (0 .. (image_size-1) / tile_size).each do |x|
+        (0 .. (image_size-1) / tile_size).each do |y|
+          thumbnail(block.call(page, x, y), image_size, page,
+                    "%dx%d+%d+%d" % [tile_size, tile_size, x*tile_size, y*tile_size])
+        end
+      end
+    end
+  end
+  
 end
 
 
