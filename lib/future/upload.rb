@@ -5,6 +5,8 @@ require 'future/metadata'
 require 'future/storage'
 require 'future/models/groups'
 require 'future/models/metadata'
+require 'future/recursive_downloader'
+require 'uri'
 
 module Future
 
@@ -40,12 +42,13 @@ class Uploader
   #
   def handle(options)
     options = {:groups => [], :tags => [], :sets => []}.merge(options)
+    is_remote = false
     unless options[:io]
       if options[:text]
         options[:io] = StringIO.new(options[:text])
         options[:filename] ||= "note"
       elsif options[:source]
-        options[:io] = DownloadIO.new(options[:source]) if options[:source]
+        is_remote = true
       else
         raise ArgumentError, "Either :io, :text or :source required."
       end
@@ -58,7 +61,12 @@ class Uploader
       :user     => options[:user],
       :can_modify => options[:can_modify]
     }
-    item = store_item(*[:io, :filename, :user, :groups, :can_modify, :metadata_info].map{|f| options[f]})
+
+    if is_remote
+      item = store_remote_item(*[:source, :user, :groups, :can_modify, :metadata_info].map{|f| options[f]})
+    else
+      item = store_item(*[:io, :filename, :user, :groups, :can_modify, :metadata_info].map{|f| options[f]})
+    end
     options[:tags].each do |tag|
       item.add_tag tag
     end
@@ -104,6 +112,51 @@ class Uploader
   # how many times we try to store the file until we give up since getting an
   # unused path seems impossible
   MAX_ATTEMPS = 10
+
+  # Recursively stores the webpage and all images, stylesheets, scripts it
+  # refers to. Assumes that URL is OK (untainted).
+  def store_remote_item(url, owner, groups, can_modify, metadata_info)
+    downloader = RecursiveDownloader.new(URI.parse(url))
+    num_files = downloader.download
+    fname_map = {} # uri => fname
+    filenames = {} 
+    uris = downloader.downloaded_files - [downloader.toplevel]
+    toplevel = downloader.toplevel 
+    log_debug("Page #{toplevel}, children #{uris.join(" ")}", "upload.rb")
+    pending = []
+
+    log_debug("Top-level page is #{toplevel.to_s}.", "upload.rb")
+    find_unique_name = lambda do |dest|
+      if fn = fname_map[dest]
+        fn
+      else
+        fname = File.basename(URI.parse(dest.to_s).path)
+        fname = "_" + fname while filenames[fname]
+        filenames[fname] = true
+        fname_map[dest]  = fname
+      end
+    end
+    uris.each do |uri|
+      io    = downloader.processed_file(uri){|src, dest, io| find_unique_name.call(dest) }
+      fname = find_unique_name.call(uri)
+      pending << [fname, io]
+    end
+    # FIXME: raise exception?
+    top_io = downloader.processed_file(toplevel){|src, dest, io| fname_map[dest] || "ERROR!!" }
+
+    topname = File.basename(toplevel)
+    topname = "index.html" if topname.empty?
+    topname.gsub(/(\.[^.]+)?$/, ".html")
+    item = store_item(top_io, topname, owner, groups, can_modify, metadata_info)
+
+    pending.each do |fname, io|
+      log_debug("Storing subitem #{fname} under #{item.path}.", "upload.rb")
+      @store.store(fname, io, :sha1digest => item.sha1_hash,
+                   :preserve_name => true)
+      io.close # don't wait until it's GCed
+    end
+    item
+  end
 
   # store item to db and file store
   def store_item(io, preferred_filename, owner, groups, can_modify, metadata_info)
