@@ -136,6 +136,8 @@ class RecursiveDownloader
       doc.search(resource).each do |res|
         if (src = res.attributes[attr])
           src = URI.parse(src)
+          # skip <a href="#f"> or <a href="" title="...">
+          next if "#{src.path}#{src.path}".empty?
           resolved_uri = URI.parse(uri).merge(src).normalize
           if (actual_uri = @redirected[resolved_uri.to_s])
             io = @fetched[uri].clone
