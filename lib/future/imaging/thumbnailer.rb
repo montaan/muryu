@@ -54,13 +54,13 @@ module Mimetype
   end
 
   def video_thumbnail(filename, thumb_filename, thumb_size, page, crop)
-    video_cache_dir = Future.cache_dir + 'videotemp-#{Process.pid}-#{Thread.object_id}'
+    video_cache_dir = Future.cache_dir + "videotemp-#{Process.pid}-#{Thread.object_id}"
     video_cache_dir.mkdir_p
     system("mplayer", "-nosound", "-ss", page.to_s, "-vf", "scale",
            "-vo", "jpeg:outdir=#{video_cache_dir}", "-frames", "10", filename)
-    j = Dir[video_cache_dir + "*.jpg"].sort.last
+    j = video_cache_dir.glob("*.jpg").sort.last
     image_thumbnail(j, thumb_filename, thumb_size, 0, crop) if j
-    FileUtils.rm_rf video_cache_dir
+    video_cache_dir.rmtree
     File.exist?(thumb_filename)
   end
   
