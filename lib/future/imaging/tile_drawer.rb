@@ -8,6 +8,11 @@ module Tiles
 extend self
 
   def open(user, query, *tile_args, &block)
+    ### FIXME query optimization problematic (need to layout to get wanted spans,
+    ###       then do a query for each (semi-)continuous span, e.g. layout says
+    ###       that 4-10, 16-22, 28-34, 4182-4188, 4194-4200 needed
+    ###       -> get 4-34, 4182-4200)
+    ###
     indexes = Items.rfind_all(user, query.merge(:columns => [:image_index])).
                     map{|i| i.image_index }
     tile = TileDrawer.new.draw_tile(indexes, *tile_args)
@@ -29,6 +34,14 @@ extend self
       end
     end
     fn.open('rb', &block)
+  end
+
+  def info(user, query, *tile_args, &block)
+    indexes = Items.rfind_all(user, query.merge(:columns => [:image_index])).
+                    map{|i| i.image_index }
+    infos = {}
+    TileDrawer.new.tile_info(indexes, *tile_args){|i, *a| infos[i] = a}
+    infos
   end
 
   private
@@ -74,6 +87,15 @@ class TileDrawer
     tile
   end
 
+  def tile_info(indexes, layouter_name, x, y, zoom, w, h)
+    layouter = LAYOUTERS[layouter_name.to_s]
+    raise ArgumentError, "Bad layouter_name: #{layouter_name.inspect}" unless layouter
+    sz = @image_cache.thumb_size_at_zoom(zoom)
+    layouter.each(indexes, x, y, sz, w, h) do |i, ix, iy|
+      yield(i, ix, iy, sz)
+    end
+  end
+
 
   module RowLayouter
   extend self
@@ -106,9 +128,11 @@ class TileDrawer
         next if r > all_rows or r < 0
         bigrow = r / rows
         iy = i*sz - y_offset + row_offset*(bigrow-first_bigrow_in_view)
+        next if iy >= h
         (first_column_in_view..last_column_in_view).each_with_index do |c,j|
           next if c >= columns or c < 0
           ix = j*sz - x%sz
+          next if ix >= w
           iindex = bigrow * bigrow_img_count + c * rows + r
           index = indexes[iindex]
           next unless index
