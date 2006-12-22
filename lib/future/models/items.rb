@@ -1,5 +1,4 @@
 require 'future/base'
-require 'future/models/searchable'
 
 
 module Future
@@ -14,8 +13,6 @@ class Itemtexts < DB::Tables::Itemtexts
 end
 
 class Items < DB::Tables::Items
-include Searchable
-extend SearchableClass
 
   def get_text
     read
