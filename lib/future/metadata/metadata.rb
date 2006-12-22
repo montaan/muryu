@@ -1,9 +1,36 @@
-require 'mp3info'
+require 'future/metadata/mp3info'
+require 'future/metadata/mime_info'
 require 'iconv'
 require 'time'
 require 'future/base'
 require 'future/models/items'
-require 'future/metadata/mime_info'
+
+
+class Pathname
+
+  def mimetype
+    @mimetype ||= MimeInfo.get(to_s)
+  end
+
+  def pages
+    @pages ||= (metadata.pages || 1)
+  end
+  
+  def dimensions
+    @dimensions ||= [width, height]
+  end
+
+  def metadata
+    @metadata ||= OpenStruct.new(Future::MetadataExtractor[self, mimetype])
+  end
+
+  def length
+    @length ||= (metadata.length or metadata.words.to_i / 250.0)
+  end
+
+  delegate :metadata, :width, :height
+
+end
 
 
 module Future
@@ -17,20 +44,21 @@ module MetadataExtractor
 extend self
 
   def audio_mpeg(fn)
-    m = Mp3Info.open(fn)
-    t = m.tag
-    {
-      :bitrate => m.bitrate.to_i*1000,
-      :length => m.length.to_f,
-      :samplerate => m.samplerate.to_i,
-      :vbr => m.vbr,
-      :author => enc_utf8(t['artist']),
-      :genre => enc_utf8(t['genre_s']),
-      :publish_time => parse_time(t['year']),
-      :album => enc_utf8(t['album']),
-      :title => enc_utf8(t['title']),
-      :tracknum => parse_num(t['tracknum'])
-    }
+    Mp3Info.open(fn) do |m|
+      t = m.tag
+      {
+        :bitrate => m.bitrate.to_i*1000,
+        :length => m.length.to_f,
+        :samplerate => m.samplerate.to_i,
+        :vbr => m.vbr,
+        :author => enc_utf8(t['artist']),
+        :genre => enc_utf8(t['genre_s']),
+        :publish_time => parse_time(t['year']),
+        :album => enc_utf8(t['album']),
+        :title => enc_utf8(t['title']),
+        :tracknum => parse_num(t['tracknum'])
+      }
+    end
   end
 
   def application_pdf(fname)

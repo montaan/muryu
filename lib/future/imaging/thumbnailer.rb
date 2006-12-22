@@ -3,6 +3,27 @@ require 'future/utils'
 require 'fileutils'
 
 
+class Pathname
+
+  def thumbnail(thumb_filename, *args)
+    mimetype.thumbnail(self, thumb_filename, *args)
+  end
+
+  def create_tiles(tile_size=256, image_size=dimensions.max, pages=(0...pages), &block)
+    block = lambda{|pg, x, y| to_s+"_#{pg}_#{y}_#{x}.jpg"} unless block_given?
+    pages.each do |page|
+      (0 .. (image_size-1) / tile_size).each do |x|
+        (0 .. (image_size-1) / tile_size).each do |y|
+          thumbnail(block.call(page, x, y), image_size, page,
+                    "%dx%d+%d+%d" % [tile_size, tile_size, x*tile_size, y*tile_size])
+        end
+      end
+    end
+  end
+  
+end
+
+
 module Mimetype
 
   # Converts wanted page|layer|time of filename into an image,

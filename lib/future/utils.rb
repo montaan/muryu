@@ -82,46 +82,6 @@ class Pathname
     self.class.glob((self+subpath).to_s, *args)
   end
 
-  def thumbnail(thumb_filename, *args)
-    mimetype.thumbnail(self, thumb_filename, *args)
-  end
-
-  def mimetype
-    @mimetype ||= MimeInfo.get(to_s)
-  end
-
-  def width
-    metadata.width
-  end
-
-  def height
-    metadata.height
-  end
-
-  def pages
-    @pages ||= (metadata.pages || 1)
-  end
-  
-  def dimensions
-    @dimensions ||= [metadata.width, metadata.height]
-  end
-
-  def metadata
-    @metadata ||= OpenStruct.new(Future::MetadataExtractor[self, mimetype])
-  end
-
-  def create_tiles(tile_size=256, image_size=dimensions.max, pages=(0...pages), &block)
-    block = lambda{|pg, x, y| to_s+"_#{pg}_#{y}_#{x}.jpg"} unless block_given?
-    pages.each do |page|
-      (0 .. (image_size-1) / tile_size).each do |x|
-        (0 .. (image_size-1) / tile_size).each do |y|
-          thumbnail(block.call(page, x, y), image_size, page,
-                    "%dx%d+%d+%d" % [tile_size, tile_size, x*tile_size, y*tile_size])
-        end
-      end
-    end
-  end
-  
 end
 
 
