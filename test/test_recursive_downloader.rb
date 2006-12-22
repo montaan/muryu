@@ -25,6 +25,10 @@ class TestRecursiveDownloader < Test::Unit::TestCase
       buf
     end
 
+    def normalize
+      self
+    end
+
     def to_s
       URI.parse("file://" + @path).to_s
     end
