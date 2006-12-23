@@ -9,7 +9,7 @@ require 'ostruct'
 class TileDrawerTest < Test::Unit::TestCase
 include Future
 
-  def cache_setup name, type='png'
+  def cache_setup name, type='tga'
     cache_path = Pathname.new(File.dirname(__FILE__)) + "data/tile_drawer_cache_#{name}"
     cache_path.rmtree if cache_path.exist?
     @image_cache = ImageCache.new cache_path, type
