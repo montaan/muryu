@@ -1,4 +1,5 @@
 require 'future/base'
+require 'thread'
 require 'imlib2'
 
 
@@ -195,7 +196,40 @@ class CacheImage
 
   attr_reader :directory, :image_size, :image, :filename, :thumb_size, :thumbs_per_row
 
+  attr_accessor :key
+  
+  @@open_images = {}
+  @@open_images_mutex = Mutex.new
+
+  def self.new(*a)
+    key = a.join("_")
+    @@open_images_mutex.synchronize do
+      i = (@@open_images[key] ||= (
+        img = allocate
+        # expensive to serialize image loads?
+        # (may improve performance on one-disk system by serializing reads?)
+        img.instance_eval{ initialize(*a) } 
+        img.key = key
+        [img, 0]
+      ))
+      i[1] += 1 # increase refcount
+      i[0]
+    end
+  end
+  
+  def self.release(key)
+    @@open_images_mutex.synchronize do 
+      i = @@open_images[key]
+      return unless i
+      if (i[1] -= 1) < 1 # decrease refcount, delete image if refcount reaches zero
+        @@open_images.delete(key)
+        i[0].image.delete!
+      end
+    end
+  end
+  
   def initialize(file_prefix, image_size, thumb_size, image_type_suffix = 'png')
+    @mutex = Mutex.new
     @directory = File.dirname(file_prefix)
     @image_size = image_size
     FileUtils.mkdir_p(@directory)
@@ -220,42 +254,53 @@ class CacheImage
   end
 
   def draw_at(idx, img)
-    clear_at(idx)
     x = idx % thumbs_per_row
     y = idx / thumbs_per_row
     larger = [img.width, img.height].max
     iw = (@thumb_size.to_f*img.width / larger).round
     ih = (@thumb_size.to_f*img.height / larger).round
     simg = img.crop_scaled(0,0,img.width,img.height,iw,ih)
-    @image.blend!(simg, 0,0, iw,ih, x*thumb_size, y*thumb_size, iw,ih)
+    @mutex.synchronize do
+      init_ctx
+      image.fill_rectangle([x*thumb_size,y*thumb_size, thumb_size,thumb_size])
+      image.blend!(simg, 0,0, iw,ih, x*thumb_size, y*thumb_size, iw,ih)
+      @changed = true
+    end
     simg.delete!(true)
-    @changed = true
   end
 
   def clear_at(idx)
-    init_ctx
     x = idx % thumbs_per_row
     y = idx / thumbs_per_row
-    @image.fill_rectangle([x*thumb_size,y*thumb_size, thumb_size,thumb_size])
-    @changed = true
+    @mutex.synchronize do
+      init_ctx
+      image.fill_rectangle([x*thumb_size,y*thumb_size, thumb_size,thumb_size])
+      @changed = true
+    end
   end
 
   def draw_image_at(idx, img, ix, iy)
     x = idx % thumbs_per_row
     y = idx / thumbs_per_row
     sz = thumb_size
-    img.blend!(@image, x*sz, y*sz, sz, sz, ix, iy, sz, sz)
-  end
-
-  def save
-    if @changed
-      @image.save @filename
-      @changed = false
+    @mutex.synchronize do
+      img.blend!(image, x*sz, y*sz, sz, sz, ix, iy, sz, sz)
     end
   end
 
+  def save
+    @mutex.synchronize do
+      if @changed
+        @image.save @filename
+        @changed = false
+      end
+    end
+  end
+  
   def delete!(*a)
-    @image.delete!(*a)
+    @mutex.synchronize do
+      self.class.release(key)
+    end
   end
   
 end
