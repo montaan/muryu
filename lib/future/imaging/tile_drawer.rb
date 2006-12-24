@@ -84,15 +84,50 @@ class TileDrawer
   ###                 texture load 2ms per tex, texture memory usage 1 meg
   ###                 image save 3ms 
   ### 1Mitems => 
-  ###   4x     1x1     cache images, 65536 images per tile
-  ###   16x    2x2     cache images, 16384 images per tile
-  ###   64x    4x4     cache images, 4096  images per tile
-  ###   256x   8x8     cache images, 1024  images per tile
-  ###   1024x  16x16   cache images, 256   images per tile
-  ###   4096x  32x32   cache images, 64    images per tile
-  ###   16384x 64x64   cache images, 16    images per tile
-  ###   65536x 128x128 cache images, 4     images per tile
-  ### => worst case: 256 cache images needed for drawing a tile == 512ms to load textures, 256MB mem use == not too bad
+  ###   4x     1x1     cache images   4MB, 65536 images per tile, max 4   cache images per tile = 8ms   (131 072ms @ 256Mitems)
+  ###   16x    2x2     cache images  16MB, 16384 images per tile, max 16  cache images per tile = 32ms  ( 32 768ms @ 64Mitems )
+  ###   64x    4x4     cache images  64MB, 4096  images per tile, max 64  cache images per tile = 128ms (  8 192ms @ 16Mitems )
+  ###   256x   8x8     cache images 256MB, 1024  images per tile, max 256 cache images per tile = 512ms (  2 048ms @ 4Mitems  )
+  ###   1024x  16x16   cache images   1GB, 256   images per tile, max 256 cache images per tile = 512ms
+  ###   4096x  32x32   cache images   4GB, 64    images per tile, max 64  cache images per tile = 128ms
+  ###   16384x 64x64   cache images  16GB, 16    images per tile, max 16  cache images per tile = 32ms
+  ###   65536x 128x128 cache images  64GB, 4     images per tile, max 4   cache images per tile = 8ms
+  ### => worst case: 256 cache images needed for drawing a tile == 512ms to load textures & 256MB mem use == not too bad
+  ###
+  ### Worst case probability: 
+  ###   pick images_per_tile images from all images so that all image_index / images_per_cache_image are different
+  ###   "there are images socks in a box, images_per_cache_image of each color, what is the probability of picking images_per_tile
+  ###    differently colored socks from the box?"
+  ###   (1...images_per_tile).inject(1){|s,i| s * ((images-i*images_per_cache_image.to_f)/(images-i)) }
+  ###
+  ### 1Mitems: imgs = 2**24; (1..7).map{|z| ipt = 4**z; ipci = 4**(z+1); (1...ipt).inject(1){|s,i| s*(imgs-i*ipci.to_f)/(imgs-i) }} 
+  ###   128x128 => 0.9999 => 8ms
+  ###   64x64   => 0.9928 => 32ms
+  ###   32x32   => 0.6109 => 128ms (4GB textures in total, doable to keep in RAM)
+  ###   16x16   => 7.07e-16
+  ###   Total textures: 85 GB (25.5e @ 0.3e / GB of hard disk space)
+  ###
+  ### 16Mitems:
+  ###   128x128 => 0.9999 (1TB textures)
+  ###   64x64   => 0.9995 (256GB textures)
+  ###   32x32   => 0.9698 (64GB textures)
+  ###   16x16   => 0.1352 => 512ms
+  ###   8x8     => 1.48e-61
+  ###   Total textures: 1365 GB (409e)
+  ###
+  ### 64Mitems:
+  ###   32x32   => 0.9924 (256GB textures)
+  ###   16x16   => 0.6076 (64GB textures)
+  ###   Total textures: 5461 GB (1638e)
+  ###
+  ### 256Mitems:
+  ###   16x16   => 0.8830 (256GB textures)
+  ###   Total textures: 21845 GB (6552e)
+  ###
+  ### Expected performance: expected amount of cache images per tile per zoom level * 2ms 
+  ###                       + 5ms draw&save time (pretty much constant)
+  ###
+  ### It is probably possible to get best-case drawing performance to ~6-7ms, or 5ms with cached texture, or 3ms with serving jpg from ram(?)
   ###  
   ### 1. tell image_cache to load images to memory (async per disk)
   ### 2. draw an image's part of the layout when the image is loaded (create mesh in C, use OpenGL for drawing)
