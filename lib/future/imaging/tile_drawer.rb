@@ -72,6 +72,37 @@ class TileDrawer
     @image_cache = image_cache
   end
 
+  ### Optimize: 
+  ### considerations: 256x256 tile = 65kquads max mesh size
+  ###                 timed drawing 65k items: 
+  ###                   total time 2395ms
+  ###                      - one texture load @ 2ms
+  ###                      - one save jpg @ 3ms
+  ###                      - 300ms to iterate the layout = slow!
+  ###                      - 230ms to call Imlib2::Image#blend! = slow!
+  ###                      - 1860ms for ImageCache#draw_image_at overhead = SLOW!
+  ###                 texture load 2ms per tex, texture memory usage 1 meg
+  ###                 image save 3ms 
+  ### 1Mitems => 
+  ###   4x     1x1     cache images, 65536 images per tile
+  ###   16x    2x2     cache images, 16384 images per tile
+  ###   64x    4x4     cache images, 4096  images per tile
+  ###   256x   8x8     cache images, 1024  images per tile
+  ###   1024x  16x16   cache images, 256   images per tile
+  ###   4096x  32x32   cache images, 64    images per tile
+  ###   16384x 64x64   cache images, 16    images per tile
+  ###   65536x 128x128 cache images, 4     images per tile
+  ### => worst case: 256 cache images needed for drawing a tile == 512ms to load textures, 256MB mem use == not too bad
+  ###  
+  ### 1. tell image_cache to load images to memory (async per disk)
+  ### 2. draw an image's part of the layout when the image is loaded (create mesh in C, use OpenGL for drawing)
+  ### 3. read image from framebuffer to ram and send to browser
+  ###
+  ### image_cache.load_images_at(indexes, zoom) do |image, image_indexes|
+  ###   layouter.each(indexes, image_indexes, x, y, sz, w, h, *layouter_args) do |i, ix, iy|
+  ###     image.draw_at(i, ix, iy)
+  ###   end
+  ### end
   def draw_tile(indexes, layouter_name, x, y, zoom, w, h, *layouter_args)
     layouter = LAYOUTERS[layouter_name.to_s]
     raise ArgumentError, "Bad layouter_name: #{layouter_name.inspect}" unless layouter

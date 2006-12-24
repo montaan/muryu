@@ -37,16 +37,16 @@ include Future
     (0..10).each do |i|
       ts << Thread.new do
         @image_cache.update_cache_at(
-          i,
-          item(File.join(File.dirname(__FILE__), "data/images/#{i}.png"), false)
+          i%11,
+          item(File.join(File.dirname(__FILE__), "data/images/#{i%11}.png"), false)
         )
       end
     end
     (0..10).each do |i|
       ts << Thread.new do
         @image_cache.update_cache_at(
-          i,
-          item(File.join(File.dirname(__FILE__), "data/images/#{10-i}.png"), false)
+          i%11,
+          item(File.join(File.dirname(__FILE__), "data/images/#{10-(i%11)}.png"), false)
         )
       end
     end

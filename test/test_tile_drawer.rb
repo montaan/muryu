@@ -49,5 +49,27 @@ include Future
     }
   end
 
+  def test_performance
+    cache_setup 'perf'
+    photos = Dir[File.join(File.dirname(__FILE__), "data/images/*.JPG")][0,8]
+    @image_cache.batch do
+      photos.each_with_index do |photo, i|
+        @image_cache.update_cache_at(
+          i,
+          item(photo, false)
+        )
+      end
+    end
+    indexes = (0...8).to_a*8192
+    td = TileDrawer.new(@image_cache)
+    x,y,w,h = 0, 0, 256, 256
+    pn = Pathname.new(File.dirname(__FILE__)).join("data", "tile_drawer_perf.jpg")
+    pn.unlink if pn.exist?
+    t = Time.now.to_f
+    tile = td.draw_tile(indexes, :rows, x, y, 0, w, h, 0, 256, 256)
+    tile.save(pn.to_s)
+    puts '', Time.now.to_f-t, ''
+  end
+
 end
 

@@ -196,7 +196,7 @@ class CacheImage
 
   attr_reader :directory, :image_size, :image, :filename, :thumb_size, :thumbs_per_row
 
-  attr_accessor :key
+  attr_accessor :key, :total, :count
   
   @@open_images = {}
   @@open_images_mutex = Mutex.new
@@ -224,12 +224,15 @@ class CacheImage
       if (i[1] -= 1) < 1 # decrease refcount, delete image if refcount reaches zero
         @@open_images.delete(key)
         i[0].image.delete!
+        p [i[0].filename, i[0].total, i[0].count, i[0].total/i[0].count] if i[0].count > 0
       end
     end
   end
   
   def initialize(file_prefix, image_size, thumb_size, image_type_suffix = 'png')
     @mutex = Mutex.new
+    @total = 0
+    @count = 0
     @directory = File.dirname(file_prefix)
     @image_size = image_size
     FileUtils.mkdir_p(@directory)
@@ -268,7 +271,7 @@ class CacheImage
     end
     simg.delete!(true)
   end
-
+  
   def clear_at(idx)
     x = idx % thumbs_per_row
     y = idx / thumbs_per_row
@@ -284,7 +287,10 @@ class CacheImage
     y = idx / thumbs_per_row
     sz = thumb_size
     @mutex.synchronize do
+      t = Time.now.to_f
       img.blend!(image, x*sz, y*sz, sz, sz, ix, iy, sz, sz)
+      @total += Time.now.to_f - t
+      @count += 1
     end
   end
 
