@@ -100,28 +100,34 @@ class TileDrawer
   ###    differently colored socks from the box?"
   ###   (1...images_per_tile).inject(1){|s,i| s * ((images-i*images_per_cache_image.to_f)/(images-i)) }
   ###
-  ### 1Mitems: imgs = 2**24; (1..7).map{|z| ipt = 4**z; ipci = 4**(z+1); (1...ipt).inject(1){|s,i| s*(imgs-i*ipci.to_f)/(imgs-i) }} 
+  ### 1Mitems: 
+  ### imgs = 2**24; (1..7).map{|z| ipt = 4**z; ipci = 4**(z+1); (1...ipt).inject(1){|s,i| s*(imgs-i*ipci.to_f)/(imgs-i) }} 
+  ### imgs = 2**24; (1..7).map{|z| ipt = 4**z; ipci = 4**(z+1); (1...ipt).inject(1){|s,i| r=s*(imgs-i*ipci.to_f)/(imgs-i); break i if r < 0.95; r }} 
   ###   128x128 => 0.9999 => 8ms
   ###   64x64   => 0.9928 => 32ms
-  ###   32x32   => 0.6109 => 128ms (4GB textures in total, doable to keep in RAM)
-  ###   16x16   => 7.07e-16
+  ###   32x32   => 0.6109 => 128ms (4GB textures in total, doable to keep in RAM), 95% < 21 needed, 42ms
+  ###   16x16   => 7.07e-16, 95% < 10 needed, 20ms
+  ###   95% < {8x8:5, 4x4:3, 2x2:1} needed
   ###   Total textures: 85 GB (25.5e @ 0.3e / GB of hard disk space)
   ###
   ### 16Mitems:
   ###   128x128 => 0.9999 (1TB textures)
   ###   64x64   => 0.9995 (256GB textures)
   ###   32x32   => 0.9698 (64GB textures)
-  ###   16x16   => 0.1352 => 512ms
-  ###   8x8     => 1.48e-61
+  ###   16x16   => 0.1352 => 512ms, 95% < 41 needed, 82ms
+  ###   8x8     => 1.48e-61, 95% < 20 needed, 40ms
+  ###   95% < {4x4:10, 2x2:5} needed
   ###   Total textures: 1365 GB (409e)
   ###
   ### 64Mitems:
   ###   32x32   => 0.9924 (256GB textures)
-  ###   16x16   => 0.6076 (64GB textures)
+  ###   16x16   => 0.6076 (64GB textures), 95% < 82 needed, 164ms
+  ###   95% < {41, 20, 10} needed
   ###   Total textures: 5461 GB (1638e)
   ###
   ### 256Mitems:
-  ###   16x16   => 0.8830 (256GB textures)
+  ###   16x16   => 0.8830 (256GB textures), 95% < 164 needed, 328ms
+  ###   95% < {82, 41, 20} needed
   ###   Total textures: 21845 GB (6552e)
   ###
   ### Expected performance: expected amount of cache images per tile per zoom level * 2ms 
