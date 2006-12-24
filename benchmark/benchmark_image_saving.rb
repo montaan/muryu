@@ -14,6 +14,13 @@ Benchmark.bm do |x|
       end
     end
   end
+  img.crop!(0,0,512,512)
+  data = img.data
+  x.report("10x save 512x512 raw") do
+    10.times do |i| 
+      File.open(pn+"/tmp/save_image_#{i}.raw", 'wb'){|f| f.write data }
+    end
+  end
   x.report("10x save 256x256 jpg") do
       10.times do |i| 
         img.crop!(0,0,256,256)
