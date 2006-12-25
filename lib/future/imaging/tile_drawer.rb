@@ -202,7 +202,15 @@ class TileDrawer
   ### Draw is 60ms, first aggregation is 4 per aggregator: 20ms, second aggregation is 5 per
   ### aggregator: 25ms, third aggregation is 6 per aggregator: 30ms, for a total of 135ms.
   ###
-  ### (Aggregation with a 10Gbps network: 480 -> 48 -> 4 -> 1, 15ms + 5ms + 6ms + 2ms = 28ms.)
+  ### (Aggregation with a 10Gbps network: 480 -> 48 -> 4 -> 1, 15ms + 5ms + 6ms + 2ms = 28ms,
+  ###  3600 -> 900 -> 225 -> 56 -> 14 -> 4 -> 1 = 2ms + 6*2ms = 14ms)
+  ###
+  ### Optimal branching factor for an aggregation network is e, 
+  ###   [2, Math::E, 3, 4].map{|i| i * (Math.log(1000)/Math.log(i)) }
+  ###   => [19.9315685693242, 18.7772256502992, 18.8631294686045, 19.9315685693242]
+  ### (Think of it as a tree, where you're traversing towards the leaves in parallel, each
+  ###  level traversal taking branching_factor milliseconds. 2-brancher would get you 8 leaves in 6ms.
+  ###  3-brancher would get you 9 leaves in 6ms. 6-brancher would get you 6 leaves in 6ms.)
   ###
   ### By having the aggregation nodes also do drawing, you can save 37 transfers out of 157.
   ### These are first-level results though, so the effect is equivalent to lowering the first
