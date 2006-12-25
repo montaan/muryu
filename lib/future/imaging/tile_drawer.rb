@@ -105,33 +105,85 @@ class TileDrawer
   ### imgs = 2**24; (1..7).map{|z| ipt = 4**z; ipci = 4**(z+1); (1...ipt).inject(1){|s,i| r=s*(imgs-i*ipci.to_f)/(imgs-i); break i if r < 0.95; r }} 
   ###   128x128 => 0.9999 => 8ms
   ###   64x64   => 0.9928 => 32ms
-  ###   32x32   => 0.6109 => 128ms (4GB textures in total, doable to keep in RAM), 95% < 21 needed, 42ms
-  ###   16x16   => 7.07e-16, 95% < 10 needed, 20ms
-  ###   95% < {8x8:5, 4x4:3, 2x2:1} needed
+  ###   32x32   => 0.6109 => 128ms (4GB textures in total, doable to keep in RAM)
+  ###   16x16   => 7.07e-16
+  ###   
   ###   Total textures: 85 GB (25.5e @ 0.3e / GB of hard disk space)
   ###
   ### 16Mitems:
   ###   128x128 => 0.9999 (1TB textures)
   ###   64x64   => 0.9995 (256GB textures)
   ###   32x32   => 0.9698 (64GB textures)
-  ###   16x16   => 0.1352 => 512ms, 95% < 41 needed, 82ms
-  ###   8x8     => 1.48e-61, 95% < 20 needed, 40ms
-  ###   95% < {4x4:10, 2x2:5} needed
+  ###   16x16   => 0.1352 => 512ms
+  ###   8x8     => 1.48e-61
+  ###   
   ###   Total textures: 1365 GB (409e)
   ###
   ### 64Mitems:
   ###   32x32   => 0.9924 (256GB textures)
-  ###   16x16   => 0.6076 (64GB textures), 95% < 82 needed, 164ms
-  ###   95% < {41, 20, 10} needed
+  ###   16x16   => 0.6076 (64GB textures)
+  ###   
   ###   Total textures: 5461 GB (1638e)
   ###
   ### 256Mitems:
-  ###   16x16   => 0.8830 (256GB textures), 95% < 164 needed, 328ms
-  ###   95% < {82, 41, 20} needed
+  ###   16x16   => 0.8830 (256GB textures)
+  ###   
   ###   Total textures: 21845 GB (6552e)
   ###
   ### Expected performance: expected amount of cache images per tile per zoom level * 2ms 
   ###                       + 5ms draw&save time (pretty much constant)
+  ### # random tiles are expensive
+  ### 
+  ### require 'pp'
+  ### 
+  ### sims = [2**20,2**24,2**26,2**28].map do |images| 
+  ###   [ images, 
+  ###     [4,16,64,256,1024,4096].map do |images_per_tile| 
+  ###       cache_tiles = images/(images_per_tile*4)
+  ###       arr = Hash.new(0)
+  ###       1000.times do 
+  ###         h = Hash.new(0)
+  ###         images_per_tile.times { h[(rand*cache_tiles).to_i] += 1 }
+  ###         arr[h.keys.size] += 1
+  ###       end 
+  ###       [ images_per_tile, 
+  ###         arr.inject(0){|s,(k,v)| s + k*v } / 
+  ###         arr.inject(0){|s,(k,v)| s+v }.to_f
+  ###       ] 
+  ###     end
+  ###   ]
+  ### end
+  ### 
+  ### pp sims 
+  ### 
+  ### [[1048576,
+  ###   [[4, 4.0],        # 128x128
+  ###    [16, 15.993],    # 64x64
+  ###    [64, 63.511],    # 32x32
+  ###    [256, 226.655],  # 16x16
+  ###    [1024, 251.435], # 8x8
+  ###    [4096, 64.0]]],  # 4x4
+  ###  [16777216,
+  ###   [[4, 4.0],
+  ###    [16, 15.999], 
+  ###    [64, 63.965], 
+  ###    [256, 253.979], 
+  ###    [1024, 905.779], 
+  ###    [4096, 1005.274]]],
+  ###  [67108864,
+  ###   [[4, 4.0],
+  ###    [16, 15.999], 
+  ###    [64, 63.994], 
+  ###    [256, 255.535], 
+  ###    [1024, 992.65], 
+  ###    [4096, 2588.624]]],
+  ###  [268435456,
+  ###   [[4, 4.0],
+  ###    [16, 16.0], 
+  ###    [64, 63.998], 
+  ###    [256, 255.859], 
+  ###    [1024, 1016.046], 
+  ###    [4096, 3623.971]]]]
   ###
   ### It is probably possible to get best-case drawing performance to ~6-7ms, or 5ms with cached texture, or 3ms with serving jpg from ram(?)
   ###  

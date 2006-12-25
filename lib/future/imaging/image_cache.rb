@@ -202,7 +202,7 @@ class CacheImage
   @@open_images_mutex = Mutex.new
 
   def self.new(*a)
-    key = a.join("_")
+    key = a
     @@open_images_mutex.synchronize do
       i = (@@open_images[key] ||= (
         img = allocate
@@ -224,7 +224,7 @@ class CacheImage
       if (i[1] -= 1) < 1 # decrease refcount, delete image if refcount reaches zero
         @@open_images.delete(key)
         i[0].image.delete!
-        p [i[0].filename, i[0].total, i[0].count, i[0].total/i[0].count] if i[0].count > 0
+        #p [i[0].filename, i[0].total, i[0].count, i[0].total/i[0].count] if i[0].count > 0
       end
     end
   end
@@ -287,10 +287,10 @@ class CacheImage
     y = idx / thumbs_per_row
     sz = thumb_size
     @mutex.synchronize do
-      t = Time.now.to_f
+      #t = Time.now.to_f
       img.blend!(image, x*sz, y*sz, sz, sz, ix, iy, sz, sz)
-      @total += Time.now.to_f - t
-      @count += 1
+      #@total += Time.now.to_f - t
+      #@count += 1
     end
   end
 
