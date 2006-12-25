@@ -185,8 +185,32 @@ class TileDrawer
   ###    [1024, 1016.046], 
   ###    [4096, 3623.971]]]]
   ###
-  ### It is probably possible to get best-case drawing performance to ~6-7ms, or 5ms with cached texture, or 3ms with serving jpg from ram(?)
-  ###  
+  ### It is probably possible to get best-case drawing performance to ~6-7ms, 
+  ### or 5ms with cached texture, or 3ms with serving jpg from ram(?)
+  ###
+  ### Another thing that helps is that tile drawing is embarrassingly parallel.
+  ###
+  ### With 256Mitems and 4x4 random tile: required 3600 texture loads = 7.2s on a single computer.
+  ###
+  ### Split across 120 nodes and you have 30 texture loads per node = 60ms.
+  ### If you have a 500MB/s (10Gbps) effective downstream to the composing node, it becomes
+  ### 0.5ms to get one composed tile part (256x256x4 bytes) from the network, so 60ms for 120, 
+  ### for a total draw time of 120ms.
+  ###
+  ### With a 100MB/s (1Gbps) network, transferring a composed tile takes 5ms.
+  ### Introduce two levels of aggregation nodes, 120 -> 30 -> 6 -> 1 ?
+  ### Draw is 60ms, first aggregation is 4 per aggregator: 20ms, second aggregation is 5 per
+  ### aggregator: 25ms, third aggregation is 6 per aggregator: 30ms, for a total of 135ms.
+  ###
+  ### (Aggregation with a 10Gbps network: 480 -> 48 -> 4 -> 1, 15ms + 5ms + 6ms + 2ms = 28ms.)
+  ###
+  ### By having the aggregation nodes also do drawing, you can save 37 transfers out of 157.
+  ### These are first-level results though, so the effect is equivalent to lowering the first
+  ### aggregation time to somewhere around 13ms?
+  ###
+  ### Each aggregation node can also draw more than a normal node due to having to
+  ### wait for the network transfer.
+  ### 
   ### 1. tell image_cache to load images to memory (async per disk)
   ### 2. draw an image's part of the layout when the image is loaded (create mesh in C, use OpenGL for drawing)
   ### 3. read image from framebuffer to ram and send to browser
