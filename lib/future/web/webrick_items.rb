@@ -14,8 +14,6 @@ module Future
 # groups/create
 # groups/foo_fighters      (= view)
 # groups/foo_fighters/edit
-# groups/foo_fighters/delete
-# groups/foo_fighters/undelete
 # 
 # groups/foo_fighters/users
 # groups/foo_fighters/items
@@ -27,8 +25,6 @@ module Future
 #
 # items/foo/2006/10-09/foo.jpg
 # items/foo/2006/10-09/foo.jpg/edit
-# items/foo/2006/10-09/foo.jpg/delete
-# items/foo/2006/10-09/foo.jpg/undelete
 #
 # items/foo/2006/10-09/foo.jpg/users
 # items/foo/2006/10-09/foo.jpg/groups
