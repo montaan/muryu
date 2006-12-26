@@ -59,21 +59,22 @@ module FutureServlet
   end
   
   def servlet_modes
-    ['create','delete','undelete','edit','list','view']
+    ['create','edit','view'] + sub_modes
+  end
+
+  def sub_modes
+    []
+  end
+
+  def do_list(req,res)
   end
 
   def do_create(req,res)
   end
   
-  def do_delete(req,res)
-  end
-  
   def do_edit(req,res)
   end
   
-  def do_list(req,res)
-  end
-
   def do_view(req,res)
   end
 
@@ -94,26 +95,50 @@ include FutureServlet
     end
   end
   
+  def sub_modes
+    ['items']
+  end
+
 end
 
 
 class Items
 include FutureServlet
+
+  def sub_modes
+    ['files','users','groups','tags','sets']
+  end
+
 end
 
 
 class Users
 include FutureServlet
+
+  def sub_modes
+    ['files','items','groups','tags','sets']
+  end
+
 end
 
 
 class Sets
 include FutureServlet
+
+  def sub_modes
+    ['files','users','groups','tags','sets']
+  end
+
 end
 
 
 class Groups
 include FutureServlet
+
+  def sub_modes
+    ['files','users','items','tags','sets']
+  end
+
 end
 
 

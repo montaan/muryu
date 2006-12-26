@@ -78,7 +78,7 @@ class TileDrawer
   ###                   total time 2395ms
   ###                      - one texture load @ 2ms
   ###                      - one save jpg @ 3ms
-  ###                      - 300ms to iterate the layout = slow!
+  ###                      - 300ms to iterate the layout = slow! (C layouter in ext/ does in 2ms)
   ###                      - 230ms to call Imlib2::Image#blend! = slow!
   ###                      - 1860ms for ImageCache#draw_image_at overhead = SLOW!
   ###                 texture load 2ms per tex, texture memory usage 1 meg
