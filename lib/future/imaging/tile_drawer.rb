@@ -100,13 +100,17 @@ class TileDrawer
   ###    differently colored socks from the box?"
   ###   (1...images_per_tile).inject(1){|s,i| s * ((images-i*images_per_cache_image.to_f)/(images-i)) }
   ###
+  ### P(worst case) is not very relevant, since other cases nearly as bad are
+  ### much more likely anyway.
+  ###
   ### 1Mitems: 
   ### imgs = 2**24; (1..7).map{|z| ipt = 4**z; ipci = 4**(z+1); (1...ipt).inject(1){|s,i| s*(imgs-i*ipci.to_f)/(imgs-i) }} 
   ### imgs = 2**24; (1..7).map{|z| ipt = 4**z; ipci = 4**(z+1); (1...ipt).inject(1){|s,i| r=s*(imgs-i*ipci.to_f)/(imgs-i); break i if r < 0.95; r }} 
   ###   128x128 => 0.9999 => 8ms
   ###   64x64   => 0.9928 => 32ms
   ###   32x32   => 0.6109 => 128ms (4GB textures in total, doable to keep in RAM)
-  ###   16x16   => 7.07e-16
+  ###   16x16   => 7.07e-16 worst case, but still ~460ms expected unless kept
+  ###                                   in RAM (VERY doable <= 1GB)
   ###   
   ###   Total textures: 85 GB (25.5e @ 0.3e / GB of hard disk space)
   ###
@@ -146,6 +150,17 @@ class TileDrawer
   ###         images_per_tile.times { h[(rand*cache_tiles).to_i] += 1 }
   ###         arr[h.keys.size] += 1
   ###       end 
+  ###   #   total = 1.0 * arr.inject(0){|s,(k,v)| s+v}
+  ###   #   thres = 1.0
+  ###   #   arr.sort_by{|k,v| k}.inject(0) do |s,(k,v)|
+  ###   #     s1 = s + v / total
+  ###   #     if s1 >= thres / 10
+  ###   #       thres += 1
+  ###   #       puts "%04.1f%% %d" % [s1 * 100, k]
+  ###   #     end
+  ###   #     s1
+  ###   #   end
+  ###   #   puts
   ###       [ images_per_tile, 
   ###         arr.inject(0){|s,(k,v)| s + k*v } / 
   ###         arr.inject(0){|s,(k,v)| s+v }.to_f
@@ -185,6 +200,23 @@ class TileDrawer
   ###    [1024, 1016.046], 
   ###    [4096, 3623.971]]]]
   ###
+  ### Not only is the expected number of cache images per tile close to the
+  ### worst case, but the distribution is such that very few tiles will need
+  ### comparatively few cache images:
+  ###
+  ###1048576 images
+  ### 256 images per tile (16x16)
+  ### 10.1% 220      <- only 10% under 220 cache images per tile
+  ### 24.6% 223      in another run, only 1.7% under 216...
+  ### 31.4% 224
+  ### 48.0% 226
+  ### 56.5% 227
+  ### 63.0% 228
+  ### 72.6% 229
+  ### 80.3% 230
+  ### 91.2% 232
+  ### 100.0% 241
+  #
   ### It is probably possible to get best-case drawing performance to ~6-7ms, 
   ### or 5ms with cached texture, or 3ms with serving jpg from ram(?)
   ###
