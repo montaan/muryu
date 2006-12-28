@@ -105,7 +105,6 @@ class TileDrawer
   ###
   ### 1Mitems: 
   ### imgs = 2**24; (1..7).map{|z| ipt = 4**z; ipci = 4**(z+1); (1...ipt).inject(1){|s,i| s*(imgs-i*ipci.to_f)/(imgs-i) }} 
-  ### imgs = 2**24; (1..7).map{|z| ipt = 4**z; ipci = 4**(z+1); (1...ipt).inject(1){|s,i| r=s*(imgs-i*ipci.to_f)/(imgs-i); break i if r < 0.95; r }} 
   ###   128x128 => 0.9999 => 8ms
   ###   64x64   => 0.9928 => 32ms
   ###   32x32   => 0.6109 => 128ms (4GB textures in total, doable to keep in RAM)
@@ -136,7 +135,16 @@ class TileDrawer
   ###
   ### Expected performance: expected amount of cache images per tile per zoom level * 2ms 
   ###                       + 5ms draw&save time (pretty much constant)
-  ### # random tiles are expensive
+  ### 
+  ### 
+  ###
+  ### Random tiles are expensive, should optimize cache image layout for oft-used sortings.
+  ### Now they're by date and all users in same cache, which is good for forum-style posting.
+  ### For private sets, it'd make sense to have a user-wise set of cache images.
+  ###
+  ### The problem is projecting an n-dimensional space to a single dimension in a way that preserves locality 
+  ### (impossible in the general case?)
+  ### Could store copies of the cache sorted in different ways, maybe use that for storage redundancy?
   ### 
   ### require 'pp'
   ### 
@@ -217,6 +225,7 @@ class TileDrawer
   ### 91.2% 232
   ### 100.0% 241
   #
+  ###
   ### It is probably possible to get best-case drawing performance to ~6-7ms, 
   ### or 5ms with cached texture, or 3ms with serving jpg from ram(?)
   ###
