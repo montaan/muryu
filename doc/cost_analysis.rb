@@ -57,24 +57,24 @@ end
 
 class User
 
-  attr_accessor :average_items, :item, :bandwidth_use
+  attr_accessor :average_items, :item, :items_viewed
 
   def initialize(
     item=Item.new,
     average_items=1000.0,     # <- pure guess
-    bandwidth_use=736130936.0 # <- kig's one week times four
+    items_viewed=200.0        # <- and again.. (kig views 2000 items per month)
   )
     @item = item
     @average_items = average_items
-    @bandwidth_use = bandwidth_use
+    @items_viewed = items_viewed
   end
 
   def total_size
     average_items * item.total_size
   end
 
-  def items_viewed
-    bandwidth_use / item.total_size
+  def bandwidth_use
+    item.total_size * items_viewed
   end
 
 end
@@ -82,49 +82,51 @@ end
 
 class CostAnalysis
 
-  attr_accessor :affiliates, :users, :user, :breakage_rate, :cost_per_byte,
+  attr_accessor :users, :user, :breakage_rate, :cost_per_byte, :affiliate, :conversion_rate,
+                :average_purchase, :commission, :initial_infrastructure,
                 :bytes_per_admin, :admin_cost, :watts_per_byte, :cost_per_kWh,
-                :redundancy, :infrastructure, :bandwidth_cost, :area_per_byte, :rent_per_m2
+                :redundancy, :infrastructure, :bandwidth_cost, :area_per_byte, :rent_per_m2,
+                :users_per_support, :support_cost
 
-  def initialize(
-    affiliates = [Affiliate.new(30, 0.10), Affiliate.new(15, 0.25), Affiliate.new(10, 0.25)],
-    users = 10000,
-    cost_per_byte = -0.3 / 1e9,
-    bandwidth_cost = -0.01 / 1e9, # who knows
-    redundancy = 2,
-    infrastructure = 2,
-    area_per_byte = 1 / 12.5e12,
-    rent_per_m2 = -100.0,
-    breakage_rate = 0.05,
-    bytes_per_admin = 50e12,
-    admin_cost = -5000,
-    watts_per_byte = 0.5 / 1e9,
-    cost_per_kWh = -0.0013,
-    image_cache = ImageCache.new,
-    item = Item.new(image_cache),
-    user = User.new(item)
-  )
-    @affiliates = affiliates
-    @users = users
-    @user = user
-    @cost_per_byte = cost_per_byte
-    @redundancy = redundancy
-    @infrastructure = infrastructure
-    @breakage_rate = breakage_rate
-    @bytes_per_admin = bytes_per_admin
-    @admin_cost = admin_cost
-    @watts_per_byte = watts_per_byte
-    @cost_per_kWh = cost_per_kWh
-    @bandwidth_cost = bandwidth_cost
-    @area_per_byte = area_per_byte
-    @rent_per_m2 = rent_per_m2
-    @cost_fields = [:breakage, :admin_costs, :bandwidth, :electricity, :rent]
+  def default_config
+    {
+      :users => 10000,
+      :cost_per_byte => -0.3 / 1e9,
+      :bandwidth_cost => -0.1 / 1e9,
+      :redundancy => 2,
+      :infrastructure => 2,
+      :area_per_byte => 1 / 12.5e12,
+      :rent_per_m2 => -100.0,
+      :breakage_rate => 0.05,
+      :bytes_per_admin => 50e12,
+      :admin_cost => -5000,
+      :watts_per_byte => 0.5 / 1e9,
+      :cost_per_kWh => -0.0013,
+      :average_items => 1000.0,
+      :items_viewed => 200.0,
+      :average_size => 207338.9,
+      :average_purchase => 30.0,
+      :commission => 0.075,
+      :conversion_rate => 0.001,
+      :initial_infrastructure => 2.0,
+      :users_per_support => 10000.0,
+      :support_cost => -2000
+    }
+  end
+
+  def initialize(config={})
+    config = default_config.merge(config)
+    config.each{|c,v| instance_variable_set("@#{c}", v) }
+    @affiliate = Affiliate.new(@average_purchase, @commission, @conversion_rate)
+    @item = Item.new(ImageCache.new, @average_size)
+    @user = User.new(@item, @average_items, @items_viewed)
+    @cost_fields = [:breakage, :admin_costs, :support_costs, :bandwidth, :electricity, :rent]
     @income_fields = [:affiliate_income]
     @all_fields = @income_fields + @cost_fields
   end
 
   def initial_costs
-    storage_cost * infrastructure
+    storage_cost * initial_infrastructure
   end
 
   def monthly_income
@@ -147,14 +149,18 @@ class CostAnalysis
     @all_fields.map{|f| [f, send(f)] }
   end
 
+  def minimum_conversion_rate
+    -monthly_costs / ((affiliate.income_per_view / @conversion_rate) * users * user.items_viewed)
+  end
+
   
 
   def affiliate_income
-    affiliates.inject(0){|s,a| s + a.income_per_view * users * user.items_viewed }
+    affiliate.income_per_view * users * user.items_viewed
   end
 
   def storage_cost
-    storage_required * cost_per_byte
+    storage_required * cost_per_byte * infrastructure
   end
 
   def storage_required
@@ -166,11 +172,15 @@ class CostAnalysis
   end
 
   def breakage
-    initial_costs * breakage_rate
+    storage_cost * breakage_rate
   end
 
   def admin_costs
     admin_cost * storage_required / bytes_per_admin.to_f
+  end
+
+  def support_costs
+    support_cost * users / users_per_support.to_f
   end
 
   def power_use
@@ -203,14 +213,14 @@ class CostAnalysis
 
 end
 
-if __FILE__ == $0
+def analyze(config={})
 
-  ca = CostAnalysis.new
+  ca = CostAnalysis.new(config)
   puts "#{ca.users} users, each with an average of #{ca.user.average_items} items."
   puts "Item size #{(ca.user.item.total_size / 1e3).to_i}kB, " +
        "of which the item itself is #{(ca.user.item.average_size / 1e3).to_i}kB."
   puts "Each user views #{ca.user.items_viewed.to_i} items per month."
-  puts "With a conversion rate of 0.001: #{"%.2f" % [ca.user.items_viewed * 0.001]} purchases per month."
+  puts "With a conversion rate of #{ca.conversion_rate}: #{"%.2f" % [ca.user.items_viewed * ca.conversion_rate]} purchases per month."
   puts "Bandwidth use: #{(ca.bandwidth_use / 1e9).to_i} GB/month."
   puts "Data stored: #{(ca.data_stored / 1e9).to_i} GB."
   puts "Redundancy factor: #{ca.redundancy}. Infrastructure cost factor: #{ca.infrastructure}"
@@ -226,10 +236,132 @@ if __FILE__ == $0
   puts "Monthly profit:".ljust(20) + " #{ca.monthly_profit.to_i}"
   puts
   puts "Breakeven point: #{ca.breakeven_point.ceil} months"
+  puts "Minimum required conversion rate: #{"%.4f" % [ca.minimum_conversion_rate]}"
   puts
   puts "Breakdown:"
   puts(ca.breakdown.map do |f,c|
     "#{f.to_s.split("_").join(" ").ljust((c < 0) ? 40 : 20)} #{c.to_i}"
   end)
+
+end
+
+
+if __FILE__ == $0
+
+  puts
+  puts
+  puts "Worst case (huge files, little browsing, low conversion rate)"
+  puts "="*72
+  puts
+  puts "Amazon compute cloud"
+  puts "-"*72
+  analyze(
+    :initial_infrastructure => 0,
+    :bandwidth_cost => -0.2 / 1e9,
+    :average_size => 1e9,
+    :admin_cost => -72.0,     # instance-month
+    :bytes_per_admin => 2e12, # one instance per 2TB
+    :rent_per_m2 => 0,
+    :redundancy => 1,
+    :infrastructure => 1,
+    :cost_per_byte => -0.15 / 1e9,
+    :watts_per_byte => 0,
+    :items_viewed => 100.0,
+    :breakage_rate => 1.0,
+    :conversion_rate => 0.001,
+    :average_items => 50.0
+  )
+  puts
+  puts
+  puts "Rented datacenter"
+  puts "-"*72
+  analyze(
+    :bandwidth_cost => -0.05 / 1e9,
+    :average_size => 1e9,
+    :admin_cost => -5000,
+    :bytes_per_admin => 50e12,
+    :redundancy => 1.5,
+    :infrastructure => 4.0,
+    :items_viewed => 100.0,
+    :breakage_rate => 0.02,
+    :conversion_rate => 0.001,
+    :average_items => 50.0
+  )
+
+
+  puts
+  puts
+  puts "Pessimistic (big files, little browsing, low conversion rate)"
+  puts "="*72
+  puts
+  puts "Amazon compute cloud"
+  puts "-"*72
+  analyze(
+    :initial_infrastructure => 0,
+    :bandwidth_cost => -0.2 / 1e9,
+    :average_size => 2e6,
+    :admin_cost => -72.0,     # instance-month
+    :bytes_per_admin => 2e12, # one instance per 2TB
+    :rent_per_m2 => 0,
+    :redundancy => 1,
+    :infrastructure => 1,
+    :cost_per_byte => -0.15 / 1e9,
+    :watts_per_byte => 0,
+    :breakage_rate => 1.0,
+    :conversion_rate => 0.003
+  )
+  puts
+  puts
+  puts "Rented datacenter"
+  puts "-"*72
+  analyze(
+    :bandwidth_cost => -0.05 / 1e9,
+    :average_size => 2e6,
+    :admin_cost => -5000,
+    :bytes_per_admin => 50e12,
+    :redundancy => 1.5,
+    :infrastructure => 4.0,
+    :breakage_rate => 0.02,
+    :conversion_rate => 0.003
+  )
+
+
+  puts
+  puts
+  puts "Current future stats (many small files, much browsing, low conversion rate)"
+  puts "="*72
+  puts
+  puts "Amazon compute cloud"
+  puts "-"*72
+  analyze(
+    :initial_infrastructure => 0,
+    :bandwidth_cost => -0.2 / 1e9,
+    :admin_cost => -72.0,     # instance-month
+    :bytes_per_admin => 2e12, # one instance per 2TB
+    :average_items => 10000.0,
+    :rent_per_m2 => 0,
+    :redundancy => 1,
+    :infrastructure => 1,
+    :cost_per_byte => -0.15 / 1e9,
+    :watts_per_byte => 0,
+    :breakage_rate => 1.0,
+    :conversion_rate => 0.001,
+    :items_viewed => 1000
+  )
+  puts
+  puts
+  puts "Rented datacenter"
+  puts "-"*72
+  analyze(
+    :bandwidth_cost => -0.05 / 1e9,
+    :admin_cost => -5000,
+    :bytes_per_admin => 50e12,
+    :average_items => 10000.0,
+    :redundancy => 1.5,
+    :infrastructure => 4.0,
+    :breakage_rate => 0.02,
+    :conversion_rate => 0.001,
+    :items_viewed => 1000
+  )
 
 end
