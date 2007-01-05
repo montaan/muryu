@@ -258,7 +258,7 @@ if __FILE__ == $0
   analyze(
     :initial_infrastructure => 0,
     :bandwidth_cost => -0.2 / 1e9,
-    :average_size => 1e9,
+    :average_size => 1e8,
     :admin_cost => -72.0,     # instance-month
     :bytes_per_admin => 2e12, # one instance per 2TB
     :rent_per_m2 => 0,
@@ -277,7 +277,7 @@ if __FILE__ == $0
   puts "-"*72
   analyze(
     :bandwidth_cost => -0.05 / 1e9,
-    :average_size => 1e9,
+    :average_size => 1e8,
     :admin_cost => -5000,
     :bytes_per_admin => 50e12,
     :redundancy => 1.5,
