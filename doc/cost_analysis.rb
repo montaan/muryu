@@ -106,7 +106,7 @@ class CostAnalysis
       :items_viewed => 200.0,
       :average_size => 207338.9,
       :average_purchase => 30.0,
-      :commission => 0.075,
+      :commission => 0.1,
       :conversion_rate => 0.001,
       :initial_infrastructure => 2.0,
       :users_per_support => 10000.0,
@@ -246,122 +246,73 @@ def analyze(config={})
 end
 
 
+
+def analyze_cases(use_cases, providers)
+  use_cases.each do |u|
+    puts
+    puts
+    puts u[:title]
+    puts "="*72
+    puts
+    providers.each do |p|
+      puts p[:title]
+      puts "-"*72
+      analyze(p.merge(u))
+      puts
+      puts
+    end
+  end
+end
+
 if __FILE__ == $0
 
-  puts
-  puts
-  puts "Worst case (huge files, little browsing, low conversion rate)"
-  puts "="*72
-  puts
-  puts "Amazon compute cloud"
-  puts "-"*72
-  analyze(
-    :initial_infrastructure => 0,
-    :bandwidth_cost => -0.2 / 1e9,
-    :average_size => 1e8,
-    :admin_cost => -72.0,     # instance-month
-    :bytes_per_admin => 2e12, # one instance per 2TB
-    :rent_per_m2 => 0,
-    :redundancy => 1,
-    :infrastructure => 1,
-    :cost_per_byte => -0.15 / 1e9,
-    :watts_per_byte => 0,
-    :items_viewed => 100.0,
-    :breakage_rate => 1.0,
-    :conversion_rate => 0.001,
-    :average_items => 50.0
-  )
-  puts
-  puts
-  puts "Rented datacenter"
-  puts "-"*72
-  analyze(
-    :bandwidth_cost => -0.05 / 1e9,
-    :average_size => 1e8,
-    :admin_cost => -5000,
-    :bytes_per_admin => 50e12,
-    :redundancy => 1.5,
-    :infrastructure => 4.0,
-    :items_viewed => 100.0,
-    :breakage_rate => 0.02,
-    :conversion_rate => 0.001,
-    :average_items => 50.0
-  )
+  providers = [
+    {
+      :title => "Amazon compute cloud",
+      :initial_infrastructure => 0,
+      :bandwidth_cost => -0.2 / 1e9,
+      :admin_cost => -72.0,     # instance-month
+      :bytes_per_admin => 2e12, # one instance per 2TB
+      :rent_per_m2 => 0,
+      :redundancy => 1,
+      :infrastructure => 1,
+      :cost_per_byte => -0.15 / 1e9,
+      :watts_per_byte => 0,
+      :breakage_rate => 1.0
+    },
+    {
+      :title => "Rented datacenter",
+      :bandwidth_cost => -0.05 / 1e9,
+      :admin_cost => -5000,
+      :bytes_per_admin => 50e12,
+      :redundancy => 1.5,
+      :infrastructure => 4.0,
+      :breakage_rate => 0.02
+    }
+  ]
+  use_cases = [
+    {
+      :title => "Worst case (huge files, very little browsing)",
+      :average_size => 1e8,
+      :items_viewed => 10.0,
+      :average_items => 100.0
+    },
+    {
+      :title => "Pessimistic (big files, little browsing (e.g. YouTube))",
+      :average_size => 5e6,
+      :items_viewed => 100
+    },
+    {
+      :title => "Current future stats (many files, good deal of browsing)",
+      :average_items => 10000.0,
+      :items_viewed => 1000
+    },
+    {
+      :title => "Public forum style (many users, few files, some browsing)",
+      :average_items => 10.0,
+      :users => 100_000
+    }
+  ]
 
-
-  puts
-  puts
-  puts "Pessimistic (big files, little browsing, low conversion rate)"
-  puts "="*72
-  puts
-  puts "Amazon compute cloud"
-  puts "-"*72
-  analyze(
-    :initial_infrastructure => 0,
-    :bandwidth_cost => -0.2 / 1e9,
-    :average_size => 2e6,
-    :admin_cost => -72.0,     # instance-month
-    :bytes_per_admin => 2e12, # one instance per 2TB
-    :rent_per_m2 => 0,
-    :redundancy => 1,
-    :infrastructure => 1,
-    :cost_per_byte => -0.15 / 1e9,
-    :watts_per_byte => 0,
-    :breakage_rate => 1.0,
-    :conversion_rate => 0.003
-  )
-  puts
-  puts
-  puts "Rented datacenter"
-  puts "-"*72
-  analyze(
-    :bandwidth_cost => -0.05 / 1e9,
-    :average_size => 2e6,
-    :admin_cost => -5000,
-    :bytes_per_admin => 50e12,
-    :redundancy => 1.5,
-    :infrastructure => 4.0,
-    :breakage_rate => 0.02,
-    :conversion_rate => 0.003
-  )
-
-
-  puts
-  puts
-  puts "Current future stats (many small files, much browsing, low conversion rate)"
-  puts "="*72
-  puts
-  puts "Amazon compute cloud"
-  puts "-"*72
-  analyze(
-    :initial_infrastructure => 0,
-    :bandwidth_cost => -0.2 / 1e9,
-    :admin_cost => -72.0,     # instance-month
-    :bytes_per_admin => 2e12, # one instance per 2TB
-    :average_items => 10000.0,
-    :rent_per_m2 => 0,
-    :redundancy => 1,
-    :infrastructure => 1,
-    :cost_per_byte => -0.15 / 1e9,
-    :watts_per_byte => 0,
-    :breakage_rate => 1.0,
-    :conversion_rate => 0.001,
-    :items_viewed => 1000
-  )
-  puts
-  puts
-  puts "Rented datacenter"
-  puts "-"*72
-  analyze(
-    :bandwidth_cost => -0.05 / 1e9,
-    :admin_cost => -5000,
-    :bytes_per_admin => 50e12,
-    :average_items => 10000.0,
-    :redundancy => 1.5,
-    :infrastructure => 4.0,
-    :breakage_rate => 0.02,
-    :conversion_rate => 0.001,
-    :items_viewed => 1000
-  )
-
+  analyze_cases( use_cases, providers )
 end
