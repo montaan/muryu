@@ -328,17 +328,18 @@ if __FILE__ == $0
     {
       :title => "[AdSense] Pessimistic (big files, little browsing (e.g. YouTube))",
       :average_size => 5e6,
-      :items_viewed => 100
+      :items_viewed => 10
     },
     {
       :title => "[AdSense] Current future stats (many files, good deal of browsing)",
       :average_items => 10000.0,
-      :items_viewed => 1000
+      :items_viewed => 100
     },
     {
       :title => "[AdSense] Public forum style (many users, few files, some browsing)",
       :average_items => 10.0,
-      :users => 100_000
+      :users => 100_000,
+      :items_viewed => 20
     }
   ]
 
