@@ -222,8 +222,8 @@ class CostAnalysis
 
 end
 
-def analyze(config={})
 
+def analyze(config={})
   ca = CostAnalysis.new(config)
   puts "#{ca.users} users, each with an average of #{ca.user.average_items} items."
   puts "Item size #{(ca.user.item.total_size / 1e3).to_i}kB, " +
@@ -251,10 +251,7 @@ def analyze(config={})
   puts(ca.breakdown.map do |f,c|
     "#{f.to_s.split("_").join(" ").ljust((c < 0) ? 40 : 20)} #{c.to_i}"
   end)
-
 end
-
-
 
 def analyze_cases(use_cases, providers)
   use_cases.each do |u|

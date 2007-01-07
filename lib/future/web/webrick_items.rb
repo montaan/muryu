@@ -41,6 +41,17 @@ module Future
 
 # do_add, etc primarily for Users, Groups, Sets, Items
 module FutureServlet
+
+  class WrapServlet < WEBrick::HTTPServlet::AbstractServlet
+    delegate '@obj', :do_GET, :do_POST
+    def initialize(obj)
+      @obj = obj
+    end
+  end
+
+  def get_instance(*a)
+    WrapServlet.new(self)
+  end
   
   def do_GET(req,res)
     handle_request(req,res)
@@ -51,7 +62,7 @@ module FutureServlet
   end
   
   def handle_request(req, res)
-    @servlet_user = Users.authenticate(req)
+    #@servlet_user = Users.authenticate(req)
     mode = File.split(req.path_info).last
     mode = 'view' unless servlet_modes.include? mode
     mode = 'list' if req.path_info == "/"
@@ -78,13 +89,20 @@ module FutureServlet
   def do_view(req,res)
   end
 
+  def do_echo(req, res)
+    res['Content-type'] = 'text/plain'
+    res.body = req.inspect.gsub(", ",",\n  ")
+  end
+
+  ['create','edit','view'].each{|m| alias_method("do_#{m}", :do_echo) }
+
 end
 
 
 class Files
-include FutureServlet
+extend FutureServlet
 
-  def do_GET(req, res)
+  def self.do_GET(req, res)
     user = authenticate(req)
     item = Items.rfind(user, :path => req.path_info, :columns => [:filetype, :local_path])
     if item
@@ -95,7 +113,7 @@ include FutureServlet
     end
   end
   
-  def sub_modes
+  def self.sub_modes
     ['items']
   end
 
@@ -103,9 +121,9 @@ end
 
 
 class Items
-include FutureServlet
+extend FutureServlet
 
-  def sub_modes
+  def self.sub_modes
     ['files','users','groups','tags','sets']
   end
 
@@ -113,9 +131,9 @@ end
 
 
 class Users
-include FutureServlet
+extend FutureServlet
 
-  def sub_modes
+  def self.sub_modes
     ['files','items','groups','tags','sets']
   end
 
@@ -123,9 +141,9 @@ end
 
 
 class Sets
-include FutureServlet
+extend FutureServlet
 
-  def sub_modes
+  def self.sub_modes
     ['files','users','groups','tags','sets']
   end
 
@@ -133,9 +151,9 @@ end
 
 
 class Groups
-include FutureServlet
+extend FutureServlet
 
-  def sub_modes
+  def self.sub_modes
     ['files','users','items','tags','sets']
   end
 
