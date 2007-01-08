@@ -185,11 +185,11 @@ class CostAnalysis
   end
 
   def admin_costs
-    admin_cost * storage_required / bytes_per_admin.to_f
+    admin_cost * [1, (storage_required / bytes_per_admin.to_f)].max
   end
 
   def support_costs
-    support_cost * users / users_per_support.to_f
+    support_cost * [1, (users / users_per_support.to_f)].max
   end
 
   def power_use
@@ -305,8 +305,14 @@ if __FILE__ == $0
       :average_items => 100.0
     },
     {
-      :title => "Pessimistic (big files, little browsing (e.g. YouTube))",
+      :title => "Pessimistic (big files, little browsing)",
       :average_size => 5e6,
+      :ad_income_per_view => 0,
+      :items_viewed => 100
+    },
+    {
+      :title => "Expected (few files, little browsing)",
+      :average_items => 10.0,
       :ad_income_per_view => 0,
       :items_viewed => 100
     },
@@ -323,9 +329,14 @@ if __FILE__ == $0
       :users => 100_000
     },
     {
-      :title => "[AdSense] Pessimistic (big files, little browsing (e.g. YouTube))",
+      :title => "[AdSense] Pessimistic (big files, little browsing)",
       :average_size => 5e6,
       :items_viewed => 10
+    },
+    {
+      :title => "[AdSense] Expected (few files, little browsing)",
+      :average_items => 10.0,
+      :items_viewed => 100
     },
     {
       :title => "[AdSense] Current future stats (many files, good deal of browsing)",
