@@ -60,15 +60,45 @@ module FutureServlet
   def do_POST(req,res)
     handle_request(req,res)
   end
-  
+
   def handle_request(req, res)
-    #@servlet_user = Users.authenticate(req)
+    user_auth(req, res)
     mode = File.split(req.path_info).last
     mode = 'view' unless servlet_modes.include? mode
-    mode = 'list' if req.path_info == "/"
+    mode = 'list' if ["/", ""].include?(req.path_info)
     __send__("do_#{mode}", req, res)
   end
   
+  def user_auth(req, res)
+    un = req['username']
+    pw = (req['password_hash'] || req['password'])
+    cookie = req.cookies.find{|c| c.name == 'future_session_id' }
+    cookie ||= WEBrick::Cookie.new('future_session_id', create_new_id)
+    cookie.max_age = 3600 * 24 * 7
+    res.cookies << cookie
+    session_id = cookie.value
+    user = if un and pw
+      Users.login(un, pw, session_id)
+    else
+      Users.continue_session(session_id)
+    end
+    @servlet_user = (user or Users.anonymous)
+  end
+  
+  # From cgi/session.rb
+  def create_new_id
+    require 'digest/md5'
+    md5 = Digest::MD5::new
+    now = Time::now
+    md5.update(now.to_s)
+    md5.update(String(now.usec))
+    md5.update(String(rand(0)))
+    md5.update(String($$))
+    md5.update('foobar')
+    @new_session = true
+    md5.hexdigest
+  end
+
   def servlet_modes
     ['create','edit','view'] + sub_modes
   end
@@ -91,10 +121,14 @@ module FutureServlet
 
   def do_echo(req, res)
     res['Content-type'] = 'text/plain'
-    res.body = req.inspect.gsub(", ",",\n  ")
+    res.body = (my_caller[0,1] + ['', req.inspect.gsub(", ",",\n  ")]).join("\n")
   end
 
-  ['create','edit','view'].each{|m| alias_method("do_#{m}", :do_echo) }
+  def my_caller
+    caller
+  end
+
+  ['create','edit','view','list'].each{|m| alias_method("do_#{m}", :do_echo) }
 
 end
 
