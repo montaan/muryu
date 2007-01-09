@@ -2,6 +2,15 @@
 require 'webrick'
 require 'future'
 require 'builder'
+require 'json'
+
+
+class StandardDateTime < DateTime
+  def to_json(*a)
+    strftime("new Date(\"%m/%d/%Y %H:%M:%S %z\")")
+  end
+end
+
 
 module Future
   
@@ -69,6 +78,10 @@ module FutureServlet
     [:id]
   end
 
+  def servlet_uneditable_column?(c)
+    servlet_uneditable_columns.find{|ic| ic.to_s == c.to_s }
+  end
+
   def servlet_invisible_columns
     [:id]
   end
@@ -92,6 +105,8 @@ module FutureServlet
         servlet_path_key => @servlet_path,
         :columns => :all
       )
+    else
+      @servlet_target = nil
     end
     mode = 'list' if ["/", ""].include?(req.path_info)
     __send__("do_#{mode}", req, res)
@@ -143,31 +158,44 @@ module FutureServlet
   end
 
   def servlet_modes
-    ['create','edit','view'] + sub_modes
+    ['create','edit','view','json'] + sub_modes
   end
 
   def sub_modes
     []
   end
 
+  def print_navigation_path(b)
+    b.a("future", :href => File.split(@servlet_root).first)
+    b.text!("/")
+    b.a(table_name, :href=> @servlet_root)
+  end
+
+  def servlet_list_rows(req)
+    cols = req.query['columns'].to_s.split(",") & columns.keys
+    cols = :all if cols.empty?
+    find_all(:order_by => servlet_path_key, :columns => cols)
+  end
+
   def do_list(req,res)
-    objs = find_all(:order_by => servlet_path_key, :columns => :all)
+    objs = servlet_list_rows(req)
+    cols = req.query['columns'].to_s.split(",") & columns.keys
+    cols = columns.keys if cols.empty?
     res.body = Builder::XmlMarkup.new.html do |b|
       b.head { b.title(table_name) }
       b.body {
         b.h1 {
-          b.a(table_name, :href=> @servlet_root)
-          b.text!("/")
+          print_navigation_path(b)
         }
         b.table(:border => 1){
           b.tr{
             b.td{ b.h3(servlet_path_key.to_s) }
-            columns.each{|c,cl| b.td{ b.h3("#{c}") } unless c.to_s == servlet_path_key.to_s or servlet_invisible_column?(c)}
+            cols.each{|c,cl| b.td{ b.h3("#{c}") } unless c.to_s == servlet_path_key.to_s or servlet_invisible_column?(c)}
           }
           objs.each{|obj|
             b.tr {
               b.td{ b.a(obj[servlet_path_key].to_s, :href => File.join(@servlet_root, obj[servlet_path_key].to_s)) }
-              columns.each{|c,cl| b.td(obj[c]) unless c.to_s == servlet_path_key.to_s or servlet_invisible_column?(c) }
+              cols.each{|c,cl| b.td(obj[c]) unless c.to_s == servlet_path_key.to_s or servlet_invisible_column?(c) }
             }
           }
         }
@@ -183,7 +211,7 @@ module FutureServlet
       DB.transaction do
         edits = req.query.find_all{|k,v|
           column? k and @servlet_target[k].to_s != v and
-          not servlet_uneditable_columns.find{|uc| uc.to_s == k }
+          not servlet_uneditable_column?(k)
         }
         edits.each{|k,v|
           @servlet_target[k] = v
@@ -257,16 +285,16 @@ module FutureServlet
       }
       b.body {
         b.h1 {
-          b.a(table_name, :href=> @servlet_root)
+          print_navigation_path(b)
           b.text!("/")
           b.a(@servlet_path, :href => @servlet_target_path)
         }
         b.form(:method => 'POST', :action => File.join(@servlet_target_path, "edit")){
           columns.each{|c,cl|
-            next if servlet_invisible_columns.find{|ic| ic.to_s == c.to_s }
+            next if servlet_invisible_column? c
             b.h3("#{c} (#{cl})")
             b.p {
-              if servlet_uneditable_columns.find{|uc| uc.to_s == c.to_s }
+              if servlet_uneditable_column? c
                 b.span(@servlet_target[c], :class => "column_value", :id => "div_#{c}")
               else
                 b.span(@servlet_target[c], :class => "column_value editable", :id => "div_#{c}")
@@ -278,6 +306,20 @@ module FutureServlet
         }
         b.p { b.a("Edit", :id => 'edit_link', :href => File.join(@servlet_target_path, "edit")) }
       }
+    end
+  end
+
+  def do_json(req, res)
+    res['Content-type'] = 'text/plain'
+    if @servlet_target
+      res.body = columns.map{|c,cl| [c, @servlet_target[c]]}.to_hash.to_json
+    else
+      objs = servlet_list_rows(req)
+      cols = req.query['columns'].to_s.split(",") & columns.keys
+      cols = columns.keys if cols.empty?
+      res.body = objs.map{|o|
+        cols.map{|c| [c, o[c]] }.to_hash
+      }.to_json
     end
   end
 

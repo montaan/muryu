@@ -13,7 +13,8 @@ def load_and_update(fn)
           load fn
           STDERR.puts "Reloaded #{fn}"
           mtime = new_mtime
-        rescue Exception
+        rescue Exception => e
+          STDERR.puts "Error reloading #{fn}: #{e.class}: #{e.message}", e.backtrace
         end
       end
       sleep 1
@@ -26,10 +27,44 @@ pn = $LOAD_PATH.find{|l| File.exist?(File.join(l, rfn)) }
 fn = File.join(pn, rfn)
 load_and_update fn
 
+class RootServlet < WEBrick::HTTPServlet::AbstractServlet
+  
+  def do_GET(req,res)
+    res.body = root_page
+  end
+
+  def do_POST(req,res)
+    res.body = root_page
+  end
+
+  def pages
+    %w(items users sets groups)
+  end
+
+  def root_page
+    Builder::XmlMarkup.new.html do |b|
+      b.head { b.title("future") }
+      b.body {
+        b.h1 {
+          b.text!("future")
+        }
+        pages.each do |page|
+          b.h2 {
+            b.a(page, :href=> page)
+          }
+        end
+      }
+    end
+  end
+  
+end
+
 include WEBrick
 include Future
 
 s = HTTPServer.new( :Port => 2000 )
+
+s.mount("/", RootServlet)
 
 s.mount("/files", Files)
 s.mount("/items", Items)
