@@ -61,14 +61,32 @@ module FutureServlet
     handle_request(req,res)
   end
 
+  def servlet_path_key
+    :id
+  end
+
+  def servlet_uneditable_columns
+    [:id]
+  end
+
+  def servlet_invisible_columns
+    [:id]
+  end
+
+  def servlet_invisible_column?(c)
+    servlet_invisible_columns.find{|ic| ic.to_s == c.to_s }
+  end
+
   def handle_request(req, res)
     user_auth(req, res)
+    @servlet_root = req.script_name
     @servlet_path, mode = File.split(req.path_info)
     unless servlet_modes.include? mode
       @servlet_path = File.join(@servlet_path, mode)
       mode = 'view'
     end
     @servlet_path.gsub!(/^\//, '')
+    @servlet_target_path = File.join(@servlet_root, @servlet_path)
     unless @servlet_path.empty?
       @servlet_target = find(
         servlet_path_key => @servlet_path,
@@ -133,18 +151,24 @@ module FutureServlet
   end
 
   def do_list(req,res)
-    objs = find_all(:columns => :all).map{|o|
-      columns.map{|c,cl| o[c] }
-    }
+    objs = find_all(:order_by => servlet_path_key, :columns => :all)
     res.body = Builder::XmlMarkup.new.html do |b|
       b.head { b.title(table_name) }
       b.body {
-        b.table{
+        b.h1 {
+          b.a(table_name, :href=> @servlet_root)
+          b.text!("/")
+        }
+        b.table(:border => 1){
           b.tr{
-            columns.each{|c,cl| b.td("#{c} (#{cl})") }
+            b.td{ b.h3(servlet_path_key.to_s) }
+            columns.each{|c,cl| b.td{ b.h3("#{c}") } unless c.to_s == servlet_path_key.to_s or servlet_invisible_column?(c)}
           }
-          objs.each{|vals|
-            b.tr { vals.each{|v| b.td(v) } }
+          objs.each{|obj|
+            b.tr {
+              b.td{ b.a(obj[servlet_path_key].to_s, :href => File.join(@servlet_root, obj[servlet_path_key].to_s)) }
+              columns.each{|c,cl| b.td(obj[c]) unless c.to_s == servlet_path_key.to_s or servlet_invisible_column?(c) }
+            }
           }
         }
       }
@@ -158,45 +182,101 @@ module FutureServlet
     unless req.query.empty?
       DB.transaction do
         edits = req.query.find_all{|k,v|
-          column? k and @servlet_target[k].to_s != v
+          column? k and @servlet_target[k].to_s != v and
+          not servlet_uneditable_columns.find{|uc| uc.to_s == k }
         }
-        p edits
         edits.each{|k,v|
           @servlet_target[k] = v
         }
+        new_path = req.query[servlet_path_key.to_s]
+        @servlet_target_path = File.join(@servlet_root, new_path) if new_path
       end
     end
-    res.body = Builder::XmlMarkup.new.html do |b|
-      b.head { b.title(table_name) }
-      b.body {
-        b.h1 {
-          b.text!("Editing ")
-          b.a(table_name, :href=> "/#{table_name}")
-          b.text!("/")
-          b.a(@servlet_path, :href => "./")
-        }
-        b.form(:method => 'POST'){
-          columns.each{|c,cl|
-            b.h3("#{c} (#{cl})")
-            b.p { b.input(:type => 'text', :name => c, :value => @servlet_target[c]) }
-          }
-          b.p { b.input(:type => 'submit', :value => 'Save changes' )}
-        }
-      }
-    end
+    res.status = 302
+    res['location'] = @servlet_target_path
   end
   
   def do_view(req,res)
     vals = columns.map{|c,cl| @servlet_target[c] }
     res.body = Builder::XmlMarkup.new.html do |b|
-      b.head { b.title(table_name) }
-      b.body {
-        b.table{
-          b.tr{
-            columns.each{|c,cl| b.td("#{c} (#{cl})") }
-          }
-          b.tr { vals.each{|v| b.td(v) } }
+      b.head { b.title(table_name)
+        b.style(:type => 'text/css'){
+          b.comment!(%Q(
+            .edit_input{
+              display: none;
+              font-family: Arial, Helvetica;
+              font-size: 10pt;
+            }
+            .column_value {
+              font-family: Arial, Helvetica;
+              font-size: 10pt;
+            }
+            .editable:after {
+              content: "edit";
+              color: blue;
+              text-decoration: underline;
+              margin-left:6px;
+              cursor: pointer;
+            }
+          ))
         }
+        b.script {
+          b.comment!(%Q(
+            function makeEditable(i,s) {
+              i.style.width = Math.max(parseInt(s.offsetWidth) + 20, 200) + 'px'
+              i.style.height = parseInt(s.offsetHeight) + 8 + 'px'
+              i.style.marginTop = '-3px'
+              i.style.marginBottom = '-5px'
+              i.style.marginLeft = '-2px'
+              s.style.display = 'none'
+              i.style.display = 'inherit'
+              i.focus()
+            }
+            function makeNotEditable(i,s) {
+              i.style.display = 'none'
+              s.innerHTML = i.value
+              s.style.display = 'inline'
+            }
+            function initInput(i) {
+              var s = document.getElementById("div_" + i.id)
+              i.addEventListener("blur", function(){ makeNotEditable(i,s) }, false)
+              s.addEventListener("click", function(){ makeEditable(i,s) }, false)
+            }
+            window.addEventListener("load", function(){
+              var inputs = document.getElementsByTagName("input")
+              for(var j=0; j<inputs.length; j++) {
+                var i = inputs[j]
+                if (i.className == 'edit_input') {
+                  initInput(i)
+                }
+              }
+              document.getElementById('edit_link').style.display = 'none'
+            }, false)
+          //))
+        }
+      }
+      b.body {
+        b.h1 {
+          b.a(table_name, :href=> @servlet_root)
+          b.text!("/")
+          b.a(@servlet_path, :href => @servlet_target_path)
+        }
+        b.form(:method => 'POST', :action => File.join(@servlet_target_path, "edit")){
+          columns.each{|c,cl|
+            next if servlet_invisible_columns.find{|ic| ic.to_s == c.to_s }
+            b.h3("#{c} (#{cl})")
+            b.p {
+              if servlet_uneditable_columns.find{|uc| uc.to_s == c.to_s }
+                b.span(@servlet_target[c], :class => "column_value", :id => "div_#{c}")
+              else
+                b.span(@servlet_target[c], :class => "column_value editable", :id => "div_#{c}")
+                b.input(:class => "edit_input", :id => c, :type => 'text', :name => c, :value => @servlet_target[c])
+              end
+            }
+          }
+          b.p { b.input(:type => 'submit', :value => 'Save changes' )}
+        }
+        b.p { b.a("Edit", :id => 'edit_link', :href => File.join(@servlet_target_path, "edit")) }
       }
     end
   end
@@ -256,6 +336,14 @@ extend FutureServlet
   class << self
     def sub_modes
       ['files','items','groups','tags','sets', 'login', 'logout']
+    end
+
+    def servlet_path_key
+      :name
+    end
+
+    def servlet_invisible_columns
+      super + [:password]
     end
 
     def do_login(req,res)
