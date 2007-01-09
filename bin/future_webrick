@@ -1,2 +1,42 @@
 #!/usr/bin/env ruby
-require 'future/web/webrick_items'
+Thread.abort_on_exception = true
+
+def load_and_update(fn)
+  mtime = File.mtime(fn)
+  load fn
+  STDERR.puts "Loaded #{fn}"
+  Thread.new do
+    loop do
+      new_mtime = File.mtime(fn)
+      if new_mtime != mtime
+        begin
+          load fn
+          STDERR.puts "Reloaded #{fn}"
+          mtime = new_mtime
+        rescue Exception
+        end
+      end
+      sleep 1
+    end
+  end
+end
+
+rfn = 'future/web/servlets.rb'
+pn = $LOAD_PATH.find{|l| File.exist?(File.join(l, rfn)) }
+fn = File.join(pn, rfn)
+load_and_update fn
+
+include WEBrick
+include Future
+
+s = HTTPServer.new( :Port => 2000 )
+
+s.mount("/files", Files)
+s.mount("/items", Items)
+s.mount("/users", Users)
+s.mount("/sets", Sets)
+s.mount("/groups", Groups)
+
+
+trap("INT"){ s.shutdown }
+s.start

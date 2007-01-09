@@ -63,8 +63,18 @@ module FutureServlet
 
   def handle_request(req, res)
     user_auth(req, res)
-    mode = File.split(req.path_info).last
-    mode = 'view' unless servlet_modes.include? mode
+    @servlet_path, mode = File.split(req.path_info)
+    unless servlet_modes.include? mode
+      @servlet_path = File.join(@servlet_path, mode)
+      mode = 'view'
+    end
+    @servlet_path.gsub!(/^\//, '')
+    unless @servlet_path.empty?
+      @servlet_target = find(
+        servlet_path_key => @servlet_path,
+        :columns => :all
+      )
+    end
     mode = 'list' if ["/", ""].include?(req.path_info)
     __send__("do_#{mode}", req, res)
   end
@@ -72,13 +82,14 @@ module FutureServlet
   def user_auth(req, res)
     un = req.query['username']
     pw = req.query['password']
-    cookie = req.cookies.find{|c| c.name == 'future_session_id' }
+    cookies = req.cookies.find_all{|c| c.name == 'future_session_id' }
+    cookie = cookies.first
     if cookie
       @session_id = cookie.value
       user = Users.continue_session(@session_id)
       res.cookies << cookie
-      if user and req.query['logout']
-        user.logout
+      if !user or req.query['logout']
+        user.logout if user
         res.cookies.delete cookie
         user = nil
       end
@@ -122,15 +133,72 @@ module FutureServlet
   end
 
   def do_list(req,res)
+    objs = find_all(:columns => :all).map{|o|
+      columns.map{|c,cl| o[c] }
+    }
+    res.body = Builder::XmlMarkup.new.html do |b|
+      b.head { b.title(table_name) }
+      b.body {
+        b.table{
+          b.tr{
+            columns.each{|c,cl| b.td("#{c} (#{cl})") }
+          }
+          objs.each{|vals|
+            b.tr { vals.each{|v| b.td(v) } }
+          }
+        }
+      }
+    end
   end
 
   def do_create(req,res)
   end
   
   def do_edit(req,res)
+    unless req.query.empty?
+      DB.transaction do
+        edits = req.query.find_all{|k,v|
+          column? k and @servlet_target[k].to_s != v
+        }
+        p edits
+        edits.each{|k,v|
+          @servlet_target[k] = v
+        }
+      end
+    end
+    res.body = Builder::XmlMarkup.new.html do |b|
+      b.head { b.title(table_name) }
+      b.body {
+        b.h1 {
+          b.text!("Editing ")
+          b.a(table_name, :href=> "/#{table_name}")
+          b.text!("/")
+          b.a(@servlet_path, :href => "./")
+        }
+        b.form(:method => 'POST'){
+          columns.each{|c,cl|
+            b.h3("#{c} (#{cl})")
+            b.p { b.input(:type => 'text', :name => c, :value => @servlet_target[c]) }
+          }
+          b.p { b.input(:type => 'submit', :value => 'Save changes' )}
+        }
+      }
+    end
   end
   
   def do_view(req,res)
+    vals = columns.map{|c,cl| @servlet_target[c] }
+    res.body = Builder::XmlMarkup.new.html do |b|
+      b.head { b.title(table_name) }
+      b.body {
+        b.table{
+          b.tr{
+            columns.each{|c,cl| b.td("#{c} (#{cl})") }
+          }
+          b.tr { vals.each{|v| b.td(v) } }
+        }
+      }
+    end
   end
 
   def do_echo(req, res)
@@ -142,7 +210,7 @@ module FutureServlet
     caller
   end
 
-  ['create','edit','view','list'].each{|m| alias_method("do_#{m}", :do_echo) }
+  ['create'].each{|m| alias_method("do_#{m}", :do_echo) }
 
 end
 
@@ -173,6 +241,10 @@ extend FutureServlet
 
   def self.sub_modes
     ['files','users','groups','tags','sets']
+  end
+
+  def self.servlet_path_key
+    :path
   end
 
 end
@@ -232,7 +304,7 @@ extend FutureServlet
           user_auth(req, res)
           res.body = Builder::XmlMarkup.new.html do |b|
             b.head { b.title("Registered new account!") }
-            b.body( "Welcome aboard, #{un}! We hope you enjoy the ride!" )
+            b.body { b.h1( "Welcome aboard, #{un}! We hope you enjoy the ride!" ) }
           end
         else
           res.body = Builder::XmlMarkup.new.html do |b|
@@ -305,17 +377,3 @@ end
 end
 
 
-include WEBrick
-include Future
-
-s = HTTPServer.new( :Port => 2000 )
-
-s.mount("/files", Files)
-s.mount("/items", Items)
-s.mount("/users", Users)
-s.mount("/sets", Sets)
-s.mount("/groups", Groups)
-
-
-trap("INT"){ s.shutdown }
-s.start
