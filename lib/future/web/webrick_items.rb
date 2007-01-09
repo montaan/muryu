@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 require 'webrick'
 require 'future'
-
+require 'builder'
 
 module Future
   
@@ -70,17 +70,31 @@ module FutureServlet
   end
   
   def user_auth(req, res)
-    un = req['username']
-    pw = (req['password_hash'] || req['password'])
+    un = req.query['username']
+    pw = req.query['password']
     cookie = req.cookies.find{|c| c.name == 'future_session_id' }
-    cookie ||= WEBrick::Cookie.new('future_session_id', create_new_id)
-    cookie.max_age = 3600 * 24 * 7
-    res.cookies << cookie
-    session_id = cookie.value
-    user = if un and pw
-      Users.login(un, pw, session_id)
-    else
-      Users.continue_session(session_id)
+    if cookie
+      @session_id = cookie.value
+      user = Users.continue_session(@session_id)
+      res.cookies << cookie
+      if user and req.query['logout']
+        user.logout
+        res.cookies.delete cookie
+        user = nil
+      end
+    end
+    if un and pw
+      if user
+        user.logout
+        res.cookies.delete cookie
+      end
+      @session_id = create_new_id
+      user = Users.login(un, pw, @session_id)
+      if user
+        new_cookie = WEBrick::Cookie.new('future_session_id', @session_id)
+        new_cookie.max_age = 3600
+        res.cookies << new_cookie
+      end
     end
     @servlet_user = (user or Users.anonymous)
   end
@@ -167,8 +181,102 @@ end
 class Users
 extend FutureServlet
 
-  def self.sub_modes
-    ['files','items','groups','tags','sets']
+  class << self
+    def sub_modes
+      ['files','items','groups','tags','sets', 'login', 'logout']
+    end
+
+    def do_login(req,res)
+      if @servlet_user != Users.anonymous
+        res.body = Builder::XmlMarkup.new.html do |b|
+          b.head { b.title("Already logged in") }
+          b.body {
+            b.h1("Welcome back, #{@servlet_user.name}!")
+            b.a(:href => 'logout') { b.h2("Log out?") }
+          }
+        end
+      elsif req.query['username']
+        res.body = Builder::XmlMarkup.new.html do |b|
+          b.head { b.title("Failed to log in.") }
+          b.body {
+            b.h1("Login failed, please try again.")
+            b.p { b.a("Register new account", :href=>'create') }
+            login_form(b)
+          }
+        end
+      else
+        res.body = Builder::XmlMarkup.new.html do |b|
+          b.head { b.title("Log in") }
+          b.body {
+            b.h1("Come on in!")
+            b.p { b.a("Register new account", :href=>'create') }
+            login_form(b)
+          }
+        end
+      end
+    end
+
+    def do_logout(req,res)
+      @servlet_user.logout if @servlet_user
+      user_auth(req, res)
+      do_login(req,res)
+    end
+
+    def do_create(req,res)
+      un = req.query['username']
+      pw = req.query['password']
+      p [un, pw]
+      if un and pw
+        @servlet_user.logout if @servlet_user
+        if (not find(:name => un)) and @servlet_user = register(un, pw)
+          user_auth(req, res)
+          res.body = Builder::XmlMarkup.new.html do |b|
+            b.head { b.title("Registered new account!") }
+            b.body( "Welcome aboard, #{un}! We hope you enjoy the ride!" )
+          end
+        else
+          res.body = Builder::XmlMarkup.new.html do |b|
+            b.head { b.title("Registration failed") }
+            b.body {
+              b.h1("Failed to register account, someone is already using '#{un}'.")
+              b.h2("Please try another name.")
+              registration_form(b)
+            }
+          end
+        end
+      else
+        res.body = Builder::XmlMarkup.new.html do |b|
+          b.head { b.title("Registering account.") }
+          b.body {
+            b.h1('Register')
+            registration_form(b)
+          }
+        end
+      end
+    end
+
+    def registration_form(b)
+      b.form(:method => 'POST') {
+        b.h3("Username")
+        b.input(:type => 'text', :name => 'username')
+        b.h3("Password")
+        b.input(:type => 'password', :name => 'password')
+        b.br
+        b.input(:type => 'submit', :value => 'Register')
+      }
+    end
+    
+    def login_form(b)
+      b.form(:method => 'POST') {
+        b.h3("Username")
+        b.input(:type => 'text', :name => 'username')
+        b.h3("Password")
+        b.input(:type => 'password', :name => 'password')
+        b.br
+        b.input(:type => 'submit', :value => 'Log in')
+      }
+    end
+    
   end
 
 end

@@ -63,17 +63,20 @@ class Users < DB::Tables::Users
   def self.continue_session(session_id)
     session = Sessions[session_id]
     return false unless session
-    find( :id => session.user_id )
+    u = find( :id => session.user_id )
+    u.instance_variable_set("@session", session_id)
+    u
   end
 
   def self.login(username, password_hash, session_id)
     u = authenticate(username, password_hash)
+    return false unless u
     u.start_session(session_id)
     u
   end
 
   def logout
-    terminate_session(@session)
+    terminate_all_sessions
   end
 
   def start_session(session_id)
