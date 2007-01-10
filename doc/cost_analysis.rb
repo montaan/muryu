@@ -151,10 +151,12 @@ class CostAnalysis
   end
 
   def minimum_conversion_rate
-    -monthly_costs / ((affiliate.income_per_view / @conversion_rate) * users * user.items_viewed)
+    [-(monthly_costs + ad_income)/ ((affiliate.income_per_view / @conversion_rate) * users * user.items_viewed), 0].max
   end
 
-  
+  def no_ads_minimum_conversion_rate
+    -monthly_costs / ((affiliate.income_per_view / @conversion_rate) * users * user.items_viewed)
+  end
 
   def affiliate_income
     affiliate.income_per_view * total_items_viewed
@@ -251,6 +253,7 @@ def analyze(config={})
   puts
   puts "Breakeven point: #{ca.breakeven_point.ceil} months"
   puts "Minimum required conversion rate: #{"%.4f" % [ca.minimum_conversion_rate]}"
+  puts "Minimum required conversion rate (no ads): #{"%.4f" % [ca.no_ads_minimum_conversion_rate]}"
   puts
   puts "Breakdown:"
   puts(ca.breakdown.map do |f,c|
