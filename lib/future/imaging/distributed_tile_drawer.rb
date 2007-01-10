@@ -29,13 +29,14 @@ class DTileClient
 end
 
 class DTileServer
-  MAX_THUMBS_PER_JOB    = 4
+  MAX_THUMBS_PER_JOB    = 16
   TUPLE_EXPIRATION_TIME = 10 # seconds
 
-  def initialize(tuplespace, tile_drawer, max_thumbs_per_job = MAX_THUMBS_PER_JOB)
-    @tile_drawer       = tile_drawer
-    @tuplespace        = tuplespace
+  def initialize(tuplespace, tile_drawer, max_thumbs_per_job = MAX_THUMBS_PER_JOB, branching_factor = 4)
+    @tile_drawer        = tile_drawer
+    @tuplespace         = tuplespace
     @max_thumbs_per_job = max_thumbs_per_job
+    @branching_factor   = branching_factor
   end
 
   Thread.abort_on_exception = true
@@ -67,20 +68,27 @@ class DTileServer
   end
 
   def split_tilejob(tilejob)
-    # TODO: other branching factors
     w    = tilejob.w
     h    = tilejob.h
     jobs = []
     thsz = 2 ** tilejob.zoom
 
     puts "Splitting tilejob #{tilejob.jobid} (#{w}x#{h}) #{tilejob.indexes.size} indexes @ zoom #{tilejob.zoom}"
-    parts = [[0, 0], [w/2/thsz, 0], [0, h/2/thsz], [w/2/thsz, h/2/thsz]]
+    subtiles = []
+    @branching_factor.times do |i|
+      @branching_factor.times do |j|
+        subtiles << [i * w/@branching_factor/thsz, j * w/@branching_factor/thsz]
+      end
+    end
+    puts "Subtiles: #{subtiles.inspect}"
 
-    parts.each_with_index do |(x1, y1), idx|
-      indexes = (y1..y1+h/2/thsz-1).inject([]){|s,i| s.concat(tilejob.indexes[i * w/thsz + x1, w/thsz/2]) }
+    subtiles.each_with_index do |(x1, y1), idx|
+      indexes = (y1..y1+h/@branching_factor/thsz-1).inject([]) do |s,i|
+        s.concat(tilejob.indexes[i * w/thsz + x1, w/@branching_factor/thsz])
+      end
       jobs << TileJobRequest.new(tilejob.jobid + "-sub#{idx}", tilejob.x+x1*thsz, tilejob.y+y1*thsz, 
-                                 tilejob.w/2, tilejob.h/2, tilejob.zoom, indexes, tilejob.layouter_name,
-                                 tilejob.layouter_args)
+                                 tilejob.w/@branching_factor, tilejob.h/@branching_factor, tilejob.zoom,
+                                 indexes, tilejob.layouter_name, tilejob.layouter_args)
     end
     puts "Placing tilejobs #{jobs.map{|x| x.jobid}.join(', ')}"
     jobs.each{|job| @tuplespace.write([:tilejob_request, job.jobid, job], TUPLE_EXPIRATION_TIME)}
@@ -90,23 +98,23 @@ class DTileServer
       results << @tuplespace.read([:tilejob_result, job.jobid, nil])[2]
       puts "Received #{results.last.jobid}"
     end
-    # raise "Didn't get all 4 results from the subjobs"
     tile = Imlib2::Image.new(tilejob.w, tilejob.h)
     tile.clear
-    img = Imlib2::Image.new(tilejob.w / 2, tilejob.h / 2)
+    img = Imlib2::Image.new(tilejob.w / @branching_factor, tilejob.h / @branching_factor)
     empty_data = nil
-    parts.each_with_index do |(x1, y1), i|
+    subtiles.each_with_index do |(x1, y1), i|
       data = results[i].raw_data
       unless data
         unless empty_data
-          empty_img = Imlib2::Image.new(tilejob.w/2, tilejob.h/2)
+          empty_img = Imlib2::Image.new(tilejob.w/@branching_factor, tilejob.h/@branching_factor)
           empty_img.clear
           empty_data = empty_img.data!
         end
         data = empty_data
       end
       img.data = data
-      tile.blend!(img, 0, 0, w/2, h/2, x1, y1, w/2, h/2)
+      tile.blend!(img, 0, 0, w/@branching_factor, h/@branching_factor, x1, y1, 
+                  w/@branching_factor, h/@branching_factor)
     end
     tilejob_result = TileJobResult.new(tilejob.jobid, tile.data!)
     puts "Placing composed result for #{tilejob.jobid}"
