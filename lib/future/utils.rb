@@ -30,12 +30,12 @@ module Kernel
   end
 
   def log_info(message, subsystem = nil, &block)
-    subsystem ||= caller(1).first
+    subsystem ||= File.basename(caller(1).first[/([^:]+)\.rb:/, 1] || caller(1).first)
     log(message, subsystem, Logger::INFO, &block) 
   end
 
   def log_debug(message, subsystem = nil, &block)
-    subsystem ||= caller(1).first
+    subsystem ||= File.basename(caller(1).first[/([^:]+)\.rb:/, 1] || caller(1).first)
     log(message, subsystem, Logger::DEBUG, &block)
   end
 
