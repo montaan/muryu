@@ -19,7 +19,7 @@ class DTileClient
   def draw_tile(indexes, layouter_name, x, y, zoom, w, h, *layouter_args)
     jobid   = "#{Process.pid}#{Thread.current.object_id}-#{x}-#{y}-#{w}-#{h}"
     tilejob = TileJobRequest.new(jobid, x, y, w, h, zoom, indexes, layouter_name, layouter_args)
-    puts "Placing request #{jobid} (#{w}x#{h})"
+    log_debug("Placing request #{jobid} (#{w}x#{h})")
     @tuplespace.write([:tilejob_request, jobid, tilejob], TUPLE_EXPIRATION_TIME)
     result = @tuplespace.read([:tilejob_result, jobid, nil])[2]
     tile   = Imlib2::Image.new(w, h)
@@ -44,7 +44,7 @@ class DTileServer
     Thread.new do
       while true
         tuple = @tuplespace.take([:tilejob_request, nil, nil])
-        puts "Got tilejob request #{tuple[2].jobid}"
+        log_debug("Got tilejob request #{tuple[2].jobid}")
         process_tilejob(tuple[2])
       end
     end
@@ -55,13 +55,13 @@ class DTileServer
       split_tilejob(tilejob)
     else
       sz = 2 ** tilejob.zoom
-      puts "Drawing tile (#{tilejob.x},#{tilejob.y}) #{tilejob.w}x#{tilejob.h}"
+      log_debug("Drawing tile (#{tilejob.x},#{tilejob.y}) #{tilejob.w}x#{tilejob.h}")
       tile = @tile_drawer.draw_tile(tilejob.indexes, tilejob.layouter_name,
                                     tilejob.x, tilejob.y, tilejob.zoom, tilejob.w,
                                     tilejob.h, *tilejob.layouter_args)
       # FIXME: rescue exception
       tilejob_result = TileJobResult.new(tilejob.jobid, tile ? tile.data! : nil)
-      puts "Placing result for #{tilejob.jobid}"
+      log_debug("Placing result for #{tilejob.jobid}")
       @tuplespace.write([:tilejob_result, tilejob.jobid, tilejob_result], 
                         TUPLE_EXPIRATION_TIME)
     end
@@ -73,14 +73,14 @@ class DTileServer
     jobs = []
     thsz = 2 ** tilejob.zoom
 
-    puts "Splitting tilejob #{tilejob.jobid} (#{w}x#{h}) #{tilejob.indexes.size} indexes @ zoom #{tilejob.zoom}"
+    log_debug("Splitting tilejob #{tilejob.jobid} (#{w}x#{h}) #{tilejob.indexes.size} indexes @ zoom #{tilejob.zoom}")
     subtiles = []
     @branching_factor.times do |i|
       @branching_factor.times do |j|
         subtiles << [i * w/@branching_factor/thsz, j * w/@branching_factor/thsz]
       end
     end
-    puts "Subtiles: #{subtiles.inspect}"
+    log_debug("Subtiles: #{subtiles.inspect}")
 
     subtiles.each_with_index do |(x1, y1), idx|
       indexes = (y1..y1+h/@branching_factor/thsz-1).inject([]) do |s,i|
@@ -90,13 +90,13 @@ class DTileServer
                                  tilejob.w/@branching_factor, tilejob.h/@branching_factor, tilejob.zoom,
                                  indexes, tilejob.layouter_name, tilejob.layouter_args)
     end
-    puts "Placing tilejobs #{jobs.map{|x| x.jobid}.join(', ')}"
+    log_debug("Placing tilejobs #{jobs.map{|x| x.jobid}.join(', ')}")
     jobs.each{|job| @tuplespace.write([:tilejob_request, job.jobid, job], TUPLE_EXPIRATION_TIME)}
     # FIXME: timeout & request
     results = []
     jobs.each do |job|
       results << @tuplespace.read([:tilejob_result, job.jobid, nil])[2]
-      puts "Received #{results.last.jobid}"
+      log_debug("Received #{results.last.jobid}")
     end
     tile = Imlib2::Image.new(tilejob.w, tilejob.h)
     tile.clear
@@ -117,7 +117,7 @@ class DTileServer
                   w/@branching_factor, h/@branching_factor)
     end
     tilejob_result = TileJobResult.new(tilejob.jobid, tile.data!)
-    puts "Placing composed result for #{tilejob.jobid}"
+    log_debug("Placing composed result for #{tilejob.jobid}")
     @tuplespace.write([:tilejob_result, tilejob.jobid, tilejob_result], TUPLE_EXPIRATION_TIME)
   end
 end
