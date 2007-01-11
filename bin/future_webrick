@@ -29,6 +29,14 @@ load_and_update fn
 
 class RootServlet < WEBrick::HTTPServlet::AbstractServlet
   
+  def self.servlets
+    servlets = []
+    ObjectSpace.each_object(Class){|c|
+      servlets << c if c.eigenclass.ancestors.include?(Future::FutureServlet)
+    }
+    servlets.sort_by{|s| s.to_s }
+  end
+
   def do_GET(req,res)
     res.body = root_page
   end
@@ -37,11 +45,18 @@ class RootServlet < WEBrick::HTTPServlet::AbstractServlet
     res.body = root_page
   end
 
+  def underscorize(klass)
+    klass.to_s.split("::").last.gsub(/[A-Z]/){|m| "_#{m.downcase}"}[1..-1]
+  end
+
   def pages
-    %w(items users sets groups)
+    self.class.servlets.map{|c| underscorize(c) }
   end
 
   def root_page
+    self.class.servlets.each{|c|
+      @server.mount("/" + underscorize(c), c)
+    }
     Builder::XmlMarkup.new.html do |b|
       b.head { b.title("future") }
       b.body {
@@ -50,6 +65,7 @@ class RootServlet < WEBrick::HTTPServlet::AbstractServlet
         }
         pages.each do |page|
           b.h2 {
+
             b.a(page, :href=> page)
           }
         end
@@ -65,13 +81,6 @@ include Future
 s = HTTPServer.new( :Port => 2000 )
 
 s.mount("/", RootServlet)
-
-s.mount("/files", Files)
-s.mount("/items", Items)
-s.mount("/users", Users)
-s.mount("/sets", Sets)
-s.mount("/groups", Groups)
-
 
 trap("INT"){ s.shutdown }
 s.start

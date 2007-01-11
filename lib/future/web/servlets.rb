@@ -187,6 +187,7 @@ module FutureServlet
         b.h1 {
           print_navigation_path(b)
         }
+        b.p { b.a("Create new", :id => 'create_link', :href => File.join(@servlet_target_path, "create")) }
         b.table(:border => 1){
           b.tr{
             b.td{ b.h3(servlet_path_key.to_s) }
@@ -204,6 +205,44 @@ module FutureServlet
   end
 
   def do_create(req,res)
+    unless req.query.empty?
+      edits = req.query.find_all{|k,v|
+        column? k and !servlet_uneditable_column?(k)
+      }
+      create(edits.to_hash)
+      res.status = 302
+      res['location'] = @servlet_root
+    else
+      res.body = Builder::XmlMarkup.new.html do |b|
+        b.head { b.title(table_name)
+          b.style(:type => 'text/css'){
+            b.comment!(%Q(
+              .column_value {
+                font-family: Arial, Helvetica;
+                font-size: 10pt;
+              }
+            ))
+          }
+        }
+        b.body {
+          b.h1 {
+            print_navigation_path(b)
+            b.text!("/create")
+          }
+          b.form(:method => 'POST'){
+            columns.each{|c,cl|
+              b.h3("#{c} (#{cl})")
+              b.p {
+                if !servlet_uneditable_column? c
+                  b.input(:class => "column_value", :id => c, :type => 'text', :name => c)
+                end
+              }
+            }
+            b.p { b.input(:type => 'submit', :value => 'Create new') }
+          }
+        }
+      end
+    end
   end
   
   def do_edit(req,res)
@@ -252,15 +291,15 @@ module FutureServlet
           b.comment!(%Q(
             function makeEditable(i,s) {
               i.style.width = Math.max(parseInt(s.offsetWidth) + 20, 200) + 'px'
-              i.style.height = parseInt(s.offsetHeight) + 8 + 'px'
               i.style.marginTop = '-3px'
-              i.style.marginBottom = '-5px'
+              i.style.marginBottom = '-3px'
               i.style.marginLeft = '-2px'
               s.style.display = 'none'
               i.style.display = 'inherit'
               i.focus()
             }
             function makeNotEditable(i,s) {
+              i.style.marginTop = i.style.marginBottom = i.style.marginLeft = null
               i.style.display = 'none'
               s.innerHTML = i.value
               s.style.display = 'inline'
@@ -332,10 +371,16 @@ module FutureServlet
     caller
   end
 
-  ['create'].each{|m| alias_method("do_#{m}", :do_echo) }
-
 end
 
+
+class Tile
+extend FutureServlet
+end
+
+class TileInfo
+extend FutureServlet
+end
 
 class Files
 extend FutureServlet

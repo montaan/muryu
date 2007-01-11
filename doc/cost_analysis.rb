@@ -243,6 +243,11 @@ def analyze(config={})
   puts "Monthly income:".ljust(20) + " #{ca.monthly_income.to_i}"
   puts
   puts "Monthly profit:".ljust(20) + " #{ca.monthly_profit.to_i}"
+  monthly_roi = 1.3 ** (1/12.0)
+  fyp = 0
+  (5*12).downto(0){|i| fyp += ca.monthly_profit * monthly_roi**i }
+  fyp = (fyp / 1e3).to_i * 1000
+  puts "Five year profit with 30% annual ROI:".ljust(20) + " #{fyp.to_i}"
   puts
   puts "Breakeven point: #{ca.breakeven_point.ceil} months"
   puts "Minimum required conversion rate: #{"%.4f" % [ca.minimum_conversion_rate]}"

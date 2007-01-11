@@ -46,7 +46,29 @@ module Kernel
 end
 
 
+class Symbol
+
+  def to_proc
+    lambda{|a| a.__send__(self) }
+  end
+
+end
+
+
+class Array
+
+  def to_proc
+    lambda{|a| inject(a){|o,msg| o.__send__(*msg) } }
+  end
+  
+end
+
+
 class String
+
+  def to_proc
+    lambda{|a| eval(sprintf(self, a)) } # ha ha ha </robot voice>
+  end
 
   def to_pn(*rest)
     pn = Pathname.new(self)
