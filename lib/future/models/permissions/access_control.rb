@@ -110,7 +110,7 @@ extend AccessControlClass
   end
 
   def self.rfind_all(user, h={})
-    # no OR support in parse_query so need to do this :|
+    # no 'or' support in parse_query so need to do this :|
     # same bug applies as in AccessControlClass#find_all
     qs = parse_query(h)
     qs = qs.split(/\n/)
@@ -125,7 +125,7 @@ extend AccessControlClass
         break
       end
     end
-    qs << ws unless set
+    qs.insert(3, ws) unless set
     q = DB::Conn.exec(qs.join("\n"))
     idx = -1
     q.map{|i| new q, idx+=1 }
@@ -138,6 +138,7 @@ extend AccessControlClass
 
   def self.rcreate(h)
     h = h.clone.merge(:namespace => 'groups')
+    h.delete('namespace')
     user = (h[:owner] || Users.find(:id => h[:owner_id]))
     if h[:public]
       anon = Users.anonymous
@@ -255,6 +256,13 @@ end
 class SetsGroups < DB::Tables::SetsGroups
 end
 class ItemsSets < DB::Tables::ItemsSets
+end
+
+
+class Users < DB::Tables::Users
+include AccessControl
+extend AccessControlClass
+
 end
 
 

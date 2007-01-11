@@ -75,7 +75,7 @@ module FutureServlet
   end
 
   def servlet_uneditable_columns
-    [:id]
+    [:id, :owner_id] | ((!@servlet_target or @servlet_target.writable_by(@servlet_user)) ? [] : columns.keys)
   end
 
   def servlet_uneditable_column?(c)
@@ -100,8 +100,8 @@ module FutureServlet
     end
     @servlet_path.gsub!(/^\//, '')
     @servlet_target_path = File.join(@servlet_root, @servlet_path)
-    unless @servlet_path.empty?
-      @servlet_target = find(
+    if respond_to?(:rfind) and not @servlet_path.empty?
+      @servlet_target = rfind(@servlet_user,
         servlet_path_key => @servlet_path,
         :columns => :all
       )
@@ -116,31 +116,37 @@ module FutureServlet
     un = req.query['username']
     pw = req.query['password']
     cookies = req.cookies.find_all{|c| c.name == 'future_session_id' }
-    cookie = cookies.first
-    if cookie
-      @session_id = cookie.value
-      user = Users.continue_session(@session_id)
-      res.cookies << cookie
+    user = nil
+    if cookies.size > 0
+      cookies.each{|c| c.instance_variable_set(:@discard, true) }
+      cookie = cookies.find{|cookie|
+        @session_id = cookie.value
+        user = Users.continue_session(@session_id)
+      }
+      cookie.instance_variable_set(:@discard, false)
       if !user or req.query['logout']
         user.logout if user
-        res.cookies.delete cookie
+        cookie.instance_variable_set(:@discard, true)
         user = nil
       end
+      res.cookies.push *cookies
     end
     if un and pw
       if user
         user.logout
-        res.cookies.delete cookie
+        cookie.instance_variable_set(:@discard, true)
       end
       @session_id = create_new_id
       user = Users.login(un, pw, @session_id)
       if user
         new_cookie = WEBrick::Cookie.new('future_session_id', @session_id)
         new_cookie.max_age = 3600
+        new_cookie.path = "/"
         res.cookies << new_cookie
       end
     end
     @servlet_user = (user or Users.anonymous)
+    p @servlet_user.name
   end
   
   # From cgi/session.rb
@@ -174,7 +180,7 @@ module FutureServlet
   def servlet_list_rows(req)
     cols = req.query['columns'].to_s.split(",") & columns.keys
     cols = :all if cols.empty?
-    find_all(:order_by => servlet_path_key, :columns => cols)
+    rfind_all(@servlet_user, :order_by => servlet_path_key, :columns => cols)
   end
 
   def do_list(req,res)
@@ -206,10 +212,7 @@ module FutureServlet
 
   def do_create(req,res)
     unless req.query.empty?
-      edits = req.query.find_all{|k,v|
-        column? k and !servlet_uneditable_column?(k)
-      }
-      create(edits.to_hash)
+      servlet_create(req)
       res.status = 302
       res['location'] = @servlet_root
     else
@@ -247,17 +250,7 @@ module FutureServlet
   
   def do_edit(req,res)
     unless req.query.empty?
-      DB.transaction do
-        edits = req.query.find_all{|k,v|
-          column? k and @servlet_target[k].to_s != v and
-          not servlet_uneditable_column?(k)
-        }
-        edits.each{|k,v|
-          @servlet_target[k] = v
-        }
-        new_path = req.query[servlet_path_key.to_s]
-        @servlet_target_path = File.join(@servlet_root, new_path) if new_path
-      end
+      servlet_target_edit(req)
     end
     res.status = 302
     res['location'] = @servlet_target_path
@@ -330,7 +323,6 @@ module FutureServlet
         }
         b.form(:method => 'POST', :action => File.join(@servlet_target_path, "edit")){
           columns.each{|c,cl|
-            next if servlet_invisible_column? c
             b.h3("#{c} (#{cl})")
             b.p {
               if servlet_uneditable_column? c
@@ -362,13 +354,32 @@ module FutureServlet
     end
   end
 
-  def do_echo(req, res)
-    res['Content-type'] = 'text/plain'
-    res.body = (my_caller[0,1] + ['', req.inspect.gsub(", ",",\n  ")]).join("\n")
+  def servlet_create(req)
+    edits = req.query.find_all{|k,v|
+      column? k and !servlet_uneditable_column?(k)
+    }
+    rfind_or_create(@servlet_user, edits.to_hash)
   end
 
-  def my_caller
-    caller
+  def servlet_target_edit(req)
+    @servlet_target.write(@servlet_user) do
+      DB.transaction do
+        edits = req.query.find_all{|k,v|
+          column? k and @servlet_target[k].to_s != v and
+          not servlet_uneditable_column?(k)
+        }
+        edits.each{|k,v|
+          @servlet_target[k] = v
+        }
+        new_path = req.query[servlet_path_key.to_s]
+        @servlet_target_path = File.join(@servlet_root, new_path) if new_path
+      end
+    end
+  end
+  
+  def do_echo(req, res)
+    res['Content-type'] = 'text/plain'
+    res.body = (caller(0)[0,1] + ['', req.inspect.gsub(", ",",\n  ")]).join("\n")
   end
 
 end
@@ -385,18 +396,41 @@ end
 class Files
 extend FutureServlet
 
-  def self.do_GET(req, res)
-    user = authenticate(req)
-    item = Items.rfind(user, :path => req.path_info, :columns => [:filetype, :local_path])
+  def self.table_name
+    'files'
+  end
+
+  def self.do_list(req, res)
+    objs = Items.rfind_all(@servlet_user, :order_by => :path)
+    cols = ['path']
+    res.body = Builder::XmlMarkup.new.html do |b|
+      b.head { b.title(table_name) }
+      b.body {
+        b.h1 {
+          print_navigation_path(b)
+        }
+        b.table(:border => 1){
+          objs.each{|obj|
+            b.p { b.a(obj['path'].to_s, :href => File.join(@servlet_root, obj['path'].to_s)) }
+          }
+        }
+      }
+    end
+  end
+
+  def self.do_view(req, res)
+    item = Items.rfind(@servlet_user, :path => @servlet_path)
     if item
       res['Content-type'] = item.major + "/" + item.minor
       res.body = item.read
     else
+      res['Content-type'] = 'text/html'
+      res.body = "<html><body> File not found </body></html>"
       res.status = 404
     end
   end
   
-  def self.sub_modes
+  def self.servlet_modes
     ['items']
   end
 
@@ -541,6 +575,10 @@ end
 
 class Groups
 extend FutureServlet
+
+  def self.servlet_uneditable_columns
+    super | [:namespace]
+  end
 
   def self.sub_modes
     ['files','users','items','tags','sets']
