@@ -5,6 +5,13 @@
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <title>Zogen</title>
     <style>
+      #currentLocation {
+        z-index: 10;
+        color: #99969B;
+        position:absolute;
+        left: 3px;
+        top: 2px;
+      }
       input { display:block; }
       img { display:block; }
       #zogen {
@@ -58,6 +65,8 @@
       }
       
       Portal.prototype = {
+        x : 0,
+        y : 0,
         zoom : 2,
         maxZoom : 7,
         tileSize : 256,
@@ -81,8 +90,8 @@
           v.style.position = 'absolute'
           v.style.left = '0px'
           v.style.top = '0px'
-          v.left = 0
-          v.top = 0
+          v.left = -this.x
+          v.top = -this.y
           v.cX = this.container.offsetWidth/2
           v.cY = this.container.offsetHeight/2
           this.view = v
@@ -94,6 +103,9 @@
           var c = this.container
           var sl = -(v.left - (v.left % t.tileSize))
           var st = -(v.top - (v.top % t.tileSize))
+          this.x = -v.left
+          this.y = -v.top
+          this.currentLocation.href = "zogen.html#x" + this.x + "y" + this.y + "z" + this.zoom
           var tile_coords = []
           var visible_tiles = 0
           var midX = c.offsetWidth/2 - v.left - t.tileSize / 2
@@ -146,6 +158,8 @@
             this.tiles[x+':'+y+':'+this.zoom] = tile
             this.tiles.tilesInCache++
             tile.timeout = setTimeout(this.bind(function(){
+              tile.style.visibility = 'hidden'
+              tile.addEventListener("load", function(){ this.style.visibility = 'visible' }, false)
               this.view.appendChild(tile)
               tile.width = this.tileSize
               tile.height = this.tileSize
@@ -258,15 +272,22 @@
     
     <script>
       window.addEventListener("load",function(){
-        var z = new Portal({
+        var config = {
           container: $('zogen'),
+          currentLocation : $('currentLocation'),
           tileURL : 'http://localhost:2000/tile/',
           tileInfoURL : 'http://localhost:2000/tile_info/'
-        })
+        }
+        var xyz = document.location.hash.split(/[xyz]/)
+        if (xyz[1] && xyz[1].match(/^[-+]?[0-9]+$/)) config.x = parseInt(xyz[1])
+        if (xyz[2] && xyz[2].match(/^[-+]?[0-9]+$/)) config.y = parseInt(xyz[2])
+        if (xyz[3] && xyz[3].match(/^[0-9]+$/)) config.zoom = parseInt(xyz[3])
+        var z = new Portal(config)
         window.onkeypress = function(e){ z.keyHandler(e) }
         window.onresize = function(){
           z.container.style.width = window.innerWidth + 'px'
           z.container.style.height = window.innerHeight + 'px'
+          z.updateTiles(false)
         }
         window.onresize()
       },false)
@@ -274,6 +295,7 @@
   </head>
 
   <body>
+    <a id="currentLocation" href="zogen.html#x0y0z2">Link here</a>
     <div id="zogen">
     </div>
   </body>

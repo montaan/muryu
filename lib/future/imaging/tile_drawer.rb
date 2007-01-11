@@ -21,16 +21,20 @@ extend self
       ### FIXME cache badness
       r,x,y,z,w,h = *tile_args
       qtext = sanitize_query(query)
-      fn = Future.tile_cache_dir + %!tile_#{qtext}_#{[r,"#{w}x#{h}",z,x,y].join("_")}.jpg!
-      tmp = Future.tile_cache_dir + "tmptile-#{Process.pid}-#{Thread.object_id}.jpg"
-      tile.save(tmp)
-      File.rename(tmp, fn.to_s)
+      #fn = Future.tile_cache_dir + %!tile_#{qtext}_#{[r,"#{w}x#{h}",z,x,y].join("_")}.jpg!
+      fn = Future.tile_cache_dir + "tmptile-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.jpg"
+      tile.save(fn.to_s)
+      tile.delete!(true)
+      #File.rename(tmp, fn.to_s)
     else
       fn = Future.empty_tile
       unless fn.exist?
         img = Imlib2::Image.new(*tile_args[-2,2])
         img.clear
-        img.save(fn.to_s)
+        tmp = Future.tile_cache_dir + "tmptile-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.jpg"
+        img.save(tmp.to_s)
+        img.delete!(true)
+        File.rename(tmp, fn)
       end
     end
     fn.open('rb', &block)
@@ -72,6 +76,8 @@ class TileDrawer
     @image_cache = image_cache
   end
 
+  @@mutex = Mutex.new
+
 
   def draw_tile(indexes, layouter_name, x, y, zoom, w, h, *layouter_args)
     layouter = LAYOUTERS[layouter_name.to_s]
@@ -85,9 +91,11 @@ class TileDrawer
     return false if empty_tile
     tile = Imlib2::Image.new(w,h)
     tile.clear
-    @image_cache.batch do
-      layouter.each(indexes, x, y, sz, w, h, *layouter_args) do |i, ix, iy|
-        @image_cache.draw_image_at(i, zoom, tile, ix, iy)
+    @@mutex.synchronize do
+      @image_cache.batch do
+        layouter.each(indexes, x, y, sz, w, h, *layouter_args) do |i, ix, iy|
+          @image_cache.draw_image_at(i, zoom, tile, ix, iy)
+        end
       end
     end
     tile
@@ -108,6 +116,7 @@ class TileDrawer
 
     def each(indexes, x, y, sz, w, h,
                   row_offset = sz / 2, columns = 200, rows = 5)
+      return false if x < 0 or y < 0
       row_offset ||= sz / 2
       bigrow_height = (rows*sz) + row_offset
       bigrow_img_count = columns * rows
