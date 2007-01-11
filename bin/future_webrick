@@ -37,6 +37,12 @@ class RootServlet < WEBrick::HTTPServlet::AbstractServlet
     servlets.sort_by{|s| s.to_s }
   end
 
+  def mount_servlets
+    self.class.servlets.each{|c|
+      @server.mount("/" + underscorize(c), c)
+    }
+  end
+
   def do_GET(req,res)
     res.body = root_page
   end
@@ -54,9 +60,7 @@ class RootServlet < WEBrick::HTTPServlet::AbstractServlet
   end
 
   def root_page
-    self.class.servlets.each{|c|
-      @server.mount("/" + underscorize(c), c)
-    }
+    mount_servlets
     Builder::XmlMarkup.new.html do |b|
       b.head { b.title("future") }
       b.body {

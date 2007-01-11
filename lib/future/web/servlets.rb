@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 require 'webrick'
 require 'future'
+load 'future/search/search_query_parser.rb'
 require 'builder'
 require 'json'
 
@@ -105,6 +106,11 @@ module FutureServlet
         servlet_path_key => @servlet_path,
         :columns => :all
       )
+      qkeys = (req.query.keys & (columns.keys + ["sort"]))
+      h = qkeys.map{|k| [k, [req.query[k].to_s]]}.to_hash
+      words = req.query["text"].to_s.split(" ").map &[[:gsub, /\+/, " "]]
+      @search_query = SearchQueryParser.tokens_and_words_to_query_hash(h, words)
+      #p SearchQueryParser.parse_query(req.query['q'].to_s, columns)
     else
       @servlet_target = nil
     end
@@ -171,17 +177,23 @@ module FutureServlet
     []
   end
 
-  def servlet_list_actions
+  def servlet_list_actions(req)
     if column? 'deleted'
-      [["Create new", File.join(@servlet_target_path, "create")],
-       ["List deleted", '?deleted']
-      ]
+      if req.query['deleted']
+        [["Create new", File.join(@servlet_target_path, "create")],
+        ["List normal", @servlet_target_path]
+        ]
+      else
+        [["Create new", File.join(@servlet_target_path, "create")],
+        ["List deleted", '?deleted']
+        ]
+      end
     else
       [["Create new", File.join(@servlet_target_path, "create")]]
     end
   end
 
-  def servlet_view_actions
+  def servlet_view_actions(req)
     if @servlet_target.writable_by(@servlet_user)
       if column? 'deleted' and @servlet_target.deleted
         [["Undelete", File.join(@servlet_target_path, "undelete")]]
@@ -197,6 +209,13 @@ module FutureServlet
     b.a("future", :href => File.split(@servlet_root).first)
     b.text!("/")
     b.a(table_name, :href=> @servlet_root)
+  end
+
+  def print_user_info(b)
+    b.a(@servlet_user.name, :href => "/users/#{@servlet_user.name}")
+    b.text!(" (")
+    b.a("sign out", :href => "/users/logout")
+    b.text!(")")
   end
 
   def servlet_list_rows(req)
@@ -216,11 +235,11 @@ module FutureServlet
     res.body = Builder::XmlMarkup.new.html do |b|
       b.head { b.title(table_name) }
       b.body {
-        b.h1 {
-          print_navigation_path(b)
-        }
+        b.h1 { print_navigation_path(b) }
+        b.p { print_user_info(b) }
+        b.h2("Actions")
         b.ul {
-          servlet_list_actions.each{|name, href|
+          servlet_list_actions(req).each{|name, href|
             b.li { b.a(name, :id => 'action_link', :href => href) }
           }
         }
@@ -274,6 +293,7 @@ module FutureServlet
             print_navigation_path(b)
             b.text!("/create")
           }
+          b.p { print_user_info(b) }
           b.form(:method => 'POST'){
             columns.each{|c,cl|
               if !servlet_uneditable_column? c
@@ -363,8 +383,10 @@ module FutureServlet
           b.text!("/")
           b.a(@servlet_path, :href => @servlet_target_path)
         }
+        b.p { print_user_info(b) }
+        b.h2("Actions")
         b.ul {
-          servlet_view_actions.each{|name, href|
+          servlet_view_actions(req).each{|name, href|
             b.li { b.a(name, :id => 'action_link', :href => href) }
           }
         }
@@ -418,6 +440,7 @@ module FutureServlet
         edits.each{|k,v|
           @servlet_target[k] = v
         }
+        @servlet_target[:modified_at] = Time.now.to_s if column?('modified_at')
         new_path = req.query[servlet_path_key.to_s]
         @servlet_target_path = File.join(@servlet_root, new_path) if new_path
       end
@@ -434,6 +457,35 @@ end
 
 class Tile
 extend FutureServlet
+
+  class << self
+    def servlet_modes
+      []
+    end
+
+    delegate "Items", :rfind, :rfind_all, :columns
+
+    def do_view(req,res)
+      res['Content-type'] = 'image/jpeg'
+      ts = @servlet_path.scan(/[a-z][0-9]+/i).map{|t| [t[0,1], t[1..-1]] }.to_hash
+      x = ts['x'].to_i
+      y = ts['y'].to_i
+      z = ts['z'].to_i
+      w = (ts['w'] || 256).to_i
+      h = (ts['h'] || 256).to_i
+      p @search_query
+      Tiles.open(@servlet_user, @search_query, :rows, x, y, z, w, h){|t|
+        res.body = t.read
+      }
+    end
+  
+    def do_list(req,res)
+      res['Content-type'] = 'text/plain'
+      res.status = 404
+      res.body = 'File not found'
+    end
+  end
+
 end
 
 class TileInfo
@@ -502,7 +554,7 @@ class Users
 extend FutureServlet
 
   class << self
-    def servlet_list_actions
+    def servlet_list_actions(req)
       [
         ["Register new account", File.join(@servlet_target_path, "create")],
         ["Sign in", File.join(@servlet_target_path, "login")],
