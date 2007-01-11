@@ -467,13 +467,7 @@ extend FutureServlet
 
     def do_view(req,res)
       res['Content-type'] = 'image/jpeg'
-      ts = @servlet_path.scan(/[a-z][0-9]+/i).map{|t| [t[0,1], t[1..-1]] }.to_hash
-      x = ts['x'].to_i
-      y = ts['y'].to_i
-      z = ts['z'].to_i
-      w = (ts['w'] || 256).to_i
-      h = (ts['h'] || 256).to_i
-      p @search_query
+      x,y,z,w,h = parse_tile_geometry(@servlet_path)
       Tiles.open(@servlet_user, @search_query, :rows, x, y, z, w, h){|t|
         res.body = t.read
       }
@@ -484,12 +478,43 @@ extend FutureServlet
       res.status = 404
       res.body = 'File not found'
     end
+
+    def parse_tile_geometry(str)
+      ts = str.scan(/[a-z][0-9]+/i).map{|t| [t[0,1], t[1..-1]] }.to_hash
+      x = ts['x'].to_i
+      y = ts['y'].to_i
+      z = ts['z'].to_i
+      w = (ts['w'] || 256).to_i
+      h = (ts['h'] || 256).to_i
+      [x,y,z,w,h]
+    end
   end
 
 end
 
 class TileInfo
 extend FutureServlet
+
+  class << self
+    def servlet_modes
+      []
+    end
+
+    delegate "Items", :rfind, :rfind_all, :columns
+
+    def do_view(req,res)
+      res['Content-type'] = 'text/plain'
+      x,y,z,w,h = Tile.parse_tile_geometry(@servlet_path)
+      res.body = Tiles.info(@servlet_user, @search_query, :rows, x, y, z, w, h).to_json
+    end
+  
+    def do_list(req,res)
+      res['Content-type'] = 'text/plain'
+      res.status = 404
+      res.body = 'File not found'
+    end
+  end
+
 end
 
 class Files

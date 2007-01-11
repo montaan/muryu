@@ -36,7 +36,7 @@ extend self
     fn.open('rb', &block)
   end
 
-  def info(user, query, *tile_args, &block)
+  def info(user, query, *tile_args)
     ### FIXME Query optimization problematic (again.)
     ###       Want to get a list of fields for the items, but don't want to do
     ###       infos.map{|k,v| Items.find(:image_index => i, :columns => ...)}
