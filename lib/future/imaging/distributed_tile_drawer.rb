@@ -20,15 +20,21 @@ class DTileClient
 
   def draw_tile(indexes, layouter_name, x, y, zoom, w, h, *layouter_args)
     draw_ops = []
-    @tile_drawer.tile_info(indexes, layouter_name, x, y, zoom, w, h, *layouter_args) do |i, ix, iy, sz|
-      draw_ops.concat([ix, iy, i])
+    log_debug("Tile layout") do
+      @tile_drawer.tile_info(indexes, layouter_name, x, y, zoom, w, h, *layouter_args) do |i, ix, iy, sz|
+        draw_ops.concat([ix, iy, i])
+      end
     end
 
     jobid   = "#{Process.pid}#{Thread.current.object_id}-#{x}-#{y}-#{w}-#{h}"
     tilejob = TileJobRequest.new(jobid, x, y, w, h, zoom, draw_ops)
-    log_debug("Placing request #{jobid} (#{w}x#{h})")
-    @tuplespace.write([:tilejob_request, jobid, tilejob], TUPLE_EXPIRATION_TIME)
-    result = @tuplespace.read([:tilejob_result, jobid, nil])[2]
+    log_debug("Placing request #{jobid} (#{w}x#{h})") do
+      @tuplespace.write([:tilejob_request, jobid, tilejob], TUPLE_EXPIRATION_TIME)
+    end
+    result = nil
+    log_debug("Reading result") do
+      result = @tuplespace.read([:tilejob_result, jobid, nil])[2]
+    end
     tile   = Imlib2::Image.new(w, h)
     tile.data = result.raw_data
     tile
@@ -138,6 +144,12 @@ class DTileServer
     log_debug("Placing composed result for #{tilejob.jobid}")
     @tuplespace.write([:tilejob_result, tilejob.jobid, tilejob_result], TUPLE_EXPIRATION_TIME)
   end
+
+  private
+  # rename to enable/disable logging
+  def log_debug(*x)
+    yield if block_given?
+  end
 end
 
 if __FILE__ == $0
@@ -155,8 +167,10 @@ if __FILE__ == $0
     DRb.start_service
     tuplespace = DRbObject.new(nil, ARGV[1])
     dtile_client = DTileClient.new(tuplespace, Future::TileDrawer.new)
-    tile = dtile_client.draw_tile((0..256**2 / 16**2).to_a, "rows", 0, 0, 4, 256, 256)
-    p tile
+    t = Time.new
+    tile = dtile_client.draw_tile((0..10000).to_a, "rows", 0, 0, 2, 256, 256)
+    puts "#{Time.new - t}"
+    tile.save("testtile.png")
   when "inspect"
     DRb.start_service
 
