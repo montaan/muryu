@@ -34,4 +34,8 @@
 - undo
   * design and implement (argh, important feature but a bit painful)
 
+- zogen
+  * get maxZoom from tile_info
+  * use tile_info data to fetch stuff from items
+  * use stuff from items to do onhover details and info overlays
 
