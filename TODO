@@ -1,8 +1,4 @@
-* Port tile drawing code from tilegen.rb
-
 * Tests for dbconn #parse_query
-
-* Tests for image cache
 
 * Better thumbnailers for document formats (convert doesn't scale pdfs as 
   vector graphics, so can't get BIG images, probably also missing cropped scale)
@@ -10,35 +6,36 @@
     thumbnail handling for multipage docs: big header page with all doc pages on
     on the side as tiny, zoom in to read)
 
-* Implement the public API used by
-- login.cgi
-  * create new session for user, redirect to wanted page on success
-- logout.cgi
-  * delete existing session
+* Move to using the C layouter, rewrite TileDrawer for speed
 
-- tags.cgi
+* Write search query parser (sets:!work sets:todo tags:bank user:carol)
+
+* Web todo
+- write submodes of [users, groups, tags, sets, etc.] -form
+
+- login
+  * redirect to wanted page on success
+
+- tags
   * list tags
-- sets.cgi
-  * create new set
-  * view list of my sets & shared sets
-  * edit set (i.e. change name & visibility)
-- groups.cgi
-  * create new group
+  * list items with a given tag
+- groups
   * view groups you're a member of
-  * edit groups that you have modify rights to
-- users.cgi
-  * register new user
+  * list users in a given group
+- users
+  * list users in my groups
   * view user infos
-  * edit user infos
+  * view user items, groups, etc.
 
-- tile.cgi
-- tile_info.cgi
+- tile
+  * make it work
+- tile_info
+  * ditto
 
-- upload.cgi
+- upload
+  * port semantics from upload.cgi
 
-- items.cgi
-- edit_items.cgi
-
-- undo.cgi
+- undo
+  * design and implement (argh, important feature but a bit painful)
 
 
