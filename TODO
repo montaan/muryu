@@ -9,6 +9,7 @@
 * Move to using the C layouter, rewrite TileDrawer for speed
 
 * Write search query parser (sets:!work sets:todo tags:bank user:carol)
+  - half-way there
 
 * Web todo
 - write submodes of [users, groups, tags, sets, etc.] -form
@@ -26,11 +27,6 @@
   * list users in my groups
   * view user infos
   * view user items, groups, etc.
-
-- tile
-  * make it work
-- tile_info
-  * ditto
 
 - upload
   * port semantics from upload.cgi
