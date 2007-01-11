@@ -26,6 +26,7 @@ class ImageCache
     @cache_pyramids = []
     @cache_pyramid_size = cache_pyramid_size
     @max_zoom = (Math.log(max_thumbnail_size) / Math.log(2)).to_i
+    @batch_ops = @changed = nil
   end
 
   def thumb_size_at_zoom(zoom)
