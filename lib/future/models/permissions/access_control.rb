@@ -186,7 +186,7 @@ extend AccessControlClass
     UsersGroups.find(:user => user, :group => self, :can_modify => true)
   end
 
-  def delete(user)
+  def rdelete(user)
     write(user) do
       self.class.delete(:id => id)
     end
@@ -212,7 +212,9 @@ include AccessControl
 extend AccessControlClass
 
   def self.find_parse_args(user, h)
-    {:deleted => false}.merge(h)
+    dh = {:deleted => false}
+    dh.delete(:deleted) if h[:limit] == 1
+    dh.merge(h)
   end
 
   def rdelete(user)
@@ -239,6 +241,7 @@ extend AccessControlClass
   def self.find_parse_args(user, h)
     h = h.clone
     dh = {:deleted => false}
+    dh.delete(:deleted) if h[:limit] == 1
     dh[:namespace] = []
     dh[:namespace] << "public" if h[:public] != false
     dh[:namespace] << "user:#{user.name}" if h[:public] != true
@@ -262,6 +265,18 @@ end
 class Users < DB::Tables::Users
 include AccessControl
 extend AccessControlClass
+
+  def readable_by(user)
+    self == user
+  end
+
+  def writable_by(user)
+    self == user and self != self.class.anonymous
+  end
+
+  def self.rfind_all(user, *query)
+    [user]
+  end
 
 end
 

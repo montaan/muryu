@@ -75,7 +75,7 @@ module FutureServlet
   end
 
   def servlet_uneditable_columns
-    [:id, :owner_id] | ((!@servlet_target or @servlet_target.writable_by(@servlet_user)) ? [] : columns.keys)
+    [:id, :owner_id, :created_at, :modified_at] | ((!@servlet_target or @servlet_target.writable_by(@servlet_user)) ? [] : columns.keys)
   end
 
   def servlet_uneditable_column?(c)
@@ -164,11 +164,33 @@ module FutureServlet
   end
 
   def servlet_modes
-    ['create','edit','view','json'] + sub_modes
+    ['create','edit','view','json','delete','undelete'] + sub_modes
   end
 
   def sub_modes
     []
+  end
+
+  def servlet_list_actions
+    if column? 'deleted'
+      [["Create new", File.join(@servlet_target_path, "create")],
+       ["List deleted", '?deleted']
+      ]
+    else
+      [["Create new", File.join(@servlet_target_path, "create")]]
+    end
+  end
+
+  def servlet_view_actions
+    if @servlet_target.writable_by(@servlet_user)
+      if column? 'deleted' and @servlet_target.deleted
+        [["Undelete", File.join(@servlet_target_path, "undelete")]]
+      else
+        [["Delete", File.join(@servlet_target_path, "delete")]]
+      end
+    else
+      []
+    end
   end
 
   def print_navigation_path(b)
@@ -180,7 +202,11 @@ module FutureServlet
   def servlet_list_rows(req)
     cols = req.query['columns'].to_s.split(",") & columns.keys
     cols = :all if cols.empty?
-    rfind_all(@servlet_user, :order_by => servlet_path_key, :columns => cols)
+    q = {:order_by => servlet_path_key, :columns => cols}
+    if column? 'deleted' and req.query['deleted']
+      q[:deleted] = true
+    end
+    rfind_all(@servlet_user, q)
   end
 
   def do_list(req,res)
@@ -193,7 +219,11 @@ module FutureServlet
         b.h1 {
           print_navigation_path(b)
         }
-        b.p { b.a("Create new", :id => 'create_link', :href => File.join(@servlet_target_path, "create")) }
+        b.ul {
+          servlet_list_actions.each{|name, href|
+            b.li { b.a(name, :id => 'action_link', :href => href) }
+          }
+        }
         b.table(:border => 1){
           b.tr{
             b.td{ b.h3(servlet_path_key.to_s) }
@@ -208,6 +238,18 @@ module FutureServlet
         }
       }
     end
+  end
+
+  def do_delete(req,res)
+    @servlet_target.rdelete(@servlet_user)
+    res.status = 302
+    res['location'] = @servlet_root
+  end
+
+  def do_undelete(req,res)
+    @servlet_target.rundelete(@servlet_user)
+    res.status = 302
+    res['location'] = @servlet_root
   end
 
   def do_create(req,res)
@@ -234,12 +276,12 @@ module FutureServlet
           }
           b.form(:method => 'POST'){
             columns.each{|c,cl|
-              b.h3("#{c} (#{cl})")
-              b.p {
-                if !servlet_uneditable_column? c
+              if !servlet_uneditable_column? c
+                b.h3("#{c} (#{cl})")
+                b.p {
                   b.input(:class => "column_value", :id => c, :type => 'text', :name => c)
-                end
-              }
+                }
+              end
             }
             b.p { b.input(:type => 'submit', :value => 'Create new') }
           }
@@ -320,6 +362,11 @@ module FutureServlet
           print_navigation_path(b)
           b.text!("/")
           b.a(@servlet_path, :href => @servlet_target_path)
+        }
+        b.ul {
+          servlet_view_actions.each{|name, href|
+            b.li { b.a(name, :id => 'action_link', :href => href) }
+          }
         }
         b.form(:method => 'POST', :action => File.join(@servlet_target_path, "edit")){
           columns.each{|c,cl|
@@ -455,6 +502,14 @@ class Users
 extend FutureServlet
 
   class << self
+    def servlet_list_actions
+      [
+        ["Register new account", File.join(@servlet_target_path, "create")],
+        ["Sign in", File.join(@servlet_target_path, "login")],
+        ["Sign out", File.join(@servlet_target_path, "logout")]
+      ]
+    end
+  
     def sub_modes
       ['files','items','groups','tags','sets', 'login', 'logout']
     end
@@ -472,7 +527,8 @@ extend FutureServlet
         res.body = Builder::XmlMarkup.new.html do |b|
           b.head { b.title("Already logged in") }
           b.body {
-            b.h1("Welcome back, #{@servlet_user.name}!")
+            b.h1 { print_navigation_path(b) }
+            b.h2("Welcome back, #{@servlet_user.name}!")
             b.a(:href => 'logout') { b.h2("Log out?") }
           }
         end
@@ -480,7 +536,8 @@ extend FutureServlet
         res.body = Builder::XmlMarkup.new.html do |b|
           b.head { b.title("Failed to log in.") }
           b.body {
-            b.h1("Login failed, please try again.")
+            b.h1 { print_navigation_path(b) }
+            b.h2("Login failed, please try again.")
             b.p { b.a("Register new account", :href=>'create') }
             login_form(b)
           }
@@ -489,7 +546,8 @@ extend FutureServlet
         res.body = Builder::XmlMarkup.new.html do |b|
           b.head { b.title("Log in") }
           b.body {
-            b.h1("Come on in!")
+            b.h1 { print_navigation_path(b) }
+            b.h2("Come on in!")
             b.p { b.a("Register new account", :href=>'create') }
             login_form(b)
           }
@@ -513,13 +571,17 @@ extend FutureServlet
           user_auth(req, res)
           res.body = Builder::XmlMarkup.new.html do |b|
             b.head { b.title("Registered new account!") }
-            b.body { b.h1( "Welcome aboard, #{un}! We hope you enjoy the ride!" ) }
+            b.body {
+              b.h1 { print_navigation_path(b) }
+              b.h2( "Welcome aboard, #{un}! We hope you enjoy the ride!" )
+            }
           end
         else
           res.body = Builder::XmlMarkup.new.html do |b|
             b.head { b.title("Registration failed") }
             b.body {
-              b.h1("Failed to register account, someone is already using '#{un}'.")
+              b.h1 { print_navigation_path(b) }
+              b.h2("Failed to register account, someone is already using '#{un}'.")
               b.h2("Please try another name.")
               registration_form(b)
             }
@@ -529,7 +591,8 @@ extend FutureServlet
         res.body = Builder::XmlMarkup.new.html do |b|
           b.head { b.title("Registering account.") }
           b.body {
-            b.h1('Register')
+            b.h1 { print_navigation_path(b) }
+            b.h2('Register')
             registration_form(b)
           }
         end
@@ -565,6 +628,10 @@ end
 
 class Sets
 extend FutureServlet
+
+  def self.servlet_uneditable_columns
+    super | [:namespace, :deleted]
+  end
 
   def self.sub_modes
     ['files','users','groups','tags','sets']
