@@ -63,12 +63,11 @@ class RootServlet < WEBrick::HTTPServlet::AbstractServlet
         b.h1 {
           b.text!("future")
         }
-        pages.each do |page|
-          b.h2 {
-
-            b.a(page, :href=> page)
-          }
-        end
+        b.ul{
+          pages.each do |page|
+            b.li { b.a(page, :href=> page) }
+          end
+        }
       }
     end
   end

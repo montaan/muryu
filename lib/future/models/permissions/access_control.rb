@@ -278,6 +278,19 @@ extend AccessControlClass
     [user]
   end
 
+  def self.rdelete(user, h={})
+    h = h.clone.merge(:namespace => 'groups')
+    g = find(h)
+    g.delete(user)
+    nil
+  end
+
+  def rdelete(user)
+    write(user) do
+      self.class.delete(:id => id)
+    end
+  end
+
 end
 
 
