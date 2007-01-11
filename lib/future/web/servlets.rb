@@ -480,7 +480,7 @@ extend FutureServlet
     end
 
     def parse_tile_geometry(str)
-      ts = str.scan(/[a-z][0-9]+/i).map{|t| [t[0,1], t[1..-1]] }.to_hash
+      ts = str.scan(/[a-z][-+]?[0-9]+/i).map{|t| [t[0,1], t[1..-1]] }.to_hash
       x = ts['x'].to_i
       y = ts['y'].to_i
       z = ts['z'].to_i

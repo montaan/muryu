@@ -86,7 +86,8 @@ class CostAnalysis
                 :average_purchase, :commission, :initial_infrastructure,
                 :bytes_per_admin, :admin_cost, :watts_per_byte, :cost_per_kWh,
                 :redundancy, :infrastructure, :bandwidth_cost, :area_per_byte, :rent_per_m2,
-                :users_per_support, :support_cost, :ad_income_per_view
+                :users_per_support, :support_cost, :ad_income_per_view, :subscriptions_per_user,
+                :monthly_subscription_price
 
   def default_config
     {
@@ -110,8 +111,10 @@ class CostAnalysis
       :conversion_rate => 0.001,
       :initial_infrastructure => 2.0,
       :users_per_support => 10000.0,
-      :ad_income_per_view => 3000.0 / 150000.0,
-      :support_cost => -2000
+      :ad_income_per_view => 2000.0 / 150000.0,
+      :support_cost => -2000,
+      :subscriptions_per_user => 0.01,
+      :monthly_subscription_price => 2.0,
     }
   end
 
@@ -122,7 +125,7 @@ class CostAnalysis
     @item = Item.new(ImageCache.new, @average_size)
     @user = User.new(@item, @average_items, @items_viewed)
     @cost_fields = [:breakage, :admin_costs, :support_costs, :bandwidth, :electricity, :rent]
-    @income_fields = [:affiliate_income, :ad_income]
+    @income_fields = [:affiliate_income, :ad_income, :subscription_income]
     @all_fields = @income_fields + @cost_fields
   end
 
@@ -151,7 +154,7 @@ class CostAnalysis
   end
 
   def minimum_conversion_rate
-    [-(monthly_costs + ad_income)/ ((affiliate.income_per_view / @conversion_rate) * users * user.items_viewed), 0].max
+    [-(monthly_costs + ad_income + subscription_income)/ ((affiliate.income_per_view / @conversion_rate) * users * user.items_viewed), 0].max
   end
 
   def no_ads_minimum_conversion_rate
@@ -164,6 +167,10 @@ class CostAnalysis
 
   def ad_income
     ad_income_per_view * total_items_viewed
+  end
+
+  def subscription_income
+    subscriptions_per_user * users * monthly_subscription_price
   end
 
   def total_items_viewed

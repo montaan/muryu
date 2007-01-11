@@ -1,0 +1,281 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>Zogen</title>
+    <style>
+      input { display:block; }
+      img { display:block; }
+      #zogen {
+        position:absolute;
+        background: #33363B;
+        left:0px;
+        top: 0px;
+        width: 700px;
+        height: 600px;
+        overflow:hidden;
+      }
+      #zogen-s1 {
+        position:absolute;
+        background: #33363B;
+        left:702px;
+        top: 0px;
+        width: 256px;
+        height: 255px;
+        overflow:hidden;
+      }
+      #zogen-s2 {
+        position:absolute;
+        background: #33363B;
+        left:702px;
+        top: 257px;
+        width: 256px;
+        height: 255px;
+        overflow:hidden;
+      }
+      #status {
+        position:absolute;
+        color: #000000;
+        top: 10px;
+        left: 522px;
+      }
+      #midPoint{
+        position:absolute;
+        background: red;
+        width: 10px;
+        height: 10px;
+        top: 0px;
+        left: 0px;
+        z-index:10;
+      }
+    </style>
+    <script src="rototype.js"></script>
+    <script>
+      Portal = function(config) {
+        this.mergeD(config)
+        this.init()
+      }
+      
+      Portal.prototype = {
+        zoom : 2,
+        maxZoom : 7,
+        tileSize : 256,
+        tileURL : 'tile.cgi?t=',
+        query : '&' + window.location.search.substring(1),
+
+        init : function() {
+          this.tiles = {tilesInCache : 0}
+          this.initView()
+          this.container.appendChild(this.view)
+          this.updateTiles()
+          this.container.addEventListener("mousedown", this.bind('mousedownHandler'), false)
+          this.container.addEventListener("DOMMouseScroll", this.bind('DOMMouseScrollHandler'), false)
+          this.container.addEventListener("keypress", this.bind('keyHandler'), false)
+          window.addEventListener("mousemove", this.bind('mousemoveHandler'), false)
+          window.addEventListener("mouseup", this.bind('mouseupHandler'), false)
+        },
+        
+        initView : function(){
+          var v = Elem('div')
+          v.style.position = 'absolute'
+          v.style.left = '0px'
+          v.style.top = '0px'
+          v.left = 0
+          v.top = 0
+          v.cX = this.container.offsetWidth/2
+          v.cY = this.container.offsetHeight/2
+          this.view = v
+        },
+
+        updateTiles : function(zoomed){
+          var t = this
+          var v = this.view
+          var c = this.container
+          var sl = -(v.left - (v.left % t.tileSize))
+          var st = -(v.top - (v.top % t.tileSize))
+          var tile_coords = []
+          var visible_tiles = 0
+          var midX = c.offsetWidth/2 - v.left - t.tileSize / 2
+          var midY = c.offsetHeight/2 - v.top - t.tileSize / 2
+          Rg(-1, c.offsetWidth/t.tileSize+1).each(function(i){
+            var x = i*t.tileSize+sl
+            var dx = Math.abs(x - midX)
+            Rg(-1, c.offsetHeight/t.tileSize+1).each(function(j){
+              var y = j*t.tileSize+st
+              var dy = Math.abs(y - midY)
+              var d = Math.sqrt(dx*dx + dy*dy)
+              t.showTile(x,y, d)
+              visible_tiles++
+            })
+          })
+          if (t.tiles.tilesInCache > visible_tiles*2 || zoomed) {
+            t.removeTiles(sl - t.tileSize,
+                          st - t.tileSize,
+                          sl + c.offsetWidth + t.tileSize,
+                          st + c.offsetHeight + t.tileSize)
+          }
+        },
+        
+        removeTiles : function(left, top, right, bottom){
+          for (var i in this.tiles) {
+            if (i.match(/:/)) {
+              var xy = i.split(":")
+              var x = parseInt(xy[0])
+              var y = parseInt(xy[1])
+              var zoom = parseInt(xy[2])
+              if (zoom != this.zoom ||
+                  x < left || x > right || y < top || y > bottom)
+              {
+                if (this.tiles[i].timeout) clearTimeout(this.tiles[i].timeout)
+                try{ this.view.removeChild(this.tiles[i]) } catch(e) {}
+                this.tiles[i].src = null
+                this.tiles.tilesInCache--
+                delete this.tiles[i]
+              }
+            }
+          }
+        },
+
+        showTile : function(x, y, priority){
+          if (!this.tiles[x+':'+y+':'+this.zoom]) {
+            var tile = Elem('img',null,null,'tile')
+            tile.style.position = 'absolute'
+            tile.style.left = x+'px'
+            tile.style.top = y+'px'
+            this.tiles[x+':'+y+':'+this.zoom] = tile
+            this.tiles.tilesInCache++
+            tile.timeout = setTimeout(this.bind(function(){
+              this.view.appendChild(tile)
+              tile.width = this.tileSize
+              tile.height = this.tileSize
+              tile.src = this.tileURL + 'x'+ x +'y'+ y +'z'+ this.zoom +
+                         'w'+ this.tileSize +'h'+ this.tileSize + this.query
+              tile.timeout = false
+            }), priority/50)
+          }
+        },
+        
+        pan : function(x,y,e){
+          this.view.left += x
+          this.view.top += y
+          this.updateTiles()
+          this.view.style.left = this.view.left + 'px'
+          this.view.style.top = this.view.top + 'px'
+          if (e && e.preventDefault) e.preventDefault()
+        },
+        
+        zoomOut : function(e){
+          if (this.zoom > 0) {
+            var lx = this.view.cX - this.view.left - parseInt(this.container.computedStyle().left)
+            var ly = this.view.cY - this.view.top - parseInt(this.container.computedStyle().top)
+            this.zoom--
+            this.view.left += parseInt(lx / 2)
+            this.view.top += parseInt(ly / 2)
+            if(this.zoomTimeout) clearTimeout(this.zoomTimeout)
+            this.zoomTimeout = setTimeout(this.bind(function(){
+              this.view.style.left = this.view.left + 'px'
+              this.view.style.top = this.view.top + 'px'
+              this.updateTiles(true)
+            }), 200)
+          }
+          if (e && e.preventDefault) e.preventDefault()
+        },
+        
+        zoomIn : function(e){
+          if (this.zoom < this.maxZoom) {
+            var lx = this.view.cX - this.view.left - parseInt(this.container.computedStyle().left)
+            var ly = this.view.cY - this.view.top - parseInt(this.container.computedStyle().top)
+            this.zoom++
+            this.view.left -= (lx)
+            this.view.top -= (ly)
+            if(this.zoomTimeout) clearTimeout(this.zoomTimeout)
+            this.zoomTimeout = setTimeout(this.bind(function(){
+              this.view.style.left = this.view.left + 'px'
+              this.view.style.top = this.view.top + 'px'
+              this.updateTiles(true)
+            }), 200)
+          }
+          if (e && e.preventDefault) e.preventDefault()
+        },
+        
+        mousedownHandler : function(e){
+          this.dragging = true
+          this.dragX = e.clientX
+          this.dragY = e.clientY
+          this.container.focus()
+          e.preventDefault()
+        },
+
+        mousemoveHandler : function(e){
+          this.view.cX = e.clientX
+          this.view.cY = e.clientY
+          if (this.dragging) {
+            this.pan(e.clientX-this.dragX, e.clientY-this.dragY)
+            this.dragX = e.clientX
+            this.dragY = e.clientY
+          }
+        },
+
+        mouseupHandler : function(e){
+          this.dragging = false
+        },
+        
+        DOMMouseScrollHandler : function(e){
+          if (e.detail > 0 ) {
+            this.zoomOut(e)
+          } else {
+            this.zoomIn(e)
+          }
+        },
+
+        keyHandler : function(e){
+          switch(e.charCode | e.keyCode){
+            case 90:
+            case 122:
+              this.zoomIn(e)
+              break
+            case 88:
+            case 120:
+              this.zoomOut(e)
+              break
+            case 37:
+              this.pan(64,0,e)
+              break
+            case 38:
+              this.pan(0,64,e)
+              break
+            case 39:
+              this.pan(-64,0,e)
+              break
+            case 40:
+              this.pan(0,-64,e)
+              break
+          }
+        }
+      }
+    </script>
+    
+    <script>
+      window.addEventListener("load",function(){
+        var z = new Portal({
+          container: $('zogen'),
+          tileURL : 'http://localhost:2000/tile/',
+          tileInfoURL : 'http://localhost:2000/tile_info/'
+        })
+        window.onkeypress = function(e){ z.keyHandler(e) }
+        window.onresize = function(){
+          z.container.style.width = window.innerWidth + 'px'
+          z.container.style.height = window.innerHeight + 'px'
+        }
+        window.onresize()
+      },false)
+    </script>
+  </head>
+
+  <body>
+    <div id="zogen">
+    </div>
+  </body>
+
+</html>
