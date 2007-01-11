@@ -1,0 +1,25 @@
+#!/usr/bin/env ruby
+
+require 'future'
+include Future
+
+unless ARGV.size > 2
+  puts <<EOF
+future_upload <user> <password> <files>
+EOF
+  exit
+end
+
+Users.register(ARGV[0], ARGV[1])
+Future.image_cache.batch_start
+user = Users.login(ARGV[0], ARGV[1], "my_session#{rand()}")
+
+ARGV[2..-1].each do |fname|
+  puts "Uploading #{fname}"
+  Uploader.upload(:user => user, :io => File.open(fname),
+                  :filename => File.dirname(fname))
+
+end
+
+Future.image_cache.batch_end
+
