@@ -66,15 +66,23 @@
     <script>
       Portal = function(config) {
         this.mergeD(config)
-        this.init()
+        var t = this
+        postQuery(this.tileInfoURL, '',
+          function(res){
+            eval("var obj = " + res.responseText)
+            t.mergeD(obj)
+            t.init()
+          }
+        )
       }
       
       Portal.prototype = {
-        x : 0,
-        y : 0,
+        x : -20,
+        y : -60,
         zoom : 2,
         maxZoom : 7,
         tileSize : 256,
+        title : 'zogen',
         tileURL : 'tile.cgi?t=',
         query : '?' + window.location.search.substring(1),
 
@@ -93,12 +101,21 @@
         initView : function(){
           var v = Elem('div')
           v.style.position = 'absolute'
-          v.style.left = '0px'
-          v.style.top = '0px'
           v.left = -this.x
           v.top = -this.y
+          v.style.left = v.left + 'px'
+          v.style.top = v.top + 'px'
           v.cX = this.container.offsetWidth/2
           v.cY = this.container.offsetHeight/2
+          var t = Elem('h2', this.title)
+          t.style.mergeD({
+            position: 'absolute',
+            fontSize: '20px',
+            left: '0px', top: '-40px',
+            zIndex: 4, color: 'white'
+          })
+          this.titleElem = t
+          v.appendChild(t)
           this.view = v
         },
 
@@ -115,6 +132,8 @@
           var visible_tiles = 0
           var midX = c.offsetWidth/2 - v.left - t.tileSize / 2
           var midY = c.offsetHeight/2 - v.top - t.tileSize / 2
+          this.titleElem.style.fontSize = parseInt(10 * Math.pow(2, this.zoom)) + 'px'
+          this.titleElem.style.top = parseInt(-20 * Math.pow(2, this.zoom)) + 'px'
           Rg(-1, c.offsetWidth/t.tileSize+1).each(function(i){
             var x = i*t.tileSize+sl
             var dx = Math.abs(x - midX)
@@ -306,6 +325,8 @@
     
     <script>
       window.addEventListener("load",function(){
+        $('zogen').style.width = window.innerWidth + 'px'
+        $('zogen').style.height = window.innerHeight + 'px'
         var config = {
           container: $('zogen'),
           currentLocation : $('currentLocationLink'),
@@ -321,9 +342,8 @@
         window.onresize = function(){
           z.container.style.width = window.innerWidth + 'px'
           z.container.style.height = window.innerHeight + 'px'
-          z.updateTiles(true)
+          z.updateTiles()
         }
-        window.onresize()
       },false)
     </script>
   </head>

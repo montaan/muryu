@@ -531,8 +531,10 @@ extend FutureServlet
   
     def do_list(req,res)
       res['Content-type'] = 'text/plain'
-      res.status = 404
-      res.body = 'File not found'
+      res.body = {
+        "maxZoom" => Future.image_cache.max_zoom,
+        "title" => @servlet_user.name
+      }.to_json
     end
   end
 
