@@ -30,9 +30,18 @@
 
 - upload
   * port semantics from upload.cgi
+  * make upload form
+  * port future.xpi to use this
 
 - undo
   * design and implement (argh, important feature but a bit painful)
+
+- tile
+  * fix threading issues :(
+- tile_info
+  * fix threading issues :(
+  * give different info based on request
+    (faster to do indexes-to-items-matching server-side)
 
 - zogen
   * fix threading issues :(
@@ -45,6 +54,11 @@
       but that spams the history full of crap
   * get nice filenames from tile_info
   * grab sidebar from augen
+  * make a complete UI design and implement it utility-first
+    - who uses zogen for what
+    - what new things can you do with zogen that you couldn't do with existing
+      software or would be very inconvenient with existing software
+    - floater views (zoomed in map portion, overview map portion)
 
   * switch to tile-generated-from-item at 256x256 
     (easier to do on server side?)
