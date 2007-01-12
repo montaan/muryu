@@ -84,6 +84,7 @@ include Future
 s = HTTPServer.new( :Port => 2000 )
 
 s.mount("/", RootServlet)
+# s.mount("/zogen", WEBrick::HTTPServlet::FileHandler, "./html")
 
 trap("INT"){ s.shutdown }
 s.start

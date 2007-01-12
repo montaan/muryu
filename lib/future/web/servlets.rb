@@ -465,12 +465,14 @@ extend FutureServlet
 
     delegate "Items", :rfind, :rfind_all, :columns
 
+    @@mutex = Mutex.new
+
     def do_view(req,res)
       res['Content-type'] = 'image/jpeg'
       x,y,z,w,h = parse_tile_geometry(@servlet_path)
-      Tiles.open(@servlet_user, @search_query, :rows, x, y, z, w, h){|t|
-        res.body = t.read
-      }
+      @@mutex.synchronize do
+        res.body = Tiles.read(@servlet_user, @search_query, :rows, x, y, z, w, h)
+      end
     end
   
     def do_list(req,res)
@@ -492,6 +494,25 @@ extend FutureServlet
 
 end
 
+class Zogen
+extend FutureServlet
+
+  class << self
+    def servlet_modes
+      []
+    end
+
+    def do_list(req,res)
+      res.body = File.read("./html/zogen.html")
+    end
+
+    def do_view(req,res)
+      res.body = File.read("./html/rototype.js")
+    end
+  end
+
+end
+
 class TileInfo
 extend FutureServlet
 
@@ -505,7 +526,7 @@ extend FutureServlet
     def do_view(req,res)
       res['Content-type'] = 'text/plain'
       x,y,z,w,h = Tile.parse_tile_geometry(@servlet_path)
-      res.body = Tiles.info(@servlet_user, @search_query, :rows, x, y, z, w, h).to_json
+      res.body = Tiles.info(@servlet_user, @search_query, :rows, x, y, z, w, h).to_a.to_json
     end
   
     def do_list(req,res)
@@ -516,6 +537,7 @@ extend FutureServlet
   end
 
 end
+
 
 class Files
 extend FutureServlet
@@ -543,7 +565,11 @@ extend FutureServlet
   end
 
   def self.do_view(req, res)
-    item = Items.rfind(@servlet_user, :path => @servlet_path)
+    if @servlet_path =~ /^[0-9]+$/
+      item = Items.rfind(@servlet_user, :image_index => @servlet_path)
+    else
+      item = Items.rfind(@servlet_user, :path => @servlet_path)
+    end
     if item
       res['Content-type'] = item.major + "/" + item.minor
       res.body = item.read
@@ -565,7 +591,7 @@ class Items
 extend FutureServlet
 
   def self.sub_modes
-    ['files','users','groups','tags','sets']
+    ['files','users','groups','tags','sets','thumbnail']
   end
 
   def self.servlet_path_key

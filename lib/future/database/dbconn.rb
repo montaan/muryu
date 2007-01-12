@@ -1,3 +1,4 @@
+require 'thread'
 require 'future/config'
 require 'postgres'
 require 'time'
@@ -83,12 +84,23 @@ module DB
 
   class DBconn < PGconn
 
+    attr_reader :mutex
+
+    def initialize(*a)
+      @mutex = Mutex.new
+      super
+    end
+
     def exec(query, log_level = Logger::DEBUG, subsystem = "dbconn")
-      log("DBconn#exec: "+query, subsystem, log_level) { super(query) }
+      @mutex.synchronize do
+        log("DBconn#exec: "+query, subsystem, log_level) { super(query) }
+      end
     end
 
     def query(query, log_level = Logger::DEBUG, subsystem = "dbconn")
-      log("DBconn#query: "+query, subsystem, log_level) { super(query) }
+      @mutex.synchronize do
+        log("DBconn#query: "+query, subsystem, log_level) { super(query) }
+      end
     end
   
   end
@@ -143,19 +155,25 @@ module DB
   class SQLString < String
   end
 
+  @@mutex = Mutex.new
+
   # Isolation level can be 'READ COMMITTED' or 'SERIALIZABLE'.
   # Access mode can be 'READ WRITE' or 'READ ONLY'.
   def self.transaction(isolation_level='read committed', access_mode='read write')
-    DB::Conn.exec('BEGIN')
-    DB::Conn.exec('SET TRANSACTION ISOLATION LEVEL '+isolation_level+' '+access_mode)
-    rv = yield
-    DB::Conn.exec('COMMIT')
-    rv
-  rescue TransactionRollback
-    return false
-  rescue
-    DB::Conn.exec('ROLLBACK')
-    raise
+    @@mutex.synchronize do
+      begin
+        DB::Conn.exec('BEGIN')
+        DB::Conn.exec('SET TRANSACTION ISOLATION LEVEL '+isolation_level+' '+access_mode)
+        rv = yield
+        DB::Conn.exec('COMMIT')
+        rv
+      rescue TransactionRollback
+        return false
+      rescue
+        DB::Conn.exec('ROLLBACK')
+        raise
+      end
+    end
   end
 
   def self.rollback

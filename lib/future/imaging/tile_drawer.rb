@@ -13,9 +13,12 @@ extend self
     ###       that 4-10, 16-22, 28-34, 4182-4188, 4194-4200 needed
     ###       -> get 4-34, 4182-4200)
     ###
-    indexes = Items.rfind_all(user, query.merge(:columns => [:image_index])).
-                    map{|i| i.image_index }
-    tile = TileDrawer.new.draw_tile(indexes, *tile_args)
+    bad_tile = (tile_args[1] < 0 or tile_args[2] < 0)
+    if not bad_tile
+      indexes = Items.rfind_all(user, query.merge(:columns => [:image_index])).
+                      map{|i| i.image_index }
+      tile = TileDrawer.new.draw_tile(indexes, *tile_args)
+    end
     Future.tile_cache_dir.mkdir_p
     if tile
       ### FIXME cache badness
@@ -40,12 +43,17 @@ extend self
     fn.open('rb', &block)
   end
 
+  def read(*a)
+    open(*a){|f| f.read }
+  end
+
   def info(user, query, *tile_args)
     ### FIXME Query optimization problematic (again.)
     ###       Want to get a list of fields for the items, but don't want to do
     ###       infos.map{|k,v| Items.find(:image_index => i, :columns => ...)}
     ###       and Items.find_all(:image_index => infos.keys, :columns => ...)
     ###       will likely run into query size limit.
+    return {} if tile_args[1] < 0 or tile_args[2] < 0
     indexes = Items.rfind_all(user, query.merge(:columns => [:image_index])).
                     map{|i| i.image_index }
     infos = {}
@@ -76,9 +84,6 @@ class TileDrawer
     @image_cache = image_cache
   end
 
-  @@mutex = Mutex.new
-
-
   def draw_tile(indexes, layouter_name, x, y, zoom, w, h, *layouter_args)
     layouter = LAYOUTERS[layouter_name.to_s]
     raise ArgumentError, "Bad layouter_name: #{layouter_name.inspect}" unless layouter
@@ -91,11 +96,9 @@ class TileDrawer
     return false if empty_tile
     tile = Imlib2::Image.new(w,h)
     tile.clear
-    @@mutex.synchronize do
-      @image_cache.batch do
-        layouter.each(indexes, x, y, sz, w, h, *layouter_args) do |i, ix, iy|
-          @image_cache.draw_image_at(i, zoom, tile, ix, iy)
-        end
+    @image_cache.batch do
+      layouter.each(indexes, x, y, sz, w, h, *layouter_args) do |i, ix, iy|
+        @image_cache.draw_image_at(i, zoom, tile, ix, iy)
       end
     end
     tile

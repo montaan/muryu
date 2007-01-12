@@ -35,7 +35,26 @@
   * design and implement (argh, important feature but a bit painful)
 
 - zogen
+  * fix threading issues :(
   * get maxZoom from tile_info
   * use tile_info data to fetch stuff from items
   * use stuff from items to do onhover details and info overlays
+  * make tile_info fetches use less requests and queries
+  * figure out a way to keep current map coordinates when navigating 
+    away from page (in essence making back button work)
+    - one way would be suture-style navigation-creates-history-state
+      but that spams the history full of crap
+  * get nice filenames from tile_info
+  * grab sidebar from augen
+
+  * switch to tile-generated-from-item at 256x256 
+    (easier to do on server side?)
+  * emblems for items
+  * drawing lines between two map coordinates (needs universal coord system)
+
+  * nested portal system for doing titled views (instead of drawing on server)
+    - subportal engulfs all items inside it, crop to window/container border
+      -> zoom changes subportal size
+    - subportal title and other info gotten from tileinfo
+    - subportals behave like windows
 

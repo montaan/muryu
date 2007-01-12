@@ -7,10 +7,15 @@
     <style>
       #currentLocation {
         z-index: 10;
-        color: #99969B;
         position:absolute;
-        left: 3px;
-        top: 2px;
+        width: 100%;
+        text-align: right;
+        left: 0px;
+        top: 0px;
+      }
+      #currentLocationLink {
+        background: black;
+        color: #99969B;
       }
       input { display:block; }
       img { display:block; }
@@ -71,7 +76,7 @@
         maxZoom : 7,
         tileSize : 256,
         tileURL : 'tile.cgi?t=',
-        query : '&' + window.location.search.substring(1),
+        query : '?' + window.location.search.substring(1),
 
         init : function() {
           this.tiles = {tilesInCache : 0}
@@ -105,7 +110,7 @@
           var st = -(v.top - (v.top % t.tileSize))
           this.x = -v.left
           this.y = -v.top
-          this.currentLocation.href = "zogen.html#x" + this.x + "y" + this.y + "z" + this.zoom
+          this.currentLocation.href = "#x" + this.x + "y" + this.y + "z" + this.zoom
           var tile_coords = []
           var visible_tiles = 0
           var midX = c.offsetWidth/2 - v.left - t.tileSize / 2
@@ -140,7 +145,7 @@
                   x < left || x > right || y < top || y > bottom)
               {
                 if (this.tiles[i].timeout) clearTimeout(this.tiles[i].timeout)
-                try{ this.view.removeChild(this.tiles[i]) } catch(e) {}
+                try{ this.view.removeChild(this.tiles[i].parentNode) } catch(e) {}
                 this.tiles[i].src = null
                 this.tiles.tilesInCache--
                 delete this.tiles[i]
@@ -153,20 +158,49 @@
           if (!this.tiles[x+':'+y+':'+this.zoom]) {
             var tile = Elem('img',null,null,'tile')
             tile.style.position = 'absolute'
-            tile.style.left = x+'px'
-            tile.style.top = y+'px'
+            tile.style.left = '0px'
+            tile.style.top = '0px'
             this.tiles[x+':'+y+':'+this.zoom] = tile
             this.tiles.tilesInCache++
             tile.timeout = setTimeout(this.bind(function(){
               tile.style.visibility = 'hidden'
-              tile.addEventListener("load", function(){ this.style.visibility = 'visible' }, false)
-              this.view.appendChild(tile)
+              var t = this
+              var tileQuery = 'x'+ x +'y'+ y +'z'+ this.zoom +
+                         'w'+ this.tileSize +'h'+ this.tileSize
+              var tile_cont = Elem('div')
+              tile_cont.style.position = 'absolute'
+              tile_cont.style.left = x+'px'
+              tile_cont.style.top = y+'px'
+              tile.addEventListener("load",
+                function(){
+                  this.style.visibility = 'visible'
+                  postQuery(t.tileInfoURL + tileQuery, t.query,
+                    function(res){
+                      tile.info = eval(res.responseText)
+                      tile.info.each(function(i){
+                        var ti = Elem('a')
+                        ti.style.position = 'absolute'
+                        ti.style.border = 'solid 1px red'
+                        ti.style.display = 'block'
+                        ti.style.left = i[1][0] + 'px'
+                        ti.style.top = i[1][1] + 'px'
+                        ti.style.width = i[1][2] + 'px'
+                        ti.style.height = i[1][2] + 'px'
+                        ti.href = "/files/" + i[0]
+                        ti.style.zIndex = 2
+                        try{ tile_cont.appendChild(ti) } catch(e) {}
+                      })
+                    }
+                  )
+                },
+              false)
+              tile_cont.appendChild(tile)
+              this.view.appendChild(tile_cont)
               tile.width = this.tileSize
               tile.height = this.tileSize
-              tile.src = this.tileURL + 'x'+ x +'y'+ y +'z'+ this.zoom +
-                         'w'+ this.tileSize +'h'+ this.tileSize + this.query
+              tile.src = this.tileURL + tileQuery + this.query
               tile.timeout = false
-            }), priority/50)
+            }), priority/40)
           }
         },
         
@@ -274,20 +308,20 @@
       window.addEventListener("load",function(){
         var config = {
           container: $('zogen'),
-          currentLocation : $('currentLocation'),
-          tileURL : 'http://localhost:2000/tile/',
-          tileInfoURL : 'http://localhost:2000/tile_info/'
+          currentLocation : $('currentLocationLink'),
+          tileURL : '/tile/',
+          tileInfoURL : '/tile_info/'
         }
         var xyz = document.location.hash.split(/[xyz]/)
         if (xyz[1] && xyz[1].match(/^[-+]?[0-9]+$/)) config.x = parseInt(xyz[1])
         if (xyz[2] && xyz[2].match(/^[-+]?[0-9]+$/)) config.y = parseInt(xyz[2])
         if (xyz[3] && xyz[3].match(/^[0-9]+$/)) config.zoom = parseInt(xyz[3])
-        var z = new Portal(config)
+        var z = window.zogen = new Portal(config)
         window.onkeypress = function(e){ z.keyHandler(e) }
         window.onresize = function(){
           z.container.style.width = window.innerWidth + 'px'
           z.container.style.height = window.innerHeight + 'px'
-          z.updateTiles(false)
+          z.updateTiles(true)
         }
         window.onresize()
       },false)
@@ -295,7 +329,9 @@
   </head>
 
   <body>
-    <a id="currentLocation" href="zogen.html#x0y0z2">Link here</a>
+    <div id="currentLocation">
+      <a id="currentLocationLink" href="zogen.html#x0y0z2">Link here</a>
+    </div>
     <div id="zogen">
     </div>
   </body>
