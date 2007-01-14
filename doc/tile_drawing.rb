@@ -266,7 +266,7 @@ nextmost zoomed out 1 / (r*4^1), etc.
 Several disks per machine divides the load time. 6-disk RAID-1 ~> divide time
 by 6.
 
-1Mitem system can run on a single box with 4GB+ RAM. Worst case draw time
+1Mitem system can run on a single box with 1GB+ RAM. Worst case draw time
 there being 950ms per tile, 160ms with a 6-disk setup. Standalone
 "Professional Edition."
 
@@ -285,8 +285,8 @@ pp(random_drawing_perf_stats(0.25, 18, 0.2))
 [[1048576,
   [[4, 4.0, 71.4, 2465.8],                      # 2s    ! 64GB
    [16, 16.0, 246.6, 9824.2],                   # 10s   ! 16GB
-   [64, 63.97, 946.962, 39239.404],             # 39s   ! 4GB RAM cache <- ok speed
-   [256, 254.017, 3721.6482, 155776.2244],      # 2m36s ! 1GB <- fits in graphics card memory
+   [64, 63.97, 946.962, 39239.404],             # 39s   ! 4GB
+   [256, 254.017, 3721.6482, 155776.2244],      # 2m36s ! 1GB <- ok speed, fits in graphics card memory
    [1024, 905.843, 13238.3078, 555475.9276],    # 9m15s
    [4096, 1005.288, 14690.2048, 616455.6016]]], # 10m16s
  [16777216,
@@ -294,7 +294,7 @@ pp(random_drawing_perf_stats(0.25, 18, 0.2))
    [16, 16.0, 246.6, 9824.2],                    !
    [64, 63.998, 947.3708, 39256.5736],           ! 64GB
    [256, 255.881, 3748.8626, 156919.2292],       ! 16GB <- ok speed
-   [1024, 1015.94, 14845.724, 622987.408],       ! 4GB RAM cache
+   [1024, 1015.94, 14845.724, 622987.408],       ! 4GB
    [4096, 3624.656, 52932.9776, 2222652.0592]]],   1GB <- fits in graphics card memory
  [67108864,
   [[4, 4.0, 71.4, 2465.8],                       !
@@ -302,7 +302,7 @@ pp(random_drawing_perf_stats(0.25, 18, 0.2))
    [64, 63.999, 947.3854, 39257.1868],           !
    [256, 255.966, 3750.1036, 156971.3512],       ! 64GB <- ok speed
    [1024, 1022.016, 14934.4336, 626713.2112],    ! 16GB
-   [4096, 3970.456, 57981.6576, 2434696.6192]]], ! 4GB RAM cache
+   [4096, 3970.456, 57981.6576, 2434696.6192]]], ! 4GB
  [268435456,
   [[4, 4.0, 71.4, 2465.8],                       !
    [16, 16.0, 246.6, 9824.2],                    !
