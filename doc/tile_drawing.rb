@@ -177,12 +177,30 @@ Best case: query results cached, tile needs only one cache image.
 * With texture in system RAM and no save: 5.4ms to draw and read.
 * With texture in gfx card RAM and no save: 5ms to draw and read.
 * Best-case performance: 12 - 14.4ms, 500 - 600ms for a 42-tile screen.
+* ~600MB/s texture bandwidth
 
 512x512 cache image:
-* With texture on disk and no save: 18ms to draw and read.
-* With texture in system RAM and no save: 11ms to draw and read.
+* With texture on disk and no save: 8.4ms to draw and read.
+* With texture in system RAM and no save: 6.4ms to draw and read.
 * With texture in gfx card RAM and no save: 5ms to draw and read.
-* Best-case performance: 12 - 25ms, 500 - 1050ms for a 42-tile screen.
+* Best-case performance: 12 - 15.3ms, 500 - 640ms for a 42-tile screen.
+
+Smaller cache images improve worst-case performance, but make it more probable.
+* If a cache image stores only one item image, drawing will exhibit worst-case
+  performance every time, but disk and graphics card bandwidth use will be
+  optimal (but requires uploading more textures and more meshes to the card)
+  - reduces amount of data to move at the price of multiplying random access
+    latency
+* If a cache image stores all item images, drawing will exhibit best-case
+  performance every time, but best-case performance will be equal to worst-case
+  performance, and memory used will be equal to cache image size
+  - reduces random access latency at the price of memory & bandwidth
+
+Guessing: cache hit ratio is equal between different cache image sizes, or
+somewhat better for smaller cache images. Smaller images give finer
+granularity, which should help in minimizing unwanted data in the cached set.
+(Memory used for the cache is equal, so e.g. for each 512x512 cache image, you
+can have four 256x256 cache images.)
 
 For expected random tile performance, see below:
 
@@ -190,7 +208,7 @@ For expected random tile performance, see below:
 
 def expected_drawing_performance(
   cache_images_needed, cache_hit_ratio = 0.2,
-  texture_load_time = 9, texture_upload_time = 6,
+  texture_load_time = 2, texture_upload_time = 1.4,
   layout = 3, drawing = 5, save_as_jpg = 4,
   query = 1 # 40ms amortized over 40 tiles
 )
@@ -205,7 +223,7 @@ def expected_drawing_performance(
 end
 
 def random_drawing_perf_stats(
-  cache_image_factor = 4, load=9, upload=6, cache=0.2, tiles_per_screen = 42)
+  cache_image_factor = 4, load=2, upload=1.4, cache=0.2, tiles_per_screen = 42)
   simulate_random_tiles(cache_image_factor).map{|amt, sims|
     [amt, sims.map{|items,cache_images|
       [items, cache_images,
@@ -250,40 +268,6 @@ pp(random_drawing_perf_stats(1, 2, 0.4))
    [256, 255.975, 524.95, 21514.9],
    [1024, 1022.002, 2057.004, 85861.168],
    [4096, 3970.333, 7953.666, 333520.972]]]] # 5.5 minutes
-
-
-# 512x512
-pp(random_drawing_perf_stats)
-
-[[1048576,
-  [[4, 4.0, 65.8, 2230.6],
-   [16, 15.99, 224.068, 8877.856],
-   [64, 63.512, 851.3584, 35224.0528],
-   [256, 226.875, 3007.75, 125792.5],    # 2 minutes!
-   [1024, 251.33, 3330.556, 139350.352], # and then some
-   [4096, 64.0, 857.8, 35494.6]]],
- [16777216,
-  [[4, 4.0, 65.8, 2230.6],
-   [16, 16.0, 224.2, 8883.4],
-   [64, 63.965, 857.338, 35475.196],
-   [256, 254.008, 3365.9056, 140835.0352],
-   [1024, 906.135, 11973.982, 502374.244],
-   [4096, 1005.29, 13282.828, 557345.776]]],
- [67108864,
-  [[4, 4.0, 65.8, 2230.6],
-   [16, 16.0, 224.2, 8883.4],
-   [64, 63.991, 857.6812, 35489.6104],
-   [256, 255.491, 3385.4812, 141657.2104],
-   [1024, 992.803, 13117.9996, 550422.9832],
-   [4096, 2588.489, 34181.0548, 1435071.3016]]],
- [268435456,
-  [[4, 4.0, 65.8, 2230.6],
-   [16, 16.0, 224.2, 8883.4],
-   [64, 63.999, 857.7868, 35494.0456],
-   [256, 255.892, 3390.7744, 141879.5248],
-   [1024, 1015.86, 13422.352, 563205.784],
-   [4096, 3625.371, 47867.8972, 2009918.6824]]]] # 33.5 minutes :<
-
 
 
 Parallelism

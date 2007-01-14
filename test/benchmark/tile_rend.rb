@@ -1,7 +1,7 @@
 =begin
 512x512 texture:
-Texture load from fs cache, 55fps (= 18ms)
-Without texture load from disk, 87fps (= 11ms)
+Texture load from fs cache, 120fps (= 8.3ms)
+Without texture load from disk, 154fps (= 6.4ms)
 Without texture upload, 200fps (= 5ms)
 
 256x256 texture:
@@ -29,10 +29,25 @@ Meaning:
 require 'rend'
 include Rend
 
+sz = (ARGV[0] || 512).to_i
+extra_images = (ARGV[1] || 0).to_i
+
+img = 'data/tiles_0.png'
+tmp_img = 'tmp/tex.tga'
+
 verts = []
 texcoords = []
-i = Image.new(:image => 'data/tiles_0.png')
-File.open("tmp/tiles_0.raw",'wb'){|f| f.write(i.texture.pixels) }
+
+imi = Imlib2::Image.load(img)
+imi.crop_scaled!(0, 0, imi.width, imi.height, sz, sz)
+imi.save(tmp_img)
+imi.delete!
+
+i = Image.new(:image => tmp_img, :mipmapping => false)
+eimgs = (1..extra_images).map{ 
+  Image.new(:image => tmp_img, :mipmapping => false)
+}
+File.open("tmp/tex.raw",'wb'){|f| f.write(i.texture.pixels) }
 
 (0...256).each{|x|
   (0...256).each{|y|
@@ -62,18 +77,24 @@ m.on_frame{
           Rend::Renderer::NATIVE_TEXTURE_FORMAT, GL::UNSIGNED_BYTE)
         GL::ReadBuffer(GL::BACK)
   if Rend.fps
-    puts Rend.fps if done < 5 or done % 100 == 0
+    if done < 5 or done % 100 == 0
+      bw = (1 / ((1 / Rend.fps)-0.005)) * t.pixels.size * (eimgs.size + 1) / 1e6
+      puts "#{Rend.fps}: #{"%.1f" % bw}MB/s texture bandwidth"
+    end
     if done == 999
-      t.pixels = File.read('tmp/tiles_0.raw')
+      t.pixels = File.read('tmp/tex.raw')
       puts "vvvvv texture loaded"
       done = 99
     end
-# comment out to not upload texture on every frame
+    # comment out to not upload texture on every frame
     m.texture.pixels = t.pixels
+    eimgs.each{|im| im.texture.pixels = im.texture.pixels }
     done += 1
   end
 }
 
+m.attach *eimgs unless eimgs.empty?
+
 Rend.init(:width => 256, :height => 256)
-Rend.scene << m
+Rend.scene << m 
 Rend.thread.join

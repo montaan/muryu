@@ -67,6 +67,14 @@ Medium priority (improves use experience / codebase):
 * Tests for dbconn #parse_query
 * Move to using the C layouter, rewrite TileDrawer for speed
 
+* extend test/benchmark/tile_rend.rb to do draw speed tests with different
+  cache image amounts (create mesh and texture for each image, determine
+  overhead, optimize between gfx card bandwidth and CPU use (crop images on CPU
+  and throw only the required parts to the card vs. throw the whole cache image
+  and crop on the gfx card using geometry))
+  - generate realistic cache image set and draw realistic layouts, with focus
+    on the slowest simulated cases (see doc/tile_drawing.rb)
+
 * list tags
 * list items with a given tag
 
