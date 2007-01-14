@@ -1,7 +1,14 @@
 #!/usr/bin/env ruby
 
 require 'future'
+require 'find'
 include Future
+
+def upload(user, fname)
+  puts "Uploading #{fname}"
+  Uploader.upload(:user => user, :io => File.open(fname),
+                  :filename => File.dirname(fname))
+end
 
 unless ARGV.size > 2
   puts <<EOF
@@ -11,15 +18,32 @@ EOF
 end
 
 Users.register(ARGV[0], ARGV[1])
+count = 0
 Future.image_cache.batch_start
 user = Users.authenticate(ARGV[0], ARGV[1])
-
-ARGV[2..-1].each do |fname|
-  puts "Uploading #{fname}"
-  Uploader.upload(:user => user, :io => File.open(fname),
-                  :filename => File.dirname(fname))
-
+begin
+ ARGV[2..-1].each do |fname|
+  if File.directory? fname
+    Find.find(fname) do |fn|
+      next if File.directory? fn
+      upload(user, fn)
+      count += 1
+      if count > 100
+        Future.image_cache.batch_end
+        Future.image_cache.batch_start
+        count = 0
+      end
+    end
+  else
+    upload(user, fname)
+    count += 1
+  end
+  if count > 100
+    Future.image_cache.batch_end
+    Future.image_cache.batch_start
+    count = 0
+  end
+ end
+ensure
+  Future.image_cache.batch_end
 end
-
-Future.image_cache.batch_end
-
