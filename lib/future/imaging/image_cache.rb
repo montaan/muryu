@@ -17,7 +17,7 @@ class ImageCache
 
   def initialize(cache_dir = Future.cache_dir + 'image_cache',
                  cache_image_type = 'tga',
-                 cache_image_size = 512, max_thumbnail_size = 128)
+                 cache_image_size = 256, max_thumbnail_size = 128)
     cache_pyramid_size = cache_image_size ** 2
     @cache_image_type = cache_image_type
     @cache_image_size = cache_image_size

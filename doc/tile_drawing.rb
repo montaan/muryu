@@ -173,14 +173,12 @@ Saving as JPG takes 4ms.
 Best case: query results cached, tile needs only one cache image.
 
 256x256 cache image:
-* With texture on disk and no save: 7.4ms to draw and read.
 * With texture in system RAM and no save: 5.4ms to draw and read.
 * With texture in gfx card RAM and no save: 5ms to draw and read.
 * Best-case performance: 12 - 14.4ms, 500 - 600ms for a 42-tile screen.
 * ~600MB/s texture bandwidth
 
 512x512 cache image:
-* With texture on disk and no save: 8.4ms to draw and read.
 * With texture in system RAM and no save: 6.4ms to draw and read.
 * With texture in gfx card RAM and no save: 5ms to draw and read.
 * Best-case performance: 12 - 15.3ms, 500 - 640ms for a 42-tile screen.
@@ -202,13 +200,36 @@ granularity, which should help in minimizing unwanted data in the cached set.
 (Memory used for the cache is equal, so e.g. for each 512x512 cache image, you
 can have four 256x256 cache images.)
 
+Timed disk reads by creating a 16GB file and reading blocks at random positions.
+1000x 1B    reads: 10.3s -> 10ms / read,   100Bps throughput
+1000x 64B   reads: 12.9s -> 13ms / read,  5.0kBps throughput (4x4)
+1000x 2^10B reads: 13.1s -> 13ms / read,   79kBps throughput (16x16)
+1000x 2^12B reads: 14.0s -> 14ms / read,  293kBps throughput (32x32)
+1000x 2^14B reads: 16.0s -> 16ms / read,  1.0MBps throughput (64x64)
+1000x 2^16B reads: 18.2s -> 18ms / read,  3.6MBps throughput (128x128)
+1000x 2^18B reads: 24.0s -> 24ms / read, 10.9MBps throughput (256x256)
+1000x 1MB   reads: 32.5s -> 33ms / read, 30.8MBps throughput (512x512)
+1000x 4MB   reads: 90.3s -> 90ms / read, 44.3MBps throughput (1024x1024)
+1000x 2^24B reads: 327s -> 327ms / read, 51.3MBps throughput (2048x2048)
+100x 2^26B reads: 126s -> 1260ms / read, 53.3MBps throughput (4096x4096)
 For expected random tile performance, see below:
 
 =end
 
+def create_file(fn, size=16_000_000_000)
+  system("head -c #{size} < /dev/zero > #{fn.dump}")
+end
+
+def random_reads(filename, read_size, count=1000)
+  File.open(filename, 'rb'){|f|
+    sz = f.stat.size
+    count.times{ f.seek((rand*sz).to_i); f.read(read_size) }
+  }
+end
+
 def expected_drawing_performance(
   cache_images_needed, cache_hit_ratio = 0.2,
-  texture_load_time = 2, texture_upload_time = 1.4,
+  texture_load_time = 33, texture_upload_time = 1.4,
   layout = 3, drawing = 5, save_as_jpg = 4,
   query = 1 # 40ms amortized over 40 tiles
 )
@@ -223,7 +244,7 @@ def expected_drawing_performance(
 end
 
 def random_drawing_perf_stats(
-  cache_image_factor = 4, load=2, upload=1.4, cache=0.2, tiles_per_screen = 42)
+  cache_image_factor = 4, load=33, upload=1.4, cache=0.2, tiles_per_screen = 42)
   simulate_random_tiles(cache_image_factor).map{|amt, sims|
     [amt, sims.map{|items,cache_images|
       [items, cache_images,
@@ -237,37 +258,164 @@ end
 
 =begin
 
-# 256x256
-pp(random_drawing_perf_stats(1, 2, 0.4))
+Exclamation mark next to best performing cache image size from the three.
+Notes: cache hit ratio is equal between the zoom levels, when it should follow
+an exponential curve so that most zoomed out has hit ratio of 1 / (r*4^0),
+nextmost zoomed out 1 / (r*4^1), etc.
 
+Several disks per machine divides the load time. 6-disk RAID-1 ~> divide time
+by 6.
+
+1Mitem system can run on a single box with 4GB+ RAM. Worst case draw time
+there being 950ms per tile, 160ms with a 6-disk setup. Standalone
+"Professional Edition."
+
+16Mitem system has worst case performance at 3.7s per tile, which is 0.6s with
+6 disks. It's fast, but sluggish. With 16GB of RAM, the worst case becomes as
+above, and 16Mitems can also be run on a single box. "Enterprise Edition."
+
+64Mitems with 4GB of RAM has worst case of 14s (2.3s) per tile with 4GB RAM,
+3.7s (0.6s) with 16GB of RAM, 950ms (160ms) with 64GB of RAM.
+
+Upload times become significant when the amount of textures grows.
+Uploading 4000 textures to the graphics card at 0.2ms a piece = 0.2s in total.
+
+# 128x128
+pp(random_drawing_perf_stats(0.25, 18, 0.2))
 [[1048576,
-  [[4, 4.0, 21.0, 349.0],
-   [16, 15.997, 44.994, 1356.748],
-   [64, 63.872, 140.744, 5378.248],
-   [256, 248.174, 509.348, 20859.616],   # 20 seconds
-   [1024, 647.649, 1308.298, 54415.516], # 54 seconds
-   [4096, 255.999, 524.998, 21516.916]]],
+  [[4, 4.0, 71.4, 2465.8],                      # 2s    ! 64GB
+   [16, 16.0, 246.6, 9824.2],                   # 10s   ! 16GB
+   [64, 63.97, 946.962, 39239.404],             # 39s   ! 4GB RAM cache <- ok speed
+   [256, 254.017, 3721.6482, 155776.2244],      # 2m36s ! 1GB <- fits in graphics card memory
+   [1024, 905.843, 13238.3078, 555475.9276],    # 9m15s
+   [4096, 1005.288, 14690.2048, 616455.6016]]], # 10m16s
  [16777216,
-  [[4, 4.0, 21.0, 349.0],
-   [16, 16.0, 45.0, 1357.0],
-   [64, 63.99, 140.98, 5388.16],
-   [256, 255.523, 524.046, 21476.932],
-   [1024, 992.621, 1998.242, 83393.164],
-   [4096, 2589.687, 5192.374, 217546.708]]],
+  [[4, 4.0, 71.4, 2465.8],                       !
+   [16, 16.0, 246.6, 9824.2],                    !
+   [64, 63.998, 947.3708, 39256.5736],           ! 64GB
+   [256, 255.881, 3748.8626, 156919.2292],       ! 16GB <- ok speed
+   [1024, 1015.94, 14845.724, 622987.408],       ! 4GB RAM cache
+   [4096, 3624.656, 52932.9776, 2222652.0592]]],   1GB <- fits in graphics card memory
  [67108864,
-  [[4, 4.0, 21.0, 349.0],
-   [16, 16.0, 45.0, 1357.0],
-   [64, 63.999, 140.998, 5388.916],
-   [256, 255.882, 524.764, 21507.088],
-   [1024, 1016.15, 2045.3, 85369.6],
-   [4096, 3624.145, 7261.29, 304441.18]]],
+  [[4, 4.0, 71.4, 2465.8],                       !
+   [16, 16.0, 246.6, 9824.2],                    !
+   [64, 63.999, 947.3854, 39257.1868],           !
+   [256, 255.966, 3750.1036, 156971.3512],       ! 64GB <- ok speed
+   [1024, 1022.016, 14934.4336, 626713.2112],    ! 16GB
+   [4096, 3970.456, 57981.6576, 2434696.6192]]], ! 4GB RAM cache
  [268435456,
-  [[4, 4.0, 21.0, 349.0],
-   [16, 16.0, 45.0, 1357.0],
-   [64, 64.0, 141.0, 5389.0],
-   [256, 255.975, 524.95, 21514.9],
-   [1024, 1022.002, 2057.004, 85861.168],
-   [4096, 3970.333, 7953.666, 333520.972]]]] # 5.5 minutes
+  [[4, 4.0, 71.4, 2465.8],                       !
+   [16, 16.0, 246.6, 9824.2],                    !
+   [64, 64.0, 947.4, 39257.8],                   !
+   [256, 255.99, 3750.454, 156986.068],          ! 256GB <- ok speed
+   [1024, 1023.539, 14956.6694, 627647.1148],    # 10m27s ! 64GB
+   [4096, 4064.374, 59352.8604, 2492287.1368]]]] # 41m32s ! 16GB
+
+
+# 256x256
+pp(random_drawing_perf_stats(1, 24, 0.4))
+[[1048576,
+  [[4, 4.0, 91.4, 3305.8],                   # 3s
+   [16, 16.0, 326.6, 13184.2],               # 13s
+   [64, 63.85, 1264.46, 52574.32],           # 53s
+   [256, 248.073, 4875.2308, 204226.6936],   # 3m24s
+   [1024, 646.748, 12689.2608, 532415.9536], # 8m52s
+   [4096, 256.0, 5030.6, 210752.2]]],        # 3m31s
+ [16777216,
+  [[4, 4.0, 91.4, 3305.8],
+   [16, 16.0, 326.6, 13184.2],
+   [64, 63.995, 1267.302, 52693.684],
+   [256, 255.51, 5020.996, 210348.832],
+   [1024, 992.618, 19468.3128, 817136.1376],
+   [4096, 2589.396, 50765.1616, 2131603.7872]]], # 35m31s
+ [67108864,
+  [[4, 4.0, 91.4, 3305.8],
+   [16, 16.0, 326.6, 13184.2],
+   [64, 64.0, 1267.4, 52697.8],
+   [256, 255.88, 5028.248, 210653.416],
+   [1024, 1016.005, 19926.698, 836388.316],
+   [4096, 3624.585, 71054.866, 2983771.372]]], # 49m43s
+ [268435456,
+  [[4, 4.0, 91.4, 3305.8],
+   [16, 16.0, 326.6, 13184.2],
+   [64, 63.999, 1267.3804, 52696.9768],
+   [256, 255.959, 5029.7964, 210718.4488],
+   [1024, 1022.013, 20044.4548, 841334.1016],
+   [4096, 3970.767, 77840.0332, 3268748.3944]]]] # 54m28s
+
+
+# 512x512
+pp(random_drawing_perf_stats)
+[[1048576,
+  [[4, 4.0, 119.16, 4471.72],                 # 4s
+   [16, 15.996, 437.53384, 17843.42128],      # 18s
+   [64, 63.565, 1700.0151, 70867.6342],       # 1m11s
+   [256, 226.545, 6025.5043, 252538.1806],    # 4m12s
+   [1024, 251.284, 6682.07736, 280114.24912], # 4m40s
+   [4096, 64.0, 1711.56, 71352.52]]],         # 1m11s
+ [16777216,
+  [[4, 4.0, 119.16, 4471.72],
+   [16, 16.0, 437.64, 17847.88],
+   [64, 63.975, 1710.8965, 71324.653],
+   [256, 254.045, 6755.3543, 283191.8806],
+   [1024, 906.168, 24062.69872, 1010100.34624],
+   [4096, 1005.142, 26689.46868, 1120424.68456]]], # 18m40s
+ [67108864,
+  [[4, 4.0, 119.16, 4471.72],
+   [16, 16.0, 437.64, 17847.88],
+   [64, 63.991, 1711.32114, 71342.48788],
+   [256, 255.493, 6793.78422, 284805.93724],
+   [1024, 992.717, 26359.70918, 1106574.78556],
+   [4096, 2589.082, 68727.23628, 2886010.92376]]], # 48m6s
+ [268435456,
+  [[4, 4.0, 119.16, 4471.72],
+   [16, 16.0, 437.64, 17847.88],
+   [64, 63.995, 1711.4273, 71346.9466],
+   [256, 255.882, 6804.10828, 285239.54776],
+   [1024, 1015.972, 26976.89688, 1132496.66896],
+   [4096, 3625.307, 96228.64778, 4041070.20676]]]] # 67m21s
+
+# 1024x1024, only the best performing variants
+pp(random_drawing_perf_stats(16, 90, 6))
+[[1048576,
+  [[1024, 64.0, 5005.0, 209677.0],
+   [4096, 16.0, 1261.0, 52429.0]]],
+ [16777216,
+  [[4096, 256.0, 19981.0, 838669.0]]],
+
+# 2048x2048, only the best performing variants
+pp(random_drawing_perf_stats(64, 327, 24))
+[[1048576,
+  [[1024, 16.0, 4582.6, 191936.2],
+   [4096, 4.0, 1155.4, 47993.8]]],
+ [16777216,
+   [4096, 64.0, 18291.4, 767705.8]]],
+
+
+# 4096x4096, only the best performing variants
+pp(random_drawing_perf_stats(256, 1260, 96))
+[[1048576,
+   [1024, 4.0, 4429.0, 185485.0],         !
+   [4096, 1.0, 1117.0, 46381.0]]],        !
+ [16777216,
+   [4096, 16.0, 17677.0, 741901.0]]],     !
+
+
+For random tiles, fast disk seeks trump throughput -> small cache images
+consistently yield best performance by optimizing the worst case.
+
+Large cache images win when less of them are needed to fit the whole item set
+than there are items per tile (again, optimizing the worst case.)
+
+For a 1Mitem system tasked with drawing random tiles, it would be auspicious
+to use a 1:1 (1 cache image per item (128x128, 64x64, 32x32, 16x16)) cache
+setup for the first four zoom levels and 4096x4096 above that.
+
+For a 16Mitem system, 1:1 for four closest zoom levels, 16x16 for fifth?,
+4096x4096 above that.
+
+For bigger systems, 1:1 cache images for at least the four closest zoom levels,
+16x16 above that?
 
 
 Parallelism
