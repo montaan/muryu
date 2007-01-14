@@ -8,6 +8,7 @@ considerations: 256x256 tile = 65kquads max mesh size
                       - 300ms to iterate the layout = slow! (C layouter in ext/ does in 2ms)
                       - 230ms to call Imlib2::Image#blend! = slow!
                       - 1860ms for ImageCache#draw_image_at overhead = SLOW!
+                      - (drawing with OpenGL: ~5ms)
                 texture load 2ms per tex, texture memory usage 1 meg
                 image save 3ms
 1Mitems =>
@@ -25,11 +26,16 @@ Worst case probability:
   pick images_per_tile images from all images so that all image_index / images_per_cache_image are different
   "there are images socks in a box, images_per_cache_image of each color, what is the probability of picking images_per_tile
     differently colored socks from the box?"
+
 =end
+
 def worst_case(images_per_tile, images, images_per_cache_image)
-  (1...images_per_tile).inject(1){|s,i| s * ((images-i*images_per_cache_image.to_f)/(images-i)) }
+  (1...images_per_tile).inject(1){|s,i| s *
+     ((images-i*images_per_cache_image.to_f)/(images-i)) }
 end
+
 =begin
+
 P(worst case) is not very relevant, since other cases nearly as bad are
 much more likely anyway.
 
@@ -62,27 +68,25 @@ much more likely anyway.
 
   Total textures: 21845 GB (6552e)
 
-Expected performance: expected amount of cache images per tile per zoom level * 2ms
-                      + 5ms draw&save time (pretty much constant)
 
-
-
-Random tiles are expensive, should optimize cache image layout for oft-used sortings.
-Now they're by date and all users in same cache, which is good for forum-style posting.
+Random tiles are expensive, should optimize cache image layout for oft-used
+sortings. Now they're by date and all users in same cache, which is good for
+forum-style posting.
 For private sets, it'd make sense to have a user-wise set of cache images.
 
-The problem is projecting an n-dimensional space to a single dimension in a way that preserves locality
-(impossible in the general case?)
-Could store copies of the cache sorted in different ways, maybe use that for storage redundancy?
+The problem is projecting an n-dimensional space to a single dimension in a way
+that preserves locality (impossible in the general case?)
+Could store copies of the cache sorted in different ways, maybe use that for
+storage redundancy?
 =end
 
 require 'pp'
 
-def simulate_random_tiles
+def simulate_random_tiles(cache_image_factor = 4)
   [2**20,2**24,2**26,2**28].map do |images|
     [ images,
       [4,16,64,256,1024,4096].map do |images_per_tile|
-        cache_tiles = images/(images_per_tile*4)
+        cache_tiles = images / (images_per_tile * cache_image_factor)
         arr = Hash.new(0)
         1000.times do
           h = Hash.new(0)
@@ -160,8 +164,130 @@ comparatively few cache images:
 100.0% 241
 
 
-It is probably possible to get best-case drawing performance to ~6-7ms,
-or 5ms with cached texture, or 3ms with serving jpg from ram(?)
+
+Drawing a 256x256 tile of 1x1px items using OpenGL
+--------------------------------------------------
+
+Layout in C takes 3ms.
+Saving as JPG takes 4ms.
+Best case: query results cached, tile needs only one cache image.
+
+256x256 cache image:
+* With texture on disk and no save: 7.4ms to draw and read.
+* With texture in system RAM and no save: 5.4ms to draw and read.
+* With texture in gfx card RAM and no save: 5ms to draw and read.
+* Best-case performance: 12 - 14.4ms, 500 - 600ms for a 42-tile screen.
+
+512x512 cache image:
+* With texture on disk and no save: 18ms to draw and read.
+* With texture in system RAM and no save: 11ms to draw and read.
+* With texture in gfx card RAM and no save: 5ms to draw and read.
+* Best-case performance: 12 - 25ms, 500 - 1050ms for a 42-tile screen.
+
+For expected random tile performance, see below:
+
+=end
+
+def expected_drawing_performance(
+  cache_images_needed, cache_hit_ratio = 0.2,
+  texture_load_time = 9, texture_upload_time = 6,
+  layout = 3, drawing = 5, save_as_jpg = 4,
+  query = 1 # 40ms amortized over 40 tiles
+)
+  texture_from_disk_to_gfx_card = texture_load_time + texture_upload_time
+  average_texture_upload_time = (
+    (1 - cache_hit_ratio) * texture_from_disk_to_gfx_card +
+    cache_hit_ratio * texture_upload_time
+  )
+  query + layout + drawing +
+  cache_images_needed * average_texture_upload_time +
+  save_as_jpg
+end
+
+def random_drawing_perf_stats(
+  cache_image_factor = 4, load=9, upload=6, cache=0.2, tiles_per_screen = 42)
+  simulate_random_tiles(cache_image_factor).map{|amt, sims|
+    [amt, sims.map{|items,cache_images|
+      [items, cache_images,
+       expected_drawing_performance(cache_images, cache, load, upload),
+       expected_drawing_performance(cache_images * tiles_per_screen,
+         cache, load, upload)
+      ]
+    }]
+  }
+end
+
+=begin
+
+# 256x256
+pp(random_drawing_perf_stats(1, 2, 0.4))
+
+[[1048576,
+  [[4, 4.0, 21.0, 349.0],
+   [16, 15.997, 44.994, 1356.748],
+   [64, 63.872, 140.744, 5378.248],
+   [256, 248.174, 509.348, 20859.616],   # 20 seconds
+   [1024, 647.649, 1308.298, 54415.516], # 54 seconds
+   [4096, 255.999, 524.998, 21516.916]]],
+ [16777216,
+  [[4, 4.0, 21.0, 349.0],
+   [16, 16.0, 45.0, 1357.0],
+   [64, 63.99, 140.98, 5388.16],
+   [256, 255.523, 524.046, 21476.932],
+   [1024, 992.621, 1998.242, 83393.164],
+   [4096, 2589.687, 5192.374, 217546.708]]],
+ [67108864,
+  [[4, 4.0, 21.0, 349.0],
+   [16, 16.0, 45.0, 1357.0],
+   [64, 63.999, 140.998, 5388.916],
+   [256, 255.882, 524.764, 21507.088],
+   [1024, 1016.15, 2045.3, 85369.6],
+   [4096, 3624.145, 7261.29, 304441.18]]],
+ [268435456,
+  [[4, 4.0, 21.0, 349.0],
+   [16, 16.0, 45.0, 1357.0],
+   [64, 64.0, 141.0, 5389.0],
+   [256, 255.975, 524.95, 21514.9],
+   [1024, 1022.002, 2057.004, 85861.168],
+   [4096, 3970.333, 7953.666, 333520.972]]]] # 5.5 minutes
+
+
+# 512x512
+pp(random_drawing_perf_stats)
+
+[[1048576,
+  [[4, 4.0, 65.8, 2230.6],
+   [16, 15.99, 224.068, 8877.856],
+   [64, 63.512, 851.3584, 35224.0528],
+   [256, 226.875, 3007.75, 125792.5],    # 2 minutes!
+   [1024, 251.33, 3330.556, 139350.352], # and then some
+   [4096, 64.0, 857.8, 35494.6]]],
+ [16777216,
+  [[4, 4.0, 65.8, 2230.6],
+   [16, 16.0, 224.2, 8883.4],
+   [64, 63.965, 857.338, 35475.196],
+   [256, 254.008, 3365.9056, 140835.0352],
+   [1024, 906.135, 11973.982, 502374.244],
+   [4096, 1005.29, 13282.828, 557345.776]]],
+ [67108864,
+  [[4, 4.0, 65.8, 2230.6],
+   [16, 16.0, 224.2, 8883.4],
+   [64, 63.991, 857.6812, 35489.6104],
+   [256, 255.491, 3385.4812, 141657.2104],
+   [1024, 992.803, 13117.9996, 550422.9832],
+   [4096, 2588.489, 34181.0548, 1435071.3016]]],
+ [268435456,
+  [[4, 4.0, 65.8, 2230.6],
+   [16, 16.0, 224.2, 8883.4],
+   [64, 63.999, 857.7868, 35494.0456],
+   [256, 255.892, 3390.7744, 141879.5248],
+   [1024, 1015.86, 13422.352, 563205.784],
+   [4096, 3625.371, 47867.8972, 2009918.6824]]]] # 33.5 minutes :<
+
+
+
+Parallelism
+-----------
 
 Another thing that helps is that tile drawing is embarrassingly parallel.
 

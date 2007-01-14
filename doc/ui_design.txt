@@ -1,0 +1,59 @@
+UI design, or what does future let you to do better than you could before
+-------------------------------------------------------------------------
+
+See and act on a large collection of files and their relations.
+
+Utility trumps business model. If you can't make profit while providing maximum
+utility, change your business model before someone else does it for you.
+(I.e. don't be like the copy industry.)
+
+Provide a powerful and usable API for extending future's capabilities.
+The killer app of a filesystem is making it simpler to write programs that
+handle files. The killer apps of a file manager are making it simpler to write
+programs where people handle files and making it simpler for people to handle
+files.
+
+~Where a programmer uses a language, non-programmer uses an application.~
+
+
+Utility
+-------
+
+- Claus and Pjotr have listings of their model train cars on future. Both have
+  several copies of some cars and a list of wanted cars. Find possible trades.
+  - claus.wanted & pjotr.dupes, pjotr.wanted & claus.dupes
+
+- Paula the photographer wants to find the best photograph from a series
+  - first pick the good ones, then do side-by-side comparisons to drop the
+    not-best ones, then do side-by-side comparisons between the best to find
+    the very best one
+
+
+Fun
+---
+
+- Jaded from the cute fade animations and shaking 24pt font-size login forms of
+  Web 2.0, Hezekiel seeks solace from the bosom of future.
+  A very feast for the senses! The mix of materials and texture, artful
+  design with its detail gradients, animations and fireworks of success renew
+  Hezekiel's faith in humanity.
+
+- Beatrice is bored and depressed from the continuous rain.
+  The dark grey design doesn't help. Ah, to see the hills of Provence~
+
+- Thomas is testing deleting stuff. The Delete-character with her emergency
+  hammer is amusing! Delete more, Thomas, delete more!
+
+
+Everyday errors
+---------------
+
+- Thomas accidentally deleted his collection of kitten pictures and now wants
+  it back.
+
+
+Relaxation
+----------
+
+- Beatrice plays Massive Attack and views a slideshow of Provence landscape
+  photos while sipping tea.
