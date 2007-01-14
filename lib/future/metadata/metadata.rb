@@ -133,12 +133,9 @@ extend self
       :exif => enc_utf8(exif.map{|r| r.join("\t")}.join("\n"))
     }
     if t = exif["Date and Time"]
-      info[:publish_time] = Time.mktime(*t.split(/[^0-9]+/))
+      info[:publish_time] = parse_time(t)
     end
     info
-  rescue Exception => e
-    log fname,e
-    nil
   end
 
   def extract(filename, mimetype=MimeInfo.get(filename.to_s))
@@ -150,6 +147,8 @@ extend self
       __send__ mn, filename
     elsif new_methods.include?( major )
       __send__ major, filename
+    else
+      {}
     end
   end
 
@@ -174,7 +173,12 @@ extend self
   end
 
   def extract_exif(fname)
-    Hash[*(`exif -m #{fname.dump}`.strip.split("\n").map{|t| t.split("\t")}.flatten)]
+    h = {}
+    `exif -m #{fname.dump}`.strip.split("\n").each do |t|
+      k,v = t.split("\t")
+      h[k] = v
+    end
+    h
   end
 
   def pdfinfo_extract_info(fname)
@@ -224,14 +228,14 @@ extend self
   end
 
   def parse_time(s)
-    return s if s.is_a? Time
+    return s if s.is_a? StandardDateTime
     return nil if s.nil? or s.empty?
-    Time.parse(s.to_s)
+    StandardDateTime.parse(s.to_s)
   rescue
     t = s.to_s.scan(/[0-9]{4}/)[0]
     unless t.nil?
       t += "-01-01"
-      Time.parse(t)
+      StandardDateTime.parse(t)
     end
   end
 

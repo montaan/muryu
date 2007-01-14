@@ -165,7 +165,7 @@ class Uploader
     handle = @store.store(preferred_filename, io)
     mimetype = metadata_info[:mime_type] || MimeInfo.get(handle.full_path)
     major, minor = mimetype.to_s.split("/")
-    metadata = MetadataExtractor[ handle.full_path, mimetype.to_s ]
+    metadata = MetadataExtractor[ handle.full_path, mimetype.to_s ] || {}
     item = nil
     attemps = MAX_ATTEMPS
     begin
