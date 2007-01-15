@@ -52,6 +52,8 @@ module Future
 # do_add, etc primarily for Users, Groups, Sets, Items
 module FutureServlet
 
+  @@big_mutex = Mutex.new
+  
   class WrapServlet < WEBrick::HTTPServlet::AbstractServlet
     delegate '@obj', :do_GET, :do_POST
     def initialize(obj)
@@ -92,6 +94,7 @@ module FutureServlet
   end
 
   def handle_request(req, res)
+  @@big_mutex.synchronize do
     user_auth(req, res)
     @servlet_root = req.script_name
     @servlet_path, mode = File.split(req.path_info)
@@ -116,6 +119,7 @@ module FutureServlet
     end
     mode = 'list' if ["/", ""].include?(req.path_info)
     __send__("do_#{mode}", req, res)
+  end
   end
   
   def user_auth(req, res)
@@ -152,7 +156,6 @@ module FutureServlet
       end
     end
     @servlet_user = (user or Users.anonymous)
-    p @servlet_user.name
   end
   
   # From cgi/session.rb
@@ -465,14 +468,11 @@ extend FutureServlet
 
     delegate "Items", :rfind, :rfind_all, :columns
 
-    @@mutex = Mutex.new
 
     def do_view(req,res)
       res['Content-type'] = 'image/jpeg'
       x,y,z,w,h = parse_tile_geometry(@servlet_path)
-      @@mutex.synchronize do
-        res.body = Tiles.read(@servlet_user, @search_query, :rows, x, y, z, w, h)
-      end
+      res.body = Tiles.read(@servlet_user, @search_query, :rows, x, y, z, w, h)
     end
   
     def do_list(req,res)
@@ -494,24 +494,6 @@ extend FutureServlet
 
 end
 
-class Zogen
-extend FutureServlet
-
-  class << self
-    def servlet_modes
-      []
-    end
-
-    def do_list(req,res)
-      res.body = File.read("./html/zogen.html")
-    end
-
-    def do_view(req,res)
-      res.body = File.read("./html/rototype.js")
-    end
-  end
-
-end
 
 class TileInfo
 extend FutureServlet
@@ -535,6 +517,26 @@ extend FutureServlet
         "maxZoom" => Future.image_cache.max_zoom,
         "title" => @servlet_user.name
       }.to_json
+    end
+  end
+
+end
+
+
+class Zogen
+extend FutureServlet
+
+  class << self
+    def servlet_modes
+      []
+    end
+
+    def do_list(req,res)
+      res.body = File.read("./html/zogen.html")
+    end
+
+    def do_view(req,res)
+      res.body = File.read("./html/rototype.js")
     end
   end
 
@@ -669,7 +671,6 @@ extend FutureServlet
     def do_create(req,res)
       un = req.query['username']
       pw = req.query['password']
-      p [un, pw]
       if un and pw
         @servlet_user.logout if @servlet_user
         if (not find(:name => un)) and @servlet_user = register(un, pw)

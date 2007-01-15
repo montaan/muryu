@@ -69,7 +69,7 @@ class RootServlet < WEBrick::HTTPServlet::AbstractServlet
         }
         b.ul{
           pages.each do |page|
-            b.li { b.a(page, :href=> page) }
+            b.li { b.a(page, :href=> page + "/") }
           end
         }
       }
