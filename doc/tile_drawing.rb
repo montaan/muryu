@@ -280,11 +280,11 @@ there being 950ms per tile, 160ms with a 6-disk setup. Standalone
 6 disks. It's fast, but sluggish. With 16GB of RAM, the worst case becomes as
 above. "Enterprise Edition." 1.4TB of disk per cache copy. If you can fit around
 0.75TB of 6-redundant disks per box, needs two boxes. Total memory 16GB, so
-8GB per box. Disks 1800e, RAM 800e, total 2700e / box, 5400e in total.
+8GB per box. Disks 1800e, RAM 1600e, total 3500e / box, 7000e in total.
 
 64Mitems with 4GB of RAM has worst case of 14s (2.3s) per tile with 4GB RAM,
 3.7s (0.6s) with 16GB of RAM, 950ms (160ms) with 64GB of RAM. 5.5TB of disk per
-cache copy. 8 boxes as configured above, 21.6ke.
+cache copy. 8 boxes as configured above, 28ke.
 
 # 128x128
 pp(random_drawing_perf_stats(0.25, 18, 0.2))
