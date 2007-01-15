@@ -264,7 +264,13 @@ an exponential curve so that most zoomed out has hit ratio of 1 / (r*4^0),
 nextmost zoomed out 1 / (r*4^1), etc.
 
 Several disks per machine divides the load time. 6-disk RAID-1 ~> divide time
-by 6.
+by 6 by doing 6 parallel loads.
+
+A 1Mitem tile server would have six 100GB SATA disks for the cache, 4
+gigs of RAM, run-of-the-mill graphics card and a dualcore proc.
+Disks 300e(?), RAM 400e, gfx card 100e, CPU and mobo ~300e, case and PSU 100e
+= 1200e. Maybe rather likely to spontaneously combust as well, but such is life
+on the cheap~
 
 1Mitem system can run on a single box with 1GB+ RAM. Worst case draw time
 there being 950ms per tile, 160ms with a 6-disk setup. Standalone
@@ -272,21 +278,21 @@ there being 950ms per tile, 160ms with a 6-disk setup. Standalone
 
 16Mitem system has worst case performance at 3.7s per tile, which is 0.6s with
 6 disks. It's fast, but sluggish. With 16GB of RAM, the worst case becomes as
-above, and 16Mitems can also be run on a single box. "Enterprise Edition."
+above. "Enterprise Edition." 1.4TB of disk per cache copy. If you can fit around
+0.75TB of 6-redundant disks per box, needs two boxes. Total memory 16GB, so
+8GB per box. Disks 1800e, RAM 800e, total 2700e / box, 5400e in total.
 
 64Mitems with 4GB of RAM has worst case of 14s (2.3s) per tile with 4GB RAM,
-3.7s (0.6s) with 16GB of RAM, 950ms (160ms) with 64GB of RAM.
-
-Upload times become significant when the amount of textures grows.
-Uploading 4000 textures to the graphics card at 0.2ms a piece = 0.2s in total.
+3.7s (0.6s) with 16GB of RAM, 950ms (160ms) with 64GB of RAM. 5.5TB of disk per
+cache copy. 8 boxes as configured above, 21.6ke.
 
 # 128x128
 pp(random_drawing_perf_stats(0.25, 18, 0.2))
 [[1048576,
   [[4, 4.0, 71.4, 2465.8],                      # 2s    ! 64GB
    [16, 16.0, 246.6, 9824.2],                   # 10s   ! 16GB
-   [64, 63.97, 946.962, 39239.404],             # 39s   ! 4GB
-   [256, 254.017, 3721.6482, 155776.2244],      # 2m36s ! 1GB <- ok speed, fits in graphics card memory
+   [64, 63.97, 946.962, 39239.404],             # 39s   ! 4GB <- good speed
+   [256, 254.017, 3721.6482, 155776.2244],      # 2m36s ! 1GB <- ok speed
    [1024, 905.843, 13238.3078, 555475.9276],    # 9m15s
    [4096, 1005.288, 14690.2048, 616455.6016]]], # 10m16s
  [16777216,
@@ -295,7 +301,7 @@ pp(random_drawing_perf_stats(0.25, 18, 0.2))
    [64, 63.998, 947.3708, 39256.5736],           ! 64GB
    [256, 255.881, 3748.8626, 156919.2292],       ! 16GB <- ok speed
    [1024, 1015.94, 14845.724, 622987.408],       ! 4GB
-   [4096, 3624.656, 52932.9776, 2222652.0592]]],   1GB <- fits in graphics card memory
+   [4096, 3624.656, 52932.9776, 2222652.0592]]],   1GB
  [67108864,
   [[4, 4.0, 71.4, 2465.8],                       !
    [16, 16.0, 246.6, 9824.2],                    !
@@ -416,6 +422,14 @@ For a 16Mitem system, 1:1 for four closest zoom levels, 16x16 for fifth?,
 
 For bigger systems, 1:1 cache images for at least the four closest zoom levels,
 16x16 above that?
+
+Upload times become significant when the amount of textures grows.
+Uploading 4000 textures to the graphics card at 0.2ms a piece = 0.2s in total.
+It may(?) be faster to concat the textures on the CPU and then magicks but no
+idea, would need to benchmark.
+
+Complete hypothesis, but, maybe the image cache could be a huge file per
+zoomlevel? Then cut out the wanted bits using fseek.
 
 
 Parallelism
