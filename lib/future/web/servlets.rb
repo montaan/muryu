@@ -52,8 +52,6 @@ module Future
 # do_add, etc primarily for Users, Groups, Sets, Items
 module FutureServlet
 
-  @@big_mutex = Mutex.new
-  
   class WrapServlet < WEBrick::HTTPServlet::AbstractServlet
     delegate '@obj', :do_GET, :do_POST
     def initialize(obj)
@@ -111,13 +109,15 @@ module FutureServlet
           servlet_path_key => @servlet_path,
           :columns => :all
         )
+      else
+        @servlet_target = nil
+      end
+      if respond_to?(:columns)
         qkeys = (req.query.keys & (columns.keys + ["sort"]))
         h = qkeys.map{|k| [k, [req.query[k].to_s]]}.to_hash
         words = req.query["text"].to_s.split(" ").map &[[:gsub, /\+/, " "]]
         @search_query = SearchQueryParser.tokens_and_words_to_query_hash(h, words)
         #p SearchQueryParser.parse_query(req.query['q'].to_s, columns)
-      else
-        @servlet_target = nil
       end
       mode = 'list' if ["/", ""].include?(req.path_info)
       __send__("do_#{mode}", req, res)
@@ -227,6 +227,7 @@ module FutureServlet
     cols = req.query['columns'].to_s.split(",") & columns.keys
     cols = :all if cols.empty?
     q = {:order_by => servlet_path_key, :columns => cols}
+    q.merge!(@search_query) if @search_query
     if column? 'deleted' and req.query['deleted']
       q[:deleted] = true
     end
@@ -602,6 +603,13 @@ extend FutureServlet
 
   def self.servlet_path_key
     :path
+  end
+
+  def self.do_json(req,res)
+    if @servlet_path =~ /^[0-9]+$/
+      @servlet_target = rfind(@servlet_user, :image_index => @servlet_path)
+    end
+    super
   end
 
 end
