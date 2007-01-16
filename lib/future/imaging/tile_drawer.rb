@@ -7,6 +7,8 @@ module Future
 module Tiles
 extend self
 
+  @@indexes = {}
+
   def open(user, query, *tile_args, &block)
     ### FIXME query optimization problematic (need to layout to get wanted spans,
     ###       then do a query for each (semi-)continuous span, e.g. layout says
@@ -15,8 +17,8 @@ extend self
     ###
     bad_tile = (tile_args[1] < 0 or tile_args[2] < 0)
     if not bad_tile
-      indexes = Items.rfind_all(user, query.merge(:columns => [:image_index])).
-                      map{|i| i.image_index }
+      
+      indexes = (@@indexes[user.name + "::" + sanitize_query(query)] ||= Items.rfind_all(user, query.merge(:columns => [:image_index])).map{|i| i.image_index })
       tile = TileDrawer.new.draw_tile(indexes, *tile_args)
     end
     Future.tile_cache_dir.mkdir_p
@@ -54,8 +56,7 @@ extend self
     ###       and Items.find_all(:image_index => infos.keys, :columns => ...)
     ###       will likely run into query size limit.
     return {} if tile_args[1] < 0 or tile_args[2] < 0
-    indexes = Items.rfind_all(user, query.merge(:columns => [:image_index])).
-                    map{|i| i.image_index }
+    indexes = (@@indexes[user.name + "::" + sanitize_query(query)] ||= Items.rfind_all(user, query.merge(:columns => [:image_index])).map{|i| i.image_index })
     infos = {}
     TileDrawer.new.tile_info(indexes, *tile_args){|i, *a| infos[i] = a}
     infos
