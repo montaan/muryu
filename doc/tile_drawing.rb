@@ -472,7 +472,7 @@ Each aggregation node can also draw more than a normal node due to having to
 wait for the network transfer.
 
 
-Original plan:
+Original plan (optimistic about image cache locality):
 
 1. tell image_cache to load images to memory (async per disk)
 2. draw an image's part of the layout when the image is loaded (create mesh in C, use OpenGL for drawing)
@@ -483,5 +483,71 @@ image_cache.load_images_at(indexes, zoom) do |image, image_indexes|
     image.draw_at(i, ix, iy)
   end
 end
+
+
+Revised plan (random access rules the day):
+
+1. create layout in C (query spans, vertex array and texture coords)
+2. do db query to get the list of image indexes for the spans
+3. create 512x512 texture on the vidcard, this'll contain all the item thumbs
+4. split image_indexes in disk_count lists of (layout_index,image_index)-tuples,
+   so that each list consists of contiguous image_indexes
+5. assign each list to a different disk, go through the lists with select
+   (async reads, serialized upload to vidcard)
+6. whenever a read finishes, upload it to the vidcard using glTexSubImage
+   (coords: x = layout_index % (512/sz), y = layout_index / (512/sz))
+7. when all reads are done, draw the layout
+8. read image from framebuffer, save as jpeg, send to browser
+
+m = Model.new
+geo = Geometry.new
+layout_spans, geo.vertices, geo.texcoords = *layout(x, y, sz, 256, 256)
+image_indexes = dbquery(layout_spans)
+rtex = Texture.new(:width => 512, :height => 512)
+m.geometry = geo
+m.texture = rtex
+cols = 512 / sz
+image_indexes.split_in(disks.size).parallel_read(disks) do |layout_idx, data|
+  tx = layout_idx % cols
+  ty = layout_idx / cols
+  GL::TexSubImage2D(tex, 0, tx*sz, ty*sz, sz, sz,
+                    GL::RGBA, GL::UNSIGNED_BYTE, data)
+end
+m.draw
+img = Imlib2::Image.create_from_data(256, 256, GL::ReadPixels(0,0,256,256))
+img.save("temp.jpg")
+res.body = File.read("temp.jpg")
+
+class Array
+
+  def split_in(n)
+    sorted_tuples = map_with_index.sort_by{|lidx, iidx| iidx}
+    sz = (sorted_tuples / n.to_f).ceil
+    (1..n).map{|i| sorted_tuples[i*sz, sz] }
+  end
+
+  def parallel_read(paths, read_sz)
+    reads = Array.new(paths.size)
+    until all?{|q| q.empty? }
+      reads.each_with_index do |e,i|
+        next if self[i].empty?
+        if not e
+          req = self[i].shift
+          reads[i] = [thread_read(File.join(paths[i], req[1])), req]
+        elsif not e[0].alive?
+          yield(e[1][0], e[0].value)
+          reads[i] = nil
+        end
+      end
+    end
+  end
+
+  def thread_read(path)
+    Thread.new{ RAMCache[path] || File.read(path) }
+  end
+
+end
+
+RAMCache = {}
 
 =end

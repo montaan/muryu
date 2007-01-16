@@ -93,33 +93,35 @@ module FutureServlet
     servlet_invisible_columns.find{|ic| ic.to_s == c.to_s }
   end
 
+  @@mutex = Mutex.new
+
   def handle_request(req, res)
-  @@big_mutex.synchronize do
-    user_auth(req, res)
-    @servlet_root = req.script_name
-    @servlet_path, mode = File.split(req.path_info)
-    unless servlet_modes.include? mode
-      @servlet_path = File.join(@servlet_path, mode)
-      mode = 'view'
+    @@mutex.synchronize do
+      user_auth(req, res)
+      @servlet_root = req.script_name
+      @servlet_path, mode = File.split(req.path_info)
+      unless servlet_modes.include? mode
+        @servlet_path = File.join(@servlet_path, mode)
+        mode = 'view'
+      end
+      @servlet_path.gsub!(/^\//, '')
+      @servlet_target_path = File.join(@servlet_root, @servlet_path)
+      if respond_to?(:rfind) and not @servlet_path.empty?
+        @servlet_target = rfind(@servlet_user,
+          servlet_path_key => @servlet_path,
+          :columns => :all
+        )
+        qkeys = (req.query.keys & (columns.keys + ["sort"]))
+        h = qkeys.map{|k| [k, [req.query[k].to_s]]}.to_hash
+        words = req.query["text"].to_s.split(" ").map &[[:gsub, /\+/, " "]]
+        @search_query = SearchQueryParser.tokens_and_words_to_query_hash(h, words)
+        #p SearchQueryParser.parse_query(req.query['q'].to_s, columns)
+      else
+        @servlet_target = nil
+      end
+      mode = 'list' if ["/", ""].include?(req.path_info)
+      __send__("do_#{mode}", req, res)
     end
-    @servlet_path.gsub!(/^\//, '')
-    @servlet_target_path = File.join(@servlet_root, @servlet_path)
-    if respond_to?(:rfind) and not @servlet_path.empty?
-      @servlet_target = rfind(@servlet_user,
-        servlet_path_key => @servlet_path,
-        :columns => :all
-      )
-      qkeys = (req.query.keys & (columns.keys + ["sort"]))
-      h = qkeys.map{|k| [k, [req.query[k].to_s]]}.to_hash
-      words = req.query["text"].to_s.split(" ").map &[[:gsub, /\+/, " "]]
-      @search_query = SearchQueryParser.tokens_and_words_to_query_hash(h, words)
-      #p SearchQueryParser.parse_query(req.query['q'].to_s, columns)
-    else
-      @servlet_target = nil
-    end
-    mode = 'list' if ["/", ""].include?(req.path_info)
-    __send__("do_#{mode}", req, res)
-  end
   end
   
   def user_auth(req, res)

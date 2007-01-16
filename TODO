@@ -1,8 +1,6 @@
 High priority (vital for utility / business):
 =============================================
 
-* fix tile, layout and tile_info issues :(
-
 * make a complete UI design and implement it utility-first
   - who uses future for what
   - what new things can you do with future that you couldn't do with existing

@@ -84,26 +84,47 @@ module DB
 
   class DBconn < PGconn
 
-    attr_reader :mutex
-
-    def initialize(*a)
-      @mutex = Mutex.new
-      super
-    end
-
     def exec(query, log_level = Logger::DEBUG, subsystem = "dbconn")
-      @mutex.synchronize do
-        log("DBconn#exec: "+query, subsystem, log_level) { super(query) }
-      end
+      log("DBconn#exec: "+query, subsystem, log_level) { super(query) }
     end
 
     def query(query, log_level = Logger::DEBUG, subsystem = "dbconn")
-      @mutex.synchronize do
-        log("DBconn#query: "+query, subsystem, log_level) { super(query) }
-      end
+      log("DBconn#query: "+query, subsystem, log_level) { super(query) }
     end
   
   end
+
+
+  class Pool
+
+    attr_accessor :objects, :klass, :args
+
+    def initialize(klass, count=6, *args)
+      @klass = klass
+      @args = args
+      @objects = Queue.new
+      count.times{ allocate_new }
+    end
+
+    def allocate_new
+      @objects.push(@klass.new(*args))
+    end
+
+    def reserve
+      obj = @objects.shift
+      rv = yield obj
+      @objects.push(obj)
+      rv
+    end
+  
+    def method_missing(*a, &b)
+      reserve do |obj|
+        obj.__send__(*a, &b)
+      end
+    end
+
+  end
+
 
   def self.establish_connection(options)
     remove_const(:Conn) if defined? Conn
@@ -155,24 +176,20 @@ module DB
   class SQLString < String
   end
 
-  @@mutex = Mutex.new
-
   # Isolation level can be 'READ COMMITTED' or 'SERIALIZABLE'.
   # Access mode can be 'READ WRITE' or 'READ ONLY'.
   def self.transaction(isolation_level='read committed', access_mode='read write')
-    @@mutex.synchronize do
-      begin
-        DB::Conn.exec('BEGIN')
-        DB::Conn.exec('SET TRANSACTION ISOLATION LEVEL '+isolation_level+' '+access_mode)
-        rv = yield
-        DB::Conn.exec('COMMIT')
-        rv
-      rescue TransactionRollback
-        return false
-      rescue
-        DB::Conn.exec('ROLLBACK')
-        raise
-      end
+    begin
+      DB::Conn.exec('BEGIN')
+      DB::Conn.exec('SET TRANSACTION ISOLATION LEVEL '+isolation_level+' '+access_mode)
+      rv = yield
+      DB::Conn.exec('COMMIT')
+      rv
+    rescue TransactionRollback
+      return false
+    rescue
+      DB::Conn.exec('ROLLBACK')
+      raise
     end
   end
 
@@ -279,6 +296,10 @@ module DB
 
     class << self
 
+      def conn
+        @conn ||= DB::Conn
+      end
+
       # Escapes +n+ as an SQL name.
       def escape n
         DBconn.escape(n.to_s).dump
@@ -312,7 +333,7 @@ module DB
         @@all_foreign_keys = Hash.new{|h,k| h[k] = Hash.new }
         @@all_joins = Hash.new{|h,k| h[k] = Hash.new{|i,l| i[l] = {}} }
         @@all_reverse_foreign_keys = Hash.new{|h,k| h[k] = Hash.new{|i,l| i[l] = {}} }
-        DB::Conn.exec(%Q(
+        conn.exec(%Q(
           SELECT a.relname, i.attname, b.relname,j.attname
           FROM pg_class a, pg_class b,pg_attribute i, pg_attribute j, pg_constraint
           WHERE conrelid = a.oid
@@ -344,7 +365,7 @@ module DB
 
       def gather_columns
         cols = Hash.new{|h,k| h[k] = {} }
-        DB::Conn.query("
+        conn.query("
           select relname, attname, typname
           from pg_type t, pg_attribute a, pg_class c
           WHERE c.oid = attrelid
@@ -442,13 +463,13 @@ module DB
       end
 
       def create(h)
-        i = DB::Conn.exec(%Q(SELECT nextval(#{quote( table_name + "_id_seq")}) ))[0][0].to_i
+        i = conn.exec(%Q(SELECT nextval(#{quote( table_name + "_id_seq")}) ))[0][0].to_i
         h[:id] = i
         sql = %Q[INSERT INTO #{escape table_name}
           (#{h.keys.map{|k| escape ground_column_name(k)}.join(",")})
           VALUES
           (#{h.values.map{|v| quote v}.join(",")})]
-        DB::Conn.exec(sql)
+        conn.exec(sql)
         #id(i)[0]
         new(i)
       end
@@ -458,13 +479,13 @@ module DB
           sql = %Q(
             DELETE FROM #{escape table_name}
             WHERE id = #{quote r.id})
-          DB::Conn.exec(sql)
+          conn.exec(sql)
         end
       end
 
       def delete_all(h={})
         unless (rs=find_all(h)).empty?
-          DB::Conn.exec(%Q(
+          conn.exec(%Q(
             DELETE FROM #{escape table_name}
             WHERE id in (#{ rs.map{|r| quote r.id}.join(",") })
           ))
@@ -473,7 +494,7 @@ module DB
 
       def count
         sql = "SELECT count(*) FROM #{escape table_name}"
-        DB::Conn.query(sql).to_s.to_i
+        conn.query(sql).to_s.to_i
       end
 
       def find(h={})
@@ -861,7 +882,7 @@ module DB
 
       def query(h={})
         q = parse_query h
-        DB::Conn.exec(q)
+        conn.exec(q)
       end
 
       def cast_quote(value, type)
@@ -922,7 +943,7 @@ module DB
     end
 
     delegate('self.class',
-             :quote, :escape,
+             :conn, :quote, :escape,
              :columns, :column?,
              :foreign_keys, :foreign_key?,
              :reverse_foreign_keys, :reverse_foreign_key?,
@@ -958,7 +979,7 @@ module DB
         SET #{escape c} = #{cast_quote(v, columns[c])}
         WHERE id = #{quote @id}
       )
-      DB::Conn.exec(q)
+      conn.exec(q)
       instance_variable_set("@#{c}",v)
     end
 
@@ -1035,7 +1056,7 @@ module DB
         eigenclass.__send__(:define_method,c) do |*a|
           if a.empty?
             data_type = columns[c]
-            DB::Conn.query(%Q(
+            conn.query(%Q(
               SELECT #{escape c}
               FROM #{escape table_name}
             )).flatten.map{|c| c.cast data_type }
@@ -1049,7 +1070,7 @@ module DB
                 }.join(" OR ")
               }
             )
-            DB::Conn.query(q).flatten.map{|i| new i }
+            conn.query(q).flatten.map{|i| new i }
           end
         end
       }

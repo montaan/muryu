@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <GL/gl.h>
 
 #define uint_32 unsigned long
 #define uint_64 unsigned long long
@@ -74,12 +75,50 @@ void row_layout
   *rindexes = indexes;
 }
 
+void tile_images_to_mesh
+(
+  uint_32 indexes_length, tile_image* indexes, uint_32 sz, uint_32 tex_sz,
+  GLfloat** vertex_array, GLfloat** texcoords
+)
+{
+  uint_32 i, j, k, tx, ty;
+  tile_image ti;
+  GLfloat *varr, *texc;
+  varr = (GLfloat*)malloc( sizeof(GLfloat)*indexes_length*4*3 );
+  texc = (GLfloat*)malloc( sizeof(GLfloat)*indexes_length*4*2 );
+  for(i=0; i<indexes_length; i++) {
+    ti = indexes[i];
+    j = i * 12;
+    k = i * 8;
+    tx = (i * sz) % tex_sz;
+    ty = (i * sz) / tex_sz;
+    varr[j+2] = varr[j+5] = varr[j+8] = varr[j+11] = 0.0f;
+    varr[j] = varr[j+3] = ti.x;
+    varr[j+6] = varr[j+9] = ti.x + sz;
+    varr[j+1] = varr[j+10] = ti.y;
+    varr[j+4] = varr[j+7] = ti.y + sz;
+    texc[k] = texc[k+2] = tx;
+    texc[k+4] = texc[k+6] = tx + sz;
+    texc[k+1] = texc[k+7] = ty;
+    texc[k+3] = texc[k+5] = ty + sz;
+  }
+  *vertex_array = varr;
+  *texcoords = texc;
+}
+
 int main(int argc, char** argv)
 {
   tile_image* indexes;
+  GLfloat* vertex_array;
+  GLfloat* texcoords;
   uint_32 indexes_length;
   int i;
-  for(i = 0; i < 100; i++)
+  for(i = 0; i < 100; i++) {
     row_layout(&indexes_length, &indexes, 0, 0, 1, 256, 256);
+    tile_images_to_mesh(indexes_length, indexes, 1, 512, &vertex_array, &texcoords);
+    free(texcoords);
+    free(vertex_array);
+    free(indexes);
+  }
   return 0;
 }
