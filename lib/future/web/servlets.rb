@@ -136,6 +136,7 @@ module FutureServlet
         user = Users.continue_session(@session_id)
       }
       cookie.instance_variable_set(:@discard, false)
+      cookie.max_age = 3600 * 24 * 7
       if !user or req.query['logout']
         user.logout if user
         cookie.instance_variable_set(:@discard, true)
@@ -152,7 +153,7 @@ module FutureServlet
       user = Users.login(un, pw, @session_id)
       if user
         new_cookie = WEBrick::Cookie.new('future_session_id', @session_id)
-        new_cookie.max_age = 3600
+        new_cookie.max_age = 3600 * 24 * 7
         new_cookie.path = "/"
         res.cookies << new_cookie
       end
@@ -418,11 +419,16 @@ module FutureServlet
   def do_json(req, res)
     res['Content-type'] = 'text/plain'
     if @servlet_target
-      res.body = columns.map{|c,cl| [c, @servlet_target[c]]}.to_hash.to_json
+      h = {}
+      columns.map{|c, cl|
+        h[c] = @servlet_target[c] unless servlet_invisible_column?(c)
+      }
+      res.body = h.to_json
     else
       objs = servlet_list_rows(req)
       cols = req.query['columns'].to_s.split(",") & columns.keys
       cols = columns.keys if cols.empty?
+      cols.delete_if?{|c| servlet_invisible_column?(c) }
       res.body = objs.map{|o|
         cols.map{|c| [c, o[c]] }.to_hash
       }.to_json
@@ -511,7 +517,7 @@ extend FutureServlet
     def do_view(req,res)
       res['Content-type'] = 'text/plain'
       x,y,z,w,h = Tile.parse_tile_geometry(@servlet_path)
-      res.body = Tiles.info(@servlet_user, @search_query, :rows, x, y, z, w, h).to_a.to_json
+      res.body = Tiles.info(@servlet_user, @search_query.merge(:columns => [:path]), :rows, x, y, z, w, h).to_a.to_json
     end
   
     def do_list(req,res)
@@ -525,25 +531,25 @@ extend FutureServlet
 
 end
 
-
-class Zogen
-extend FutureServlet
-
-  class << self
-    def servlet_modes
-      []
-    end
-
-    def do_list(req,res)
-      res.body = File.read("./html/zogen.html")
-    end
-
-    def do_view(req,res)
-      res.body = File.read("./html/rototype.js")
-    end
-  end
-
-end
+# 
+# class Zogen
+# extend FutureServlet
+# 
+#   class << self
+#     def servlet_modes
+#       []
+#     end
+# 
+#     def do_list(req,res)
+#       res.body = File.read("./html/zogen.html")
+#     end
+# 
+#     def do_view(req,res)
+#       res.body = File.read("./html/rototype.js")
+#     end
+#   end
+# 
+# end
 
 
 class Files
@@ -605,10 +611,15 @@ extend FutureServlet
     :path
   end
 
+  def self.servlet_invisible_columns
+    super | ['internal_path']
+  end
+
   def self.do_json(req,res)
     if @servlet_path =~ /^[0-9]+$/
       @servlet_target = rfind(@servlet_user, :image_index => @servlet_path)
     end
+    return false unless @servlet_target
     super
   end
 

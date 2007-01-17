@@ -3,11 +3,13 @@ require 'digest/sha1'
 
 module Future
 
+BACKGROUND_COLOR = Imlib2::Color::RgbaColor.new(14, 35, 56, 255)
 
 module Tiles
 extend self
 
   @@indexes = {}
+  @@infos = {}
 
   def open(user, query, *tile_args, &block)
     ### FIXME query optimization problematic (need to layout to get wanted spans,
@@ -35,7 +37,7 @@ extend self
       fn = Future.empty_tile
       unless fn.exist?
         img = Imlib2::Image.new(*tile_args[-2,2])
-        img.clear
+        img.fill_rectangle(0,0, img.width, img.height, BACKGROUND_COLOR)
         tmp = Future.tile_cache_dir + "tmptile-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.jpg"
         img.save(tmp.to_s)
         img.delete!(true)
@@ -51,14 +53,18 @@ extend self
 
   def info(user, query, *tile_args)
     ### FIXME Query optimization problematic (again.)
-    ###       Want to get a list of fields for the items, but don't want to do
-    ###       infos.map{|k,v| Items.find(:image_index => i, :columns => ...)}
-    ###       and Items.find_all(:image_index => infos.keys, :columns => ...)
-    ###       will likely run into query size limit.
     return {} if tile_args[1] < 0 or tile_args[2] < 0
-    indexes = (@@indexes[user.name + "::" + sanitize_query(query)] ||= Items.rfind_all(user, query.merge(:columns => [:image_index])).map{|i| i.image_index })
+    q = query.clone
+    q[:columns] ||= []
+    q[:columns] |= [:image_index]
+    indexes, iindexes = *(@@infos[user.name + "::" + sanitize_query(q)] ||= (
+      result = Items.rfind_all(user, q)
+      idxs = result.map{|r| r.image_index }
+      iidxs = result.map{|r| [r.image_index, (q[:columns] - [:image_index]).map{|c| [c, r[c]]}.to_hash ] }.to_hash
+      [idxs, iidxs]
+    ))
     infos = {}
-    TileDrawer.new.tile_info(indexes, *tile_args){|i, *a| infos[i] = a}
+    TileDrawer.new.tile_info(indexes, *tile_args){|i, *a| infos[i] = [a, iindexes[i]]}
     infos
   end
 
@@ -96,7 +102,7 @@ class TileDrawer
     end
     return false if empty_tile
     tile = Imlib2::Image.new(w,h)
-    tile.clear
+    tile.fill_rectangle(0,0, w, h, BACKGROUND_COLOR)
     @image_cache.batch do
       layouter.each(indexes, x, y, sz, w, h, *layouter_args) do |i, ix, iy|
         @image_cache.draw_image_at(i, zoom, tile, ix, iy)

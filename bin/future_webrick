@@ -56,7 +56,7 @@ class RootServlet < WEBrick::HTTPServlet::AbstractServlet
   end
 
   def pages
-    self.class.servlets.map{|c| underscorize(c) }
+    self.class.servlets.map{|c| underscorize(c) } + ["zogen"]
   end
 
   def root_page
@@ -84,7 +84,8 @@ include Future
 s = HTTPServer.new( :Port => 2000 )
 
 s.mount("/", RootServlet)
-# s.mount("/zogen", WEBrick::HTTPServlet::FileHandler, "./html")
+RootServlet.new(s).mount_servlets
+s.mount("/zogen", WEBrick::HTTPServlet::FileHandler, "./html")
 
 trap("INT"){ s.shutdown }
 s.start

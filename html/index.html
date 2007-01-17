@@ -61,6 +61,34 @@
         left: 0px;
         z-index:10;
       }
+      .infoLayer {
+        display: none;
+        background: url(/zogen/50_opacity_black.png);
+        position: absolute;
+        z-index: 8;
+        padding: 4px;
+        margin-left: 5px;
+        margin-top: 10px;
+        border: 1px solid grey;
+        color: white;
+        font-family: URW Gothic L;
+        font-weight: bold;
+        font-size: 10px;
+      }
+      .infoLayer h3 {
+        margin-top: 0px;
+        margin-bottom: 6px;
+      }
+      .infoText {
+        background: url(/zogen/50_opacity_black.png);
+        position: absolute;
+        z-index: 7;
+        color: white;
+        font-family: URW Gothic L;
+        font-weight: bold;
+        font-size: 10px;
+        overflow: hidden;
+      }
     </style>
     <script src="rototype.js"></script>
     <script>
@@ -99,6 +127,8 @@
           this.container.addEventListener("keypress", this.bind('keyHandler'), false)
           window.addEventListener("mousemove", this.bind('mousemoveHandler'), false)
           window.addEventListener("mouseup", this.bind('mouseupHandler'), false)
+          this.infoLayer = Elem('div', null, null, 'infoLayer')
+          this.view.appendChild(this.infoLayer)
         },
         
         initView : function(){
@@ -196,7 +226,7 @@
               tile.addEventListener("load",
                 function(){
                   this.style.visibility = 'visible'
-                  if (t.zoom >= 4) {
+                  if (t.zoom >= 5) {
                     postQuery(t.tileInfoURL + tileQuery, t.query,
                       function(res){
                         tile.info = eval(res.responseText)
@@ -204,14 +234,46 @@
                           var ti = Elem('a')
                           ti.style.position = 'absolute'
                           ti.style.display = 'block'
-                          ti.style.left = i[1][0] + 'px'
-                          ti.style.top = i[1][1] + 'px'
-                          ti.style.width = i[1][2] + 'px'
-                          ti.style.height = i[1][2] + 'px'
-                          ti.href = "/files/" + i[0]
+                          ti.style.left = i[1][0][0] + 'px'
+                          ti.style.top = i[1][0][1] + 'px'
+                          ti.style.width = i[1][0][2] + 'px'
+                          ti.style.height = i[1][0][2] + 'px'
+                          ti.href = "/files/" + i[1][1].path
+                          ti.infoObj = i
                           ti.addEventListener("click", t.linkClick(), false)
+                          ti.addEventListener("mousedown", t.linkDown, false)
                           ti.style.zIndex = 2
-                          try{ tile_cont.appendChild(ti) } catch(e) {}
+                          if (t.zoom == 7) {
+                            var info = ti.info = Elem('div')
+                            info.style.mergeD({
+                              position: 'absolute',
+                              zIndex: 6,
+                              left: ti.style.left,
+                              top: ti.style.top
+                            })
+                            var info_text = Elem('div', null, null, 'infoText')
+                            info_text.style.mergeD({
+                              left: ti.style.left,
+                              top: (parseInt(ti.style.top) + parseInt(ti.style.height) - 16) + 'px',
+                              width: ti.style.width,
+                              height: '16px'
+                            })
+                            info_text.innerHTML = ti.infoObj[1][1].path.split("/").last()
+                            var emblems = ['e', 'euro', 'location']
+                            emblems.each(function(n){
+                              if (Math.random() < 0.7) return
+                              var el = Elem('img')
+                              el.style.display = 'block'
+                              el.src = '/zogen/' + n + '_16.png'
+                              el.style.margin = '1px'
+                              info.appendChild(el)
+                            })
+                          }
+                          try{
+                            tile_cont.appendChild(ti)
+                            tile_cont.appendChild(info)
+                            tile_cont.appendChild(info_text)
+                          } catch(e) {}
                         })
                       }
                     )
@@ -228,37 +290,58 @@
           }
         },
 
+        linkDown : function(e) {
+          this.downX = e.clientX
+          this.downY = e.clientY
+        },
+
         linkClick : function() {
           var t = this
           return function(e) {
             if (e.button == 0 && !(e.ctrlKey || e.altKey || e.shiftKey)) {
-              if (!this.info) {
-                var info = this.info = Elem('div')
-                info.style.mergeD({
-                  position: 'absolute',
-                  backgroundColor: '#13161B',
-                  color: '#93969B',
-                  padding: '10px',
-                  opacity: 0.85,
-                  zIndex: 6,
-                  left: e.layerX + parseInt(this.style.left) + 'px',
-                  top: e.layerY + parseInt(this.style.top) + 'px'
-                })
-                this.parentNode.appendChild(info)
-                postQuery(t.itemInfoURL + this.href.split("/").last() + t.itemInfoSuffix, '',
+              e.preventDefault()
+              if ((Math.abs(e.clientX - this.downX) > 3) &&
+                  (Math.abs(e.clientY - this.downY) > 3)) {
+                return false
+              }
+              if (!this.fullInfo) {
+                var th = this
+                var x = e.layerX + parseInt(this.style.left) + parseInt(this.parentNode.style.left)
+                var y = e.layerY + parseInt(this.style.top) + parseInt(this.parentNode.style.top)
+                postQuery(t.itemInfoURL + this.infoObj[1][1].path + t.itemInfoSuffix, '',
                   function(res) {
                     eval("var obj = " + res.responseText)
-                    info.innerHTML = ['owner_id', 'path', 'source'].map(function(k){
-                      return k + ": " + obj[k]
-                    }).join("<br/>")
+                    th.fullInfo = obj
+                    t.showInfoLayer(x, y, th.fullInfo)
                   }
                 )
+              } else if (t.infoLayerData != this.fullInfo){
+                var x = e.layerX + parseInt(this.style.left) + parseInt(this.parentNode.style.left)
+                var y = e.layerY + parseInt(this.style.top) + parseInt(this.parentNode.style.top)
+                t.showInfoLayer(x, y, this.fullInfo)
+              } else {
+                t.hideInfoLayer()
               }
-              this.info.style.display = (this.info.style.display != 'block' ? 'block' : 'none')
-              e.preventDefault()
               return false
             }
           }
+        },
+
+        showInfoLayer : function(x,y,info) {
+          this.infoLayerData = info
+          this.infoLayer.innerHTML = ''
+          this.infoLayer.appendChild(Elem('h3', info.path))
+          var i = Elem('img')
+          i.src = '/files/' + info.path
+          this.infoLayer.appendChild(i)
+          this.infoLayer.style.left = x + 'px'
+          this.infoLayer.style.top = y + 'px'
+          this.infoLayer.style.display = 'block'
+        },
+
+        hideInfoLayer : function() {
+          this.infoLayerData = false
+          this.infoLayer.style.display = 'none'
         },
         
         pan : function(x,y,e){

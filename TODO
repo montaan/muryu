@@ -15,6 +15,9 @@ High priority (vital for utility / business):
 
 * view user items, groups, etc.
 
+* replace crystal icons (globe emblem, mimetypes) with own versions (but in case
+  they're free to use, this becomes low priority)
+
 * listing related items for an item
 * listing related buyables and auctions for an item
   (amazon, allposters, art.com, ebay)
