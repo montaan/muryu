@@ -79,6 +79,12 @@
         margin-top: 0px;
         margin-bottom: 6px;
       }
+      .infoLayer img {
+        vertical-align: middle;
+      }
+      .infoLayer div {
+        background: #13161B;
+      }
       .infoText {
         background: url(/zogen/50_opacity_black.png);
         position: absolute;
@@ -88,6 +94,10 @@
         font-weight: bold;
         font-size: 10px;
         overflow: hidden;
+      }
+      .infoLink {
+        color: white;
+        margin-left: 4px;
       }
     </style>
     <script src="rototype.js"></script>
@@ -239,6 +249,7 @@
                           ti.style.width = i[1][0][2] + 'px'
                           ti.style.height = i[1][0][2] + 'px'
                           ti.href = "/files/" + i[1][1].path
+                          ti.emblems = []
                           ti.infoObj = i
                           ti.addEventListener("click", t.linkClick(), false)
                           ti.addEventListener("mousedown", t.linkDown, false)
@@ -259,12 +270,16 @@
                               height: '16px'
                             })
                             info_text.innerHTML = ti.infoObj[1][1].path.split("/").last()
-                            var emblems = ['e', 'euro', 'location']
+                            var emblems = [
+                              ['e', 'FUNNY HATS!! - £4.99 from eBay.co.uk'],
+                              ['euro', 'Rocket Ship - 8.49€ from Amazon.de'],
+                              ['location', 'Bavaria, Germania']]
                             emblems.each(function(n){
                               if (Math.random() < 0.7) return
+                              ti.emblems.push(n)
                               var el = Elem('img')
                               el.style.display = 'block'
-                              el.src = '/zogen/' + n + '_16.png'
+                              el.src = '/zogen/' + n[0] + '_16.png'
                               el.style.margin = '1px'
                               info.appendChild(el)
                             })
@@ -311,7 +326,7 @@
                 postQuery(t.itemInfoURL + this.infoObj[1][1].path + t.itemInfoSuffix, '',
                   function(res) {
                     eval("var obj = " + res.responseText)
-                    th.fullInfo = obj
+                    th.fullInfo = obj.merge({emblems: th.emblems})
                     t.showInfoLayer(x, y, th.fullInfo)
                   }
                 )
@@ -329,8 +344,20 @@
 
         showInfoLayer : function(x,y,info) {
           this.infoLayerData = info
+          var infoLayer = this.infoLayer
           this.infoLayer.innerHTML = ''
           this.infoLayer.appendChild(Elem('h3', info.path))
+          info.emblems.each(function(n){
+            var d = Elem('div')
+            var a = Elem('a', n[1], null, 'infoLink')
+            a.href = n[1]
+            var el = Elem('img')
+            el.style.display = 'inline'
+            el.src = '/zogen/' + n[0] + '_32.png'
+            d.appendChild(el)
+            d.appendChild(a)
+            infoLayer.appendChild(d)
+          })
           var i = Elem('img')
           i.src = '/files/' + info.path
           this.infoLayer.appendChild(i)
