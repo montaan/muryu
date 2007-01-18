@@ -27,6 +27,20 @@ function Rg(s,e){
   return R(s,e+1)
 }
 
+function $S(selname)
+{
+  var sheets = document.styleSheets
+  for (i=0; i<sheets.length; i++)
+  {
+    var rules = sheets[i].cssRules
+    if (!rules) continue
+    for (j=0; j<rules.length; j++)
+      if (rules[j].selectorText == selname)
+        return rules[j]
+  }
+  return null
+}
+
 Enumerable = {
   mergeD : function(other){
     for (var i in other)

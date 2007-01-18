@@ -488,7 +488,7 @@ end
 Revised plan (random access rules the day):
 
 1. create layout in C (query spans, vertex array and texture coords)
-2. do db query to get the list of image indexes for the spans
+2. do db query to get the list of image indexes for the spans (whole screen :?)
 3. create 512x512 texture on the vidcard, this'll contain all the item thumbs
 4. split image_indexes in disk_count lists of (layout_index,image_index)-tuples,
    so that each list consists of contiguous image_indexes

@@ -626,6 +626,44 @@ extend FutureServlet
 end
 
 
+class Thumbnails
+extend FutureServlet
+
+  class << self
+  
+    def table_name
+      'thumbnails'
+    end
+
+    def do_list(req, res)
+      return false
+    end
+
+    def do_view(req, res)
+      if @servlet_path =~ /^[0-9]+$/
+        item = Items.rfind(@servlet_user, :image_index => @servlet_path)
+      else
+        item = Items.rfind(@servlet_user, :path => @servlet_path)
+      end
+      if item
+        res['Content-type'] = 'image/png'
+        res.body = item.thumbnail.read
+      else
+        res['Content-type'] = 'text/html'
+        res.body = "<html><body> File not found </body></html>"
+        res.status = 404
+      end
+    end
+    
+    def servlet_modes
+      []
+    end
+
+  end
+
+end
+
+
 class Users
 extend FutureServlet
 

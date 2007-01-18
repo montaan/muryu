@@ -8,13 +8,17 @@
       #currentLocation {
         z-index: 10;
         position:absolute;
-        text-align: right;
         left: 0px;
         top: 0px;
-        margin-right: 2px;
-      }
-      #currentLocationLink {
+        height: 16px;
+        width: 100%;
+        padding-bottom: 2px;
+        padding-top: 0px;
         background: black;
+        color: #99969B;
+        text-indent: 2px;
+      }
+      #currentLocation a {
         color: #99969B;
       }
       input { display:block; }
@@ -23,7 +27,7 @@
         position:absolute;
         background: #33363B;
         left:0px;
-        top: 0px;
+        top: 18px;
         width: 700px;
         height: 600px;
         overflow:hidden;
@@ -69,7 +73,6 @@
         padding: 4px;
         margin-left: 5px;
         margin-top: 10px;
-        border: 1px solid grey;
         color: white;
         font-family: URW Gothic L;
         font-weight: bold;
@@ -83,7 +86,7 @@
         vertical-align: middle;
       }
       .infoLayer div {
-        background: #13161B;
+        background: url(/zogen/80_opacity_black.png);
       }
       .infoText {
         background: url(/zogen/50_opacity_black.png);
@@ -98,6 +101,14 @@
       .infoLink {
         color: white;
         margin-left: 4px;
+      }
+      .info {
+        position: absolute;
+        z-index: 6;
+      }
+      .itemLink {
+        display: block;
+        position: absolute;
       }
     </style>
     <script src="rototype.js"></script>
@@ -121,6 +132,8 @@
         maxZoom : 7,
         tileSize : 256,
         title : 'zogen',
+        loadLinks : true,
+        createLinks : true,
         tileURL : '/tile/',
         tileInfoURL : '/tile_info/',
         itemInfoURL : '/items/',
@@ -236,14 +249,39 @@
               tile.addEventListener("load",
                 function(){
                   this.style.visibility = 'visible'
-                  if (t.zoom >= 5) {
+                  if (t.zoom >= 5 && t.loadLinks) {
                     postQuery(t.tileInfoURL + tileQuery, t.query,
                       function(res){
                         tile.info = eval(res.responseText)
+                        /*
+                          Instead of many links, switch to fast (but complex)
+                          mouse-following link system. Put tile infos into
+                          grid-indexed 2D array, modulo mouse coords to grid
+                          coords.
+
+                          At far detail (64x64 and 128x128), bake
+                          the emblems and item texts into the tiles.
+                          Text seems to be the slowest thing to draw.
+                          ( this is also true for server-side drawing :| )
+
+                          Why?
+                            Firefox doesn't like moving elements around,
+                            so minimizing the amount of stuff it does need to
+                            move makes the whole thing snappier.
+                          
+                          init:
+                            itemCoords = {}
+                            itemCoords[info.x] ||= {}
+                            itemCoords[info.x][info.y] ||= newLink(info)
+
+                          mousemove:
+                            col = itemCoords[mouse_x - (mouse_x % sz)]
+                            if (col) item = col[mouse_y - (mouse_y % sz)]
+                            itemLink.href = "/files/" + item.path
+                        */
                         tile.info.each(function(i){
-                          var ti = Elem('a')
-                          ti.style.position = 'absolute'
-                          ti.style.display = 'block'
+                          if (!t.createLinks) return false
+                          var ti = Elem('a', null, null, 'itemLink')
                           ti.style.left = i[1][0][0] + 'px'
                           ti.style.top = i[1][0][1] + 'px'
                           ti.style.width = i[1][0][2] + 'px'
@@ -255,10 +293,8 @@
                           ti.addEventListener("mousedown", t.linkDown, false)
                           ti.style.zIndex = 2
                           if (t.zoom == 7) {
-                            var info = ti.info = Elem('div')
+                            var info = ti.info = Elem('div', null, null, 'info')
                             info.style.mergeD({
-                              position: 'absolute',
-                              zIndex: 6,
                               left: ti.style.left,
                               top: ti.style.top
                             })
@@ -473,8 +509,8 @@
     
     <script>
       window.addEventListener("load",function(){
-        $('zogen').style.width = window.innerWidth + 'px'
-        $('zogen').style.height = window.innerHeight + 'px'
+        $('zogen').style.width = window.innerWidth - parseInt($('zogen').computedStyle().left) + 'px'
+        $('zogen').style.height = window.innerHeight - parseInt($('zogen').computedStyle().top) + 'px'
         var config = {
           container: $('zogen'),
           currentLocation : $('currentLocationLink'),
@@ -489,17 +525,33 @@
         var z = window.zogen = new Portal(config)
         window.onkeypress = function(e){ z.keyHandler(e) }
         window.onresize = function(){
-          z.container.style.width = window.innerWidth + 'px'
-          z.container.style.height = window.innerHeight + 'px'
+          z.container.style.width = window.innerWidth - parseInt(z.container.computedStyle().left) + 'px'
+          z.container.style.height = window.innerHeight - parseInt(z.container.computedStyle().top) + 'px'
           z.updateTiles()
         }
       },false)
+
+      function toggleCSSDisplay(selector) {
+        var s = $S(selector)
+        var d = s.style.display
+        if (d && d == 'none') {
+          s.style.display = 'block'
+        } else {
+          s.style.display = 'none'
+        }
+      }
     </script>
   </head>
 
   <body>
     <div id="currentLocation">
       <a id="currentLocationLink" href="zogen.html#x0y0z2">Link here</a>
+      | Toggle [
+        <a href="javascript:void(window.zogen.loadLinks = !window.zogen.loadLinks)">info loading</a>
+      | <a href="javascript:void(window.zogen.createLinks = !window.zogen.createLinks)">info element creation</a>
+      | <a href="javascript:toggleCSSDisplay('.info')">emblems</a>
+      | <a href="javascript:toggleCSSDisplay('.infoText')">filename</a>
+      | <a href="javascript:toggleCSSDisplay('.itemLink')">links</a> ]
     </div>
     <div id="zogen">
     </div>

@@ -84,8 +84,8 @@ void tile_images_to_mesh
   uint_32 i, j, k, tx, ty;
   tile_image ti;
   GLfloat *varr, *texc;
-  varr = (GLfloat*)malloc( sizeof(GLfloat)*indexes_length*4*3 );
-  texc = (GLfloat*)malloc( sizeof(GLfloat)*indexes_length*4*2 );
+  varr = (GLfloat*)malloc( sizeof(GLfloat)*indexes_length*4*3 ); /* 4 3D points */
+  texc = (GLfloat*)malloc( sizeof(GLfloat)*indexes_length*4*2 ); /* 4 2D points */
   for(i=0; i<indexes_length; i++) {
     ti = indexes[i];
     j = i * 12;
