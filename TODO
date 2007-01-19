@@ -63,6 +63,10 @@ Medium priority (improves use experience / codebase):
     - already getting title
   - subportals behave like windows
 
+* IE compatibility
+* Safari / Konqueror compatibility
+* Opera compatibility
+
 * Color items by type / source / set / author / poster / other metadata
 
 * Tests for dbconn #parse_query

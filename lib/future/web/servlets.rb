@@ -135,12 +135,14 @@ module FutureServlet
         @session_id = cookie.value
         user = Users.continue_session(@session_id)
       }
-      cookie.instance_variable_set(:@discard, false)
-      cookie.max_age = 3600 * 24 * 7
-      if !user or req.query['logout']
-        user.logout if user
-        cookie.instance_variable_set(:@discard, true)
-        user = nil
+      if cookie
+        cookie.instance_variable_set(:@discard, false)
+        cookie.max_age = 3600 * 24 * 7
+        if !user or req.query['logout']
+          user.logout if user
+          cookie.instance_variable_set(:@discard, true)
+          user = nil
+        end
       end
       res.cookies.push *cookies
     end
@@ -577,6 +579,9 @@ extend FutureServlet
     end
   end
 
+  def self.do_list(req,res)
+  end
+
   def self.do_view(req, res)
     if @servlet_path =~ /^[0-9]+$/
       item = Items.rfind(@servlet_user, :image_index => @servlet_path)
@@ -623,6 +628,9 @@ extend FutureServlet
     super
   end
 
+  def self.do_list(req,res)
+  end
+
 end
 
 
@@ -636,7 +644,6 @@ extend FutureServlet
     end
 
     def do_list(req, res)
-      return false
     end
 
     def do_view(req, res)

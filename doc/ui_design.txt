@@ -11,9 +11,30 @@ Provide a powerful and usable API for extending future's capabilities.
 The killer app of a filesystem is making it simpler to write programs that
 handle files. The killer apps of a file manager are making it simpler to write
 programs where people handle files and making it simpler for people to handle
-files.
+files (e.g. sort by date, select items from 4 to 28, copy them to another
+folder = ls -t | head -n 28 | tail -n 24 | xargs cp -t destdir)
 
 ~Where a programmer uses a language, non-programmer uses an application.~
+
+
+
+The cast
+--------
+
+Claus is a 40-year-old man from München. He speaks native German and
+not-so-good English. An electrician by profession, he works in a small
+construction firm, doing wiring for buildings. Hobbies include model trains.
+Wife Beatrice (38), daughter Catherine (15).
+
+Pjotr is a 14-year-old VWO student from Eindhoven. Speaks native Dutch,
+not-so-good German and passing English. Builds model trains and is a military
+otaku. Plays WoW and airsoft. Fights with his 16-yo brother.
+Mother 45, father 44.
+
+Paula is a 28-year-old woman from Torino. Works as a photographer at an ad
+agency. Does rock climbing on her time off. Travels quite a bit to do shoots.
+Likes renaissance architecture and dancing. Lives together with her boyfriend
+Carlo (31, product designer) and dog.
 
 
 Utility
@@ -27,6 +48,18 @@ Utility
   - first pick the good ones, then do side-by-side comparisons to drop the
     not-best ones, then do side-by-side comparisons between the best to find
     the very best one
+
+- Schedule:
+  - move things to the to-read list by clicking the read emblem on them
+    - to-read list calculates the total time it takes to read through all and
+      shows it to you
+    - "read" is a bit of a misnomer, since the to-read list can contain any sort
+      of items
+    - to-read list can split itself into n-hour chunks to schedule your reading
+      across several days
+  - when you start reading a document, it is moved to "currently reading"
+  - when you finish reading, you tick the "completed" or "skipped" -box to move
+    it to one of those sets
 
 
 Fun
