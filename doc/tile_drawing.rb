@@ -487,17 +487,15 @@ end
 
 Revised plan (random access rules the day):
 
-1. create layout in C (query spans, vertex array and texture coords)
+0. cache all zoom level layout meshes on the vidcard as VBOs
+1. create layout in C (query spans) and a 512x512 empty texture
 2. do db query to get the list of image indexes for the spans (whole screen :?)
-3. create 512x512 texture on the vidcard, this'll contain all the item thumbs
-4. split image_indexes in disk_count lists of (layout_index,image_index)-tuples,
+3. split image_indexes in disk_count lists of (layout_index,image_index)-tuples,
    so that each list consists of contiguous image_indexes
-5. assign each list to a different disk, go through the lists with select
-   (async reads, serialized upload to vidcard)
-6. whenever a read finishes, upload it to the vidcard using glTexSubImage
-   (coords: x = layout_index % (512/sz), y = layout_index / (512/sz))
-7. when all reads are done, draw the layout
-8. read image from framebuffer, save as jpeg, send to browser
+4. assign each list to a different disk, go through the list doing async reads
+5. whenever a read finishes, update the texture by memcpying the image there
+6. when all reads are done, upload the texture and draw the layout
+7. read image from framebuffer, save as jpeg, send to browser
 
 m = Model.new
 geo = Geometry.new

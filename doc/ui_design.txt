@@ -15,8 +15,12 @@ Target market
 
 Relatively savvy with computers, uses Firefox as browser, has a large amount of
 files. Collects and shares good things with other people. Has or attracts
-enough disposable income to keep us afloat :)
+enough disposable income to keep us afloat.
 
+Benefits from using future, gets richer as result, which brings more profit.
+A surefire way to make people richer is by letting them see farther into the
+future, which is achieved by providing correct information and computation to
+simulate the range of possible outcomes.
 
 The cast
 --------
@@ -43,7 +47,7 @@ architecture and dancing. Lives together with her boyfriend Carlo (31) and dog.
 Spendable money 2000 euros a month.
 
 Web developer:
-Scott is a 23-year-old man from Dallas. Speaks native English and a little
+Thomas is a 23-year-old man from Dallas. Speaks native English and a little
 Spanish. BSc in CS. Works as a web developer at a website agency. Writes and
 supports Rails-based websites for SMEs. Jogs and swims, hits the bars with his
 friends every Friday. Single.
@@ -68,8 +72,21 @@ Utility
 -------
 
 - Claus and Pjotr have listings of their model train cars on future. Both have
-  several copies of some cars and a list of wanted cars. Find possible trades.
+  several copies of some cars and a list of wanted cars. Claus wants to find
+  out if he has something to trade with Pjotr, and maybe go ahead with the
+  trade if there is.
   - claus.wanted & pjotr.dupes, pjotr.wanted & claus.dupes
+  - what might be a good way:
+    Claus:
+    1. adds Pjotr's dupes and wanted sets to his clipboard.
+    2. navigates to his own wanted and dupe lists.
+    3. selects Pjotr's dupes and Claus's wanted and clicks "Find Similar",
+       does the same for Claus's dupes and Pjotr's wanted.
+    4. looks through the resulting two new sets.
+    5. If Claus finds something interesting, he sends a message to Pjotr.
+  - competition: http://gametz.com
+  - can we really help: yes
+  - do we want to: yes, the functionality is useful for other purposes as well
 
 - Laura wants to find the best photograph from a series to send it to the art
   director for the new Fiat ad
@@ -89,6 +106,10 @@ Utility
        or select the AD's email addy from the contact list and send it that way
        or select the AD's future account from the contact list and send it there
     9. move on to the next task
+  - competition: Capture One, Adobe Lightroom, Apple Aperture, iPhoto, flickr
+  - can we really help: doubtful, usually all photo on local HD, gigabytes of
+    photos, JPEG compression no-no
+  - do we want to: no, leave to extension writers
 
 - Reading schedule
   - organize reading into what is planned to read, what is currently reading
@@ -103,6 +124,43 @@ Utility
   - when you start reading a document, it is moved to "currently reading"
   - when you finish reading, you tick the "completed" or "skipped" -box to move
     it to one of those sets
+
+(11:06:37) supermoerkt@gmail.com: skenario of transcrircb: 
+bob the builder of build little dog hut, little steel birdbath, such in garage. bob want help with plan, gather his gang at future to confer on action plans! bob notices he lacks supplies, tools and knowhow! BLUTURE CAN HELP! bluture gather toolauctions from ebay and handicraft guides howto from amazon and aggregate related link for bob to make his birdbath utopia come true!
+
+(11:08:34) supermoerkt@gmail.com: skenario of transcrirb:
+tina the traveller wants to summer! in winter! uses tag search for destinate of summer, looks pictures of HMM YES THERE!, wonders about possibilites? BLUTURE CAN HELP! aggregate lastminute flyery, map, weathersite info, travelguide on locations, such, generate the profit through buy of such thing!
+
+11:20:19) bob: o, so <bob> HALP I HAVE BIRD PLAN IT HERE : 1) hammer 2) birdbath 3) done how do i? thi s internet is difficult
+(11:20:30) supermoerkt@gmail.com: YES!!
+(11:20:45) bob: <bobs> O YOU NEED TO BUY HAMMER AND STEEL AND NAILS here links 
+(11:20:52) supermoerkt@gmail.com: bluture give: BIG BOOK OF BIRDBATHS link, BIG HAMER BUY link
+(11:20:59) supermoerkt@gmail.com: yes YES
+(11:21:01) supermoerkt@gmail.com: EXACTLY THAT
+(11:21:50) supermoerkt@gmail.com: seeing how craftiman also do sometimes little too hard project of MANY BOOK and MANY SUPPLY needed (restorate old car, old house, such) -> profit skyrocket
+(11:22:03) bob: so it kinda human frontend to google etc, good system
+(11:22:04) supermoerkt@gmail.com: also seeing how craftiman numerous like fly
+(11:22:16) bob: little like wikki too
+(11:22:34) supermoerkt@gmail.com: also thought: if replace "bob" with "susan" and "builder" with "seamstress" and "birdbath" with "woolen jacket", have ANOTHER skenario
+(11:22:43) supermoerkt@gmail.com: of knitpattern and sewpattern and stitchpattern aggregate
+(11:22:51) supermoerkt@gmail.com: and stitchmachine book and tipdrivel
+(11:22:55) supermoerkt@gmail.com: and stitchmachine ebay
+(11:23:11) supermoerkt@gmail.com: GOOD YES?!
+(11:23:29) supermoerkt@gmail.com: driving future like icebreaker through barren hell of 9to5 grunts' pastimes
+(11:24:04) supermoerkt@gmail.com: TARGET GROUP: 45y-o yrjö the metalworker and kaisa the shop cashier
+(11:24:05) bob: good, but need forum system or such to organize and connect people
+(11:24:55) supermoerkt@gmail.com: too complicated 
+need function of bob shout at the computer, future encode to ALAW852 wav of 0.1kb, future SHOUT AT ALL OTHER BOBS!!!!!!!!!!
+(11:25:47) supermoerkt@gmail.com: <bob> HEY GUYS WHAT YOU THINK HAMER <future> record, encode, store, decode, playback: HAY GUYS!!!!!!!!!!!!!!! *CRACKLE FIZZ* <other bobs> :]___] hey it's bob 
+(11:26:22) supermoerkt@gmail.com: nhhh
+(11:26:31) supermoerkt@gmail.com: ham radio style future OY
+(11:26:37) supermoerkt@gmail.com: of the communication is severe
+(11:26:53) bob: yes it good, teamspäk like
+(11:26:59) bob: of everyone know how to because WOW
+(11:27:05) bob: of everyone WOW
+(11:27:19) supermoerkt@gmail.com: yes you GOOD EXACTLY THAT
+(11:30:00) bob: so it appears very much need for topical collections over which talk with other people
+(11:30:17) bob: or groups that have topical collections
 
 
 Fun
