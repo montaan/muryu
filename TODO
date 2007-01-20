@@ -120,6 +120,16 @@ Low priority (would be nice / possible):
 * special thumbnail handling for multipage docs: big header page with all doc
   pages on the side as tiny, zoom in to read
 
+* Widgets; have a way to add custom snippets of HTML and JS to the page
+  - examples
+    - GMail+GTalk widget for sending links and items to friends
+      with a single click, received links in sidebar
+    - imageshack widget for uploading an item to imageshack for embedding in a
+      forum post
+  - outsource services that we don't want to do
+  - promote good ones
+  - like firefox extensions
+
 * media player for augen sidebar (i.e. musica.js + flash component for playing)
 
 * shoutcast stream of owner's music files at the wanted bitrate (high br when

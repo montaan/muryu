@@ -7,34 +7,61 @@ Utility trumps business model. If you can't make profit while providing maximum
 utility, change your business model before someone else does it for you.
 (I.e. don't be like the copy industry.)
 
-Provide a powerful and usable API for extending future's capabilities.
-The killer app of a filesystem is making it simpler to write programs that
-handle files. The killer apps of a file manager are making it simpler to write
-programs where people handle files and making it simpler for people to handle
-files (e.g. sort by date, select items from 4 to 28, copy them to another
-folder = ls -t | head -n 28 | tail -n 24 | xargs cp -t destdir)
+Provide a powerful and usable API for creating mashups.
 
-~Where a programmer uses a language, non-programmer uses an application.~
 
+Target market
+-------------
+
+Relatively savvy with computers, uses Firefox as browser, has a large amount of
+files. Collects and shares good things with other people. Has or attracts
+enough disposable income to keep us afloat :)
 
 
 The cast
 --------
 
-Claus is a 40-year-old man from München. He speaks native German and
+Not savvy collector:
+Claus is a 50-year-old man from München. He speaks native German and
 not-so-good English. An electrician by profession, he works in a small
 construction firm, doing wiring for buildings. Hobbies include model trains.
-Wife Beatrice (38), daughter Catherine (15).
+Wife Beatrice (42), daughter Catherine (15).
+Spendable money 1500 euros a month.
 
+Savvy collector:
 Pjotr is a 14-year-old VWO student from Eindhoven. Speaks native Dutch,
 not-so-good German and passing English. Builds model trains and is a military
-otaku. Plays WoW and airsoft. Fights with his 16-yo brother.
+otaku. Plays WoW and airsoft. Listens to Manowar. Fights with his 16-yo brother.
 Mother 45, father 44.
+Spendable money 50 euros a month.
 
-Paula is a 28-year-old woman from Torino. Works as a photographer at an ad
-agency. Does rock climbing on her time off. Travels quite a bit to do shoots.
-Likes renaissance architecture and dancing. Lives together with her boyfriend
-Carlo (31, product designer) and dog.
+Photographer:
+Laura is a 28-year-old woman from Torino. Speaks native Italian and good
+French and English. Works as a photographer at an ad agency. Does rock climbing
+on her time off. Travels quite a bit to do shoots. Likes renaissance
+architecture and dancing. Lives together with her boyfriend Carlo (31) and dog.
+Spendable money 2000 euros a month.
+
+Web developer:
+Scott is a 23-year-old man from Dallas. Speaks native English and a little
+Spanish. BSc in CS. Works as a web developer at a website agency. Writes and
+supports Rails-based websites for SMEs. Jogs and swims, hits the bars with his
+friends every Friday. Single.
+Spendable money 3000 euros a month.
+
+Engineer:
+Heather is a 35-year-old woman from Seattle. Speaks native Urdu and fluent
+English. PhD in aerodynamics. Manages a R&D team at a turbine manufacturer.
+Plays cello in a string quartet. Likes dining out. Visits her family in India
+twice a year. Lives with her husband James (32).
+Spendable money 5000 euros a month.
+
+Unemployed:
+Mitsuki is a 20-year-old woman from Osaka. Speaks native Japanese. NEET. Lives
+with her parents. Likes watching movies, surfing the web and hanging out with
+friends.
+Spendable money 300 euros a month.
+
 
 
 Utility
@@ -44,12 +71,28 @@ Utility
   several copies of some cars and a list of wanted cars. Find possible trades.
   - claus.wanted & pjotr.dupes, pjotr.wanted & claus.dupes
 
-- Paula the photographer wants to find the best photograph from a series
+- Laura wants to find the best photograph from a series to send it to the art
+  director for the new Fiat ad
   - first pick the good ones, then do side-by-side comparisons to drop the
     not-best ones, then do side-by-side comparisons between the best to find
     the very best one
+  - what might be a good way:
+    1. zoom to the wanted series in the series list
+    2. zoom in to view the photos in medium detail
+    3. click on good ones to add them to the selection
+    4. make selection area fill the screen
+    5. add two slideshows over the selection area
+    6. remove the not-best ones from the selection by looking at the selection
+       view and comparing photos using the slideshows
+    7. find the very best one by comparing photos using the slideshow
+    8. email the best photo to the AD by dragging it to the email app
+       or select the AD's email addy from the contact list and send it that way
+       or select the AD's future account from the contact list and send it there
+    9. move on to the next task
 
-- Schedule:
+- Reading schedule
+  - organize reading into what is planned to read, what is currently reading
+    what has already read, what didn't bother to read
   - move things to the to-read list by clicking the read emblem on them
     - to-read list calculates the total time it takes to read through all and
       shows it to you
@@ -90,3 +133,10 @@ Relaxation
 
 - Beatrice plays Massive Attack and views a slideshow of Provence landscape
   photos while sipping tea.
+
+
+Profit
+------
+
+- show number of buyable item bought to create sense of safety
+- track and promote profitable items
