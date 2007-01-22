@@ -1,0 +1,175 @@
+#!/usr/bin/env ruby
+
+if ARGV.size > 0
+  at_exit{ load(ARGV[0]) }
+else
+  at_exit {
+    FutureData.generate do
+      total_users 500
+      items_per_user(10..100) # no block given: uniform
+      groups 10
+      public_groups 80  # percentage
+      group_size(2..200)
+      public_item_rate  60  # percentages
+      shared_item_rate  10
+      private_item_rate 20
+    end
+  }
+end
+
+class Array
+  def random_element; self[rand(self.size)] end
+end
+
+class FutureData
+
+  def self.generate(&block)
+    o = new
+    o.instance_eval(&block)
+    o.execute
+  end
+
+  DEFAULT_OPTIONS = {
+    :total_users => 10,
+    :items_per_user => 2..10,
+    :groups => 50,
+    :group_size => 2..10,
+    :public_groups => 50,
+    :public_item_rate => 60,
+    :shared_item_rate => 10,
+    :private_item_rate => 20,
+  }
+  def initialize(options = {})
+    options = DEFAULT_OPTIONS.merge(options)
+    DEFAULT_OPTIONS.each_key{|k| instance_variable_set("@#{k}", options[k])}
+    @public_group_id = nil
+    @user_groups = Hash.new{|h,k| h[k] = []}
+    @item_id = 1
+    @item_groups = []
+  end
+
+  DEFAULT_OPTIONS.each_key do |meth|
+    define_method(meth){|k| instance_variable_set("@#{meth}", k)}
+  end
+
+  def execute
+    create_users
+    create_groups
+    populate_groups
+    create_mimetypes
+    create_bogus_metadata
+    upload_items
+  end
+
+  private
+
+  def output(*args)
+    puts args.join("\t")
+  end
+
+  def create_users
+    puts 'COPY users (id, name, "password") FROM stdin;'
+    @total_users.times do |i|
+      output(i + 1, "user_#{i}", "user#{i}")
+    end
+    output(1 + @total_users, "anonymous", "")
+    puts "\\."
+  end
+
+  def create_groups
+    puts 'COPY groups (id, namespace, name, owner_id, public) FROM stdin;'
+    @total_users.times{|i| output(i + 1, "users", "user_#{i}", i + 1, "f") }
+    output(@total_users + 1, "global", "public", 1, "f")
+    @public_group_id = @total_users + 1
+    (@total_users+1..@total_users + @groups).each do |i|
+      owner = 1 + rand(@total_users)
+      ispublic = rand(100) < @public_groups
+      name = "group_#{i - @total_users}"
+      output(i + 1, "groups", name, owner, ispublic ? "t" : "f")
+    end
+    puts "\\."
+  end
+
+  def populate_groups
+    puts "COPY users_groups (can_modify, group_id, id, user_id) FROM stdin;"
+    @total_users.times do |i|
+      output("t", i + 1, i + 1, i + 1)
+    end
+    id = @total_users + 1
+    (@public_group_id..@total_users+@groups).each do |i|
+      gid = i + 1
+      group = {}
+      [@group_size.to_a.random_element, @total_users].min.times do
+        uid = 1 + rand(@total_users)
+        next if group[uid]
+        output("f", gid, id, uid)
+        @user_groups[uid] << gid
+        group[uid] = true
+        id += 1
+      end
+    end
+    puts "\\."
+  end
+
+  def create_mimetypes
+    puts <<EOF
+COPY mimetypes (id, major, minor) FROM stdin;
+1	text	plain
+\\.
+EOF
+  end
+
+  def create_bogus_metadata
+    puts <<'EOF'
+COPY metadata (album_art, album, audio_bitrate, audio_format, author, bitrate, color_depth, depth, description, dimensions_unit, exif, fps, frames, genre, height, id, length, "location", page_size, pages, publish_time, publisher, samplerate, title, tracknum, vbr, video_bitrate, video_format, width, words) FROM stdin;
+\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	1	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	\N	9455
+\.
+EOF
+  end
+
+  def upload_items
+    puts <<EOF
+COPY items (created_at, deleted, id, image_index, internal_path, metadata_id, mimetype_id, modified_at, owner_id, path, referrer, sha1_hash, size, source) FROM stdin;
+EOF
+    @total_users.times do |i|
+      uid = i + 1
+      item_range, dist = @items_per_user 
+      # TODO: honor dist function
+      item_range.to_a.random_element.times do |j|
+        r = rand(100)
+        if r < @public_item_rate
+          groups = [[@public_group_id, true]] # public group
+        elsif r < @public_item_rate + @shared_item_rate
+          # try random group, else public
+          groups = [[@user_groups[uid].random_element || @public_group_id, true]]
+        else # private
+          groups = []
+        end
+        upload_item("user#{i}_item_#{j}_#{Time.new.to_i}", uid, groups)
+      end
+    end
+    puts "\\."
+    dump_item_groups
+  end
+
+  def dump_item_groups
+    puts <<EOF
+COPY items_groups (can_modify, group_id, id, item_id) FROM stdin;
+EOF
+    @item_groups.each{|row| output(row)}
+    puts "\\."
+  end
+
+  DATE = Time.new.strftime("%Y-%m-%d %H:%M:%S")
+  def upload_item(item_name, owner_id, groups)
+#(created_at, deleted, id, image_index, internal_path, metadata_id, mimetype_id, 
+# modified_at, owner_id, path, referrer, sha1_hash, size, source)
+    output(DATE, "f", @item_id, @item_id, "internal/#{item_name}", 1, 1, 
+           DATE, owner_id, item_name, '\N', "digest_#{item_name}", 100, '\N')
+    groups = [[owner_id, true]] + groups # gid of own group = uid
+    groups.each do |gid, can_modify|
+      @item_groups << [can_modify ? "t" : "f", gid, @item_groups.size + 1, @item_id]
+    end
+    @item_id += 1
+  end
+end
