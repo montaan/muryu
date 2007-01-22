@@ -38,12 +38,16 @@ Target market
   supermoerkt@gmail.com: of "o you failed this little detail, all collapse,
                          back to start :-) ! "
   bob: yes, so super repetition
-  bob: lock mashup api access behind mashup writing course
+  bob: lock mashup api access behind mashup writing puzzle
 )
 
 
 Current market sizes for the (native) languages
 (sum( nominal GDP * broadband penetration )):
+
+These don't take the relationship between income and broadband use into account,
+so countries with large income differences (Brazil, Chile, Argentina, Mexico,
+China, USA, Russia) may look worse than they are.
 
 =end
 
@@ -116,6 +120,20 @@ http://en.wikipedia.org/wiki/List_of_countries_by_GDP_%28nominal%29
 http://en.wikipedia.org/wiki/List_of_countries_by_broadband_users
 http://www.broadband-conference.com/en/2006/index_html/
 http://www.internetnews.com/stats/article.php/3573436
+
+
+
+Strategy for growth
+-------------------
+
+Hitch growth to computing capability somehow to benefit from the exponential
+curve. Convert computation to value. Have people help with the computation load
+for pattern recognition tasks and in creating new services. Our business model
+is that of a market fair: let people buy and sell things they like while having
+fun.
+
+With flash prices halving every 12 months and computational capability doubling
+every 18 months (6 months for GPUs),
 
 =end
 

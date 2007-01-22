@@ -1,0 +1,210 @@
+How well do we know
+
+ Markets:
+
+  Chosen markets
+  Chosen customer groups
+  Chosen customer needs
+
+
+ Products and services:
+
+  Sales
+  Competing products
+  Strengths of our product 
+  Competitor strenghts
+
+
+ Technology:
+
+  Needed technology
+  Production methods
+
+
+ Legal matters:
+
+  Needed contracts
+  Protection possibilities
+  Liabilities
+
+
+
+Project overview
+
+ Project organization:
+
+  Required people and what they do:
+   kig - project lead, graphics programming, UI design and implementation, graphic design
+   mfp - data mining, systems programming
+   bubu - marketing
+
+  Required external people:
+   Accountant
+   Lawyer
+   Company starting expert
+   Financers
+   
+ Goal/Technological product under development
+ 
+  What are we building in this project, what is the final result?
+   The Google Map of file managers - a zoomable file manager that can show millions of 
+   files at a glance. (The new technology.)
+   And around it, a social bookmarking site focusing on large collections of related 
+   items and discussion around them. (The application.)
+   And a recommendation system that matches ads to the items. (The business model.)
+
+ The technology being developed / Core of the project
+ 
+  What is the technological core of the project, phases in implementation / tasks and 
+  possible milestone results. What new value does the developed technology bring to the 
+  company or the field?
+   The technological core of the project is doing realtime database queries with result 
+   set sizes in the millions and visualizing the whole result set.
+   Milestone results are having a site handling tens of thousands of items with hundreds
+   of users running on a single computer, then scaling the capability to million items
+   on a single computer and parallelizing that to hundreds of millions of items on 
+   hundreds of computers.
+   New value is in doing this for the web, and doing it in a responsive and scalable
+   fashion.
+
+ Subcontracting
+ 
+ Other production services required
+  User interface testing
+
+ Component providers
+  Computers
+
+ Partners
+
+ Project funding
+  Year                         1       2       3       4      
+  -------------------------|-------|-------|-------|-------|
+  Expenses
+  --------                 
+  Wages                    
+  Personnel side expenses  
+  General expenses         
+  Travel                   
+  Supplies                 
+  Equipment
+  Services
+  Other expenses
+  Total:
+
+  Funding
+  -------
+  Own funding
+  Loans
+  Grants
+  Total:
+  
+  
+ Timetables
+  List work phases and draw phase durations
+
+  Phase name              1  2  3  4  5  6  7  8  9  10 11 12
+  -----------------------|--|--|--|--|--|--|--|--|--|--|--|--|
+  Set up company           X X
+  Find funding             X XX XX
+  Market research         XX XX
+  Working prototype       X
+  Fast 50kitem handling    X 
+  Working recommendations  X X
+  Working UI & upload     XX X 
+  Fast 1Mitem handling     X XX XX
+  Private beta               XX XX X
+  Good recommendations        X XX XX XX XX XX
+  Launch marketing              XX XX XX
+  Polish UI and design        X XX XX XX XX   
+  Buy infra for 1Mitem+          X XX    
+  Public launch                     X 
+  Hire community admin              X 
+  Turn profit                                  XX XX XX
+  Scalable to 250Mitems               XX XX XX
+  Fund 250Mitem infra                       XX XX XX
+  Hire sysadmins                                     XX XX XX
+  Set up infra                                       XX XX XX
+
+
+
+Commercialisation
+
+ Product
+  When are the plans and manuals defined?
+  When is the graphic design decided?
+  When are the prototypes done?
+  When is product protection bought?
+  When are required insurances bought?
+
+ Pricing
+  When are the maintenance costs of the software known?
+  When is the hardware cost of the software known?
+  When is the bandwidth cost of the site known?
+  When is the selling price known?
+  
+ Distribution
+  Is the product sold or licensed?
+  What countries is the product aimed at?
+  What sales routes will be used?
+  Who are the customers or customer groups?
+  What special requirements do they have?
+  
+ Marketing
+  When is the first display of the finished product?
+  When are the marketing plans and budgets ready?
+  When are the brochures done?
+  When are PR efforts started?
+  When are tradeshows decided?
+  When do the sales start?
+  
+  
+  
+Project plan
+
+ Overview
+  Name of the product:
+  Is the product or service
+    new
+    derivative
+    improvement
+  What is the technology in the new product or service?
+  How is the product commercialised: sell by yourself, grant licenses, other?
+  What countries is the product or service sold to?
+  Who are the most important customers?
+  When is the product brought to market?
+  When do the sales start?
+  Estimated cashflow for the product:
+   2007
+   2008
+   2009
+  What is the sales price of the product or service?
+  What is the win pct of the product or service?  
+  What are the total costs of the product development project?
+  What are the commercialisation costs for the first year?
+  Total:
+  
+  How is the project funded?
+   Income funding
+   Tekes funding
+   Venture capital
+   Loans
+   Other funding
+   Total:
+   
+  Who is in charge the product development project?
+  Who is in charge of the commercialisation phase?
+  When does the product development project start?
+  When does the product development project end?
+  
+ Required contracts for completing the project
+ 
+  When are the contracts required for the project signed?
+  
+  Make sure that the people signing the contract have the legal right to sign a 
+  binding contract in the name of the participants.
+
+
+
+Implementation
+

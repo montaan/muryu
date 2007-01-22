@@ -1,7 +1,7 @@
 UI design, or what does future let you to do better than you could before
 -------------------------------------------------------------------------
 
-See and act on a large collection of files and their relations.
+Manage large amounts of large collections of related items and discuss them.
 
 Utility trumps business model. If you can't make profit while providing maximum
 utility, change your business model before someone else does it for you.
@@ -9,18 +9,6 @@ utility, change your business model before someone else does it for you.
 
 Provide a powerful and usable API for creating mashups.
 
-
-Target market
--------------
-
-Relatively savvy with computers, uses Firefox as browser, has a large amount of
-files. Collects and shares good things with other people. Has or attracts
-enough disposable income to keep us afloat.
-
-Benefits from using future, gets richer as result, which brings more profit.
-A surefire way to make people richer is by letting them see farther into the
-future, which is achieved by providing correct information and computation to
-simulate the range of possible outcomes.
 
 The cast
 --------
@@ -125,8 +113,12 @@ Utility
   - when you finish reading, you tick the "completed" or "skipped" -box to move
     it to one of those sets
 
+Bob the builder builds doghouses and birdbaths and such in his garage, and wants
+some help with his plans. 
+
 (11:06:37) supermoerkt@gmail.com: skenario of transcrircb: 
-bob the builder of build little dog hut, little steel birdbath, such in garage. bob want help with plan, gather his gang at future to confer on action plans! bob notices he lacks supplies, tools and knowhow! BLUTURE CAN HELP! bluture gather toolauctions from ebay and handicraft guides howto from amazon and aggregate related link for bob to make his birdbath utopia come true!
+bob the builder of build little dog hut, little steel birdbath, such in garage. 
+bob want help with plan, gather his gang at future to confer on action plans! bob notices he lacks supplies, tools and knowhow! BLUTURE CAN HELP! bluture gather toolauctions from ebay and handicraft guides howto from amazon and aggregate related link for bob to make his birdbath utopia come true!
 
 (11:08:34) supermoerkt@gmail.com: skenario of transcrirb:
 tina the traveller wants to summer! in winter! uses tag search for destinate of summer, looks pictures of HMM YES THERE!, wonders about possibilites? BLUTURE CAN HELP! aggregate lastminute flyery, map, weathersite info, travelguide on locations, such, generate the profit through buy of such thing!
