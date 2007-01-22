@@ -33,6 +33,40 @@ namespace :db do
 
   desc "Creates an empty development database."
   task(:clear){ create_new_db("development") }
+
+  desc "Dump users, groups, items, etc. from development DB."
+  task "dump" do
+    rm_f "development.dump"
+
+    %w[comments groups items items_groups items_sets items_tags itemtexts
+       landmarks landmarks_groups metadata mimetypes sets sets_groups tags
+       users users_groups].each do |table, i|
+      sh "pg_dump -a -t #{table} future_development >> future_development.dump"
+    end
+  end
+
+  desc "Drop indexes in development DB."
+  task "drop_index" do
+    sh "pg_dump -s future_development | grep INDEX | grep CREATE > index.schema"
+    indexes = []
+    File.foreach("index.schema") do |line|
+      case line
+      when /(?:CREATE UNIQUE|CREATE) INDEX (\S+)/
+        indexes << $1
+      else
+        # ignore
+      end
+    end
+    File.open(".drop-indexes.sql", "w") do |f|
+      indexes.each{|name| f.puts "DROP INDEX #{name};"}
+    end
+    sh "psql future_development < .drop-indexes.sql"
+  end
+
+  desc "Create indexes in development DB."
+  task "create_index" do
+    sh "psql future_development < index.schema"
+  end
 end
 
 desc "Run the functional and unit tests."
