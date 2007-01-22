@@ -1,0 +1,172 @@
+
+### (grammar to be reworked, bogus AST)
+class SearchQuery
+  prechigh
+    nonassoc STRING_LITERAL WORD UN_OP RANGE_OP
+    left     BI_OP
+    nonassoc SET TAG USER GROUP TYPE AUTHOR
+    nonassoc SIZE DATE LENGTH WIDTH HEIGHT PAGES WORDS BITRATE RATING
+  preclow
+
+  start start
+rule
+
+start: query { result = val[0] }
+;
+
+query: 
+    UN_OP query             { result = Unary.new(val[0], val[1])         }
+  | '(' query ')'           { result = val[1]                            }
+  | query BI_OP query       { result = Binary.new(val[1], val[0], val[2]) }
+  | STRING_LITERAL          { result = val[0] }
+  | keyval_expression       { result = val[0] }
+  | WORD                    { result = val[0] }
+  ;
+
+string
+  : STRING_LITERAL | WORD   { result = val[0] }
+  ;
+
+keyval_expression
+  : discrete_key ':' discrete_values  { result = KeyValExpr.new(val[0], val[2]) }
+  | range_key ':' range_values        { result = KeyValExpr.new(val[0], val[2]) }
+  ;
+
+discrete_key
+  : SET    { result = val[0] }
+  | TAG    { result = val[0] }
+  | USER   { result = val[0] }
+  | GROUP  { result = val[0] }
+  | TYPE   { result = val[0] }
+  | AUTHOR { result = val[0] }
+  ;
+
+range_key
+  : SIZE    { result = val[0] }
+  | DATE    { result = val[0] }
+  | LENGTH  { result = val[0] }
+  | WIDTH   { result = val[0] }
+  | HEIGHT  { result = val[0] }
+  | PAGES   { result = val[0] }
+  | WORDS   { result = val[0] }
+  | BITRATE { result = val[0] }
+  | RATING  { result = val[0] }
+  ;
+
+# set:!((work & home) | (auction | !house))
+# set:!work & home | (auction | !house)
+discrete_values 
+  : UN_OP discrete_values                 { result = Unary.new(val[0], val[1]) }
+  | '(' discrete_values ')'               { result = val[1] }
+  | discrete_values BI_OP discrete_values { result = Binary.new(val[1], val[0], val[2]) }
+  | string                                { result = val[0] }
+  ;
+
+# size:!((>4000 & <8000) | !> 2000)
+# date:> 2006-10-12 & < 2007-01-01
+range_values 
+  : UN_OP range_values   { result = Unary.new(val[0], val[1]) }
+  | '(' range_values ')' { result = val[1] }
+  | range_basic_expr     { result = val[0] }
+  | range_expr           { result = val[0] }
+  ;
+
+range_basic_expr:
+  # implicit == ?
+    string            { result = val[0] }
+    | RANGE_OP string { result = Unary.new(val[0], val[1]) }
+;
+
+range_expr:
+  range_values BI_OP range_basic_expr { result = Binary.new(val[1], val[0], val[2]) }
+;
+
+---- inner stuff
+
+Unary = Struct.new(:op, :child)
+Binary = Struct.new(:op, :left, :right)
+KeyValExpr = Struct.new(:key, :values)
+
+require 'strscan'
+def parse(str)
+  @yydebug = true if $DEBUG
+  @lexer = Lexer.new(str)
+  do_parse
+end
+
+def next_token
+  @lexer.next_token
+end
+
+---- footer
+
+class Lexer
+  class StateDef < Struct.new(:tokens)
+    def on(re, &block)
+      self.tokens << [re, block]
+    end
+  end
+  def self.def_state(name, &block)
+    statedef = StateDef.new([])
+    statedef.instance_eval(&block)
+    tokens = statedef.tokens
+    #puts "State: #{name}, tokens: #{tokens.map{|x,y| x}.join(", ")}"
+    define_method("scan_#{name}") do
+      break [false, "$end"] if @sscan.eos?
+      #puts "scan_#{name}"
+      r = tokens.each do |regexp, block|
+        #puts "Scanning against #{regexp}"
+        if match = @sscan.scan(regexp)
+          if block
+            if (ret = block.call(match))
+              puts "RETURNING #{ret.inspect}" if $DEBUG
+              break ret
+            else
+              break next_token
+            end
+          else
+            break [match, match]
+          end
+        end
+      end
+      r or raise "cannot lex at #{@sscan.rest}"
+    end
+  end
+
+  def initialize(str)
+    @state = :normal
+    @sscan = StringScanner.new(str)
+  end
+
+  def next_token
+    send("scan_#{@state}")
+  end
+
+# lexer def
+  def_state(:normal) do
+    on(/!|~/){|op| [:UN_OP, op]}
+    on(/\(|\)/)
+    on(/"[^"]+"/){|str| [:STRING_LITERAL, str[1..-2]] }
+    on(/&|and\b/){ [:BI_OP, '&'] }
+    on(/\||or\b/){ [:BI_OP, '|'] }
+    %w[set tag user group type author size data length width height pages words bitrate rating].each do |qualifier|
+      on(/#{qualifier}\b/){ [qualifier.upcase.to_sym, qualifier] }
+    end
+    on(/:/)
+    on(/<|>|<=|>=|=|==/){|op| [:RANGE_OP, op] }
+    on(/[^ \t|&~()]+/){|str| [:WORD, str.chomp]}
+    on(/\s+/){ nil } # ignore
+  end
+end
+
+
+if __FILE__ == $0
+  require 'pp'
+  parser = SearchQuery.new
+  print "Enter expression (^D or q to quit): "
+  until (line = gets.to_s.strip).empty? || line == "q"
+    ast = parser.parse(line)
+    pp ast
+    print "Enter expression (^D or q to quit): "
+  end
+end
