@@ -65,20 +65,24 @@ discrete_values
 # size:!((>4000 & <8000) | !> 2000)
 # date:> 2006-10-12 & < 2007-01-01
 range_values 
-  : UN_OP range_values   { result = Unary.new(val[0], val[1]) }
+  : range_unary_expr     { result = val[0] }
   | '(' range_values ')' { result = val[1] }
   | range_basic_expr     { result = val[0] }
   | range_expr           { result = val[0] }
   ;
 
+range_unary_expr:
+   UN_OP range_values   { result = Unary.new(val[0], val[1]) }
+;
+
 range_basic_expr:
   # implicit == ?
-    string            { result = val[0] }
-    | RANGE_OP string { result = Unary.new(val[0], val[1]) }
+  #  string            { result = val[0] }
+  RANGE_OP string { result = Unary.new(val[0], val[1]) }
 ;
 
 range_expr:
-  range_values BI_OP range_basic_expr { result = Binary.new(val[1], val[0], val[2]) }
+    range_values BI_OP range_values { result = Binary.new(val[1], val[0], val[2]) }
 ;
 
 ---- inner stuff
@@ -119,7 +123,8 @@ class Lexer
         if match = @sscan.scan(regexp)
           if block
             if (ret = block.call(match))
-              puts "RETURNING #{ret.inspect}" if $DEBUG
+              #puts "RETURNING #{ret.inspect}" if $DEBUG
+              @state = ret.pop if ret[2]
               break ret
             else
               break next_token
@@ -149,7 +154,7 @@ class Lexer
     on(/"[^"]+"/){|str| [:STRING_LITERAL, str[1..-2]] }
     on(/&|and\b/){ [:BI_OP, '&'] }
     on(/\||or\b/){ [:BI_OP, '|'] }
-    %w[set tag user group type author size data length width height pages words bitrate rating].each do |qualifier|
+    %w[set tag user group type author size date length width height pages words bitrate rating].each do |qualifier|
       on(/#{qualifier}\b/){ [qualifier.upcase.to_sym, qualifier] }
     end
     on(/:/)
