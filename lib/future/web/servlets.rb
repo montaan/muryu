@@ -12,6 +12,10 @@ class StandardDateTime < DateTime
   end
 end
 
+class Thread
+  attr_accessor :servlet_target, :servlet_path, :servlet_root,
+    :servlet_target_path, :search_query, :session_id, :servlet_user
+end
 
 module Future
   
@@ -92,35 +96,40 @@ module FutureServlet
   end
 
   @@mutex = Mutex.new
+  delegate_accessor "Thread.current",
+    :servlet_target, :servlet_path, :servlet_root, :servlet_target_path,
+    :search_query, :session_id, :servlet_user
 
   def handle_request(req, res)
-    @@mutex.synchronize do
+    DB::Conn.reserve do |conn|
+      Thread.current.conn = conn
       user_auth(req, res)
-      @servlet_root = req.script_name
-      @servlet_path, mode = File.split(req.path_info)
+      self.servlet_root = req.script_name
+      self.servlet_path, mode = File.split(req.path_info)
       unless servlet_modes.include? mode
-        @servlet_path = File.join(@servlet_path, mode)
+        self.servlet_path = File.join(servlet_path, mode)
         mode = 'view'
       end
-      @servlet_path.gsub!(/^\//, '')
-      @servlet_target_path = File.join(@servlet_root, @servlet_path)
-      if respond_to?(:rfind) and not @servlet_path.empty?
-        @servlet_target = rfind(@servlet_user,
-          servlet_path_key => @servlet_path,
+      servlet_path.gsub!(/^\//, '')
+      self.servlet_target_path = File.join(servlet_root, servlet_path)
+      if respond_to?(:rfind) and not servlet_path.empty?
+        self.servlet_target = rfind(servlet_user,
+          servlet_path_key => servlet_path,
           :columns => :all
         )
       else
-        @servlet_target = nil
+        self.servlet_target = nil
       end
       if respond_to?(:columns)
         qkeys = (req.query.keys & (columns.keys + ["sort"]))
         h = qkeys.map{|k| [k, [req.query[k].to_s]]}.to_hash
         words = req.query["text"].to_s.split(" ").map &[[:gsub, /\+/, " "]]
-        @search_query = SearchQueryParser.tokens_and_words_to_query_hash(h, words)
+        self.search_query = SearchQueryParser.tokens_and_words_to_query_hash(h, words)
         #p SearchQueryParser.parse_query(req.query['q'].to_s, columns)
       end
       mode = 'list' if ["/", ""].include?(req.path_info)
       __send__("do_#{mode}", req, res)
+      Thread.current.conn = nil
     end
   end
   
@@ -132,8 +141,8 @@ module FutureServlet
     if cookies.size > 0
       cookies.each{|c| c.instance_variable_set(:@discard, true) }
       cookie = cookies.find{|cookie|
-        @session_id = cookie.value
-        user = Users.continue_session(@session_id)
+        self.session_id = cookie.value
+        user = Users.continue_session(session_id)
       }
       if cookie
         cookie.instance_variable_set(:@discard, false)
@@ -151,16 +160,16 @@ module FutureServlet
         user.logout
         cookie.instance_variable_set(:@discard, true)
       end
-      @session_id = create_new_id
-      user = Users.login(un, pw, @session_id)
+      self.session_id = create_new_id
+      user = Users.login(un, pw, session_id)
       if user
-        new_cookie = WEBrick::Cookie.new('future_session_id', @session_id)
+        new_cookie = WEBrick::Cookie.new('future_session_id', session_id)
         new_cookie.max_age = 3600 * 24 * 7
         new_cookie.path = "/"
         res.cookies << new_cookie
       end
     end
-    @servlet_user = (user or Users.anonymous)
+    self.servlet_user = (user or Users.anonymous)
   end
   
   # From cgi/session.rb
@@ -173,7 +182,7 @@ module FutureServlet
     md5.update(String(rand(0)))
     md5.update(String($$))
     md5.update('foobar')
-    @new_session = true
+    self.new_session = true
     md5.hexdigest
   end
 
@@ -188,25 +197,25 @@ module FutureServlet
   def servlet_list_actions(req)
     if column? 'deleted'
       if req.query['deleted']
-        [["Create new", File.join(@servlet_target_path, "create")],
-        ["List normal", @servlet_target_path]
+        [["Create new", File.join(servlet_target_path, "create")],
+        ["List normal", servlet_target_path]
         ]
       else
-        [["Create new", File.join(@servlet_target_path, "create")],
+        [["Create new", File.join(servlet_target_path, "create")],
         ["List deleted", '?deleted']
         ]
       end
     else
-      [["Create new", File.join(@servlet_target_path, "create")]]
+      [["Create new", File.join(servlet_target_path, "create")]]
     end
   end
 
   def servlet_view_actions(req)
-    if @servlet_target.writable_by(@servlet_user)
-      if column? 'deleted' and @servlet_target.deleted
-        [["Undelete", File.join(@servlet_target_path, "undelete")]]
+    if servlet_target.writable_by(servlet_user)
+      if column? 'deleted' and servlet_target.deleted
+        [["Undelete", File.join(servlet_target_path, "undelete")]]
       else
-        [["Delete", File.join(@servlet_target_path, "delete")]]
+        [["Delete", File.join(servlet_target_path, "delete")]]
       end
     else
       []
@@ -214,13 +223,13 @@ module FutureServlet
   end
 
   def print_navigation_path(b)
-    b.a("future", :href => File.split(@servlet_root).first)
+    b.a("future", :href => File.split(servlet_root).first)
     b.text!("/")
-    b.a(table_name, :href=> @servlet_root)
+    b.a(table_name, :href=> servlet_root)
   end
 
   def print_user_info(b)
-    b.a(@servlet_user.name, :href => "/users/#{@servlet_user.name}")
+    b.a(servlet_user.name, :href => "/users/#{servlet_user.name}")
     b.text!(" (")
     b.a("sign out", :href => "/users/logout")
     b.text!(")")
@@ -230,11 +239,11 @@ module FutureServlet
     cols = req.query['columns'].to_s.split(",") & columns.keys
     cols = :all if cols.empty?
     q = {:order_by => servlet_path_key, :columns => cols}
-    q.merge!(@search_query) if @search_query
+    q.merge!(search_query) if search_query
     if column? 'deleted' and req.query['deleted']
       q[:deleted] = true
     end
-    rfind_all(@servlet_user, q)
+    rfind_all(servlet_user, q)
   end
 
   def do_list(req,res)
@@ -259,7 +268,7 @@ module FutureServlet
           }
           objs.each{|obj|
             b.tr {
-              b.td{ b.a(obj[servlet_path_key].to_s, :href => File.join(@servlet_root, obj[servlet_path_key].to_s)) }
+              b.td{ b.a(obj[servlet_path_key].to_s, :href => File.join(servlet_root, obj[servlet_path_key].to_s)) }
               cols.each{|c,cl| b.td(obj[c]) unless c.to_s == servlet_path_key.to_s or servlet_invisible_column?(c) }
             }
           }
@@ -269,22 +278,22 @@ module FutureServlet
   end
 
   def do_delete(req,res)
-    @servlet_target.rdelete(@servlet_user)
+    servlet_target.rdelete(servlet_user)
     res.status = 302
-    res['location'] = @servlet_root
+    res['location'] = servlet_root
   end
 
   def do_undelete(req,res)
-    @servlet_target.rundelete(@servlet_user)
+    servlet_target.rundelete(servlet_user)
     res.status = 302
-    res['location'] = @servlet_root
+    res['location'] = servlet_root
   end
 
   def do_create(req,res)
     unless req.query.empty?
       servlet_create(req)
       res.status = 302
-      res['location'] = @servlet_root
+      res['location'] = servlet_root
     else
       res.body = Builder::XmlMarkup.new.html do |b|
         b.head { b.title(table_name)
@@ -324,11 +333,11 @@ module FutureServlet
       servlet_target_edit(req)
     end
     res.status = 302
-    res['location'] = @servlet_target_path
+    res['location'] = servlet_target_path
   end
   
   def do_view(req,res)
-    vals = columns.map{|c,cl| @servlet_target[c] }
+    vals = columns.map{|c,cl| servlet_target[c] }
     res.body = Builder::XmlMarkup.new.html do |b|
       b.head { b.title(table_name)
         b.style(:type => 'text/css'){
@@ -390,7 +399,7 @@ module FutureServlet
         b.h1 {
           print_navigation_path(b)
           b.text!("/")
-          b.a(@servlet_path, :href => @servlet_target_path)
+          b.a(servlet_path, :href => servlet_target_path)
         }
         b.p { print_user_info(b) }
         b.h2("Actions")
@@ -399,31 +408,31 @@ module FutureServlet
             b.li { b.a(name, :id => 'action_link', :href => href) }
           }
         }
-        b.form(:method => 'POST', :action => File.join(@servlet_target_path, "edit")){
+        b.form(:method => 'POST', :action => File.join(servlet_target_path, "edit")){
           columns.each{|c,cl|
             b.h3("#{c} (#{cl})")
             b.p {
               if servlet_uneditable_column? c
-                b.span(@servlet_target[c], :class => "column_value", :id => "div_#{c}")
+                b.span(servlet_target[c], :class => "column_value", :id => "div_#{c}")
               else
-                b.span(@servlet_target[c], :class => "column_value editable", :id => "div_#{c}")
-                b.input(:class => "edit_input", :id => c, :type => 'text', :name => c, :value => @servlet_target[c])
+                b.span(servlet_target[c], :class => "column_value editable", :id => "div_#{c}")
+                b.input(:class => "edit_input", :id => c, :type => 'text', :name => c, :value => servlet_target[c])
               end
             }
           }
           b.p { b.input(:type => 'submit', :value => 'Save changes' )}
         }
-        b.p { b.a("Edit", :id => 'edit_link', :href => File.join(@servlet_target_path, "edit")) }
+        b.p { b.a("Edit", :id => 'edit_link', :href => File.join(servlet_target_path, "edit")) }
       }
     end
   end
 
   def do_json(req, res)
     res['Content-type'] = 'text/plain'
-    if @servlet_target
+    if servlet_target
       h = {}
       columns.map{|c, cl|
-        h[c] = @servlet_target[c] unless servlet_invisible_column?(c)
+        h[c] = servlet_target[c] unless servlet_invisible_column?(c)
       }
       res.body = h.to_json
     else
@@ -441,22 +450,22 @@ module FutureServlet
     edits = req.query.find_all{|k,v|
       column? k and !servlet_uneditable_column?(k)
     }
-    rfind_or_create(@servlet_user, edits.to_hash)
+    rfind_or_create(servlet_user, edits.to_hash)
   end
 
   def servlet_target_edit(req)
-    @servlet_target.write(@servlet_user) do
+    servlet_target.write(servlet_user) do
       DB.transaction do
         edits = req.query.find_all{|k,v|
-          column? k and @servlet_target[k].to_s != v and
+          column? k and servlet_target[k].to_s != v and
           not servlet_uneditable_column?(k)
         }
         edits.each{|k,v|
-          @servlet_target[k] = v
+          servlet_target[k] = v
         }
-        @servlet_target[:modified_at] = Time.now.to_s if column?('modified_at')
+        servlet_target[:modified_at] = Time.now.to_s if column?('modified_at')
         new_path = req.query[servlet_path_key.to_s]
-        @servlet_target_path = File.join(@servlet_root, new_path) if new_path
+        servlet_target_path = File.join(servlet_root, new_path) if new_path
       end
     end
   end
@@ -479,11 +488,13 @@ extend FutureServlet
 
     delegate "Items", :rfind, :rfind_all, :columns
 
-
+    @@draw_mutex = Mutex.new
     def do_view(req,res)
       res['Content-type'] = 'image/jpeg'
-      x,y,z,w,h = parse_tile_geometry(@servlet_path)
-      res.body = Tiles.read(@servlet_user, @search_query, :rows, x, y, z, w, h)
+      x,y,z,w,h = parse_tile_geometry(servlet_path)
+      @@draw_mutex.synchronize do
+        res.body = Tiles.read(servlet_user, search_query, :rows, x, y, z, w, h)
+      end
     end
   
     def do_list(req,res)
@@ -518,15 +529,15 @@ extend FutureServlet
 
     def do_view(req,res)
       res['Content-type'] = 'text/plain'
-      x,y,z,w,h = Tile.parse_tile_geometry(@servlet_path)
-      res.body = Tiles.info(@servlet_user, @search_query.merge(:columns => [:path]), :rows, x, y, z, w, h).to_a.to_json
+      x,y,z,w,h = Tile.parse_tile_geometry(servlet_path)
+      res.body = Tiles.info(servlet_user, search_query.merge(:columns => [:path]), :rows, x, y, z, w, h).to_a.to_json
     end
   
     def do_list(req,res)
       res['Content-type'] = 'text/plain'
       res.body = {
         "maxZoom" => Future.image_cache.max_zoom,
-        "title" => @servlet_user.name
+        "title" => servlet_user.name
       }.to_json
     end
   end
@@ -562,7 +573,7 @@ extend FutureServlet
   end
 
   def self.do_list(req, res)
-    objs = Items.rfind_all(@servlet_user, :order_by => :path)
+    objs = Items.rfind_all(servlet_user, :order_by => :path)
     cols = ['path']
     res.body = Builder::XmlMarkup.new.html do |b|
       b.head { b.title(table_name) }
@@ -572,7 +583,7 @@ extend FutureServlet
         }
         b.table(:border => 1){
           objs.each{|obj|
-            b.p { b.a(obj['path'].to_s, :href => File.join(@servlet_root, obj['path'].to_s)) }
+            b.p { b.a(obj['path'].to_s, :href => File.join(servlet_root, obj['path'].to_s)) }
           }
         }
       }
@@ -583,10 +594,10 @@ extend FutureServlet
   end
 
   def self.do_view(req, res)
-    if @servlet_path =~ /^[0-9]+$/
-      item = Items.rfind(@servlet_user, :image_index => @servlet_path)
+    if servlet_path =~ /^[0-9]+$/
+      item = Items.rfind(servlet_user, :image_index => servlet_path)
     else
-      item = Items.rfind(@servlet_user, :path => @servlet_path)
+      item = Items.rfind(servlet_user, :path => servlet_path)
     end
     if item
       res['Content-type'] = item.major + "/" + item.minor
@@ -621,10 +632,10 @@ extend FutureServlet
   end
 
   def self.do_json(req,res)
-    if @servlet_path =~ /^[0-9]+$/
-      @servlet_target = rfind(@servlet_user, :image_index => @servlet_path)
+    if servlet_path =~ /^[0-9]+$/
+      self.servlet_target = rfind(servlet_user, :image_index => servlet_path)
     end
-    return false unless @servlet_target
+    return false unless servlet_target
     super
   end
 
@@ -647,10 +658,10 @@ extend FutureServlet
     end
 
     def do_view(req, res)
-      if @servlet_path =~ /^[0-9]+$/
-        item = Items.rfind(@servlet_user, :image_index => @servlet_path)
+      if servlet_path =~ /^[0-9]+$/
+        item = Items.rfind(servlet_user, :image_index => servlet_path)
       else
-        item = Items.rfind(@servlet_user, :path => @servlet_path)
+        item = Items.rfind(servlet_user, :path => servlet_path)
       end
       if item
         res['Content-type'] = 'image/png'
@@ -677,9 +688,9 @@ extend FutureServlet
   class << self
     def servlet_list_actions(req)
       [
-        ["Register new account", File.join(@servlet_target_path, "create")],
-        ["Sign in", File.join(@servlet_target_path, "login")],
-        ["Sign out", File.join(@servlet_target_path, "logout")]
+        ["Register new account", File.join(servlet_target_path, "create")],
+        ["Sign in", File.join(servlet_target_path, "login")],
+        ["Sign out", File.join(servlet_target_path, "logout")]
       ]
     end
   
@@ -696,12 +707,12 @@ extend FutureServlet
     end
 
     def do_login(req,res)
-      if @servlet_user != Users.anonymous
+      if servlet_user != Users.anonymous
         res.body = Builder::XmlMarkup.new.html do |b|
           b.head { b.title("Already logged in") }
           b.body {
             b.h1 { print_navigation_path(b) }
-            b.h2("Welcome back, #{@servlet_user.name}!")
+            b.h2("Welcome back, #{servlet_user.name}!")
             b.a(:href => 'logout') { b.h2("Log out?") }
           }
         end
@@ -729,7 +740,7 @@ extend FutureServlet
     end
 
     def do_logout(req,res)
-      @servlet_user.logout if @servlet_user
+      servlet_user.logout if servlet_user
       user_auth(req, res)
       do_login(req,res)
     end
@@ -738,8 +749,8 @@ extend FutureServlet
       un = req.query['username']
       pw = req.query['password']
       if un and pw
-        @servlet_user.logout if @servlet_user
-        if (not find(:name => un)) and @servlet_user = register(un, pw)
+        servlet_user.logout if servlet_user
+        if (not find(:name => un)) and servlet_user = register(un, pw)
           user_auth(req, res)
           res.body = Builder::XmlMarkup.new.html do |b|
             b.head { b.title("Registered new account!") }

@@ -4,6 +4,9 @@ require 'postgres'
 require 'time'
 require 'date'
 
+class Thread
+  attr_accessor :conn
+end
 
 class String
 
@@ -129,7 +132,7 @@ module DB
   def self.establish_connection(options)
     remove_const(:Conn) if defined? Conn
     log_info("Establishing DB connection #{options.inspect}", "dbconn")
-    const_set(:Conn, DBconn.new(options[:host], options[:port],
+    const_set(:Conn, Pool.new(DBconn, 10, options[:host], options[:port],
                                 options[:options], nil, 
                                 options[:database], options[:login],
                                 options[:password]))
@@ -179,17 +182,29 @@ module DB
   # Isolation level can be 'READ COMMITTED' or 'SERIALIZABLE'.
   # Access mode can be 'READ WRITE' or 'READ ONLY'.
   def self.transaction(isolation_level='read committed', access_mode='read write')
+    new_conn = false
+    conn = Thread.current.conn
+    unless conn.is_a?(DBconn)
+      new_conn = true
+      conn = DB::Conn.objects.shift
+      Thread.current.conn = conn
+    end
     begin
-      DB::Conn.exec('BEGIN')
-      DB::Conn.exec('SET TRANSACTION ISOLATION LEVEL '+isolation_level+' '+access_mode)
+      conn.exec('BEGIN')
+      conn.exec('SET TRANSACTION ISOLATION LEVEL '+isolation_level+' '+access_mode)
       rv = yield
-      DB::Conn.exec('COMMIT')
+      conn.exec('COMMIT')
       rv
     rescue TransactionRollback
       return false
     rescue
-      DB::Conn.exec('ROLLBACK')
+      conn.exec('ROLLBACK')
       raise
+    ensure
+      if new_conn
+        Thread.current.conn = nil
+        DB::Conn.objects.push(conn)
+      end
     end
   end
 
@@ -297,7 +312,7 @@ module DB
     class << self
 
       def conn
-        @conn ||= DB::Conn
+        Thread.current.conn ||= DB::Conn
       end
 
       # Escapes +n+ as an SQL name.
