@@ -192,7 +192,7 @@ module DB
     begin
       conn.exec('BEGIN')
       conn.exec('SET TRANSACTION ISOLATION LEVEL '+isolation_level+' '+access_mode)
-      rv = yield
+      rv = yield # maybe a bug here? if using DB::Conn directly..
       conn.exec('COMMIT')
       rv
     rescue TransactionRollback
