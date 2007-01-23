@@ -72,12 +72,44 @@ class ImageCache
     end
   end
 
+  @@cache_draw_mutex = Mutex.new
+
   # Draws cache image at +index+ and zoom level +zoom+ on +image+ at +x+,+y+.
   #
   def draw_image_at(index, zoom, image, x, y)
-    cache_pyramid = cache_pyramid_for(index)
-    pyramid_index = (index) % @cache_pyramid_size
-    cache_pyramid.draw_image_at(pyramid_index, zoom, image, x, y, @batch_ops)
+    if zoom > @max_zoom
+      item = Items.find(:image_index => index)
+      if zoom == 8
+        @@cache_draw_mutex.synchronize do
+          t = Imlib2::Image.load(item.thumbnail.to_s)
+          image.blend!(t, 0,0,t.width,t.height, x,y,t.width,t.height)
+          t.delete!
+        end
+      else
+        ### FIXME make this faster
+        pn = Pathname.new(item.internal_path)
+        tn = Future.cache_dir + "tmpthumb-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.jpg"
+        w = 2**zoom
+        p [w, x, y]
+        pn.thumbnail(tn, w, 0) #, "256x256+#{-[0, x].min}+#{-[0, y].min}")
+        return unless tn.exist?
+        @@cache_draw_mutex.synchronize do
+          begin
+            t = Imlib2::Image.load(tn.to_s)
+            image.blend!(t, 0,0,t.width,t.height, x,y,t.width,t.height)
+          rescue Exception => e
+            STDERR.puts e
+          ensure
+            t.delete!
+            tn.unlink
+          end
+        end
+      end
+    else
+      cache_pyramid = cache_pyramid_for(index)
+      pyramid_index = (index) % @cache_pyramid_size
+      cache_pyramid.draw_image_at(pyramid_index, zoom, image, x, y, @batch_ops)
+    end
   end
 
   # Retrieves the image cache pyramid for the given index.

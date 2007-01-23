@@ -488,13 +488,10 @@ extend FutureServlet
 
     delegate "Items", :rfind, :rfind_all, :columns
 
-    @@draw_mutex = Mutex.new
     def do_view(req,res)
       res['Content-type'] = 'image/jpeg'
       x,y,z,w,h = parse_tile_geometry(servlet_path)
-      @@draw_mutex.synchronize do
-        res.body = Tiles.read(servlet_user, search_query, :rows, x, y, z, w, h)
-      end
+      res.body = Tiles.read(servlet_user, search_query, :rows, x, y, z, w, h)
     end
   
     def do_list(req,res)
@@ -536,7 +533,7 @@ extend FutureServlet
     def do_list(req,res)
       res['Content-type'] = 'text/plain'
       res.body = {
-        "maxZoom" => Future.image_cache.max_zoom,
+        "maxZoom" => 12,
         "title" => servlet_user.name
       }.to_json
     end

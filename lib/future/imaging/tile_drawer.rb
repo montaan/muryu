@@ -10,6 +10,7 @@ extend self
 
   @@indexes = {}
   @@infos = {}
+  @@mutex = Mutex.new
 
   def open(user, query, *tile_args, &block)
     ### FIXME query optimization problematic (need to layout to get wanted spans,
@@ -18,9 +19,11 @@ extend self
     ###       -> get 4-34, 4182-4200)
     ###
     bad_tile = (tile_args[1] < 0 or tile_args[2] < 0)
+    indexes = nil
     if not bad_tile
-      
-      indexes = (@@indexes[user.name + "::" + sanitize_query(query)] ||= Items.rfind_all(user, query.merge(:columns => [:image_index])).map{|i| i.image_index })
+      @@mutex.synchronize do
+        indexes = (@@indexes[user.name + "::" + sanitize_query(query)] ||= Items.rfind_all(user, query.merge(:columns => [:image_index])).map{|i| i.image_index })
+      end
       tile = TileDrawer.new.draw_tile(indexes, *tile_args)
     end
     Future.tile_cache_dir.mkdir_p
@@ -57,12 +60,15 @@ extend self
     q = query.clone
     q[:columns] ||= []
     q[:columns] |= [:image_index]
-    indexes, iindexes = *(@@infos[user.name + "::" + sanitize_query(q)] ||= (
-      result = Items.rfind_all(user, q)
-      idxs = result.map{|r| r.image_index }
-      iidxs = result.map{|r| [r.image_index, (q[:columns] - [:image_index]).map{|c| [c, r[c]]}.to_hash ] }.to_hash
-      [idxs, iidxs]
-    ))
+    indexes = iindexes = nil
+    @@mutex.synchronize do
+      indexes, iindexes = *(@@infos[user.name + "::" + sanitize_query(q)] ||= (
+        result = Items.rfind_all(user, q)
+        idxs = result.map{|r| r.image_index }
+        iidxs = result.map{|r| [r.image_index, (q[:columns] - [:image_index]).map{|c| [c, r[c]]}.to_hash ] }.to_hash
+        [idxs, iidxs]
+      ))
+    end
     infos = {}
     TileDrawer.new.tile_info(indexes, *tile_args){|i, *a| infos[i] = [a, iindexes[i]]}
     infos
