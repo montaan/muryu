@@ -86,13 +86,16 @@ class ImageCache
           t.delete!
         end
       else
-        ### FIXME make this faster
+        ### FIXME Make this a _lot_ faster. Keep original image cached so 
+        ###       that there's no need to rescale every time. Do scaling on GPU.
+        ###       Cache created tiles.
         pn = Pathname.new(item.internal_path)
         tn = Future.cache_dir + "tmpthumb-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.jpg"
         w = 2**zoom
-        p [w, x, y]
-        pn.thumbnail(tn, w, 0) #, "256x256+#{-[0, x].min}+#{-[0, y].min}")
+        pn.thumbnail(tn, w, 0, "#{image.width}x#{image.height}+#{-[0, x].min}+#{-[0, y].min}")
         return unless tn.exist?
+        x = 0 if x < 0
+        y = 0 if y < 0
         @@cache_draw_mutex.synchronize do
           begin
             t = Imlib2::Image.load(tn.to_s)

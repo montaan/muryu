@@ -73,12 +73,13 @@
         padding: 4px;
         margin-left: 5px;
         margin-top: 10px;
-        color: white;
-        font-family: URW Gothic L;
+        color: #CCCCCC;
+        font-family: URW Gothic L, Arial;
         font-weight: bold;
         font-size: 10px;
       }
       .infoLayer h3 {
+        color: white;
         margin-top: 0px;
         margin-bottom: 6px;
       }
@@ -93,7 +94,7 @@
         position: absolute;
         z-index: 7;
         color: white;
-        font-family: URW Gothic L;
+        font-family: URW Gothic L, Arial;
         font-weight: bold;
         font-size: 10px;
         overflow: hidden;
@@ -101,6 +102,19 @@
       .infoLink {
         color: white;
         margin-left: 4px;
+      }
+      .infoDiv {
+        padding-left: 4px;
+        padding-right: 4px;
+        padding-bottom: 2px;
+      }
+      .infoDiv p {
+        margin-top: 0px;
+        margin-bottom: 0px;
+      }
+      .infoDivLink {
+        color: white;
+        text-decoration: none;
       }
       .info {
         position: absolute;
@@ -305,7 +319,7 @@
                               width: ti.style.width,
                               height: '16px'
                             })
-                            info_text.innerHTML = ti.infoObj[1][1].path.split("/").last()
+                            info_text.innerHTML = t.parseItemTitle(ti.infoObj[1][1], true, false)
                             var emblems = [
                               ['e', 'FUNNY HATS!! - £4.99 from eBay.co.uk'],
                               ['euro', 'Rocket Ship - 8.49€ from Amazon.de'],
@@ -378,11 +392,18 @@
           }
         },
 
+        // Set this.infoLayer according to info, position it at (x,y) and
+        // make it visible.
         showInfoLayer : function(x,y,info) {
           this.infoLayerData = info
           var infoLayer = this.infoLayer
           this.infoLayer.innerHTML = ''
-          this.infoLayer.appendChild(Elem('h3', info.path))
+          this.infoLayer.appendChild(Elem('h3',
+            this.parseItemTitle(info, true, true)))
+          this.infoLayer.appendChild(this.parseItemMetadata(info))
+          var i = Elem('img')
+          i.src = '/files/' + info.path
+          this.infoLayer.appendChild(i)
           info.emblems.each(function(n){
             var d = Elem('div')
             var a = Elem('a', n[1], null, 'infoLink')
@@ -394,12 +415,56 @@
             d.appendChild(a)
             infoLayer.appendChild(d)
           })
-          var i = Elem('img')
-          i.src = '/files/' + info.path
-          this.infoLayer.appendChild(i)
           this.infoLayer.style.left = x + 'px'
           this.infoLayer.style.top = y + 'px'
           this.infoLayer.style.display = 'block'
+        },
+
+        parseItemTitle : function(info, show_title, show_metadata) {
+          var metadata = []
+          if (!info.metadata)
+            return info.path.split("/").last()
+          if (info.metadata.title && show_title)
+            metadata.push(info.metadata.title)
+          else
+            metadata.push(info.path.split("/").last())
+          if ( show_metadata ) {
+            if (info.metadata.author)
+              metadata.push("by " + info.metadata.author)
+            if (info.metadata.length)
+              metadata.push(info.metadata.length)
+            if (info.metadata.width && info.metadata.height)
+              metadata.push("(" + info.metadata.width+"x"+info.metadata.height +
+                            (info.metadata.dimensions_unit || "") + ")")
+          }
+          return metadata.join(" ")
+        },
+
+        parseItemMetadata : function(info) {
+          var infoDiv = Elem('div', null, null, 'infoDiv')
+          var by = Elem('p')
+          by.appendChild(Text('from '))
+          by.appendChild(Elem('a', info.owner, null, 'infoDivLink', null,
+                                   {href:'/users/'+info.owner}))
+          if (info.source && info.source.length > 0) {
+            by.appendChild(Text(' | '))
+            by.appendChild(Elem('a', "source", null, 'infoDivLink', null,
+                                     {href:info.source}))
+          }
+          if (info.referrer && info.referrer.length > 0) {
+            by.appendChild(Text(' | '))
+            by.appendChild(Elem('a', "referrer", null, 'infoDivLink', null,
+                                     {href:info.referrer}))
+          }
+          by.appendChild(Text(' | ' + info.created_at.toLocaleString()))
+          by.appendChild(Text(' | ' + info.size + ' bytes'))
+          infoDiv.appendChild(by)
+          if (info.metadata.description) {
+            var desc = Elem('p')
+            desc.appendChild(Text(info.metadata.description))
+            infoDiv.appendChild(desc)
+          }
+          return infoDiv
         },
 
         hideInfoLayer : function() {

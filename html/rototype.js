@@ -253,7 +253,7 @@ function formatTime(msec) {
 }
 
 
-function Elem(tag,content,id,class,style) {
+function Elem(tag,content,id,class,style,config) {
   var e = document.createElement(tag)
   if (content)
     if ((typeof content) == 'string')
@@ -267,9 +267,13 @@ function Elem(tag,content,id,class,style) {
       e.setAttribute("style", style)
     else
       e.style.mergeD(style)
+  if (config) e.mergeD(config)
   return e
 }
 
+function Text(txt) {
+  return document.createTextNode(txt)
+}
 
 function postForm(form, onSuccess, onFailure){
   var query = form.map(function(e){

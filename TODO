@@ -39,8 +39,6 @@ High priority (vital for utility / business):
   - the visual version is quite friendly for bad eyesight due to zoomability
 
 * zogen
-  * use tile_info data to fetch stuff from items
-  * use stuff from items to do onhover details and info overlays
   * make tile_info fetches use less requests and queries
   * figure out a way to keep current map coordinates when navigating
     away from page (in essence making back button work)

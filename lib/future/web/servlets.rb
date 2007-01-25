@@ -182,7 +182,6 @@ module FutureServlet
     md5.update(String(rand(0)))
     md5.update(String($$))
     md5.update('foobar')
-    self.new_session = true
     md5.hexdigest
   end
 
@@ -616,27 +615,70 @@ end
 class Items
 extend FutureServlet
 
-  def self.sub_modes
-    ['files','users','groups','tags','sets','thumbnail']
-  end
-
-  def self.servlet_path_key
-    :path
-  end
-
-  def self.servlet_invisible_columns
-    super | ['internal_path']
-  end
-
-  def self.do_json(req,res)
-    if servlet_path =~ /^[0-9]+$/
-      self.servlet_target = rfind(servlet_user, :image_index => servlet_path)
+  class << self
+    def sub_modes
+      ['owner','file','groups','tags','sets','thumbnail']
     end
-    return false unless servlet_target
-    super
-  end
 
-  def self.do_list(req,res)
+    def servlet_path_key
+      :path
+    end
+
+    def servlet_invisible_columns
+      super | ['internal_path']
+    end
+
+    def do_json(req,res)
+      if servlet_path =~ /^[0-9]+$/
+        self.servlet_target = rfind(servlet_user, :image_index => servlet_path)
+      end
+      return false unless servlet_target
+      h = servlet_target.to_hash
+      %w(mimetype_id owner_id metadata_id internal_path).each{|k| h.delete(k)}
+      h[:groups] = servlet_target.groups.map{|g| {:name => g.name, :namespace => g.namespace}}
+      h[:sets] = servlet_target.sets.map{|g| {:name => g.name, :namespace => g.namespace}}
+      h[:tags] = servlet_target.tags.map{|g| {:name => g.name, :namespace => g.namespace}}
+      h[:owner] = servlet_target.owner.name
+      h[:metadata] = servlet_target.metadata.to_hash
+      h[:mimetype] = servlet_target.mimetype
+      res.body = h.to_json
+    end
+
+    def do_list(req,res)
+    end
+
+    def do_file(req, res)
+      return unless servlet_target
+      res['Content-type'] = servlet_target.major + "/" + servlet_target.minor
+      res.body = File.read(servlet_target.internal_path)
+    end
+
+    def do_owner(req,res)
+      return unless servlet_target
+      res.body = {:name => servlet_target.owner['name']}.to_json
+    end
+
+    def do_groups(req,res)
+      return unless servlet_target
+      res.body = servlet_target.groups.map{|g| {:name => g.name, :namespace => g.namespace}}.to_json
+    end
+
+    def do_tags(req, res)
+      return unless servlet_target
+      res.body = servlet_target.tags.map{|g| {:name => g.name, :namespace => g.namespace}}.to_json
+    end
+
+    def do_sets(req, res)
+      return unless servlet_target
+      res.body = servlet_target.sets.map{|g| {:name => g.name, :namespace => g.namespace}}.to_json
+    end
+
+    def do_thumbnail(req, res)
+      if servlet_target
+        res['Content-type'] = 'image/png'
+        res.body = servlet_target.thumbnail.read
+      end
+    end
   end
 
 end
@@ -663,10 +705,6 @@ extend FutureServlet
       if item
         res['Content-type'] = 'image/png'
         res.body = item.thumbnail.read
-      else
-        res['Content-type'] = 'text/html'
-        res.body = "<html><body> File not found </body></html>"
-        res.status = 404
       end
     end
     
