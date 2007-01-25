@@ -271,6 +271,14 @@ function Elem(tag,content,id,class,style,config) {
   return e
 }
 
+Number.magnitudes = ['k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y']
+Number.mag = function(num, last, acc) {
+  if (num < 1000)
+    return num + last
+  var mag_index = parseInt(Math.log(num) / Math.log(1000))
+  return (num / Math.pow(1000, mag_index)).toFixed(acc) + this.magnitudes[mag_index-1] + last
+}
+
 function Text(txt) {
   return document.createTextNode(txt)
 }

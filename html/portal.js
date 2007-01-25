@@ -340,7 +340,7 @@ Portal.prototype = {
                                 {href:info.referrer}))
     }
     by.appendChild(Text(' | ' + info.created_at.toLocaleString()))
-    by.appendChild(Text(' | ' + info.size + ' bytes'))
+    by.appendChild(Text(' | ' + Number.mag(info.size, 'B', 1)))
     infoDiv.appendChild(by)
     return infoDiv
   },

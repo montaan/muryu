@@ -203,7 +203,7 @@ end
 
 class Numeric
 
-  MAGNITUDES = %w(k M G T P E Y)
+  MAGNITUDES = %w(k M G T P E Z Y)
 
   def mag(last="B", acc=1, magnitudes = MAGNITUDES)
     i = to_f
