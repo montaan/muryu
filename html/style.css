@@ -1,0 +1,123 @@
+#currentLocation {
+  z-index: 10;
+  position:absolute;
+  left: 0px;
+  top: 0px;
+  height: 16px;
+  width: 100%;
+  padding-bottom: 2px;
+  padding-top: 0px;
+  background: black;
+  color: #99969B;
+  text-indent: 2px;
+}
+
+#currentLocation a {
+  color: #99969B;
+}
+
+input { display:block; }
+
+img { display:block; }
+
+#zogen {
+  position:absolute;
+  background: #33363B;
+  left:0px;
+  top: 18px;
+  width: 700px;
+  height: 600px;
+  overflow:hidden;
+}
+
+#status {
+  position:absolute;
+  color: #000000;
+  top: 10px;
+  left: 522px;
+}
+
+#midPoint{
+  position:absolute;
+  background: red;
+  width: 10px;
+  height: 10px;
+  top: 0px;
+  left: 0px;
+  z-index:10;
+}
+
+.infoLayer {
+  display: none;
+  background: url(/zogen/50_opacity_black.png);
+  position: absolute;
+  z-index: 8;
+  padding: 4px;
+  margin-left: 5px;
+  margin-top: 10px;
+  color: #CCCCCC;
+  font-family: URW Gothic L, Arial;
+  font-weight: bold;
+  font-size: 10px;
+}
+
+.infoLayer h3 {
+  color: white;
+  margin-top: 0px;
+  margin-bottom: 6px;
+}
+
+.infoLayer img {
+  vertical-align: middle;
+}
+
+.infoLayer div {
+  background: url(/zogen/80_opacity_black.png);
+}
+
+.infoLink {
+  color: white;
+  margin-left: 4px;
+}
+
+.infoDiv {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.infoDiv p {
+  padding-top: 1px;
+  padding-bottom: 2px;
+  margin-top: 0px;
+  margin-bottom: 0px;
+}
+
+.infoDiv p+p {
+  padding-top: 0px;
+}
+
+.infoDivLink {
+  color: white;
+  text-decoration: none;
+}
+
+.infoText {
+  background: url(/zogen/50_opacity_black.png);
+  position: absolute;
+  z-index: 7;
+  color: white;
+  font-family: URW Gothic L, Arial;
+  font-weight: bold;
+  font-size: 10px;
+  overflow: hidden;
+}
+
+.info {
+  position: absolute;
+  z-index: 6;
+}
+
+.itemLink {
+  display: block;
+  position: absolute;
+}

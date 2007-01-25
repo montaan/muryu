@@ -133,7 +133,7 @@ extend self
       :exif => enc_utf8(exif.map{|r| r.join("\t")}.join("\n"))
     }
     if t = exif["Date and Time"]
-      info[:publish_time] = parse_time(t)
+      info[:publish_time] = parse_time(t.split(":",3).join("-"))
     end
     info
   end
