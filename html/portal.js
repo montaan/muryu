@@ -30,11 +30,12 @@ Portal.prototype = {
     this.initView()
     this.container.appendChild(this.view)
     this.updateTiles()
-    this.container.addEventListener("mousedown", this.bind('mousedownHandler'), false)
-    this.container.addEventListener("DOMMouseScroll", this.bind('DOMMouseScrollHandler'), false)
-    this.container.addEventListener("keypress", this.bind('keyHandler'), false)
+    this.view.addEventListener("mousedown", this.bind('mousedownHandler'), false)
+    this.view.addEventListener("DOMMouseScroll", this.bind('DOMMouseScrollHandler'), false)
+    this.view.addEventListener("keypress", this.bind('keyHandler'), false)
     window.addEventListener("mousemove", this.bind('mousemoveHandler'), false)
     window.addEventListener("mouseup", this.bind('mouseupHandler'), false)
+    window.addEventListener("blur", this.bind('mouseupHandler'), false)
     this.infoLayer = Elem('div', null, null, 'infoLayer')
     this.view.appendChild(this.infoLayer)
   },
@@ -190,7 +191,7 @@ Portal.prototype = {
                         width: ti.style.width,
                         height: '16px'
                       })
-                      info_text.innerHTML = t.parseItemTitle(ti.infoObj[1][1], true, false)
+                      info_text.innerHTML = t.parseItemTitle('span', ti.infoObj[1][1], true, false)
                       var emblems = [
                         ['e', 'FUNNY HATS!! - £4.99 from eBay.co.uk'],
                         ['euro', 'Rocket Ship - 8.49€ from Amazon.de'],
@@ -272,8 +273,7 @@ Portal.prototype = {
     this.infoLayerData = info
     var infoLayer = this.infoLayer
     this.infoLayer.innerHTML = ''
-    this.infoLayer.appendChild(Elem('h3',
-      this.parseItemTitle(info, true, true)))
+    this.infoLayer.appendChild(this.parseItemTitle('h3', info, true, true))
     this.infoLayer.appendChild(this.parseUserInfo(info))
     var i = Elem('img')
     i.width = info.metadata.width
@@ -301,16 +301,35 @@ Portal.prototype = {
   // show_title is true. Show possible dimensions and author when show_metadata
   // is true.
   //
-  // Returns the title as a string.
+  // Returns the title as a element named in tag.
   //
-  parseItemTitle : function(info, show_title, show_metadata) {
+  parseItemTitle : function(tag, info, show_title, show_metadata) {
+    var elem = Elem(tag)
     var metadata = []
     if (!info.metadata)
       return info.path.split("/").last()
-    if (info.metadata.title && show_title)
-      metadata.push(info.metadata.title)
-    else
-      metadata.push(info.path.split("/").last())
+    if (info.metadata.title && show_title) {
+      var title = Elem('span', info.metadata.title)
+      makeEditable(title, '/items/'+info.path+'/edit', 'metadata.title')
+      elem.appendChild(title)
+    } else {
+      var title = Elem('span')
+      var path = info.path
+      var ext = info.path.split(".").last()
+      var basename = info.path.split("/").last()
+      var filebase = basename.split(".").slice(0,-1).join(".")
+      var dirname = info.path.split("/").slice(0,-1).join("/")
+      var editable_part = Elem('span', filebase)
+      makeEditable(editable_part, '/items/'+info.path+'/edit', 'filename', function(base){
+        if (base.length == 0) return false
+        base = base.replace("/", "_", 'g')
+        info.path = path.split("/").slice(0,-1).join("/") + "/" + base + "." + ext
+        return base
+      })
+      title.appendChild(editable_part)
+      title.appendChild(Text("." + ext))
+      elem.appendChild(title)
+    }
     if ( show_metadata ) {
       if (info.metadata.author)
         metadata.push("by " + info.metadata.author)
@@ -320,7 +339,7 @@ Portal.prototype = {
         metadata.push("(" + info.metadata.width+"x"+info.metadata.height +
                       (info.metadata.dimensions_unit || "") + ")")
     }
-    return metadata.join(" ")
+    return elem
   },
 
   // Creates user | src | ref | date | size -div and returns it.
@@ -387,7 +406,127 @@ Portal.prototype = {
       infoDiv.appendChild(desc)
     }
 //     infoDiv.appendChild(Elem('pre', info.metadata.exif))
+    if (info.writable) {
+      var editLink = Elem("a", "edit", null, null,
+        {textAlign:'right', display:'block'},
+        {href:"/items/"+info.path})
+      var t = this
+      editLink.addEventListener("click", function(e){
+        if (e.button == 0 && !(e.ctrlKey || e.shiftKey || e.altKey)) {
+          e.preventDefault()
+          t.itemEditForm(infoDiv, info)
+        }
+      }, false)
+      infoDiv.appendChild(editLink)
+    }
     return infoDiv
+  },
+
+  itemEditForm : function(infoDiv, info) {
+    if (infoDiv.editor) {
+      infoDiv.editor.onclick()
+    } else {
+      var editor = Elem('div', null, null, 'editor',
+        {
+          minWidth: infoDiv.parentNode.offsetWidth + 'px',
+          minHeight: infoDiv.parentNode.offsetHeight + 'px'
+        }
+      )
+      infoDiv.editor = editor
+      editor.appendChild(Elem('h3', info.path.split("/").last()))
+      var ef = Elem("form")
+      ef.method = 'POST'
+      ef.action = '/items/' + info.path + '/edit'
+      obj = new Object()
+      var d = Elem('span')
+      d.style.display = 'block'
+      d.style.position = 'relative'
+      d.style.width = infoDiv.parentNode.offsetWidth + 'px'
+      d.style.height = infoDiv.parentNode.offsetHeight - 64 + 'px'
+      d.style.overflow = 'auto'
+      var tb = Elem('table')
+      tb.width = "100%"
+      d.appendChild(tb)
+      var tr = Elem('tr')
+      tr.vAlign = 'top'
+      tb.appendChild(tr)
+      var td = Elem('td')
+      td.width = "50%"
+      tr.appendChild(td)
+      td.appendChild(Elem('h4', 'item'))
+      var dd = Elem('div')
+      td.appendChild(dd)
+      dd.appendChild(Elem("h5", 'filename'))
+      dd.appendChild(Elem("input", null,null,null,null,
+        { type: 'text',
+          name: 'filename',
+          value: info.path.split("/").last().split(".").slice(0,-1).join("."),
+        }
+      ))
+      var infoKeys = [
+        'source',
+        'referrer',
+        'sets',
+        'tags',
+        'groups',
+        'mimetype',
+        'deleted'
+      ]
+      infoKeys.each(function(i) {
+        dd.appendChild(Elem("h5", i.split("_").join(" ")))
+        dd.appendChild(Elem("input", null, null, null, null,
+          {type:'text', name: i, value:info[i]}
+        ))
+      })
+      td = Elem('td')
+      td.width = "50%"
+      tr.appendChild(td)
+      td.appendChild(Elem('h4', 'metadata'))
+      dd = Elem('div')
+      td.appendChild(dd)
+      var metadataKeys = [
+        'title',
+        'author',
+        'publisher',
+        'publish_time',
+        'description',
+        'location',
+        'genre',
+        'album',
+        'tracknum',
+        'album_art'
+      ]
+      metadataKeys.each(function(i) {
+        dd.appendChild(Elem("h5", i.split("_").join(" ")))
+        dd.appendChild(Elem("input", null, null, null, null,
+          {type:'text', name: 'metadata.'+i, value:info.metadata[i]}
+        ))
+      })
+      ef.appendChild(d)
+      var es = Elem('div', null, null, 'editorSubmit')
+      var cancel = Elem('input', null, null, null, null,
+        {type:'reset', value:'cancel'})
+      cancel.onclick = function() {
+        editor.detachSelf()
+        infoDiv.editor = false
+      }
+      var done = Elem('input', null, null, null, null,
+        {type:'submit', value:'done'})
+      done.onclick = function(e) {
+        e.preventDefault()
+        postForm(ef, function(res){
+          editor.detachSelf()
+          infoDiv.editor = false
+        }, function(res){
+          alert("Edit failed: " + res.statusText + ": " + res.responseText)
+        })
+      }
+      es.appendChild(cancel)
+      es.appendChild(done)
+      ef.appendChild(es)
+      editor.appendChild(ef)
+      infoDiv.appendChild(editor)
+    }
   },
 
   hideInfoLayer : function() {
@@ -439,6 +578,8 @@ Portal.prototype = {
   },
 
   mousedownHandler : function(e){
+    if (e.which != 1) return
+    if (['INPUT', 'SPAN', 'P'].includes(e.target.tagName)) return
     this.dragging = true
     this.dragX = e.clientX
     this.dragY = e.clientY
@@ -469,6 +610,7 @@ Portal.prototype = {
   },
 
   keyHandler : function(e){
+    if (e.target.tagName == 'INPUT') return
     switch(e.charCode | e.keyCode){
       case 90:
       case 122:

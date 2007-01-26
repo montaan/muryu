@@ -67,12 +67,86 @@ img { display:block; }
   margin-bottom: 6px;
 }
 
+.editable:hover {
+  color: #ffdd66;
+}
+
 .infoLayer img {
   vertical-align: middle;
 }
 
 .infoLayer div {
   background: url(/zogen/80_opacity_black.png);
+}
+
+a {
+  color: white;
+}
+
+a:visited {
+  color: #AAAAAA;
+}
+
+.editor {
+  background: url(/zogen/80_opacity_black.png);
+  width: 100px;
+  height: 100px;
+  position: absolute;
+  left: 0px;
+  top: 0px;
+}
+
+.editor h3 {
+  text-align: center;
+  margin-top: 8px;
+  margin-left: 5%;
+  margin-right: 5%;
+  border-bottom: 1px solid #CCCCCC;
+  margin-bottom: 6px;
+}
+.editor h4 {
+  text-align: center;
+  color: white;
+  margin-left: 5%;
+  margin-right: 5%;
+  border-bottom: 1px solid #CCCCCC;
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+.editor h5 {
+  margin-bottom: 0px;
+  margin-top: 4px;
+}
+
+.editor div {
+  margin-left: 5%;
+  margin-right: 5%;
+  background: none;
+}
+
+.editor input[type=text] {
+  width: 100%;
+  background-color: #DDDDDD;
+  font-family: Trebuchet MS, Arial;
+  font-weight: normal;
+  border: 0px;
+}
+div.editorSubmit {
+  margin: 4px;
+  text-align: center;
+}
+.editor input[type=submit] {
+  font-family: Trebuchet MS, Arial;
+  font-weight: bold;
+  background-color: #CCFFCC;
+  display: inline;
+}
+.editor input[type=reset] {
+  font-family: Trebuchet MS, Arial;
+  font-weight: bold;
+  background-color: #FFCCCC;
+  display: inline;
+  margin-right: 40px;
 }
 
 .infoLink {

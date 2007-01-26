@@ -44,7 +44,7 @@ function $S(selname)
 Enumerable = {
   mergeD : function(other){
     for (var i in other)
-      this[i] = other[i]
+      try{ this[i] = other[i] } catch(e) {}
     return this
   }
 
@@ -88,6 +88,12 @@ Enumerable = {
 
   , isEmpty : function(){
     return (this.length == 0)
+  }
+
+  , includes : function(obj){
+    for(var i=0; i<this.length; i++)
+      if (this[i] == obj) return true
+    return false
   }
 
   , each : function(f){
@@ -252,6 +258,53 @@ function formatTime(msec) {
   return (hour>0 ? hour+":" : '') + min + ":" + sec
 }
 
+function makeEditable(elem, path, key, validator) {
+  elem.className = elem.className + " editable"
+  elem.title = "Click to edit"
+  elem.addEventListener("click", function(e){
+    var input = Elem('input', null, null, null, null, {type:"text", value:" "})
+    var cs = elem.computedStyle()
+    input.style.mergeD(cs)
+    input.addEventListener("keypress", function(e){
+      if ((e.charCode || e.keyCode) == 27) input.cancel()
+    }, false)
+    input.cancel = function(){
+      input.parentNode.insertBefore(elem, input)
+      input.detachSelf()
+    }
+    var sf = function(ev){
+      if (input.iv) clearTimeout(input.iv)
+      if (!input.parentNode) return // already detached
+      var sendval = input.value
+      if (validator)
+        sendval = validator(input.value)
+      if (sendval && input.value != elem.oldValue) {
+        var oldval = elem.textContent
+        var old_color = elem.style.color
+        elem.innerHTML = input.value
+        elem.style.color = 'red'
+        postQuery(path, [[key, sendval]],
+          function(res) {
+            elem.style.color = old_color
+          },
+          function(res) {
+            elem.innerHTML = oldval + " (edit failed: "+res.statusText+")"
+            elem.style.color = old_color
+          }
+        )
+      }
+      input.cancel()
+    }
+    elem.parentNode.insertAfter(input, elem)
+    elem.detachSelf()
+    elem.oldValue = elem.textContent
+    input.value = elem.textContent + " :) "
+    input.value = elem.textContent
+    input.addEventListener("blur", sf, false)
+    input.addEventListener("change", sf, false)
+    input.focus()
+  }, false)
+}
 
 function Elem(tag,content,id,class,style,config) {
   var e = document.createElement(tag)
@@ -285,15 +338,20 @@ function Text(txt) {
 
 function postForm(form, onSuccess, onFailure){
   var query = form.map(function(e){
-    return (encodeURIComponent(e.name) + "=" + encodeURIComponent(e.value))
-  }).join("&")+"&close_when_done"
+    return [e.name, e.value]
+  })
   postQuery(form.action, query, onSuccess, onFailure)
 }
 
-function postQuery(url,query,onSuccess,onFailure){
+function postQuery(url,queryObj,onSuccess,onFailure){
+  var query = queryObj
+  if ((typeof queryObj) == 'object') {
+    query = queryObj.map(function(kv){
+      return escape(kv[0]) + "=" + escape(kv[1])
+    }).join("&")
+  }
   if (window.XMLHttpRequest) {
     var req = new XMLHttpRequest()
-    req.open("POST", url, true)
     req.onreadystatechange = function() {
       if (req.readyState == 4 && req.status) {
         if (req.status == 200) {
@@ -303,7 +361,8 @@ function postQuery(url,query,onSuccess,onFailure){
         }
       }
     }
-    req.send(query+"&inline")
+    req.open("POST", url, true)
+    req.send(query)
   } else {
     window.open(url+"?"+query, '_blank')
   }

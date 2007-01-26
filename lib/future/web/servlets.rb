@@ -80,7 +80,7 @@ module FutureServlet
   end
 
   def servlet_uneditable_columns
-    [:id, :owner_id, :created_at, :modified_at] | ((!@servlet_target or @servlet_target.writable_by(@servlet_user)) ? [] : columns.keys)
+    [:id, :owner_id, :created_at, :modified_at] | ((!servlet_target or servlet_target.writable_by(servlet_user)) ? [] : columns.keys)
   end
 
   def servlet_uneditable_column?(c)
@@ -328,7 +328,11 @@ module FutureServlet
   end
   
   def do_edit(req,res)
-    unless req.query.empty?
+    if not req.query.empty?
+      servlet_target_edit(req)
+    elsif not req.body.empty?
+      req.instance_variable_set(:@query, CGI.parse(req.body))
+      req.query.each{|k,v| req.query[k] = v[0]}
       servlet_target_edit(req)
     end
     res.status = 302
@@ -459,12 +463,13 @@ module FutureServlet
           column? k and servlet_target[k].to_s != v and
           not servlet_uneditable_column?(k)
         }
+        pp edits
         edits.each{|k,v|
           servlet_target[k] = v
         }
         servlet_target[:modified_at] = Time.now.to_s if column?('modified_at')
         new_path = req.query[servlet_path_key.to_s]
-        servlet_target_path = File.join(servlet_root, new_path) if new_path
+        self.servlet_target_path = File.join(servlet_root, new_path) if new_path
       end
     end
   end
@@ -624,6 +629,12 @@ extend FutureServlet
       :path
     end
 
+    def servlet_uneditable_columns
+      super | ['modified_at', 'created_at', 'size',
+               'sha1_hash', 'image_index', 'metadata_id',
+               'internal_path', 'path']
+    end
+
     def servlet_invisible_columns
       super | ['internal_path']
     end
@@ -641,9 +652,48 @@ extend FutureServlet
       h[:owner] = servlet_target.owner.name
       h[:metadata] = servlet_target.metadata.to_hash
       h[:mimetype] = servlet_target.mimetype
+      h[:writable] = !!servlet_target.writable_by(servlet_user)
       res.body = h.to_json
     end
 
+    def metadata_editable_column?(k)
+      ['title', 'author', 'publisher', 'publish_time', 'description',
+       'location', 'genre', 'album', 'tracknum', 'album_art']
+    end
+    
+    def servlet_target_edit(req)
+      if fn = req.query['filename']
+        servlet_target.write(servlet_user) do
+          parts = servlet_target.path.split("/")
+          basename = parts.last
+          baseparts = basename.split(".")
+          if baseparts[0..-2].join(".") != fn
+            newname = fn.gsub(/[^a-z0-9_.,-]/, "_") + "." + baseparts.last
+            p ['new_path', parts[0..-2].join("/") + "/" + newname]
+            servlet_target.path = parts[0..-2].join("/") + "/" + newname
+          end
+        end
+      end
+      super
+      servlet_target.write(servlet_user) do
+        metadata_fields = req.query.keys.find_all{|k|
+          k.split(".").first == 'metadata'
+        }.map{|k| [k.split(".",2).last, req.query[k]] }.find_all{|k,v|
+          metadata_editable_column?(k)
+        }
+        DB.transaction do
+          edits = metadata_fields.find_all{|k,v|
+            servlet_target.metadata[k].to_s != v
+          }
+          pp edits
+          edits.each{|k,v|
+            servlet_target.metadata[k] = v
+          }
+          servlet_target[:modified_at] = Time.now.to_s if column?('modified_at')
+        end
+      end
+    end
+    
     def do_list(req,res)
     end
 
