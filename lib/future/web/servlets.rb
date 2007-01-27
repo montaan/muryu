@@ -531,7 +531,13 @@ extend FutureServlet
     def do_view(req,res)
       res['Content-type'] = 'text/plain'
       x,y,z,w,h = Tile.parse_tile_geometry(servlet_path)
-      res.body = Tiles.info(servlet_user, search_query.merge(:columns => [:path]), :rows, x, y, z, w, h).to_a.to_json
+      res.body = Tiles.info(
+        servlet_user,
+        search_query.merge(:columns => [:path]),
+        :rows, x, y, z, w, h
+      ).to_a.map do |iind,((x,y,sz), info)|
+        {:image_index => iind, :x => x, :y => y, :sz => sz, :info => info}
+      end.to_json
     end
   
     def do_list(req,res)
@@ -662,7 +668,8 @@ extend FutureServlet
     end
     
     def servlet_target_edit(req)
-      if fn = req.query['filename']
+      if req.query.has_key?('filename')
+        fn = req.query['filename']
         servlet_target.write(servlet_user) do
           parts = servlet_target.path.split("/")
           basename = parts.last

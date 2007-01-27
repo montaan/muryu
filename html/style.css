@@ -89,8 +89,8 @@ a:visited {
 
 .editor {
   background: url(/zogen/80_opacity_black.png);
-  width: 100px;
-  height: 100px;
+  min-width: 400px;
+  min-height: 450px;
   position: absolute;
   left: 0px;
   top: 0px;

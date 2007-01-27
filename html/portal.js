@@ -1,34 +1,137 @@
 Portal = function(config) {
   this.mergeD(config)
   var t = this
-  postQuery(this.tileInfoURL, '',
+  postQuery(this.tileInfoPrefix, '',
     function(res){
-      eval("var obj = " + res.responseText)
+      var obj = res.responseText.parseRawJSON()
       t.mergeD(obj)
       t.init()
-    }
+    },
+    this.queryErrorHandler('Loading portal info')
   )
 }
 
+
 Portal.prototype = {
+  title : 'zogen',
+  language: guessLanguage(),
+  defaultLanguage : 'en-US',
+  
   x : -20,
   y : -60,
   zoom : 2,
   maxZoom : 7,
   tileSize : 256,
-  title : 'zogen',
+
   loadLinks : true,
   createLinks : true,
-  tileURL : '/tile/',
-  tileInfoURL : '/tile_info/',
-  itemInfoURL : '/items/',
-  itemInfoSuffix : '',
+
+  tilePrefix : '/tile/',
+  tileSuffix : '',
+
+  tileInfoPrefix : '/tile_info/',
+  tileInfoSuffix : '',
+
+  itemPrefix : '/items/',
+  itemSuffix : '',
+  itemJSONSuffix : '/json',
+  editSuffix : '/edit',
+
+  userPrefix : '/users/',
+
+  filePrefix : '/files/',
+  fileSuffix : '',
+  
   query : '?' + window.location.search.substring(1),
+
+  translations : {
+    'en-US' : {
+      DateObject : function(d){ return d.toLocaleString(this.language) },
+      by : 'by',
+      author : 'author',
+      date_taken : 'date taken',
+      camera : 'camera',
+      manufacturer : 'manufacturer',
+      software : 'software',
+      edit : 'edit',
+      filename : 'filename',
+      source : 'source',
+      referrer : 'referrer',
+      sets : 'sets',
+      groups : 'groups',
+      tags : 'content',
+      mimetype : 'file type',
+      deleted : 'deleted',
+      title : 'title',
+      publisher : 'publisher',
+      publish_time : 'publish time',
+      description : 'description',
+      location : 'location',
+      genre : 'genre',
+      album : 'album',
+      tracknum : 'track number',
+      album_art : 'album art',
+      cancel : 'cancel',
+      done : 'save',
+      edit_failed : 'Saving edits failed',
+      loading_tile_info : 'Loading tile info failed',
+      loading_item_info : 'Loading item info failed',
+      byte_abbr : 'B',
+      click_to_edit : 'Click to edit'
+    },
+    'en-GB' : {},
+    'fi-FI' : {
+      by : '-',
+      author : 'tekijä',
+      date_taken : 'otettu',
+      camera : 'kamera',
+      manufacturer : 'valmistaja',
+      software : 'ohjelmisto',
+      edit : 'muokkaa',
+      filename : 'tiedostonimi',
+      source : 'lähde',
+      referrer : 'viittaaja',
+      sets : 'joukot',
+      groups : 'ryhmät',
+      tags : 'tagit',
+      mimetype : 'tiedostomuoto',
+      deleted : 'poistettu',
+      title : 'otsikko',
+      publisher : 'julkaisija',
+      publish_time : 'julkaisuaika',
+      description : 'kuvaus',
+      location : 'sijainti',
+      genre : 'tyylilaji',
+      album : 'albumi',
+      tracknum : 'raidan numero',
+      album_art : 'kansitaide',
+      cancel : 'peruuta',
+      done : 'tallenna',
+      edit_failed : 'Muutosten tallentaminen epäonnistui',
+      loading_tile_info : 'Tiilen tietojen lataaminen epäonnistui',
+      loading_item_info : 'Kohteen tietojen lataaminen epäonnistui',
+      byte_abbr : 'T',
+      click_to_edit : 'Napsauta muokataksesi'
+    }
+  },
+
+  translate : function(key, string) {
+    var tr = (this.translations[this.language] || {})[key]
+    if (!tr) tr = this.translations[this.defaultLanguage][key]
+    if (!tr) return false
+    if (!string) string = ''
+    if (typeof tr == 'string')
+      return tr + string
+    else
+      return tr(string)
+  },
 
   init : function() {
     this.tiles = {tilesInCache : 0}
     this.initView()
     this.container.appendChild(this.view)
+    this.itemCoords = {}
+    this.initItemLink()
     this.updateTiles()
     this.view.addEventListener("mousedown", this.bind('mousedownHandler'), false)
     this.view.addEventListener("DOMMouseScroll", this.bind('DOMMouseScrollHandler'), false)
@@ -59,6 +162,14 @@ Portal.prototype = {
     this.titleElem = t
     v.appendChild(t)
     this.view = v
+  },
+
+  initItemLink : function(i) {
+    var ti = this.itemLink = Elem('a', null, null, 'itemLink')
+    ti.addEventListener("click", this.linkClick(), false)
+    ti.addEventListener("mousedown", this.linkDown, false)
+    ti.style.zIndex = 2
+    this.view.appendChild(this.itemLink)
   },
 
   updateTiles : function(zoomed){
@@ -123,108 +234,137 @@ Portal.prototype = {
       tile.style.top = '0px'
       this.tiles[x+':'+y+':'+this.zoom] = tile
       this.tiles.tilesInCache++
-      tile.timeout = setTimeout(this.bind(function(){
+      var t = this
+      tile.timeout = setTimeout(function(){
         tile.style.visibility = 'hidden'
-        var t = this
-        var tileQuery = 'x'+ x +'y'+ y +'z'+ this.zoom +
-                    'w'+ this.tileSize +'h'+ this.tileSize
+        var tileQuery = 'x'+ x +'y'+ y +'z'+ t.zoom +
+                    'w'+ t.tileSize +'h'+ t.tileSize
+        tile.addEventListener("load",
+          function(){
+            tile.style.visibility = 'visible'
+            if (!t.loadLinks) return
+            postQuery(t.tileInfoPrefix + tileQuery + t.tileInfoSuffix, t.query,
+              function(res){ t.createInfoEntry(res, x, y) },
+              t.queryErrorHandler(t.translate('loading_tile_info'))
+            )
+          },
+          false
+        )
         var tile_cont = Elem('div')
         tile_cont.style.position = 'absolute'
         tile_cont.style.left = x+'px'
         tile_cont.style.top = y+'px'
-        tile.addEventListener("load",
-          function(){
-            this.style.visibility = 'visible'
-            if (t.zoom >= 5 && t.loadLinks) {
-              postQuery(t.tileInfoURL + tileQuery, t.query,
-                function(res){
-                  tile.info = eval(res.responseText)
-                  /*
-                    Instead of many links, switch to fast (but complex)
-                    mouse-following link system. Put tile infos into
-                    grid-indexed 2D array, modulo mouse coords to grid
-                    coords.
-
-                    At far detail (64x64 and 128x128), bake
-                    the emblems and item texts into the tiles.
-                    Text seems to be the slowest thing to draw.
-                    ( this is also true for server-side drawing :| )
-
-                    Why?
-                      Firefox doesn't like moving elements around,
-                      so minimizing the amount of stuff it does need to
-                      move makes the whole thing snappier.
-
-                    init:
-                      itemCoords = {}
-                      itemCoords[info.x] ||= {}
-                      itemCoords[info.x][info.y] ||= newLink(info)
-
-                    mousemove:
-                      col = itemCoords[mouse_x - (mouse_x % sz)]
-                      if (col) item = col[mouse_y - (mouse_y % sz)]
-                      itemLink.href = "/files/" + item.path
-                  */
-                  tile.info.each(function(i){
-                    if (!t.createLinks) return false
-                    var ti = Elem('a', null, null, 'itemLink')
-                    ti.style.left = i[1][0][0] + 'px'
-                    ti.style.top = i[1][0][1] + 'px'
-                    ti.style.width = i[1][0][2] + 'px'
-                    ti.style.height = i[1][0][2] + 'px'
-                    ti.href = "/files/" + i[1][1].path
-                    ti.emblems = []
-                    ti.infoObj = i
-                    ti.addEventListener("click", t.linkClick(), false)
-                    ti.addEventListener("mousedown", t.linkDown, false)
-                    ti.style.zIndex = 2
-                    if (t.zoom == 7) {
-                      var info = ti.info = Elem('div', null, null, 'info')
-                      info.style.mergeD({
-                        left: ti.style.left,
-                        top: ti.style.top
-                      })
-                      var info_text = Elem('div', null, null, 'infoText')
-                      info_text.style.mergeD({
-                        left: ti.style.left,
-                        top: (parseInt(ti.style.top) + parseInt(ti.style.height) - 16) + 'px',
-                        width: ti.style.width,
-                        height: '16px'
-                      })
-                      info_text.innerHTML = t.parseItemTitle('span', ti.infoObj[1][1], true, false)
-                      var emblems = [
-                        ['e', 'FUNNY HATS!! - £4.99 from eBay.co.uk'],
-                        ['euro', 'Rocket Ship - 8.49€ from Amazon.de'],
-                        ['location', 'Bavaria, Germania']]
-                      emblems.each(function(n){
-                        if (Math.random() < 0.7) return
-                        ti.emblems.push(n)
-                        var el = Elem('img')
-                        el.style.display = 'block'
-                        el.src = '/zogen/' + n[0] + '_16.png'
-                        el.style.margin = '1px'
-                        info.appendChild(el)
-                      })
-                    }
-                    try{
-                      tile_cont.appendChild(ti)
-                      tile_cont.appendChild(info)
-                      tile_cont.appendChild(info_text)
-                    } catch(e) {}
-                  })
-                }
-              )
-            }
-          },
-        false)
         tile_cont.appendChild(tile)
-        this.view.appendChild(tile_cont)
-        tile.width = this.tileSize
-        tile.height = this.tileSize
-        tile.src = this.tileURL + tileQuery + this.query
+        t.view.appendChild(tile_cont)
+        tile.width = t.tileSize
+        tile.height = t.tileSize
+        tile.src = t.tilePrefix + tileQuery + t.tileInfoSuffix + t.query
         tile.timeout = false
-      }), priority/40)
+      }, priority/40)
     }
+  },
+
+  // Inserts the info into infoEntries for the tile
+  createInfoEntry : function(res, tx, ty){
+    if (!this.createLinks) return false
+    var infos = res.responseText.parseRawJSON()
+    var t = this
+    infos.each(function(i){
+      i.x += tx
+      i.y += ty
+      i.w = i.h = i.sz
+      // See if all these necessary ?
+      t.insertInfoEntry(i, i.x, i.y)
+      t.insertInfoEntry(i, i.x+i.w, i.y)
+      t.insertInfoEntry(i, i.x, i.y+i.h)
+      t.insertInfoEntry(i, i.x+i.w, i.y+i.h)
+    })
+  },
+
+  // Pushes i to the info entry array at x,y
+  insertInfoEntry : function(i, x, y) {
+    var ie = this.coordsInfoEntry(x, y, true)
+    if (!ie.includes(i)) ie.push(i)
+  },
+
+  // Gets the info entry array at x,y.
+  // If autovivify is true, creates one if one doesn't exist.
+  // Otherwise returns false if there's no info entry array.
+  coordsInfoEntry : function(x, y, autovivify) {
+    var gx = Math.floor(x / this.tileSize)
+    var gy = Math.floor(y / this.tileSize)
+    var row = this.itemCoords[gx]
+    if (!row) {
+      if (!autovivify) {
+        return false
+      } else {
+        row = this.itemCoords[gx] = {}
+      }
+    }
+    var ie = row[gy]
+    if (!ie) {
+      if (!autovivify) {
+        return false
+      } else {
+        ie = row[gy] = []
+      }
+    }
+    return ie
+  },
+
+  // Finds the first matching info entry at x,y.
+  findInfoEntry : function(x, y) {
+    var ie = this.coordsInfoEntry(x,y)
+    return ie.findAll(function(i){
+      return i.x <= x && i.x+i.w > x && i.y <= y && i.y+i.h > y
+    })[0]
+  },
+
+  // Move item link to i's position and set it to point to i.
+  updateItemLink : function(i) {
+    var ti = this.itemLink
+    ti.style.left = i.x + 'px'
+    ti.style.top = i.y + 'px'
+    ti.style.width = i.w + 'px'
+    ti.style.height = i.h + 'px'
+//     ti.style.border = '1px solid yellow'
+    ti.href = this.filePrefix + i.info.path + this.fileSuffix
+    ti.infoObj = i
+  },
+
+  // Creates an info overlay from the infoObj and attaches it to the container.
+  createTileOverlay : function(container, infoObj) {
+    var x = infoObj.x
+    var y = infoObj.y
+    var w = infoObj.w
+    var h = infoObj.h
+    var info = Elem('div', null, null, 'info',
+      { position: 'absolute', left: x + 'px', top: y + 'px' }
+    )
+    var emblems = [
+      ['e', 'FUNNY HATS!! - £4.99 from eBay.co.uk'],
+      ['euro', 'Rocket Ship - 8.49€ from Amazon.de'],
+      ['location', 'Bavaria, Germania']]
+    emblems = []
+    emblems.each(function(n){
+      ti.emblems.push(n)
+      var el = Elem('img')
+      el.src = '/zogen/' + n[0] + '_16.png'
+      el.style.display = 'block'
+      el.style.margin = '1px'
+      info.appendChild(el)
+    })
+    var info_text = Elem('div', null, null, 'infoText')
+    info_text.style.mergeD({
+      position: 'absolute',
+      left: x + 'px',
+      top: (y + h - 16) + 'px',
+      width: w,
+      height: '16px'
+    })
+    info_text.innerHTML = t.parseItemTitle('span', infoObj.info.path, true, false)
+    container.appendChild(info)
+    container.appendChild(info_text)
   },
 
   // Note where mouse button went down to avoid misclicks when dragging.
@@ -243,27 +383,30 @@ Portal.prototype = {
             (Math.abs(e.clientY - this.downY) > 3)) {
           return false
         }
-        if (!this.fullInfo) {
-          var th = this
-          var x = e.layerX + parseInt(this.style.left) + parseInt(this.parentNode.style.left)
-          var y = e.layerY + parseInt(this.style.top) + parseInt(this.parentNode.style.top)
-          postQuery(t.itemInfoURL + this.infoObj[1][1].path + t.itemInfoSuffix, '',
+        if (!t.infoLayerVisible() || t.infoTargetChanged()) {
+          var c = t.viewCoords(e)
+          t.infoTarget = t.itemLink.infoObj
+          postQuery(t.itemPrefix+t.itemLink.infoObj.info.path+t.itemJSONSuffix, '',
             function(res) {
-              eval("var obj = " + res.responseText)
-              th.fullInfo = obj.merge({emblems: th.emblems})
-              t.showInfoLayer(x, y, th.fullInfo)
-            }
+              var fullInfo = res.responseText.parseRawJSON()
+              t.showInfoLayer(c.x, c.y, fullInfo)
+            },
+            t.queryErrorHandler(t.translate('loading_item_info'))
           )
-        } else if (t.infoLayerData != this.fullInfo){
-          var x = e.layerX + parseInt(this.style.left) + parseInt(this.parentNode.style.left)
-          var y = e.layerY + parseInt(this.style.top) + parseInt(this.parentNode.style.top)
-          t.showInfoLayer(x, y, this.fullInfo)
         } else {
           t.hideInfoLayer()
         }
         return false
       }
     }
+  },
+
+  infoLayerVisible : function() {
+    return(this.infoLayer.style.display != 'none')
+  },
+
+  infoTargetChanged : function() {
+    return(this.infoTarget != this.itemLink.infoObj)
   },
 
   // Set this.infoLayer according to info, position it at (x,y) and
@@ -278,7 +421,7 @@ Portal.prototype = {
     var i = Elem('img')
     i.width = info.metadata.width
     i.height = info.metadata.height
-    i.src = '/files/' + info.path
+    i.src = this.filePrefix + info.path + this.fileSuffix
     this.infoLayer.appendChild(i)
     this.infoLayer.appendChild(this.parseItemMetadata(info))
 //     info.emblems.each(function(n){
@@ -305,40 +448,44 @@ Portal.prototype = {
   //
   parseItemTitle : function(tag, info, show_title, show_metadata) {
     var elem = Elem(tag)
-    var metadata = []
+    var metadata = Elem('span')
     if (!info.metadata)
       return info.path.split("/").last()
     if (info.metadata.title && show_title) {
       var title = Elem('span', info.metadata.title)
-      makeEditable(title, '/items/'+info.path+'/edit', 'metadata.title')
+      makeEditable(title, this.itemPrefix+info.path+this.editSuffix,
+        'metadata.title', null, this.translate('click_to_edit'))
       elem.appendChild(title)
     } else {
       var title = Elem('span')
-      var path = info.path
-      var ext = info.path.split(".").last()
       var basename = info.path.split("/").last()
-      var filebase = basename.split(".").slice(0,-1).join(".")
-      var dirname = info.path.split("/").slice(0,-1).join("/")
-      var editable_part = Elem('span', filebase)
-      makeEditable(editable_part, '/items/'+info.path+'/edit', 'filename', function(base){
-        if (base.length == 0) return false
-        base = base.replace("/", "_", 'g')
-        info.path = path.split("/").slice(0,-1).join("/") + "/" + base + "." + ext
-        return base
-      })
+      var editable_part = Elem('span', basename)
+      makeEditable(editable_part, this.itemPrefix+info.path+this.editSuffix,
+        'title',
+        function(base){
+          if (base.length == 0) return false
+          info.metadata.title = base
+          return base
+      }, this.translate('click_to_edit') )
       title.appendChild(editable_part)
-      title.appendChild(Text("." + ext))
       elem.appendChild(title)
     }
     if ( show_metadata ) {
-      if (info.metadata.author)
-        metadata.push("by " + info.metadata.author)
+      if (info.metadata.author) {
+        metadata.appendChild(Text(this.translate('by')+" "))
+        var author = Elem('span', info.metadata.author)
+        makeEditable(author, this.itemPrefix+info.path+this.editSuffix,
+          'metadata.author', null, this.translate('click_to_edit'))
+        metadata.appendChild(author)
+      }
       if (info.metadata.length)
-        metadata.push(info.metadata.length)
+        metadata.appendChild(Text(" " + info.metadata.length))
       if (info.metadata.width && info.metadata.height)
-        metadata.push("(" + info.metadata.width+"x"+info.metadata.height +
-                      (info.metadata.dimensions_unit || "") + ")")
+        metadata.appendChild(Text(" (" + info.metadata.width+"x"+info.metadata.height +
+                      (info.metadata.dimensions_unit || "") + ")"))
     }
+    elem.appendChild(Text(" "))
+    elem.appendChild(metadata)
     return elem
   },
 
@@ -347,19 +494,19 @@ Portal.prototype = {
     var infoDiv = Elem('div', null, null, 'infoDiv')
     var by = Elem('p')
     by.appendChild(Elem('a', info.owner, null, 'infoDivLink', null,
-                              {href:'/users/'+info.owner}))
+                              {href:this.userPrefix+info.owner}))
     if (info.source && info.source.length > 0) {
       by.appendChild(Text(' | '))
-      by.appendChild(Elem('a', "source", null, 'infoDivLink', null,
+      by.appendChild(Elem('a', this.translate("source"), null, 'infoDivLink', null,
                                 {href:info.source}))
     }
     if (info.referrer && info.referrer.length > 0) {
       by.appendChild(Text(' | '))
-      by.appendChild(Elem('a', "referrer", null, 'infoDivLink', null,
+      by.appendChild(Elem('a', this.translate("referrer"), null, 'infoDivLink', null,
                                 {href:info.referrer}))
     }
-    by.appendChild(Text(' | ' + info.created_at.toLocaleString()))
-    by.appendChild(Text(' | ' + Number.mag(info.size, 'B', 1)))
+    by.appendChild(Text(' | ' + this.translate('DateObject', info.created_at)))
+    by.appendChild(Text(' | ' + Number.mag(info.size, this.translate('byte_abbr'), 1)))
     infoDiv.appendChild(by)
     return infoDiv
   },
@@ -374,9 +521,9 @@ Portal.prototype = {
 /*    if (info.metadata.publish_time)
       pubdata.push('created: ' + info.metadata.publish_time.toLocaleString())*/
     if (info.metadata.publisher)
-      pubdata.push('publisher: ' + info.metadata.publisher)
+      pubdata.push(this.translate('publisher', ': ' + info.metadata.publisher))
     if (info.metadata.album)
-      pubdata.push('album: ' + info.metadata.album)
+      pubdata.push(this.translate('album', ': ' + info.metadata.album))
     if (pubdata.length > 0)
       infoDiv.appendChild(Elem('p', pubdata.join(" | ")))
     if (info.metadata.exif) {
@@ -388,14 +535,15 @@ Portal.prototype = {
       var exifdata = []
       if (tuples['Date and Time']) {
         var dc = tuples['Date and Time'].split(/[^0-9]/)
-        var d = new Date(dc[0], dc[1], dc[2], dc[3], dc[4], dc[5]).toLocaleString()
-        exifdata.push("date taken: " + d)
+        var d = new Date(dc[0], dc[1], dc[2], dc[3], dc[4], dc[5])
+        exifdata.push(this.translate("date taken", ": " +
+                                     this.translate("DateObject", d)))
       }
       if (tuples.Manufacturer)
-        exifdata.push("camera: " + tuples.Model +
-                      ", manufacturer: " + tuples.Manufacturer)
+        exifdata.push(this.translate("camera", ": " + tuples.Model +
+                      ", " + this.translate("manufacturer", ": " + tuples.Manufacturer)))
       if (tuples.Software)
-        exifdata.push("software: " + tuples.Software)
+        exifdata.push(this.translate("software", ": " + tuples.Software))
       exifdata.each(function(pd){
         infoDiv.appendChild(Elem('p', pd))
       })
@@ -407,9 +555,9 @@ Portal.prototype = {
     }
 //     infoDiv.appendChild(Elem('pre', info.metadata.exif))
     if (info.writable) {
-      var editLink = Elem("a", "edit", null, null,
+      var editLink = Elem("a", this.translate("edit"), null, null,
         {textAlign:'right', display:'block'},
-        {href:"/items/"+info.path})
+        {href:this.itemPrefix+info.path+this.itemSuffix})
       var t = this
       editLink.addEventListener("click", function(e){
         if (e.button == 0 && !(e.ctrlKey || e.shiftKey || e.altKey)) {
@@ -424,25 +572,31 @@ Portal.prototype = {
 
   itemEditForm : function(infoDiv, info) {
     if (infoDiv.editor) {
-      infoDiv.editor.onclick()
+      var editor = infoDiv.editor
+      editor.detachSelf()
+      infoDiv.editor = false
     } else {
       var editor = Elem('div', null, null, 'editor',
         {
-          minWidth: infoDiv.parentNode.offsetWidth + 'px',
-          minHeight: infoDiv.parentNode.offsetHeight + 'px'
+          position: 'absolute',
+          left: infoDiv.parentNode.computedStyle().left + 'px',
+          top: infoDiv.parentNode.computedStyle().top + 'px',
+          width: infoDiv.parentNode.offsetWidth + 'px',
+          height: infoDiv.parentNode.offsetHeight + 'px'
         }
       )
       infoDiv.editor = editor
       editor.appendChild(Elem('h3', info.path.split("/").last()))
       var ef = Elem("form")
       ef.method = 'POST'
-      ef.action = '/items/' + info.path + '/edit'
+      ef.action = this.itemPrefix + info.path + this.editSuffix
       obj = new Object()
       var d = Elem('span')
       d.style.display = 'block'
       d.style.position = 'relative'
-      d.style.width = infoDiv.parentNode.offsetWidth + 'px'
-      d.style.height = infoDiv.parentNode.offsetHeight - 64 + 'px'
+      d.style.width = '100%'
+      d.style.height = Math.max(parseInt(editor.style.height),
+                                parseInt(editor.computedStyle().minHeight)) - 64 + 'px'
       d.style.overflow = 'auto'
       var tb = Elem('table')
       tb.width = "100%"
@@ -453,10 +607,10 @@ Portal.prototype = {
       var td = Elem('td')
       td.width = "50%"
       tr.appendChild(td)
-      td.appendChild(Elem('h4', 'item'))
+      td.appendChild(Elem('h4', this.translate('item')))
       var dd = Elem('div')
       td.appendChild(dd)
-      dd.appendChild(Elem("h5", 'filename'))
+      dd.appendChild(Elem("h5", this.translate('filename')))
       dd.appendChild(Elem("input", null,null,null,null,
         { type: 'text',
           name: 'filename',
@@ -472,8 +626,9 @@ Portal.prototype = {
         'mimetype',
         'deleted'
       ]
+      var t = this
       infoKeys.each(function(i) {
-        dd.appendChild(Elem("h5", i.split("_").join(" ")))
+        dd.appendChild(Elem("h5", t.translate(i)))
         dd.appendChild(Elem("input", null, null, null, null,
           {type:'text', name: i, value:info[i]}
         ))
@@ -481,7 +636,7 @@ Portal.prototype = {
       td = Elem('td')
       td.width = "50%"
       tr.appendChild(td)
-      td.appendChild(Elem('h4', 'metadata'))
+      td.appendChild(Elem('h4', this.translate('metadata')))
       dd = Elem('div')
       td.appendChild(dd)
       var metadataKeys = [
@@ -497,7 +652,7 @@ Portal.prototype = {
         'album_art'
       ]
       metadataKeys.each(function(i) {
-        dd.appendChild(Elem("h5", i.split("_").join(" ")))
+        dd.appendChild(Elem("h5", t.translate(i)))
         dd.appendChild(Elem("input", null, null, null, null,
           {type:'text', name: 'metadata.'+i, value:info.metadata[i]}
         ))
@@ -505,27 +660,34 @@ Portal.prototype = {
       ef.appendChild(d)
       var es = Elem('div', null, null, 'editorSubmit')
       var cancel = Elem('input', null, null, null, null,
-        {type:'reset', value:'cancel'})
+        {type:'reset', value:this.translate('cancel')})
       cancel.onclick = function() {
         editor.detachSelf()
         infoDiv.editor = false
       }
       var done = Elem('input', null, null, null, null,
-        {type:'submit', value:'done'})
+        {type:'submit', value:this.translate('done')})
+      var t = this
       done.onclick = function(e) {
         e.preventDefault()
         postForm(ef, function(res){
-          editor.detachSelf()
-          infoDiv.editor = false
-        }, function(res){
-          alert("Edit failed: " + res.statusText + ": " + res.responseText)
-        })
+            editor.detachSelf()
+            infoDiv.editor = false
+          },
+          t.queryErrorHandler(t.translate("edit_failed"))
+        )
       }
       es.appendChild(cancel)
       es.appendChild(done)
       ef.appendChild(es)
       editor.appendChild(ef)
-      infoDiv.appendChild(editor)
+      infoDiv.parentNode.appendChild(editor)
+    }
+  },
+
+  queryErrorHandler : function(operation) {
+    return function(res){
+      alert(operation + ": " + res.statusText + "(" + res.statusCode + ")")
     }
   },
 
@@ -594,6 +756,17 @@ Portal.prototype = {
       this.pan(e.clientX-this.dragX, e.clientY-this.dragY)
       this.dragX = e.clientX
       this.dragY = e.clientY
+    }
+    var x = e.clientX - parseInt(this.container.computedStyle().left) - this.view.left
+    var y = e.clientY - parseInt(this.container.computedStyle().top) - this.view.top
+    var ie = this.findInfoEntry(x, y)
+    if (ie) this.updateItemLink(ie)
+  },
+
+  viewCoords: function(e) {
+    return {
+      x: e.clientX - parseInt(this.container.computedStyle().left) - this.view.left,
+      y: e.clientY - parseInt(this.container.computedStyle().top) - this.view.top
     }
   },
 

@@ -9,6 +9,10 @@ function require(url) {
   head.appendChild(s)
   return true
 }
+require('json.js')
+String.prototype.parseRawJSON = function(){
+  return eval('('+this+')')
+}
 
 function timed(f, msg) {
     var t = new Date().getTime()
@@ -258,9 +262,16 @@ function formatTime(msec) {
   return (hour>0 ? hour+":" : '') + min + ":" + sec
 }
 
-function makeEditable(elem, path, key, validator) {
+function guessLanguage() {
+  return (
+    navigator.language || navigator.browserLanguage ||
+    navigator.userLanguage || 'en-US'
+  )
+}
+
+function makeEditable(elem, path, key, validator, title) {
   elem.className = elem.className + " editable"
-  elem.title = "Click to edit"
+  elem.title = (title || "Click to edit")
   elem.addEventListener("click", function(e){
     var input = Elem('input', null, null, null, null, {type:"text", value:" "})
     var cs = elem.computedStyle()
@@ -367,3 +378,36 @@ function postQuery(url,queryObj,onSuccess,onFailure){
     window.open(url+"?"+query, '_blank')
   }
 }
+
+function deJSON(json) {
+  eval('var obj = ' + json)
+  return obj
+}
+
+// Fancy form input creators for different data types.
+Editors = {
+  // Time picker
+  time : function(name, value) {
+  },
+
+  // Expanding textarea
+  text : function(name, value) {
+  },
+
+  // One or several from a list of values
+  list : function(name, value, list_values, pick_multiple, separator) {
+  },
+
+  // One or several from a list of values or a new value
+  listOrNew : function(name, value, list_values, pick_multiple, separator) {
+  },
+
+  // Autocompleting text field
+  autoComplete : function(name, value) {
+  },
+
+  // Map coordinates
+  coordinates : function(name, value) {
+  }
+}
+
