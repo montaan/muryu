@@ -164,6 +164,12 @@ Enumerable = {
     if (i == undefined) i = 1
     return this[this.length-i]
   }
+
+  , deleteAll : function(i){
+    var idx
+    while ((idx = this.indexOf(i)) > -1)
+      this.splice(idx, 1)
+  }
 }
 
 
@@ -205,13 +211,13 @@ Element = {
     return document.defaultView.getComputedStyle(this, '')
   }
 
-  , byTag : function(tag, class){
+  , byTag : function(tag, klass){
     var t = this
     if (t == document || t == window)
       t = document
     var d = t.getElementsByTagName(tag).toA()
-    if (class)
-      return d.findAll(function(i){ return i.className.match(class) })
+    if (klass)
+      return d.findAll(function(i){ return i.className.match(klass) })
     else
       return d
   }
@@ -263,10 +269,8 @@ function formatTime(msec) {
 }
 
 function guessLanguage() {
-  return (
-    navigator.language || navigator.browserLanguage ||
-    navigator.userLanguage || 'en-US'
-  )
+  return ( navigator.language || navigator.browserLanguage ||
+           navigator.userLanguage || 'en-US' )
 }
 
 function makeEditable(elem, path, key, validator, title) {
@@ -276,6 +280,7 @@ function makeEditable(elem, path, key, validator, title) {
     var input = Elem('input', null, null, null, null, {type:"text", value:" "})
     var cs = elem.computedStyle()
     input.style.mergeD(cs)
+    input.style.minWidth = elem.offsetWidth + 'px'
     input.addEventListener("keypress", function(e){
       if ((e.charCode || e.keyCode) == 27) input.cancel()
     }, false)
@@ -317,20 +322,24 @@ function makeEditable(elem, path, key, validator, title) {
   }, false)
 }
 
-function Elem(tag,content,id,class,style,config) {
+function Elem(tag, content, id, klass, style, config) {
   var e = document.createElement(tag)
-  if (content)
-    if ((typeof content) == 'string')
+  if (content) {
+    if ((typeof content) == 'string') {
       e.innerHTML = content
-    else
+    } else {
       e.appendChild(content)
-  if (class) e.className = class
+    }
+  }
+  if (klass) e.className = klass
   if (id) e.id = id
-  if (style)
-    if ((typeof style) == 'string')
+  if (style) {
+    if ((typeof style) == 'string') {
       e.setAttribute("style", style)
-    else
+    } else {
       e.style.mergeD(style)
+    }
+  }
   if (config) e.mergeD(config)
   return e
 }
@@ -411,3 +420,20 @@ Editors = {
   }
 }
 
+Mouse = {
+  left : 0,
+  browserPatterns : [
+      [/Safari/, 1],
+      [/Firefox/, 0]
+  ],
+  detectButtons : function(){
+    var pattern = this.browserPatterns.findAll(function(i){
+      return navigator.userAgent.match(i[0])
+    })[0]
+    if (pattern) {
+      this.left = pattern[1]
+    }
+  }
+}
+
+Mouse.detectButtons()

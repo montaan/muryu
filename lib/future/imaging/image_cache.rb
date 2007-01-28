@@ -325,6 +325,7 @@ class CacheImage
     sz = thumb_size
     @mutex.synchronize do
       #t = Time.now.to_f
+      Imlib2::Context.get.blend = true
       img.blend!(image, x*sz, y*sz, sz, sz, ix, iy, sz, sz)
       #@total += Time.now.to_f - t
       #@count += 1

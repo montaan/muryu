@@ -79,17 +79,16 @@ class Uploader
   end
 
   # finds user/YYYY/MM-DD/preferred_filename[.n].ext that doesn't exist yet
-  def create_unique_filename preferred_filename, user, ext
-    dir = today user
+  def create_unique_filename(preferred_filename, user, ext)
+    dir = today(user)
     preferred_filename = preferred_filename.sub(/#{Regexp.escape(ext)}\Z/i, '')
     base = File.join(dir, sanitize(preferred_filename))
     latest_numbered = Items.find(:path => /^#{base}\.[0-9]+?#{Regexp.escape(ext)}/, 
                                  :order_by => [[:path, :desc]])
-    # FIXME: breaks after .999
     if latest_numbered
       fn = latest_numbered.path
       num = fn.split(".")[-2].to_i + 1
-      base + (".%03d" % num) + ext
+      base + num.to_s.rjust(3, '0') + ext
     elsif Items.find(:path => "#{base}#{ext}")
       base + ".001" + ext
     else

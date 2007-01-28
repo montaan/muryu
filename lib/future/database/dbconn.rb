@@ -115,9 +115,9 @@ module DB
 
     def reserve
       obj = @objects.shift
-      rv = yield obj
+      yield obj
+    ensure
       @objects.push(obj)
-      rv
     end
   
     def method_missing(*a, &b)

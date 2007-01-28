@@ -37,6 +37,9 @@ Portal.prototype = {
   itemJSONSuffix : '/json',
   editSuffix : '/edit',
 
+  thumbnailPrefix : '/items/',
+  thumbnailSuffix : '/thumbnail',
+
   userPrefix : '/users/',
 
   filePrefix : '/files/',
@@ -53,7 +56,7 @@ Portal.prototype = {
       camera : 'camera',
       manufacturer : 'manufacturer',
       software : 'software',
-      edit : 'edit',
+      edit : 'edit metadata',
       filename : 'filename',
       source : 'source',
       referrer : 'referrer',
@@ -77,7 +80,10 @@ Portal.prototype = {
       loading_tile_info : 'Loading tile info failed',
       loading_item_info : 'Loading item info failed',
       byte_abbr : 'B',
-      click_to_edit : 'Click to edit'
+      click_to_edit_title : 'Click to edit item title',
+      click_to_edit_author : 'Click to edit item author',
+      item : 'item',
+      metadata : 'metadata'
     },
     'en-GB' : {},
     'fi-FI' : {
@@ -87,7 +93,7 @@ Portal.prototype = {
       camera : 'kamera',
       manufacturer : 'valmistaja',
       software : 'ohjelmisto',
-      edit : 'muokkaa',
+      edit : 'muokkaa tietoja',
       filename : 'tiedostonimi',
       source : 'lähde',
       referrer : 'viittaaja',
@@ -96,7 +102,7 @@ Portal.prototype = {
       tags : 'tagit',
       mimetype : 'tiedostomuoto',
       deleted : 'poistettu',
-      title : 'otsikko',
+      title : 'nimeke',
       publisher : 'julkaisija',
       publish_time : 'julkaisuaika',
       description : 'kuvaus',
@@ -111,7 +117,10 @@ Portal.prototype = {
       loading_tile_info : 'Tiilen tietojen lataaminen epäonnistui',
       loading_item_info : 'Kohteen tietojen lataaminen epäonnistui',
       byte_abbr : 'T',
-      click_to_edit : 'Napsauta muokataksesi'
+      click_to_edit_title : 'Napsauta muokataksesi nimekettä',
+      click_to_edit_author : 'Napsauta muokataksesi tekijän nimeä',
+      item : 'kohde',
+      metadata : 'sisältö'
     }
   },
 
@@ -199,6 +208,7 @@ Portal.prototype = {
       })
     })
     if (t.tiles.tilesInCache > visible_tiles*2 || zoomed) {
+      if (zoomed) t.itemCoords = {}
       t.removeTiles(sl - t.tileSize,
                     st - t.tileSize,
                     sl + c.offsetWidth + t.tileSize,
@@ -220,6 +230,7 @@ Portal.prototype = {
           try{ this.view.removeChild(this.tiles[i].parentNode) } catch(e) {}
           this.tiles[i].src = null
           this.tiles.tilesInCache--
+          this.deleteInfoEntries(this.tiles[i].infoEntries)
           delete this.tiles[i]
         }
       }
@@ -242,9 +253,9 @@ Portal.prototype = {
         tile.addEventListener("load",
           function(){
             tile.style.visibility = 'visible'
-            if (!t.loadLinks) return
+            if (!t.loadLinks || t.zoom < 5) return
             postQuery(t.tileInfoPrefix + tileQuery + t.tileInfoSuffix, t.query,
-              function(res){ t.createInfoEntry(res, x, y) },
+              function(res){ t.createInfoEntries(res, tile, x, y) },
               t.queryErrorHandler(t.translate('loading_tile_info'))
             )
           },
@@ -265,9 +276,10 @@ Portal.prototype = {
   },
 
   // Inserts the info into infoEntries for the tile
-  createInfoEntry : function(res, tx, ty){
+  createInfoEntries : function(res, tile, tx, ty){
     if (!this.createLinks) return false
     var infos = res.responseText.parseRawJSON()
+    tile.infoEntries = infos
     var t = this
     infos.each(function(i){
       i.x += tx
@@ -278,6 +290,39 @@ Portal.prototype = {
       t.insertInfoEntry(i, i.x+i.w, i.y)
       t.insertInfoEntry(i, i.x, i.y+i.h)
       t.insertInfoEntry(i, i.x+i.w, i.y+i.h)
+    })
+  },
+
+  // Deletes the given infoEntries from itemCoords.
+  deleteInfoEntries : function(infoEntries) {
+    if (!infoEntries) return
+    var t = this
+    infoEntries.each(function(ie){
+      var mods = [[0,0], [ie.w, 0], [0, ie.h], [ie.w, ie.h]]
+      mods.each(function(m){
+        var x = ie.x + m[0]
+        var y = ie.y + m[1]
+        var entries = t.coordsInfoEntry(x, y)
+        if (entries) {
+          entries.deleteAll(ie)
+          if (entries.isEmpty()) {
+//             console.log('deleting entries at '+x+","+y)
+            var row = t.coordsRow(y)
+            delete row[Math.floor(x / t.tileSize)]
+            var empty = true
+            for ( var i in row ) {
+              if (i.match(/^[0-9]+$/)) {
+                empty = false
+                break
+              }
+            }
+            if (empty) {
+//               console.log('deleting row at '+x+","+y)
+              delete t.itemCoords[Math.floor(y / t.tileSize)]
+            }
+          }
+        }
+      })
     })
   },
 
@@ -293,23 +338,30 @@ Portal.prototype = {
   coordsInfoEntry : function(x, y, autovivify) {
     var gx = Math.floor(x / this.tileSize)
     var gy = Math.floor(y / this.tileSize)
-    var row = this.itemCoords[gx]
+    var row = this.itemCoords[gy]
     if (!row) {
       if (!autovivify) {
         return false
       } else {
-        row = this.itemCoords[gx] = {}
+        row = this.itemCoords[gy] = {}
       }
     }
-    var ie = row[gy]
+    var ie = row[gx]
     if (!ie) {
       if (!autovivify) {
         return false
       } else {
-        ie = row[gy] = []
+        ie = row[gx] = []
       }
     }
     return ie
+  },
+
+  // Get the info entry row at y and return it.
+  coordsRow : function(y) {
+    var gy = Math.floor(y / this.tileSize)
+    var row = this.itemCoords[gy]
+    return row
   },
 
   // Finds the first matching info entry at x,y.
@@ -377,7 +429,7 @@ Portal.prototype = {
   linkClick : function() {
     var t = this
     return function(e) {
-      if (e.button == 0 && !(e.ctrlKey || e.altKey || e.shiftKey)) {
+      if (e.button == Mouse.left && !(e.ctrlKey || e.altKey || e.shiftKey)) {
         e.preventDefault()
         if ((Math.abs(e.clientX - this.downX) > 3) &&
             (Math.abs(e.clientY - this.downY) > 3)) {
@@ -413,6 +465,9 @@ Portal.prototype = {
   // make it visible.
   //
   showInfoLayer : function(x,y,info) {
+    this.infoLayer.style.display = 'none'
+    this.infoLayer.style.left = x + 'px'
+    this.infoLayer.style.top = y + 'px'
     this.infoLayerData = info
     var infoLayer = this.infoLayer
     this.infoLayer.innerHTML = ''
@@ -435,8 +490,6 @@ Portal.prototype = {
 //       d.appendChild(a)
 //       infoLayer.appendChild(d)
 //     })
-    this.infoLayer.style.left = x + 'px'
-    this.infoLayer.style.top = y + 'px'
     this.infoLayer.style.display = 'block'
   },
 
@@ -454,19 +507,19 @@ Portal.prototype = {
     if (info.metadata.title && show_title) {
       var title = Elem('span', info.metadata.title)
       makeEditable(title, this.itemPrefix+info.path+this.editSuffix,
-        'metadata.title', null, this.translate('click_to_edit'))
+        'metadata.title', null, this.translate('click_to_edit_title'))
       elem.appendChild(title)
     } else {
       var title = Elem('span')
       var basename = info.path.split("/").last()
       var editable_part = Elem('span', basename)
       makeEditable(editable_part, this.itemPrefix+info.path+this.editSuffix,
-        'title',
+        'metadata.title',
         function(base){
           if (base.length == 0) return false
           info.metadata.title = base
           return base
-      }, this.translate('click_to_edit') )
+      }, this.translate('click_to_edit_title') )
       title.appendChild(editable_part)
       elem.appendChild(title)
     }
@@ -475,7 +528,7 @@ Portal.prototype = {
         metadata.appendChild(Text(this.translate('by')+" "))
         var author = Elem('span', info.metadata.author)
         makeEditable(author, this.itemPrefix+info.path+this.editSuffix,
-          'metadata.author', null, this.translate('click_to_edit'))
+          'metadata.author', null, this.translate('click_to_edit_author'))
         metadata.appendChild(author)
       }
       if (info.metadata.length)
@@ -560,7 +613,7 @@ Portal.prototype = {
         {href:this.itemPrefix+info.path+this.itemSuffix})
       var t = this
       editLink.addEventListener("click", function(e){
-        if (e.button == 0 && !(e.ctrlKey || e.shiftKey || e.altKey)) {
+        if (e.button == Mouse.left && !(e.ctrlKey || e.shiftKey || e.altKey)) {
           e.preventDefault()
           t.itemEditForm(infoDiv, info)
         }
@@ -614,9 +667,8 @@ Portal.prototype = {
       dd.appendChild(Elem("input", null,null,null,null,
         { type: 'text',
           name: 'filename',
-          value: info.path.split("/").last().split(".").slice(0,-1).join("."),
-        }
-      ))
+          value: info.path.split("/").last().split(".").slice(0,-1).join(".")
+        }))
       var infoKeys = [
         'source',
         'referrer',

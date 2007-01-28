@@ -138,13 +138,15 @@ div.editorSubmit {
 .editor input[type=submit] {
   font-family: Trebuchet MS, Arial;
   font-weight: bold;
-  background-color: #CCFFCC;
+  background-color: #AAFFAA;
+  border-color: #AAFFAA;
   display: inline;
 }
 .editor input[type=reset] {
   font-family: Trebuchet MS, Arial;
   font-weight: bold;
-  background-color: #FFCCCC;
+  background-color: #FFAAAA;
+  border-color: #FFAAAA;
   display: inline;
   margin-right: 40px;
 }

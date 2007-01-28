@@ -72,6 +72,12 @@ module FutureServlet
   end
   
   def do_POST(req,res)
+    if req.body
+      nq = CGI.parse(req.body)
+      nq.each{|k,v|
+        req.query[k] = (v.size == 1 ? v[0] : v)
+      }
+    end
     handle_request(req,res)
   end
 
@@ -328,13 +334,7 @@ module FutureServlet
   end
   
   def do_edit(req,res)
-    if not req.query.empty?
-      servlet_target_edit(req)
-    elsif not req.body.empty?
-      req.instance_variable_set(:@query, CGI.parse(req.body))
-      req.query.each{|k,v| req.query[k] = v[0]}
-      servlet_target_edit(req)
-    end
+    servlet_target_edit(req)
     res.status = 302
     res['location'] = servlet_target_path
   end
@@ -628,7 +628,7 @@ extend FutureServlet
 
   class << self
     def sub_modes
-      ['owner','file','groups','tags','sets','thumbnail']
+      ['owner','file','groups','tags','sets','thumbnail','upload']
     end
 
     def servlet_path_key
@@ -736,6 +736,94 @@ extend FutureServlet
         res.body = servlet_target.thumbnail.read
       end
     end
+
+    ### FIXME implement compressed and remote_compressed uploads.
+    def do_upload(req, res)
+      if servlet_user != Users.anonymous
+        common_fields = {
+          :groups => req.query['groups'],
+          :public => req.query['public'],
+          :sets => req.query['sets'],
+          :tags => req.query['tags']
+        }
+        common_fields.delete_if{|k,v| v.nil? or v.empty? }
+        common_fields[:user] = servlet_user
+        urls, texts, uploads, compressed, compressed_urls, sources, referrers = (
+          ['url', 'text', 'upload',
+          'compressed', 'remote_compressed',
+          'source', 'referrer'
+          ].map{|pat| req.query.keys.grep(/^#{pat}[0-9]*$/).
+                      find_all{|k| req.query[k] and not req.query[k].empty? } }
+        )
+        unless [urls, texts, uploads, compressed, compressed_urls].all?{|k| k.empty?}
+          urls.each{|u|
+            num = u.scan(/[0-9]+/)[0]
+            referrer = referrers.find{|r| r.scan(/[0-9]+/)[0] == num }
+            f = {}
+            f[:source] = req.query[u]
+            f[:referrer] = req.query[referrer] if referrer
+            Uploader.upload(common_fields.merge(f))
+          }
+          texts.each{|u|
+            num = u.scan(/[0-9]+/)[0]
+            source = sources.find{|r| r.scan(/[0-9]+/)[0] == num }
+            referrer = referrers.find{|r| r.scan(/[0-9]+/)[0] == num }
+            f = {}
+            f[:text] = req.query[u]
+            f[:source] = req.query[source] if source
+            f[:referrer] = req.query[referrer] if referrer
+            Uploader.upload(common_fields.merge(f))
+          }
+          uploads.each{|u|
+            num = u.scan(/[0-9]+/)[0]
+            source = sources.find{|r| r.scan(/[0-9]+/)[0] == num }
+            referrer = referrers.find{|r| r.scan(/[0-9]+/)[0] == num }
+            f = {}
+            f[:io] = req.query[u]
+            f[:source] = req.query[source] if source
+            f[:referrer] = req.query[referrer] if referrer
+            Uploader.upload(common_fields.merge(f))
+          }
+        end
+      end
+      res.status = 302
+      res['location'] = '/items/create'
+    end
+
+    def do_create(req, res)
+      res.body = <<-EOF
+        <FORM METHOD="post" ENCTYPE="multipart/form-data" ACTION="/items/upload">
+        <P><A href="http://textism.com/tools/textile/" target="_new">TEXTILE</A><BR>
+          <TEXTAREA NAME="text" ROWS="1" COLS="30"></TEXTAREA>
+        </P>
+        <P>GROUPS<BR>
+          <INPUT name="groups" size="30" TYPE="text">
+        </P>
+        <P>SETS<BR>
+          <INPUT name="sets" size="30" TYPE="text">
+        </P>
+        <P>TAGS<BR>
+          <INPUT name="tags" size="30" TYPE="text">
+        </P>
+        <P>REMOTE FILES<BR>
+          <INPUT name="url" size="30" TYPE="text" multiply="yes">
+        </P>
+        <P>REMOTE ARCHIVES<BR>
+          <INPUT name="remote_compressed" size="30" TYPE="text" multiply="yes">
+        </P>
+        <P>LOCAL FILES<BR>
+          <INPUT name="upload" size="15" TYPE="file" multiply="yes">
+        </P>
+        <P>ARCHIVES<BR>
+          <INPUT name="compressed" size="15" TYPE="file" multiply="yes">
+        </P>
+        <P>BLANK FIELDS WILL BE IGNORED<BR>
+          <INPUT TYPE="submit" VALUE="Send all this junk, pronto!">
+        </P>
+        </FORM>
+      EOF
+    end
+
   end
 
 end
