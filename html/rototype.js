@@ -237,6 +237,26 @@ Element = {
     return this.parentNode.removeChild(this)
   }
 
+  , absoluteLeft : function() {
+    var obj = this
+    var l = 0
+    while(obj.offsetLeft != null) {
+      l += obj.offsetLeft
+      obj = obj.parentNode
+    }
+    return l
+  }
+
+  , absoluteTop : function() {
+    var obj = this
+    var l = 0
+    while(obj.offsetLeft != null) {
+      l += obj.offsetTop
+      obj = obj.parentNode
+    }
+    return l
+  }
+
 }
 
 
@@ -426,6 +446,7 @@ Mouse = {
       [/Safari/, 1],
       [/Firefox/, 0]
   ],
+  
   detectButtons : function(){
     var pattern = this.browserPatterns.findAll(function(i){
       return navigator.userAgent.match(i[0])
@@ -433,6 +454,10 @@ Mouse = {
     if (pattern) {
       this.left = pattern[1]
     }
+  },
+
+  normal : function(e) {
+    return (e.button == this.left && !(e.ctrlKey || e.shiftKey || e.altKey))
   }
 }
 

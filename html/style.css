@@ -1,3 +1,7 @@
+body {
+  overflow: hidden;
+}
+
 #currentLocation {
   z-index: 10;
   position:absolute;
@@ -21,14 +25,23 @@ input { display:block; }
 img { display:block; }
 
 #zogen {
-  position:absolute;
-  background: #33363B;
   left:0px;
   top: 18px;
+}
+
+.portal {
+  background: #33363B;
   width: 700px;
   height: 600px;
   overflow:hidden;
 }
+
+.portal h2 {
+  margin: 0px;
+  color: #FFFFFF;
+  font-family: URW Gothic L, Arial;
+}
+
 
 #status {
   position:absolute;
@@ -46,6 +59,26 @@ img { display:block; }
   left: 0px;
   z-index:10;
 }
+
+.portalWindow {
+  background: url(/zogen/80_opacity_black.png);
+  position: absolute;
+  z-index: 8;
+  padding: 4px;
+  margin-left: 5px;
+  margin-top: 10px;
+  color: #FFFFFF;
+  font-family: URW Gothic L, Arial;
+  font-weight: bold;
+  font-size: 10px;
+}
+
+.portalWindow h2 {
+  text-align: center;
+  margin-top: 0px;
+  margin-bottom: 4px;
+}
+
 
 .infoLayer {
   display: none;

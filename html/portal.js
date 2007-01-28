@@ -13,7 +13,7 @@ Portal = function(config) {
 
 
 Portal.prototype = {
-  title : 'zogen',
+  title : 'portal',
   language: guessLanguage(),
   defaultLanguage : 'en-US',
   
@@ -22,6 +22,9 @@ Portal.prototype = {
   zoom : 2,
   maxZoom : 7,
   tileSize : 256,
+
+  loadsInFlight : 0,
+  maxLoadFlightSize : 4,
 
   loadLinks : true,
   createLinks : true,
@@ -47,83 +50,6 @@ Portal.prototype = {
   
   query : '?' + window.location.search.substring(1),
 
-  translations : {
-    'en-US' : {
-      DateObject : function(d){ return d.toLocaleString(this.language) },
-      by : 'by',
-      author : 'author',
-      date_taken : 'date taken',
-      camera : 'camera',
-      manufacturer : 'manufacturer',
-      software : 'software',
-      edit : 'edit metadata',
-      filename : 'filename',
-      source : 'source',
-      referrer : 'referrer',
-      sets : 'sets',
-      groups : 'groups',
-      tags : 'content',
-      mimetype : 'file type',
-      deleted : 'deleted',
-      title : 'title',
-      publisher : 'publisher',
-      publish_time : 'publish time',
-      description : 'description',
-      location : 'location',
-      genre : 'genre',
-      album : 'album',
-      tracknum : 'track number',
-      album_art : 'album art',
-      cancel : 'cancel',
-      done : 'save',
-      edit_failed : 'Saving edits failed',
-      loading_tile_info : 'Loading tile info failed',
-      loading_item_info : 'Loading item info failed',
-      byte_abbr : 'B',
-      click_to_edit_title : 'Click to edit item title',
-      click_to_edit_author : 'Click to edit item author',
-      item : 'item',
-      metadata : 'metadata'
-    },
-    'en-GB' : {},
-    'fi-FI' : {
-      by : '-',
-      author : 'tekijä',
-      date_taken : 'otettu',
-      camera : 'kamera',
-      manufacturer : 'valmistaja',
-      software : 'ohjelmisto',
-      edit : 'muokkaa tietoja',
-      filename : 'tiedostonimi',
-      source : 'lähde',
-      referrer : 'viittaaja',
-      sets : 'joukot',
-      groups : 'ryhmät',
-      tags : 'tagit',
-      mimetype : 'tiedostomuoto',
-      deleted : 'poistettu',
-      title : 'nimeke',
-      publisher : 'julkaisija',
-      publish_time : 'julkaisuaika',
-      description : 'kuvaus',
-      location : 'sijainti',
-      genre : 'tyylilaji',
-      album : 'albumi',
-      tracknum : 'raidan numero',
-      album_art : 'kansitaide',
-      cancel : 'peruuta',
-      done : 'tallenna',
-      edit_failed : 'Muutosten tallentaminen epäonnistui',
-      loading_tile_info : 'Tiilen tietojen lataaminen epäonnistui',
-      loading_item_info : 'Kohteen tietojen lataaminen epäonnistui',
-      byte_abbr : 'T',
-      click_to_edit_title : 'Napsauta muokataksesi nimekettä',
-      click_to_edit_author : 'Napsauta muokataksesi tekijän nimeä',
-      item : 'kohde',
-      metadata : 'sisältö'
-    }
-  },
-
   translate : function(key, string) {
     var tr = (this.translations[this.language] || {})[key]
     if (!tr) tr = this.translations[this.defaultLanguage][key]
@@ -136,10 +62,18 @@ Portal.prototype = {
   },
 
   init : function() {
+    if (this.hash) {
+      var xyz = this.hash.split(/[xyz]/)
+      if (xyz[1] && xyz[1].match(/^[-+]?[0-9]+$/)) this.x = parseInt(xyz[1])
+      if (xyz[2] && xyz[2].match(/^[-+]?[0-9]+$/)) this.y = parseInt(xyz[2])
+      if (xyz[3] && xyz[3].match(/^[0-9]+$/)) this.zoom = parseInt(xyz[3])
+    }
+    this.loadQueue = []
     this.tiles = {tilesInCache : 0}
     this.initView()
     this.container.appendChild(this.view)
     this.itemCoords = {}
+    this.infoOverlays = {}
     this.initItemLink()
     this.updateTiles()
     this.view.addEventListener("mousedown", this.bind('mousedownHandler'), false)
@@ -165,7 +99,7 @@ Portal.prototype = {
     t.style.mergeD({
       position: 'absolute',
       fontSize: '20px',
-      left: '0px', top: '-40px',
+      left: '0px', top: '-20px',
       zIndex: 4, color: 'white'
     })
     this.titleElem = t
@@ -189,24 +123,35 @@ Portal.prototype = {
     var st = -(v.top - (v.top % t.tileSize))
     this.x = -v.left
     this.y = -v.top
-    this.currentLocation.href = "#x" + this.x + "y" + this.y + "z" + this.zoom
+    if (this.currentLocation)
+      this.currentLocation.href = "#x" + this.x + "y" + this.y + "z" + this.zoom
+    if (this.onlocationchange)
+      this.onlocationchange(this.x, this.y, this.zoom)
     var tile_coords = []
     var visible_tiles = 0
-    var midX = c.offsetWidth/2 - v.left - t.tileSize / 2
-    var midY = c.offsetHeight/2 - v.top - t.tileSize / 2
+    var vc = {
+      x : c.offsetWidth/2 - v.left,
+      y : c.offsetHeight/2 - v.top 
+    }
+    if (v.cX && v.cY) {
+      vc = this.viewCoords(v.cX, v.cY)
+    }
+    var midX = vc.x - t.tileSize / 2
+    var midY = vc.y - t.tileSize / 2
     this.titleElem.style.fontSize = parseInt(10 * Math.pow(2, this.zoom)) + 'px'
-    this.titleElem.style.top = parseInt(-20 * Math.pow(2, this.zoom)) + 'px'
-    Rg(-1, c.offsetWidth/t.tileSize+1).each(function(i){
+    this.titleElem.style.top = parseInt(-15 * Math.pow(2, this.zoom)) + 'px'
+    if (zoomed) this.clearQueue()
+    Rg(-1, c.offsetWidth/t.tileSize).each(function(i){
       var x = i*t.tileSize+sl
-      var dx = Math.abs(x - midX)
-      Rg(-1, c.offsetHeight/t.tileSize+1).each(function(j){
+      var dx = x - midX
+      Rg(-1, c.offsetHeight/t.tileSize).each(function(j){
         var y = j*t.tileSize+st
-        var dy = Math.abs(y - midY)
-        var d = Math.sqrt(dx*dx + dy*dy)
-        t.showTile(x,y, d)
+        var dy = y - midY
+        t.showTile(x,y, dx*dx+dy*dy)
         visible_tiles++
       })
     })
+    t.visible_tiles = visible_tiles
     if (t.tiles.tilesInCache > visible_tiles*2 || zoomed) {
       if (zoomed) t.itemCoords = {}
       t.removeTiles(sl - t.tileSize,
@@ -214,6 +159,7 @@ Portal.prototype = {
                     sl + c.offsetWidth + t.tileSize,
                     st + c.offsetHeight + t.tileSize)
     }
+    this.processQueue()
   },
 
   removeTiles : function(left, top, right, bottom){
@@ -226,8 +172,10 @@ Portal.prototype = {
         if (zoom != this.zoom ||
             x < left || x > right || y < top || y > bottom)
         {
-          if (this.tiles[i].timeout) clearTimeout(this.tiles[i].timeout)
-          try{ this.view.removeChild(this.tiles[i].parentNode) } catch(e) {}
+          if (this.tiles[i].timeout)
+            try{ clearTimeout(this.tiles[i].timeout) } catch(e) {}
+          try{ this.view.removeChild(this.tiles[i]) } catch(e) {}
+          this.tiles[i].onload = null
           this.tiles[i].src = null
           this.tiles.tilesInCache--
           this.deleteInfoEntries(this.tiles[i].infoEntries)
@@ -235,44 +183,68 @@ Portal.prototype = {
         }
       }
     }
+    this.processQueue()
   },
 
+  // Loads the tile at x,y with the given priority.
   showTile : function(x, y, priority){
     if (!this.tiles[x+':'+y+':'+this.zoom]) {
       var tile = Elem('img',null,null,'tile')
       tile.style.position = 'absolute'
-      tile.style.left = '0px'
-      tile.style.top = '0px'
+      tile.style.left = x + 'px'
+      tile.style.top = y + 'px'
       this.tiles[x+':'+y+':'+this.zoom] = tile
       this.tiles.tilesInCache++
       var t = this
-      tile.timeout = setTimeout(function(){
+      tile.timeout = this.insertLoader(priority, function(done){
         tile.style.visibility = 'hidden'
         var tileQuery = 'x'+ x +'y'+ y +'z'+ t.zoom +
                     'w'+ t.tileSize +'h'+ t.tileSize
-        tile.addEventListener("load",
-          function(){
+        tile.onload = function(){
+            done()
             tile.style.visibility = 'visible'
             if (!t.loadLinks || t.zoom < 5) return
             postQuery(t.tileInfoPrefix + tileQuery + t.tileInfoSuffix, t.query,
               function(res){ t.createInfoEntries(res, tile, x, y) },
               t.queryErrorHandler(t.translate('loading_tile_info'))
             )
-          },
-          false
-        )
-        var tile_cont = Elem('div')
-        tile_cont.style.position = 'absolute'
-        tile_cont.style.left = x+'px'
-        tile_cont.style.top = y+'px'
-        tile_cont.appendChild(tile)
-        t.view.appendChild(tile_cont)
+          }
         tile.width = t.tileSize
         tile.height = t.tileSize
         tile.src = t.tilePrefix + tileQuery + t.tileInfoSuffix + t.query
+        t.view.appendChild(tile)
         tile.timeout = false
-      }, priority/40)
+      })
     }
+  },
+
+  insertLoader : function(priority, loader) {
+    for(var i=0; i<this.loadQueue.length; i++) {
+      if (this.loadQueue[i][0] > priority) {
+        this.loadQueue.splice(i, 0, [priority, loader])
+        return
+      }
+    }
+    this.loadQueue.push([priority, loader])
+    this.processQueue()
+  },
+
+  processQueue : function() {
+    var t = this
+    while (this.loadsInFlight < this.maxLoadFlightSize && this.loadQueue.length > 0) {
+      var l = this.loadQueue.shift()
+      t.loadsInFlight++
+      l[1](function(){
+        t.loadsInFlight--
+        if (t.loadsInFlight < 0) t.loadsInFlight = 0
+        t.processQueue()
+      })
+    }
+  },
+
+  clearQueue : function() {
+    this.loadsInFlight = 0
+    this.loadQueue = []
   },
 
   // Inserts the info into infoEntries for the tile
@@ -285,7 +257,6 @@ Portal.prototype = {
       i.x += tx
       i.y += ty
       i.w = i.h = i.sz
-      // See if all these necessary ?
       t.insertInfoEntry(i, i.x, i.y)
       t.insertInfoEntry(i, i.x+i.w, i.y)
       t.insertInfoEntry(i, i.x, i.y+i.h)
@@ -326,10 +297,27 @@ Portal.prototype = {
     })
   },
 
-  // Pushes i to the info entry array at x,y
+  // Pushes i to the info entry array at x,y.
+  // Creates an info overlay at the coords if needed.
   insertInfoEntry : function(i, x, y) {
     var ie = this.coordsInfoEntry(x, y, true)
-    if (!ie.includes(i)) ie.push(i)
+    if (!ie.includes(i)) {
+      if (this.zoom > 7) this.loadInfoOverlay(i)
+      ie.push(i)
+    }
+  },
+
+  loadInfoOverlay : function(info) {
+    if (this.infoOverlays[info.x + ":" + info.y]) return false
+    this.infoOverlays[info.x + ":" + info.y] = info
+    var t = this
+    postQuery(this.itemPrefix + info.info.path + this.itemJSONSuffix, '',
+      function(res) {
+        var fullInfo = res.responseText.parseRawJSON()
+        t.createInfoOverlay(info, fullInfo)
+      },
+      t.queryErrorHandler(t.translate('loading_item_info'))
+    )
   },
 
   // Gets the info entry array at x,y.
@@ -379,44 +367,47 @@ Portal.prototype = {
     ti.style.top = i.y + 'px'
     ti.style.width = i.w + 'px'
     ti.style.height = i.h + 'px'
-//     ti.style.border = '1px solid yellow'
+    // ti.style.border = '1px solid yellow'
     ti.href = this.filePrefix + i.info.path + this.fileSuffix
     ti.infoObj = i
   },
 
-  // Creates an info overlay from the infoObj and attaches it to the container.
-  createTileOverlay : function(container, infoObj) {
-    var x = infoObj.x
-    var y = infoObj.y
-    var w = infoObj.w
-    var h = infoObj.h
-    var info = Elem('div', null, null, 'info',
+  // Creates an info overlay from the infoObj and attaches it to the view at info.
+  createInfoOverlay : function(info, infoObj) {
+    var x = info.x
+    var y = info.y
+    var w = info.w
+    var h = info.h
+    var top_left_info = Elem('div', null, null, 'info',
       { position: 'absolute', left: x + 'px', top: y + 'px' }
+    )
+    var top_right_info = Elem('div', null, null, 'info',
+      { position: 'absolute', left: (x + w) + 'px', top: y + 'px' }
     )
     var emblems = [
       ['e', 'FUNNY HATS!! - £4.99 from eBay.co.uk'],
       ['euro', 'Rocket Ship - 8.49€ from Amazon.de'],
       ['location', 'Bavaria, Germania']]
-    emblems = []
     emblems.each(function(n){
-      ti.emblems.push(n)
       var el = Elem('img')
       el.src = '/zogen/' + n[0] + '_16.png'
       el.style.display = 'block'
       el.style.margin = '1px'
-      info.appendChild(el)
+      top_left_info.appendChild(el)
     })
-    var info_text = Elem('div', null, null, 'infoText')
-    info_text.style.mergeD({
+    var bottom_info = Elem('div', null, null, 'infoText')
+    bottom_info.style.mergeD({
       position: 'absolute',
       left: x + 'px',
-      top: (y + h - 16) + 'px',
-      width: w,
-      height: '16px'
+      width: w + 'px'
     })
-    info_text.innerHTML = t.parseItemTitle('span', infoObj.info.path, true, false)
-    container.appendChild(info)
-    container.appendChild(info_text)
+    bottom_info.appendChild(this.parseItemTitle('span', infoObj, true, true))
+    bottom_info.appendChild(this.parseUserInfo(infoObj))
+    bottom_info.appendChild(this.parseItemMetadata(infoObj, true))
+    this.view.appendChild(top_left_info)
+    this.view.appendChild(top_right_info)
+    this.view.appendChild(bottom_info)
+    bottom_info.style.top = (y + h - bottom_info.offsetHeight) + 'px'
   },
 
   // Note where mouse button went down to avoid misclicks when dragging.
@@ -429,14 +420,14 @@ Portal.prototype = {
   linkClick : function() {
     var t = this
     return function(e) {
-      if (e.button == Mouse.left && !(e.ctrlKey || e.altKey || e.shiftKey)) {
+      if (Mouse.normal(e)) {
         e.preventDefault()
         if ((Math.abs(e.clientX - this.downX) > 3) &&
             (Math.abs(e.clientY - this.downY) > 3)) {
           return false
         }
         if (!t.infoLayerVisible() || t.infoTargetChanged()) {
-          var c = t.viewCoords(e)
+          var c = t.viewCoords(e.clientX, e.clientY)
           t.infoTarget = t.itemLink.infoObj
           postQuery(t.itemPrefix+t.itemLink.infoObj.info.path+t.itemJSONSuffix, '',
             function(res) {
@@ -568,52 +559,54 @@ Portal.prototype = {
   //
   // Returns the created metadata div (belongs to CSS class infoDiv.)
   //
-  parseItemMetadata : function(info) {
+  parseItemMetadata : function(info, hide_edit_link, hide_description, hide_metadata) {
     var infoDiv = Elem('div', null, null, 'infoDiv')
-    var pubdata = []
-/*    if (info.metadata.publish_time)
-      pubdata.push('created: ' + info.metadata.publish_time.toLocaleString())*/
-    if (info.metadata.publisher)
-      pubdata.push(this.translate('publisher', ': ' + info.metadata.publisher))
-    if (info.metadata.album)
-      pubdata.push(this.translate('album', ': ' + info.metadata.album))
-    if (pubdata.length > 0)
-      infoDiv.appendChild(Elem('p', pubdata.join(" | ")))
-    if (info.metadata.exif) {
-      var tuples = {}
-      info.metadata.exif.split("\n").each(function(tup){
-        var kv = tup.split("\t")
-        tuples[kv[0]] = kv[1]
-      })
-      var exifdata = []
-      if (tuples['Date and Time']) {
-        var dc = tuples['Date and Time'].split(/[^0-9]/)
-        var d = new Date(dc[0], dc[1], dc[2], dc[3], dc[4], dc[5])
-        exifdata.push(this.translate("date taken", ": " +
-                                     this.translate("DateObject", d)))
+    if (!hide_metadata) {
+      var pubdata = []
+      // if (info.metadata.publish_time)
+      //   pubdata.push('created: ' + info.metadata.publish_time.toLocaleString())
+      if (info.metadata.publisher)
+        pubdata.push(this.translate('publisher', ': ' + info.metadata.publisher))
+      if (info.metadata.album)
+        pubdata.push(this.translate('album', ': ' + info.metadata.album))
+      if (pubdata.length > 0)
+        infoDiv.appendChild(Elem('p', pubdata.join(" | ")))
+      if (info.metadata.exif) {
+        var tuples = {}
+        info.metadata.exif.split("\n").each(function(tup){
+          var kv = tup.split("\t")
+          tuples[kv[0]] = kv[1]
+        })
+        var exifdata = []
+        if (tuples['Date and Time']) {
+          var dc = tuples['Date and Time'].split(/[^0-9]/)
+          var d = new Date(dc[0], dc[1], dc[2], dc[3], dc[4], dc[5])
+          exifdata.push(this.translate("date taken", ": " +
+                                      this.translate("DateObject", d)))
+        }
+        if (tuples.Manufacturer)
+          exifdata.push(this.translate("camera", ": " + tuples.Model +
+                        ", " + this.translate("manufacturer", ": " + tuples.Manufacturer)))
+        if (tuples.Software)
+          exifdata.push(this.translate("software", ": " + tuples.Software))
+        exifdata.each(function(pd){
+          infoDiv.appendChild(Elem('p', pd))
+        })
       }
-      if (tuples.Manufacturer)
-        exifdata.push(this.translate("camera", ": " + tuples.Model +
-                      ", " + this.translate("manufacturer", ": " + tuples.Manufacturer)))
-      if (tuples.Software)
-        exifdata.push(this.translate("software", ": " + tuples.Software))
-      exifdata.each(function(pd){
-        infoDiv.appendChild(Elem('p', pd))
-      })
     }
-    if (info.metadata.description) {
+    if (info.metadata.description && !hide_description) {
       var desc = Elem('p')
       desc.appendChild(Text(info.metadata.description))
       infoDiv.appendChild(desc)
     }
 //     infoDiv.appendChild(Elem('pre', info.metadata.exif))
-    if (info.writable) {
+    if (info.writable && !hide_edit_link) {
       var editLink = Elem("a", this.translate("edit"), null, null,
         {textAlign:'right', display:'block'},
         {href:this.itemPrefix+info.path+this.itemSuffix})
       var t = this
       editLink.addEventListener("click", function(e){
-        if (e.button == Mouse.left && !(e.ctrlKey || e.shiftKey || e.altKey)) {
+        if (Mouse.normal(e)) {
           e.preventDefault()
           t.itemEditForm(infoDiv, info)
         }
@@ -759,8 +752,8 @@ Portal.prototype = {
 
   zoomOut : function(e){
     if (this.zoom > 0) {
-      var lx = this.view.cX - this.view.left - parseInt(this.container.computedStyle().left)
-      var ly = this.view.cY - this.view.top - parseInt(this.container.computedStyle().top)
+      var lx = this.view.cX - this.view.left - this.container.absoluteLeft()
+      var ly = this.view.cY - this.view.top - this.container.absoluteTop()
       this.zoom--
       this.view.left += parseInt(lx / 2)
       this.view.top += parseInt(ly / 2)
@@ -776,8 +769,8 @@ Portal.prototype = {
 
   zoomIn : function(e){
     if (this.zoom < this.maxZoom) {
-      var lx = this.view.cX - this.view.left - parseInt(this.container.computedStyle().left)
-      var ly = this.view.cY - this.view.top - parseInt(this.container.computedStyle().top)
+      var lx = this.view.cX - this.view.left - this.container.absoluteLeft()
+      var ly = this.view.cY - this.view.top - this.container.absoluteTop()
       this.zoom++
       this.view.left -= (lx)
       this.view.top -= (ly)
@@ -809,16 +802,16 @@ Portal.prototype = {
       this.dragX = e.clientX
       this.dragY = e.clientY
     }
-    var x = e.clientX - parseInt(this.container.computedStyle().left) - this.view.left
-    var y = e.clientY - parseInt(this.container.computedStyle().top) - this.view.top
-    var ie = this.findInfoEntry(x, y)
+    this.view.rX = e.clientX - this.container.absoluteLeft() - this.view.left
+    this.view.rY = e.clientY - this.container.absoluteTop() - this.view.top
+    var ie = this.findInfoEntry(this.view.rX, this.view.rY)
     if (ie) this.updateItemLink(ie)
   },
 
-  viewCoords: function(e) {
+  viewCoords: function(x, y) {
     return {
-      x: e.clientX - parseInt(this.container.computedStyle().left) - this.view.left,
-      y: e.clientY - parseInt(this.container.computedStyle().top) - this.view.top
+      x: x - this.container.absoluteLeft() - this.view.left,
+      y: y - this.container.absoluteTop() - this.view.top
     }
   },
 
@@ -858,5 +851,85 @@ Portal.prototype = {
         this.pan(0,-64,e)
         break
     }
+  },
+
+
+
+  translations : {
+    'en-US' : {
+      DateObject : function(d){ return d.toLocaleString(this.language) },
+      by : 'by',
+      author : 'author',
+      date_taken : 'date taken',
+      camera : 'camera',
+      manufacturer : 'manufacturer',
+      software : 'software',
+      edit : 'edit metadata',
+      filename : 'filename',
+      source : 'source',
+      referrer : 'referrer',
+      sets : 'sets',
+      groups : 'groups',
+      tags : 'content',
+      mimetype : 'file type',
+      deleted : 'deleted',
+      title : 'title',
+      publisher : 'publisher',
+      publish_time : 'publish time',
+      description : 'description',
+      location : 'location',
+      genre : 'genre',
+      album : 'album',
+      tracknum : 'track number',
+      album_art : 'album art',
+      cancel : 'cancel',
+      done : 'save',
+      edit_failed : 'Saving edits failed',
+      loading_tile_info : 'Loading tile info failed',
+      loading_item_info : 'Loading item info failed',
+      byte_abbr : 'B',
+      click_to_edit_title : 'Click to edit item title',
+      click_to_edit_author : 'Click to edit item author',
+      item : 'item',
+      metadata : 'metadata'
+    },
+    'en-GB' : {},
+    'fi-FI' : {
+      by : '-',
+      author : 'tekijä',
+      date_taken : 'otettu',
+      camera : 'kamera',
+      manufacturer : 'valmistaja',
+      software : 'ohjelmisto',
+      edit : 'muokkaa tietoja',
+      filename : 'tiedostonimi',
+      source : 'lähde',
+      referrer : 'viittaaja',
+      sets : 'joukot',
+      groups : 'ryhmät',
+      tags : 'tagit',
+      mimetype : 'tiedostomuoto',
+      deleted : 'poistettu',
+      title : 'nimeke',
+      publisher : 'julkaisija',
+      publish_time : 'julkaisuaika',
+      description : 'kuvaus',
+      location : 'sijainti',
+      genre : 'tyylilaji',
+      album : 'albumi',
+      tracknum : 'raidan numero',
+      album_art : 'kansitaide',
+      cancel : 'peruuta',
+      done : 'tallenna',
+      edit_failed : 'Muutosten tallentaminen epäonnistui',
+      loading_tile_info : 'Tiilen tietojen lataaminen epäonnistui',
+      loading_item_info : 'Kohteen tietojen lataaminen epäonnistui',
+      byte_abbr : 'T',
+      click_to_edit_title : 'Napsauta muokataksesi nimekettä',
+      click_to_edit_author : 'Napsauta muokataksesi tekijän nimeä',
+      item : 'kohde',
+      metadata : 'sisältö'
+    }
   }
+
 }
