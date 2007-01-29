@@ -28,7 +28,9 @@ function R(s, e){
 }
 
 function Rg(s,e){
-  return R(s,e+1)
+  var r = R(s,e)
+  r.push(e)
+  return r
 }
 
 function $S(selname)

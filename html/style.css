@@ -1,5 +1,6 @@
 body {
   overflow: hidden;
+  font-size: 11px;
 }
 
 #currentLocation {
@@ -19,10 +20,6 @@ body {
 #currentLocation a {
   color: #99969B;
 }
-
-input { display:block; }
-
-img { display:block; }
 
 #zogen {
   left:0px;
@@ -70,7 +67,6 @@ img { display:block; }
   color: #FFFFFF;
   font-family: URW Gothic L, Arial;
   font-weight: bold;
-  font-size: 10px;
 }
 
 .portalWindow h2 {
@@ -91,7 +87,6 @@ img { display:block; }
   color: #CCCCCC;
   font-family: URW Gothic L, Arial;
   font-weight: bold;
-  font-size: 10px;
 }
 
 .infoLayer h3 {
@@ -110,6 +105,57 @@ img { display:block; }
 
 .infoLayer div {
   background: url(/zogen/80_opacity_black.png);
+}
+
+.emblemImage16 {
+  z-index: 2;
+}
+.emblemImage32 {
+  z-index: 2;
+}
+
+a.emblemText16 {
+  color: white;
+  text-decoration: none;
+}
+a.emblemText32 {
+  color: white;
+  text-decoration: none;
+}
+a.emblemText16:visited {
+  color: #DDDDDD;
+}
+a.emblemText32:visited {
+  color: #DDDDDD;
+}
+
+.emblemText16 {
+  position: absolute;
+  left: 8px;
+  top: 0px;
+  height: 16px;
+  font-family: URW Gothic L, Arial;
+  font-weight: bold;
+  margin: 0px;
+  padding: 0px;
+  padding-left:12px;
+  padding-right:4px;
+  background: url(/zogen/80_opacity_black.png);
+  z-index: 1;
+}
+.emblemText32 {
+  position: absolute;
+  left: 16px;
+  top: 8px;
+  height: 16px;
+  font-family: URW Gothic L, Arial;
+  font-weight: bold;
+  margin: 0px;
+  padding: 0px;
+  padding-left:20px;
+  padding-right:4px;
+  background: url(/zogen/80_opacity_black.png);
+  z-index: 1;
 }
 
 a {
@@ -173,14 +219,12 @@ div.editorSubmit {
   font-weight: bold;
   background-color: #AAFFAA;
   border-color: #AAFFAA;
-  display: inline;
 }
 .editor input[type=reset] {
   font-family: Trebuchet MS, Arial;
   font-weight: bold;
   background-color: #FFAAAA;
   border-color: #FFAAAA;
-  display: inline;
   margin-right: 40px;
 }
 
@@ -217,7 +261,6 @@ div.editorSubmit {
   color: white;
   font-family: URW Gothic L, Arial;
   font-weight: bold;
-  font-size: 10px;
   overflow: hidden;
 }
 
