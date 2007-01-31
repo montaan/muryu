@@ -92,11 +92,11 @@ class ImageCache
         pn = Pathname.new(item.internal_path)
         tn = Future.cache_dir + "tmpthumb-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.jpg"
         w = 2**zoom
-        pn.thumbnail(tn, w, 0, "#{image.width}x#{image.height}+#{-[0, x].min}+#{-[0, y].min}")
-        return unless tn.exist?
-        x = 0 if x < 0
-        y = 0 if y < 0
         @@cache_draw_mutex.synchronize do
+          pn.thumbnail(tn, w, 0, "#{image.width}x#{image.height}+#{-[0, x].min}+#{-[0, y].min}")
+          return unless tn.exist?
+          x = 0 if x < 0
+          y = 0 if y < 0
           begin
             t = Imlib2::Image.load(tn.to_s)
             image.blend!(t, 0,0,t.width,t.height, x,y,t.width,t.height)

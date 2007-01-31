@@ -302,10 +302,8 @@ Portal.prototype = {
         if (zoom != this.zoom ||
             x < left || x > right || y < top || y > bottom)
         {
-          if (this.tiles[i].timeout)
-            try{ clearTimeout(this.tiles[i].timeout) } catch(e) {}
+          if (this.tiles[i].onload) this.tiles[i].onload(false)
           try{ this.view.removeChild(this.tiles[i]) } catch(e) {}
-          this.tiles[i].onload = null
           this.tiles[i].src = null
           this.tiles.tilesInCache--
           this.deleteInfoEntries(this.tiles[i].infoEntries)
@@ -330,14 +328,17 @@ Portal.prototype = {
         tile.style.visibility = 'hidden'
         var tileQuery = 'x'+ x +'y'+ y +'z'+ t.zoom +
                     'w'+ t.tileSize +'h'+ t.tileSize
-        tile.onload = function(){
+        tile.onload = function(e){
+            tile.onload = false
             done()
-            tile.style.visibility = 'visible'
-            if (!t.loadLinks || t.zoom < 5) return
-            postQuery(t.tileInfoPrefix + tileQuery + t.tileInfoSuffix, t.query,
-              function(res){ t.createInfoEntries(res, tile, x, y) },
-              t.queryErrorHandler(t.translate('loading_tile_info'))
-            )
+            if (e) {
+              tile.style.visibility = 'visible'
+              if (!t.loadLinks || t.zoom < 5) return
+              postQuery(t.tileInfoPrefix + tileQuery + t.tileInfoSuffix, t.query,
+                function(res){ t.createInfoEntries(res, tile, x, y) },
+                t.queryErrorHandler(t.translate('loading_tile_info'))
+              )
+            }
           }
         tile.width = t.tileSize
         tile.height = t.tileSize
@@ -605,7 +606,7 @@ Portal.prototype = {
   },
 
   // Create emblem from
-  createEmblem : function(name, title, href, index, emblem_size) {
+  createEmblem : function(name, title, href, index, emblem_size, show_always) {
     var t = this
     var el = Elem('div', null, null, 'emblem',
       { display: 'block',
@@ -621,12 +622,15 @@ Portal.prototype = {
         background: 'url('+t.emblemPrefix+name+'_'+emblem_size+t.emblemSuffix+') no-repeat' },
       { href: href, title: title })
     el.appendChild(img)
-    el.onmouseover = function(){ t.expandEmblems([el], emblem_size) }
-    el.onmouseout = function(){ t.shrinkEmblems([el], emblem_size) }
+    if (!show_always) {
+      el.onmouseover = function(){ t.expandEmblems([el], emblem_size) }
+      el.onmouseout = function(){ t.shrinkEmblems([el], emblem_size) }
+    } else {
+      t.expandEmblems([el], emblem_size)
+    }
     return el
   },
 
-  // FIXME icky layout bugs on close zooms (512, 1024)
   updateOverlayCoords : function(info,tl,tr,b,es, force_update){
     var t = this
     var rx = info.x
@@ -1118,7 +1122,16 @@ Portal.prototype = {
 
   translations : {
     'en-US' : {
-      DateObject : function(d){ return d.toLocaleString(this.language) },
+      DateObject : function(d){
+        weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+        return (weekdays[d.getDay()] + ', ' + months[d.getMonth()] + ' ' +
+                d.getDate() + ', ' + (d.getYear() + 1900) + ' ' +
+                (d.getHours()%13).toString().rjust(2, '0') + ':' +
+                d.getMinutes().toString().rjust(2, '0') + ':' +
+                d.getSeconds().toString().rjust(2, '0') + ' ' +
+                (d.getHours() < 13 ? 'am' : 'pm'))
+      },
       by : 'by',
       author : 'author',
       date_taken : 'date taken',
@@ -1154,8 +1167,28 @@ Portal.prototype = {
       item : 'item',
       metadata : 'metadata'
     },
-    'en-GB' : {},
+    'en-GB' : {
+      DateObject : function(d){
+        weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+        months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+        return (weekdays[d.getDay()] + ', ' + d.getDate() + ' ' +
+                months[d.getMonth()] + ' ' + (d.getYear() + 1900) + ' ' +
+                (d.getHours()%13).toString().rjust(2, '0') + ':' +
+                d.getMinutes().toString().rjust(2, '0') + ':' +
+                d.getSeconds().toString().rjust(2, '0') + ' ' +
+                (d.getHours() < 13 ? 'am' : 'pm'))
+      }
+    },
     'fi-FI' : {
+      DateObject : function(d){
+        weekdays = ['su', 'ma', 'ti', 'ke', 'to', 'pe', 'la']
+        months = ['tammi', 'helmi', 'maalis', 'huhti', 'touko', 'kesä', 'heinä', 'elo', 'syys', 'loka', 'marras', 'joulu']
+        return (weekdays[d.getDay()] + ' ' + d.getDate() + '. ' +
+                months[d.getMonth()] + 'kuuta ' + (d.getYear() + 1900) + ' ' +
+                d.getHours().toString().rjust(2, '0') + ':' +
+                d.getMinutes().toString().rjust(2, '0') + ':' +
+                d.getSeconds().toString().rjust(2, '0'))
+      },
       by : '-',
       author : 'tekijä',
       date_taken : 'otettu',
@@ -1190,6 +1223,42 @@ Portal.prototype = {
       click_to_edit_author : 'Napsauta muokataksesi tekijän nimeä',
       item : 'kohde',
       metadata : 'sisältö'
+    },
+    'de-DE' : {
+      by : '-',
+      author : 'Urheber',
+      date_taken : 'Erstellungsdatum',
+      camera : 'Kameramodell',
+      manufacturer : 'Hersteller',
+      software : 'Software',
+      edit : 'Metadaten bearbeiten',
+      filename : 'Dateiname',
+      source : 'Quelle',
+      referrer : 'Referrer',
+      sets : 'Garnituren',
+      groups : 'Gruppen',
+      tags : 'Tags',
+      mimetype : 'Dateityp',
+      deleted : 'gelöscht',
+      title : 'Titel',
+      publisher : 'Herausgeber',
+      publish_time : 'Veröffentlichungszeit',
+      description : 'Beschreibung',
+      location : 'Ort',
+      genre : 'Genre',
+      album : 'Album',
+      tracknum : 'Titelnummer',
+      album_art : 'Albencover',
+      cancel : 'abbrechen',
+      done : 'speichern',
+      edit_failed : 'Speicherung der Änderungen fehlgeschlagen',
+      loading_tile_info : 'Kachelladevorgang fehlgeschlagen',
+      loading_item_info : 'Dateiladevorgang fehlgeschlagen',
+      byte_abbr : 'B',
+      click_to_edit_title : 'Klicken Sie hier, um den Titel zu ändern',
+      click_to_edit_author : 'Klicken Sie hier, um den Urhebernamen zu ändern',
+      item : 'Datei',
+      metadata : 'Metadaten'
     }
   }
 

@@ -57,6 +57,7 @@ function toggleCSSDisplay(selector) {
   }
 }
 
+
 Enumerable = {
   mergeD : function(other){
     for (var i in other)
@@ -297,6 +298,22 @@ Object.prototype.mergeD(Element)
 var or = Array.prototype.reverse
 Array.prototype.mergeD(Enumerable)
 Array.prototype.reverse = or
+
+String.prototype.rjust = function(len, pad) {
+  var fpad = ''
+  if (!pad) pad = ' '
+  for(var i=0; i < (len-this.length); i++)
+    fpad = fpad.concat(pad)
+  return this.replace(/^/, fpad)
+}
+String.prototype.ljust = function(len, pad) {
+  var fpad = ''
+  if (!pad) pad = ' '
+  for(var i=0; i < (len-this.length); i++)
+    fpad = fpad.concat(pad)
+  return this.replace(/$/, fpad)
+}
+
 
 $ = Enumerable.$
 
