@@ -33,6 +33,7 @@ extend self
       qtext = sanitize_query(query)
       #fn = Future.tile_cache_dir + %!tile_#{qtext}_#{[r,"#{w}x#{h}",z,x,y].join("_")}.jpg!
       fn = Future.tile_cache_dir + "tmptile-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.jpg"
+      tile['quality'] = [20, [(z-1)*10, 90].min].max
       tile.save(fn.to_s)
       tile.delete!(true)
       #File.rename(tmp, fn.to_s)

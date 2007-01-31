@@ -47,6 +47,16 @@ function $S(selname)
   return null
 }
 
+function toggleCSSDisplay(selector) {
+  var s = $S(selector)
+  var d = s.style.display
+  if (d && d == 'none') {
+    s.style.display = 'block'
+  } else {
+    s.style.display = 'none'
+  }
+}
+
 Enumerable = {
   mergeD : function(other){
     for (var i in other)
@@ -167,10 +177,22 @@ Enumerable = {
     return this[this.length-i]
   }
 
+  , deleteIf : function(f){
+    var idx
+    for(var i = 0; i<this.length; i++){
+      if (f(this[i])) {
+        this.splice(i,1)
+        i--
+      }
+    }
+    return this
+  }
+
   , deleteAll : function(i){
     var idx
     while ((idx = this.indexOf(i)) > -1)
       this.splice(idx, 1)
+    return this
   }
 }
 

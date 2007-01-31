@@ -21,107 +21,11 @@
         }
         var z = window.focusedPortal = createNewPortal(x, y, z, w, h, document.body, config)
         window.onkeypress = function(e){ window.focusedPortal.keyHandler(e) }
-        window.onresize = function(){
-          z.container.style.width = window.innerWidth - parseInt(z.container.computedStyle().left) + 'px'
-          z.container.style.height = window.innerHeight - parseInt(z.container.computedStyle().top) + 'px'
-          z.updateTiles()
+        window.onresize = function() {
+          z.container.style.width = window.innerWidth - z.container.absoluteLeft() + 'px'
+          z.container.style.height = window.innerHeight - z.container.absoluteTop() + 'px'
         }
       },false)
-
-      function toggleCSSDisplay(selector) {
-        var s = $S(selector)
-        var d = s.style.display
-        if (d && d == 'none') {
-          s.style.display = 'block'
-        } else {
-          s.style.display = 'none'
-        }
-      }
-
-      function createNewPortal(x, y, z, w, h, parent, config) {
-        if (!config) config = {}
-        var container = Elem('div', null, null, 'portal',
-          {
-            position : 'absolute',
-            left : x + 'px',
-            top : y + 'px',
-            zIndex : z,
-            width : (typeof w == 'string') ? w : w + 'px',
-            height : (typeof h == 'string') ? h : h + 'px'
-          }
-        )
-        config.container = container
-        parent.appendChild(container)
-        var portal = new Portal(config)
-        container.addEventListener('mousedown',
-          function(e){
-            window.focusedPortal = portal
-          }, false)
-        return portal
-      }
-
-      function createNewPortalWindow(x, y, w, h, parent, config) {
-        var win = Elem('div', null, null, 'portalWindow',
-          { position: 'absolute',
-            left: x+'px',
-            top: y+'px',
-            zIndex: 2,
-            display: 'block' }, {left: x, top: y}
-        )
-        var title = Elem('h2', '', null, null,
-          {cursor : 'move'})
-        title.onmousedown = function(e){
-          if (Mouse.normal(e)) {
-            title.dragging = true
-            title.prevX = e.clientX
-            title.prevY = e.clientY
-            e.preventDefault()
-          }
-        }
-        title.addEventListener("dblclick", function(e) {
-          if ( Mouse.normal(e) ) {
-            title.dragging = false
-            var ns = title.nextSibling
-            if (ns) {
-              if (ns.style.display != 'none') {
-                title.style.width = ns.offsetWidth + 'px'
-                ns.style.display = 'none'
-              } else {
-                title.style.width = null
-                ns.style.display = null
-              }
-            }
-          }
-        }, false)
-        window.addEventListener("mouseup", function(e) { title.dragging = false }, false)
-        window.addEventListener("mousemove", function(e){
-          if (title.dragging) {
-            var dx = e.clientX - title.prevX
-            var dy = e.clientY - title.prevY
-            title.prevX = e.clientX
-            title.prevY = e.clientY
-            win.left += dx
-            win.top += dy
-            win.style.left = win.left + 'px'
-            win.style.top = win.top + 'px'
-          }
-        }, false)
-        win.appendChild(title)
-        parent.appendChild(win)
-        var portal = createNewPortal(0, 0, 1, w, h, win)
-        portal.container.style.position = 'relative'
-        portal.onlocationchange = function(x, y, z){
-          title.innerHTML = portal.title + " (" + [x, y, z].join(":") + ")"
-        }
-        win.addEventListener('mousedown',
-          function(e){
-            window.focusedPortal = portal
-          }, false)
-        return portal
-      }
-
-      function createNewSubPortal() {
-      }
     </script>
   </head>
 
@@ -132,9 +36,7 @@
         <a href="javascript:void(createNewPortalWindow(100, 100, 640, 480, document.body))">new portal</a>
       | <a href="javascript:void(createNewSubPortal())">new subportal</a>
       ] Toggle [
-        <a href="javascript:void(window.zogen.loadLinks = !window.zogen.loadLinks)">info loading</a>
-      | <a href="javascript:void(window.zogen.createLinks = !window.zogen.createLinks)">info element creation</a>
-      | <a href="javascript:toggleCSSDisplay('.info')">emblems</a>
+        <a href="javascript:toggleCSSDisplay('.info')">emblems</a>
       | <a href="javascript:toggleCSSDisplay('.infoText')">filename</a>
       | <a href="javascript:toggleCSSDisplay('.itemLink')">links</a> ]
     </div>

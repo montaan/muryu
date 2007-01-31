@@ -19,6 +19,93 @@
   http://www.gnu.org/copyleft/gpl.html
 */
 
+function createNewPortal(x, y, z, w, h, parent, config) {
+  if (!config) config = {}
+  var container = Elem('div', null, null, 'portal',
+    {
+      position : 'absolute',
+      left : x + 'px',
+      top : y + 'px',
+      zIndex : z,
+      width : (typeof w == 'string') ? w : w + 'px',
+      height : (typeof h == 'string') ? h : h + 'px'
+    }
+  )
+  config.container = container
+  parent.appendChild(container)
+  var portal = new Portal(config)
+  container.addEventListener('mousedown',
+    function(e){
+      window.focusedPortal = portal
+    }, false)
+  return portal
+}
+
+function createNewPortalWindow(x, y, w, h, parent, config) {
+  var win = Elem('div', null, null, 'portalWindow',
+    { position: 'absolute',
+      left: x+'px',
+      top: y+'px',
+      zIndex: 2,
+      display: 'block' }, {left: x, top: y}
+  )
+  var title = Elem('h2', '', null, null,
+    {cursor : 'move'})
+  title.onmousedown = function(e){
+    if (Mouse.normal(e)) {
+      title.dragging = true
+      title.prevX = e.clientX
+      title.prevY = e.clientY
+      e.preventDefault()
+    }
+  }
+  title.addEventListener("dblclick", function(e) {
+    if ( Mouse.normal(e) ) {
+      title.dragging = false
+      var ns = title.nextSibling
+      if (ns) {
+        if (ns.style.display != 'none') {
+          title.style.width = ns.offsetWidth + 'px'
+          ns.style.display = 'none'
+        } else {
+          title.style.width = null
+          ns.style.display = null
+        }
+      }
+    }
+  }, false)
+  window.addEventListener("mouseup", function(e) { title.dragging = false }, false)
+  window.addEventListener("mousemove", function(e){
+    if (title.dragging) {
+      var dx = e.clientX - title.prevX
+      var dy = e.clientY - title.prevY
+      title.prevX = e.clientX
+      title.prevY = e.clientY
+      win.left += dx
+      win.top += dy
+      win.style.left = win.left + 'px'
+      win.style.top = win.top + 'px'
+    }
+  }, false)
+  win.appendChild(title)
+  parent.appendChild(win)
+  var portal = createNewPortal(0, 0, 1, w, h, win)
+  portal.container.style.position = 'relative'
+  portal.onlocationchange = function(x, y, z){
+    title.innerHTML = portal.title + " (" + [x, y, z].join(":") + ")"
+  }
+  win.addEventListener('mousedown',
+    function(e){
+      window.focusedPortal = portal
+    }, false)
+  return portal
+}
+
+function createNewSubPortal() {
+  window.focusedPortal.addSubPortal(256, 0)
+}
+
+
 
 Portal = function(config) {
   this.mergeD(config)
@@ -62,6 +149,9 @@ Portal.prototype = {
   itemJSONSuffix : '/json',
   editSuffix : '/edit',
 
+  emblemPrefix : '/zogen/',
+  emblemSuffix : '.png',
+
   thumbnailPrefix : '/items/',
   thumbnailSuffix : '/thumbnail',
 
@@ -99,6 +189,7 @@ Portal.prototype = {
     this.infoOverlays = {}
     this.initItemLink()
     this.updateTiles()
+    this.container.addEventListener("DOMAttrModified", this.bind('containerResizeHandler'), false)
     this.view.addEventListener("DOMAttrModified", this.bind('viewScrollHandler'), false)
     this.view.addEventListener("mousedown", this.bind('mousedownHandler'), false)
     this.view.addEventListener("DOMMouseScroll", this.bind('DOMMouseScrollHandler'), false)
@@ -136,6 +227,11 @@ Portal.prototype = {
       this.viewMonitors.each(function(vm){ vm[1](e) })
   },
 
+  containerResizeHandler : function(e) {
+    if (e.target == this.container && e.attrName == 'style')
+      this.updateTiles()
+  },
+
   initItemLink : function(i) {
     var ti = this.itemLink = Elem('a', null, null, 'itemLink')
     ti.addEventListener("click", this.linkClick(), false)
@@ -169,7 +265,12 @@ Portal.prototype = {
     var midY = vc.y - t.tileSize / 2
     this.titleElem.style.fontSize = parseInt(10 * Math.pow(2, this.zoom)) + 'px'
     this.titleElem.style.top = parseInt(-15 * Math.pow(2, this.zoom)) + 'px'
-    if (zoomed) this.clearQueue()
+    if (zoomed) {
+      this.clearQueue()
+      this.view.byTag("div").each(function(d){
+        if (d.className == 'info' || d.className == 'infoText') d.detachSelf()
+      })
+    }
     Rg(-1, Math.ceil(c.offsetWidth/t.tileSize)).each(function(i){
       var x = i*t.tileSize+sl
       var dx = x - midX
@@ -440,72 +541,39 @@ Portal.prototype = {
 
   // Creates an info overlay from the infoObj and attaches it to the view at info.
   createInfoOverlay : function(info, infoObj) {
-    var x = info.x
-    var y = info.y
-    var w = info.w
-    var h = info.h
     var t = this
-    var top_left_info = Elem('div', null, null, 'info',
-      { position: 'absolute', left: x + 'px', top: y + 'px' }
-    )
-    var top_right_info = Elem('div', null, null, 'info',
-      { position: 'absolute', left: (x + w) + 'px', top: y + 'px' }
-    )
-    var bottom_info = Elem('div', null, null, 'infoText')
-    bottom_info.style.mergeD({
-      position: 'absolute',
-      left: x + 'px',
-      width: w + 'px'
-    })
+    var top_left_info = Elem('div', null, null, 'info', {position: 'absolute'})
+    var top_right_info = Elem('div', null, null, 'info', {position: 'absolute'})
+    var bottom_info = Elem('div', null, null, 'infoText', {position:'absolute'})
     bottom_info.appendChild(this.parseItemTitle('div', infoObj, true, true, 'infoDiv'))
-    if (w >= 256) {
-      var emblems = [
-        ['e', 'FUNNY HATS!! - £4.99 from eBay.co.uk', 'http://www.ebay.co.uk'],
-        ['euro', 'Rocket Ship - 8.49€ from Amazon.de', 'http://www.amazon.com'],
-        ['location', 'Bavaria, Germania', 'http://maps.google.com']]
-      var emblemContainer = Elem('div')
-      top_left_info.appendChild(emblemContainer)
-      var emblem_size = ((w >= 512) ? 32 : 16)
-      var emblemElems = emblems.mapWithIndex(function(n,i){
-        var el = Elem('div', null, null, 'emblem',
-          { display: 'block',
-            position: 'absolute',
-            left: '1px',
-            top: (1 + (emblem_size+1)*i) + 'px', width: (w-2) + 'px'
-          }, { href: n[2], title: n[1] }
-        )
-        var img = Elem('a', null, null, 'emblemImage'+emblem_size,
-          { border:'0px', width:  emblem_size + 'px', height: emblem_size + 'px',
-            display: 'block',
-            position: 'absolute', left: '0px', top: '0px',
-            background: 'url(/zogen/' + n[0] + '_'+emblem_size+'.png) no-repeat' },
-          { href: n[2], title: n[1] })
-        el.appendChild(img)
-        el.onmouseover = function(){ t.expandEmblems([el], emblem_size) }
-        el.onmouseout = function(){ t.shrinkEmblems([el], emblem_size) }
-        emblemContainer.appendChild(el)
-        return el
-      })
-      bottom_info.appendChild(this.parseUserInfo(infoObj))
-      bottom_info.appendChild(this.parseItemMetadata(infoObj, (w < 512), (w < 512)))
-    }
     info.overlayElements = [top_left_info, top_right_info, bottom_info]
     this.view.appendChild(top_left_info)
     this.view.appendChild(top_right_info)
     this.view.appendChild(bottom_info)
-    bottom_info.style.top = (y + h - bottom_info.offsetHeight) + 'px'
-
-    overlayUpdater = function(e){
-      t.updateOverlayCoords(
-        x,y,w,h,
-        top_left_info,top_right_info,bottom_info,emblemElems
-      )
+    if (info.w >= 256) {
+      var emblems = this.getEmblems(infoObj)
+      var emblemContainer = Elem('div')
+      top_left_info.appendChild(emblemContainer)
+      var emblem_size = ((info.w >= 512) ? 32 : 16)
+      var emblemElems = emblems.mapWithIndex(function(n,i){
+        var el = t.createEmblem(n[0], n[1], n[2], i, emblem_size)
+        emblemContainer.appendChild(el)
+        return el
+      })
+      bottom_info.appendChild(this.parseUserInfo(infoObj))
+      bottom_info.appendChild(this.parseItemMetadata(infoObj, (info.w < 512), (info.w < 512)))
+      if (info.h > window.innerHeight) {
+        var key = [info.x,info.y,info.w,info.h].join(":")
+        var overlayUpdater = function(e){
+          t.updateOverlayCoords(info,top_left_info,top_right_info,bottom_info,emblemElems,false)
+        }
+        t.addViewMonitor(key, overlayUpdater)
+        bottom_info.addEventListener("DOMNodeRemoved", function(ev){
+          if (ev.target == bottom_info) t.removeViewMonitor(key)
+        },false)
+      }
+      t.updateOverlayCoords(info,top_left_info,top_right_info,bottom_info,emblemElems,true)
     }
-    overlayUpdater()
-    t.addViewMonitor([x,y,w,h].join(":"), overlayUpdater)
-    bottom_info.addEventListener("DOMNodeRemoved", function(ev){
-      if (ev.target == bottom_info) t.removeViewMonitor([x,y,w,h].join(":"))
-    },false)
   },
 
   addViewMonitor : function(key, monitor) {
@@ -513,7 +581,15 @@ Portal.prototype = {
   },
 
   removeViewMonitor : function(key) {
-    this.viewMonitors.deleteAll(function(t){ return t[0] == key })
+    this.viewMonitors.deleteIf(function(t){ return t[0] == key })
+  },
+
+  getEmblems : function(info) {
+    var emblems = [
+      ['e', 'FUNNY HATS!! - £4.99 from eBay.co.uk', 'http://www.ebay.co.uk'],
+      ['euro', 'Rocket Ship - 8.49€ from Amazon.de', 'http://www.amazon.com'],
+      ['location', 'Bavaria, Germania', 'http://maps.google.com']]
+    return emblems
   },
 
   expandEmblems : function(emblems, sz) {
@@ -528,28 +604,54 @@ Portal.prototype = {
     })
   },
 
-  updateOverlayCoords : function(nx,ny,nw,nh,tl,tr,b,es){
+  // Create emblem from
+  createEmblem : function(name, title, href, index, emblem_size) {
     var t = this
-    var rx = nx
-    var ry = ny
-    var rw = nw
-    var rh = nh
+    var el = Elem('div', null, null, 'emblem',
+      { display: 'block',
+        position: 'absolute',
+        left: '1px',
+        top: (1 + (emblem_size+1)*index) + 'px'
+      }, { href: href, title: title }
+    )
+    var img = Elem('a', null, null, 'emblemImage'+emblem_size,
+      { border:'0px', width:  emblem_size + 'px', height: emblem_size + 'px',
+        display: 'block',
+        position: 'absolute', left: '0px', top: '0px',
+        background: 'url('+t.emblemPrefix+name+'_'+emblem_size+t.emblemSuffix+') no-repeat' },
+      { href: href, title: title })
+    el.appendChild(img)
+    el.onmouseover = function(){ t.expandEmblems([el], emblem_size) }
+    el.onmouseout = function(){ t.shrinkEmblems([el], emblem_size) }
+    return el
+  },
+
+  // FIXME icky layout bugs on close zooms (512, 1024)
+  updateOverlayCoords : function(info,tl,tr,b,es, force_update){
+    var t = this
+    var rx = info.x
+    var ry = info.y
+    var rw = info.w
+    var rh = info.h
     var x_out, y_out
-    if (nh > t.container.offsetHeight) {
-      y_out = (-t.view.top > ny && -t.view.top+t.container.offsetHeight < ny+nh)
+    if (rh > t.container.offsetHeight) {
+      y_out = (-t.view.top > ry && -t.view.top+t.container.offsetHeight < ry+rh)
       if (y_out) {
         ry = -t.view.top
         rh = t.container.offsetHeight
       }
     }
-    if (nw > t.container.offsetWidth) {
-      x_out = (-t.view.left > nx && -t.view.left+t.container.offsetWidth < nx+nw)
+    if (rw > t.container.offsetWidth) {
+      x_out = (-t.view.left > rx && -t.view.left+t.container.offsetWidth < rx+rw)
       if (x_out) {
         rx = -t.view.left
         rw = t.container.offsetWidth
       }
     }
-    if (x_out) {
+    if (info.prev_x_out != x_out || info.prev_y_out != y_out) {
+      force_update = true
+    }
+    if (x_out || force_update) {
       tr.style.top = ry + 'px'
       tl.style.left = rx + 'px'
       tr.style.left = (rx + rw) + 'px'
@@ -557,10 +659,12 @@ Portal.prototype = {
       b.style.width = rw + 'px'
       es.each(function(el){el.style.width = (rw-2) + 'px'})
     }
-    if (y_out) {
+    if (y_out || force_update) {
       tl.style.top = ry + 'px'
       b.style.top = (ry + rh - b.offsetHeight) + 'px'
     }
+    info.prev_x_out = x_out
+    info.prev_y_out = y_out
   },
   
   // Note where mouse button went down to avoid misclicks when dragging.
