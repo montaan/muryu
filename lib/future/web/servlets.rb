@@ -1,4 +1,9 @@
 #!/usr/bin/env ruby
+
+require 'jcode'
+require 'kconv'
+$KCODE = 'u'
+
 require 'webrick'
 require 'future'
 load 'future/search/search_query_parser.rb'
@@ -73,7 +78,9 @@ module FutureServlet
   
   def do_POST(req,res)
     if req.body
+      pp req.header
       nq = CGI.parse(req.body)
+      puts req.body
       nq.each{|k,v|
         req.query[k] = (v.size == 1 ? v[0] : v)
       }
@@ -623,6 +630,26 @@ extend FutureServlet
 end
 
 
+class Mimetypes
+extend FutureServlet
+
+  class << self
+    def modes
+    end
+
+    def do_view(req,res)
+      do_list(req,res)
+    end
+
+    def do_list(req,res)
+      res['Content-type'] = 'text/plain'
+      res.body = find_all.map{|t| t.major + "/" + t.minor }.to_json
+    end
+  end
+
+end
+
+
 class Items
 extend FutureServlet
 
@@ -685,7 +712,7 @@ extend FutureServlet
       servlet_target.write(servlet_user) do
         metadata_fields = req.query.keys.find_all{|k|
           k.split(".").first == 'metadata'
-        }.map{|k| [k.split(".",2).last, req.query[k]] }.find_all{|k,v|
+        }.map{|k| [k.split(".")[1], req.query[k]] }.find_all{|k,v|
           metadata_editable_column?(k)
         }
         DB.transaction do

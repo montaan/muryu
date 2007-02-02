@@ -263,6 +263,51 @@ Element = {
   }
 
   , absoluteLeft : function() {
+    this.checkAbsoluteCoordCache()
+    return this.cachedAbsoluteLeft
+  }
+
+  , absoluteTop : function() {
+    this.checkAbsoluteCoordCache()
+    return this.cachedAbsoluteTop
+  }
+
+  , checkAbsoluteCoordCache : function() {
+    if (!this.styleValid) {
+      if (!this.styleMonitor) {
+        this.styleMonitor = this.makeStyleMonitor()
+        var obj = this
+        while(obj.offsetLeft != null) { // not very nice, adding monitors to parents
+          obj.addEventListener("DOMAttrModified", this.styleMonitor, false)
+          obj = obj.parentNode
+        }
+      }
+      this.updateCachedAbsoluteCoords()
+      this.styleValid = true
+    }
+  }
+  
+  , makeStyleMonitor : function() {
+    var t = this
+    return function(e){
+      if (e.target == this && e.attrName == 'style') t.styleValid = false
+    }
+  }
+
+  , updateCachedAbsoluteCoords : function() {
+    var obj = this
+    var l = 0
+    var t = 0
+    while(obj.offsetLeft != null) {
+      l += obj.offsetLeft
+      t += obj.offsetTop
+      obj = obj.parentNode
+    }
+    this.cachedAbsoluteLeft = l
+    this.cachedAbsoluteTop = t
+  }
+
+  , calculateAbsoluteLeft : function() {
     var obj = this
     var l = 0
     while(obj.offsetLeft != null) {
@@ -272,10 +317,10 @@ Element = {
     return l
   }
 
-  , absoluteTop : function() {
+  , calculateAbsoluteTop : function() {
     var obj = this
     var l = 0
-    while(obj.offsetLeft != null) {
+    while(obj.offsetTop != null) {
       l += obj.offsetTop
       obj = obj.parentNode
     }
@@ -428,7 +473,7 @@ function postQuery(url,queryObj,onSuccess,onFailure){
   var query = queryObj
   if ((typeof queryObj) == 'object') {
     query = queryObj.map(function(kv){
-      return escape(kv[0]) + "=" + escape(kv[1])
+      return encodeURIComponent(kv[0]) + "=" + encodeURIComponent(kv[1])
     }).join("&")
   }
   if (window.XMLHttpRequest) {
@@ -456,28 +501,156 @@ function deJSON(json) {
 
 // Fancy form input creators for different data types.
 Editors = {
+
   // Time picker
-  time : function(name, value) {
+  time : function(name, value, args) {
+    var cont = Elem('div', null, null, 'timeEditor')
+    var nullVal = true
+    if (!value) {
+      value = new Date()
+    } else {
+      nullVal = false
+    }
+    var y = Editors.intInput('year', value.getYear()+1900)
+    var m = Editors.limitedIntInput('month', value.getMonth()+1, [1, 12, 2])
+    var d = Editors.limitedIntInput('day', value.getDate(), [1, 31, 2])
+    d.validator = function(v){
+      var ok = false
+      try{ ok = (new Date([Math.abs(y.value%1000),m.value,v].join(' ')).getDate() == parseInt(v)) }
+      catch(e) { ok = false}
+      return ok
+    }
+    var h = Editors.limitedIntInput('hour', value.getHours(), [0, 23, 2])
+    h.style.marginLeft = '10px'
+    var min = Editors.limitedIntInput('minute', value.getMinutes(), [0, 59, 2])
+    var s = Editors.limitedIntInput('second', value.getSeconds(), [0, 59, 2])
+    var hid = Editors.hiddenInput(name)
+    var updater = function(){
+      hid.value = ([y.value, m.value, d.value].join("-") + ' ' +
+                   [h.value, min.value, s.value].join(":"))
+    }
+    if (nullVal) {
+      hid.value = ''
+    } else {
+      updater()
+    }
+    var parts = [y,m,d,h,min,s]
+    parts.each(function(f){
+      f.addEventListener('change', updater, false)
+      cont.appendChild(f)
+    })
+    cont.appendChild(hid)
+    return cont
+  },
+
+  intInput : function(name, value) {
+    var inp = Elem('input', null, null, 'intInput',
+      {width: Math.max(value.toString().length, 2) * 8 + 'px'},
+      {type:"text", size: value.toString().length, "name": name, "value": value})
+    inp.addEventListener('change', function(e){
+      if (inp.validator && !inp.validator(inp.value)) {
+        inp.value = value
+        e.preventDefault()
+        e.stopPropagation()
+        return
+      }
+      inp.value = parseInt(inp.value)
+      if (isNaN(inp.value)) inp.value = value
+    }, true)
+    return inp
+  },
+
+  limitedIntInput : function(name, value, args) {
+    var low = args[0]
+    var high = args[1]
+    var padding = args[2] || 0
+    var inp = Elem('input', null, null, 'limitedIntInput',
+      {width: Math.max(value.toString().length, 2) * 8 + 'px'},
+      { type:"text", size: value.toString().length,
+        "name": name, "value": value.toString().rjust(padding, '0'),
+        "low": low, "high": high
+      })
+    inp.addEventListener('change', function(e){
+      if (inp.validator && !inp.validator(inp.value)) {
+        inp.value = value.toString().rjust(padding, '0')
+        e.preventDefault()
+        e.stopPropagation()
+        return
+      }
+      var v = Math.max(inp.low, Math.min(inp.high, parseInt(inp.value)))
+      if (isNaN(v)) v = value
+      inp.value = v.toString().rjust(padding, '0')
+    }, true)
+    return inp
+  },
+
+  hiddenInput : function(name, value) {
+    var inp = Elem('input', null, null, null, null,
+      {type:"hidden", "name": name, "value": value})
+    return inp
   },
 
   // Expanding textarea
   text : function(name, value) {
+    var inp = Elem('textarea', value, null, 'textEditor', null,
+      {name: name})
+    return inp
+  },
+
+  // String
+  string : function(name, value) {
+    var inp = Elem('input', null, null, 'stringEditor', null,
+      {type:"text", "name": name, "value": value})
+    return inp
   },
 
   // One or several from a list of values
-  list : function(name, value, list_values, pick_multiple, separator) {
+  list : function(name, value, args){
+    var list_values = args[0]
+    var pick_multiple = args[1]
+    var list = Elem('div', null, null, 'listEditor')
+    var inp = Elem('select', null, null, null, null,
+      {name: name, multiple: pick_multiple})
+    if (typeof value != 'object') value = [value]
+    list_values.each(function(lv){
+      var opt = Elem('option', lv)
+      opt.value = lv
+      if (value) opt.selected = value.includes(lv)
+      inp.appendChild(opt)
+    })
+    list.appendChild(inp)
+    return list
   },
 
   // One or several from a list of values or a new value
-  listOrNew : function(name, value, list_values, pick_multiple, separator) {
+  listOrNew : function(name, value, args) {
+    var ls = Editors.list(name, value, args)
+    ls.appendChild(Elem('p','+ ',null,'listOrNewSeparator'))
+    ls.appendChild(Editors.string(name+'.new', ''))
+    return ls
   },
 
   // Autocompleting text field
-  autoComplete : function(name, value) {
+  autoComplete : function(name, value, complete_values) {
+    var inp = Elem('input', null, null, 'autoCompleteEditor', null,
+      {type:"text", "name": name, "value": value})
+    return inp
   },
 
   // Map coordinates
-  coordinates : function(name, value) {
+  location : function(name, value) {
+    var loc = Elem('div', null, null, 'locationEditor')
+    var hid = Elem('input', null, null, null, null,
+      {type:"hidden", "name": name, "value": value})
+    loc.appendChild(hid)
+    return loc
+  },
+
+  // Valid URL
+  url : function(name, value) {
+    var inp = Elem('input', null, null, 'urlEditor', null,
+      {type:"text", "name": name, "value": value})
+    return inp
   }
 }
 

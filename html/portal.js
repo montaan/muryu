@@ -191,9 +191,9 @@ Portal.prototype = {
     this.updateTiles()
     this.container.addEventListener("DOMAttrModified", this.bind('containerResizeHandler'), false)
     this.view.addEventListener("DOMAttrModified", this.bind('viewScrollHandler'), false)
-    this.view.addEventListener("mousedown", this.bind('mousedownHandler'), false)
-    this.view.addEventListener("DOMMouseScroll", this.bind('DOMMouseScrollHandler'), false)
-    this.view.addEventListener("keypress", this.bind('keyHandler'), false)
+    this.container.addEventListener("mousedown", this.bind('mousedownHandler'), false)
+    this.container.addEventListener("DOMMouseScroll", this.bind('DOMMouseScrollHandler'), false)
+    this.container.addEventListener("keypress", this.bind('keyHandler'), false)
     window.addEventListener("mousemove", this.bind('mousemoveHandler'), false)
     window.addEventListener("mouseup", this.bind('mouseupHandler'), false)
     window.addEventListener("blur", this.bind('mouseupHandler'), false)
@@ -228,8 +228,9 @@ Portal.prototype = {
   },
 
   containerResizeHandler : function(e) {
-    if (e.target == this.container && e.attrName == 'style')
+    if (e.target == this.container && e.attrName == 'style') {
       this.updateTiles()
+    }
   },
 
   initItemLink : function(i) {
@@ -271,16 +272,18 @@ Portal.prototype = {
         if (d.className == 'info' || d.className == 'infoText') d.detachSelf()
       })
     }
-    Rg(-1, Math.ceil(c.offsetWidth/t.tileSize)).each(function(i){
+    var xMax = Math.ceil(c.offsetWidth/t.tileSize) + 1
+    var yMax = Math.ceil(c.offsetHeight/t.tileSize) + 1
+    for(var i=-1; i < xMax; i++) {
       var x = i*t.tileSize+sl
       var dx = x - midX
-      Rg(-1, Math.ceil(c.offsetHeight/t.tileSize)).each(function(j){
+      for(var j=-1; j < yMax; j++) {
         var y = j*t.tileSize+st
         var dy = y - midY
         t.showTile(x,y, dx*dx+dy*dy)
         visible_tiles++
-      })
-    })
+      }
+    }
     t.visible_tiles = visible_tiles
     if (t.tiles.tilesInCache > visible_tiles*2 || zoomed) {
       if (zoomed) t.itemCoords = {}
@@ -451,14 +454,25 @@ Portal.prototype = {
     if (this.zoom > 7) this.loadInfoOverlay(i)
     if (i.w && i.h) {
       var t = this
-      Rg(0, i.w / t.tileSize).each(function(nx) {
-        Rg(0, i.h / t.tileSize).each(function(ny){
-          var ie = t.coordsInfoEntry(x+nx*t.tileSize, y+ny*t.tileSize, true)
-          if (ie.findAll(function(j){return (j.x==x && j.y==y && j.w==i.w && j.h==i.h)}).isEmpty()) {
-            ie.push(i)
+      var mx = i.w / t.tileSize
+      var my = i.h / t.tileSize
+      var nx, ny, ie, k, j, has
+      for(nx=0; nx < mx+1; nx++) {
+        if (nx > mx) nx = mx
+        for(ny=0; ny < my+1; ny++) {
+          if (ny > my) ny = my
+          ie = t.coordsInfoEntry(x+nx*t.tileSize, y+ny*t.tileSize, true)
+          has = false
+          for(k=0; k < ie.length; k++) {
+            j = ie[k]
+            if (j.x==x && j.y==y && j.w==i.w && j.h==i.h) {
+              has = true
+              break
+            }
           }
-        })
-      })
+          if (!has) ie.push(i)
+        }
+      }
     } else {
       var ie = this.coordsInfoEntry(x, y, true)
       if (ie.findAll(function(j){return (j.x==x && j.y==y)}).isEmpty()) {
@@ -543,14 +557,12 @@ Portal.prototype = {
   // Creates an info overlay from the infoObj and attaches it to the view at info.
   createInfoOverlay : function(info, infoObj) {
     var t = this
+    var emblemElems = []
     var top_left_info = Elem('div', null, null, 'info', {position: 'absolute'})
     var top_right_info = Elem('div', null, null, 'info', {position: 'absolute'})
     var bottom_info = Elem('div', null, null, 'infoText', {position:'absolute'})
     bottom_info.appendChild(this.parseItemTitle('div', infoObj, true, true, 'infoDiv'))
     info.overlayElements = [top_left_info, top_right_info, bottom_info]
-    this.view.appendChild(top_left_info)
-    this.view.appendChild(top_right_info)
-    this.view.appendChild(bottom_info)
     if (info.w >= 256) {
       var emblems = this.getEmblems(infoObj)
       var emblemContainer = Elem('div')
@@ -563,18 +575,21 @@ Portal.prototype = {
       })
       bottom_info.appendChild(this.parseUserInfo(infoObj))
       bottom_info.appendChild(this.parseItemMetadata(infoObj, (info.w < 512), (info.w < 512)))
-      if (info.h > window.innerHeight) {
+      if (info.h > this.container.offsetHeight || info.w > this.container.offsetWidth) {
         var key = [info.x,info.y,info.w,info.h].join(":")
         var overlayUpdater = function(e){
           t.updateOverlayCoords(info,top_left_info,top_right_info,bottom_info,emblemElems,false)
         }
         t.addViewMonitor(key, overlayUpdater)
         bottom_info.addEventListener("DOMNodeRemoved", function(ev){
-          if (ev.target == bottom_info) t.removeViewMonitor(key)
+          if (ev.target == this) t.removeViewMonitor(key)
         },false)
       }
-      t.updateOverlayCoords(info,top_left_info,top_right_info,bottom_info,emblemElems,true)
     }
+    this.view.appendChild(bottom_info)
+    t.updateOverlayCoords(info,top_left_info,top_right_info,bottom_info,emblemElems,true)
+    this.view.appendChild(top_left_info)
+    this.view.appendChild(top_right_info)
   },
 
   addViewMonitor : function(key, monitor) {
@@ -637,29 +652,31 @@ Portal.prototype = {
     var ry = info.y
     var rw = info.w
     var rh = info.h
-    var x_out, y_out
-    if (rh > t.container.offsetHeight) {
-      y_out = (-t.view.top > ry && -t.view.top+t.container.offsetHeight < ry+rh)
-      if (y_out) {
-        ry = -t.view.top
-        rh = t.container.offsetHeight
-      }
+    var aw = this.container.offsetWidth
+    var ah = this.container.offsetHeight
+    var x_out = (rw > aw &&
+                 -t.view.left > rx &&
+                 -t.view.left+aw < rx+rw)
+    var y_out = (rh > ah &&
+                 -t.view.top > ry &&
+                 -t.view.top+ah < ry+rh)
+    if (x_out) {
+      rx = -t.view.left
+      rw = aw
     }
-    if (rw > t.container.offsetWidth) {
-      x_out = (-t.view.left > rx && -t.view.left+t.container.offsetWidth < rx+rw)
-      if (x_out) {
-        rx = -t.view.left
-        rw = t.container.offsetWidth
-      }
+    if (y_out) {
+      ry = -t.view.top
+      rh = ah
     }
-    if (info.prev_x_out != x_out || info.prev_y_out != y_out) {
+    if (info.x_out != x_out || info.y_out != y_out) {
       force_update = true
+      info.x_out = x_out
+      info.y_out = y_out
     }
     if (x_out || force_update) {
       tr.style.top = ry + 'px'
-      tl.style.left = rx + 'px'
       tr.style.left = (rx + rw) + 'px'
-      b.style.left = rx + 'px'
+      b.style.left = tl.style.left = rx + 'px'
       b.style.width = rw + 'px'
       es.each(function(el){el.style.width = (rw-2) + 'px'})
     }
@@ -667,10 +684,8 @@ Portal.prototype = {
       tl.style.top = ry + 'px'
       b.style.top = (ry + rh - b.offsetHeight) + 'px'
     }
-    info.prev_x_out = x_out
-    info.prev_y_out = y_out
   },
-  
+
   // Note where mouse button went down to avoid misclicks when dragging.
   linkDown : function(e) {
     this.downX = e.clientX
@@ -877,6 +892,28 @@ Portal.prototype = {
     return infoDiv
   },
 
+  itemKeys : [
+    {name:'mimetype', type:['list', 'mimetypes']},
+    {name:'source', type:['url']},
+    {name:'referrer', type:['url']},
+    {name:'tags', type:['autoComplete', 'tags']},
+    {name:'sets', type:['listOrNew', 'sets', true]},
+    {name:'groups', type:['listOrNew', 'groups', true]}
+  ],
+  
+  metadataKeys : [
+    {name:'title', type:['string']},
+    {name:'author', type:['autoComplete', 'authors']},
+    {name:'publisher', type:['autoComplete', 'publishers']},
+    {name:'publish_time', type:['time']},
+    {name:'description', type:['text']},
+    {name:'genre', type:['string']},
+    {name:'location', type:['location']}
+    /*,
+    {name:'album', type:['listOrNew', 'albums']},
+    {name:'tracknum', type:['intInput']} */
+  ],
+  
   itemEditForm : function(infoDiv, info) {
     if (infoDiv.editor) {
       var editor = infoDiv.editor
@@ -923,21 +960,10 @@ Portal.prototype = {
           name: 'filename',
           value: info.path.split("/").last().split(".").slice(0,-1).join(".")
         }))
-      var infoKeys = [
-        'source',
-        'referrer',
-        'sets',
-        'tags',
-        'groups',
-        'mimetype',
-        'deleted'
-      ]
       var t = this
-      infoKeys.each(function(i) {
-        dd.appendChild(Elem("h5", t.translate(i)))
-        dd.appendChild(Elem("input", null, null, null, null,
-          {type:'text', name: i, value:info[i]}
-        ))
+      this.itemKeys.each(function(i) {
+        dd.appendChild(Elem("h5", t.translate(i.name)))
+        dd.appendChild(Editors[i.type[0]](i.name, info[i.name], i.type.slice(1)))
       })
       td = Elem('td')
       td.width = "50%"
@@ -945,23 +971,9 @@ Portal.prototype = {
       td.appendChild(Elem('h4', this.translate('metadata')))
       dd = Elem('div')
       td.appendChild(dd)
-      var metadataKeys = [
-        'title',
-        'author',
-        'publisher',
-        'publish_time',
-        'description',
-        'location',
-        'genre',
-        'album',
-        'tracknum',
-        'album_art'
-      ]
-      metadataKeys.each(function(i) {
-        dd.appendChild(Elem("h5", t.translate(i)))
-        dd.appendChild(Elem("input", null, null, null, null,
-          {type:'text', name: 'metadata.'+i, value:info.metadata[i]}
-        ))
+      this.metadataKeys.each(function(i) {
+        dd.appendChild(Elem("h5", t.translate(i.name)))
+        dd.appendChild(Editors[i.type[0]]('metadata.'+i.name, info.metadata[i.name], i.type.slice(1)))
       })
       ef.appendChild(d)
       var es = Elem('div', null, null, 'editorSubmit')
@@ -1003,11 +1015,19 @@ Portal.prototype = {
   },
 
   pan : function(x,y,e){
-    this.view.left += x
-    this.view.top += y
-    this.updateTiles()
-    this.view.style.left = this.view.left + 'px'
-    this.view.style.top = this.view.top + 'px'
+    var v = this.view
+    var ptz = 1 / this.tileSize
+    v.left += x
+    v.top += y
+    var lt = Math.floor(-v.left * ptz)
+    var tt = Math.floor(-v.top * ptz)
+    if (v.leftTile != lt || v.topTile != tt) {
+      v.leftTile = lt
+      v.topTile = tt
+      this.updateTiles()
+    }
+    v.style.left = v.left + 'px'
+    v.style.top = v.top + 'px'
     if (e && e.preventDefault) e.preventDefault()
   },
 
@@ -1045,13 +1065,14 @@ Portal.prototype = {
     this.zoomTimeout = setTimeout(function(){
       t.view.style.left = t.view.left + 'px'
       t.view.style.top = t.view.top + 'px'
+      t.view.topTile = t.view.leftTile = null
       t.updateTiles(true)
     }, 0)
   },
 
   mousedownHandler : function(e){
-    if (e.which != 1) return
-    if (['INPUT', 'SPAN', 'P'].includes(e.target.tagName)) return
+    if (!Mouse.normal(e)) return
+    if (['INPUT', 'SPAN', 'P', 'SELECT', 'OPTION'].includes(e.target.tagName)) return
     this.dragging = true
     this.dragX = e.clientX
     this.dragY = e.clientY
@@ -1123,8 +1144,8 @@ Portal.prototype = {
   translations : {
     'en-US' : {
       DateObject : function(d){
-        weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-        months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+        weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+        months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
         return (weekdays[d.getDay()] + ', ' + months[d.getMonth()] + ' ' +
                 d.getDate() + ', ' + (d.getYear() + 1900) + ' ' +
                 (d.getHours()%13).toString().rjust(2, '0') + ':' +
@@ -1169,8 +1190,8 @@ Portal.prototype = {
     },
     'en-GB' : {
       DateObject : function(d){
-        weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-        months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+        weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+        months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
         return (weekdays[d.getDay()] + ', ' + d.getDate() + ' ' +
                 months[d.getMonth()] + ' ' + (d.getYear() + 1900) + ' ' +
                 (d.getHours()%13).toString().rjust(2, '0') + ':' +

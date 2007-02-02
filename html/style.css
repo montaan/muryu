@@ -168,14 +168,15 @@ a:visited {
 
 .editor {
   background: url(/zogen/80_opacity_black.png);
-  min-width: 400px;
-  min-height: 450px;
+  min-width: 450px;
+  min-height: 540px;
   position: absolute;
   left: 0px;
   top: 0px;
 }
 
 .editor h3 {
+  font-size: 14px;
   text-align: center;
   margin-top: 8px;
   margin-left: 5%;
@@ -184,6 +185,7 @@ a:visited {
   margin-bottom: 6px;
 }
 .editor h4 {
+  font-size: 13px;
   text-align: center;
   color: white;
   margin-left: 5%;
@@ -193,6 +195,7 @@ a:visited {
   margin-bottom: 2px;
 }
 .editor h5 {
+  font-size: 11px;
   margin-bottom: 0px;
   margin-top: 4px;
 }
@@ -204,6 +207,13 @@ a:visited {
 }
 
 .editor input[type=text] {
+  width: 100%;
+  background-color: #DDDDDD;
+  font-family: Trebuchet MS, Arial;
+  font-weight: normal;
+  border: 0px;
+}
+.editor textarea {
   width: 100%;
   background-color: #DDDDDD;
   font-family: Trebuchet MS, Arial;
@@ -226,6 +236,37 @@ div.editorSubmit {
   background-color: #FFAAAA;
   border-color: #FFAAAA;
   margin-right: 40px;
+}
+div.timeEditor {
+  margin-left : 0px;
+  margin-right : 0px;
+  padding : 0px;
+}
+.timeEditor input {
+  text-align: center;
+  margin-right: 1px;
+}
+div.listEditor {
+  margin-left : 0px;
+  margin-right : 0px;
+  padding : 0px;
+}
+.listEditor select {
+  width: 100%;
+  background-color: #DDDDDD;
+  font-family: Trebuchet MS, Arial;
+  font-weight: normal;
+  border: 0px;
+}
+.listEditor select[multiple] {
+  height: 80px;
+}
+.listEditor input[type=text] {
+  margin-bottom: 2px;
+}
+.listOrNewSeparator {
+  margin: 0px;
+  text-align: center;
 }
 
 .infoLink {
