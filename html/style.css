@@ -1,6 +1,12 @@
 body {
   overflow: hidden;
+  color: #CCCCCC;
+  font-family: URW Gothic L, Arial;
   font-size: 11px;
+}
+
+h3 {
+  color: white;
 }
 
 #currentLocation {
@@ -90,7 +96,6 @@ body {
 }
 
 .infoLayer h3 {
-  color: white;
   margin-top: 0px;
   margin-bottom: 6px;
 }
@@ -170,6 +175,8 @@ a:visited {
   background: url(/zogen/80_opacity_black.png);
   min-width: 450px;
   min-height: 540px;
+  width: 450px;
+  height: 540px;
   position: absolute;
   left: 0px;
   top: 0px;
@@ -267,6 +274,21 @@ div.listEditor {
 .listOrNewSeparator {
   margin: 0px;
   text-align: center;
+}
+div.locationEditor {
+  margin-left : 0px;
+  margin-right : 0px;
+  padding : 0px;
+}
+.locationEditor div {
+  margin-left : 0px;
+  margin-right : 0px;
+  padding : 0px;
+}
+.google_map div {
+  margin-left : 0px;
+  margin-right : 0px;
+  padding : 0px;
 }
 
 .infoLink {

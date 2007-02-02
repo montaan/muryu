@@ -642,7 +642,71 @@ Editors = {
     var loc = Elem('div', null, null, 'locationEditor')
     var hid = Elem('input', null, null, null, null,
       {type:"hidden", "name": name, "value": value})
+    var txt = Elem('span', value)
     loc.appendChild(hid)
+    loc.appendChild(txt)
+    if (GBrowserIsCompatible()) {
+      var latlng = [ NaN ]
+      if (value) {
+        latlng = value.replace(/[)(]/g, '').split(",").map(parseFloat)
+      }
+      if (isNaN(latlng[0]) || isNaN(latlng[1])) latlng = [0.0, 0.0]
+      var map_cont = Elem('span', null, null, 'google_map',
+        {width: '400px', height: '400px', left: '0px', top: '0px',
+         display: 'block', position: 'absolute'})
+      loc.mapAttachNode = document.body
+      var loaded = function() {
+        if (loc.mapLeft) map_cont.style.left = loc.mapLeft
+        if (loc.mapTop) map_cont.style.top = loc.mapTop
+        loc.mapAttachNode.appendChild(map_cont)
+        var map = new GMap2(map_cont)
+        map.setCenter(new GLatLng(latlng[0], latlng[1]), 3)
+        var marker = new GMarker(new GLatLng(latlng[0], latlng[1]), {draggable: true})
+        map.addOverlay(marker)
+        map.addControl(new GSmallZoomControl())
+        map.addControl(new GMapTypeControl())
+        var updateVal = function(pt) {
+          hid.value = pt.toUrlValue()
+          txt.innerHTML = '(' + pt.toUrlValue() + ')'
+        }
+        GEvent.addListener(map, 'click', function(ol, pt){
+          if (!ol) marker.setPoint(pt)
+          updateVal(marker.getPoint())
+        })
+        GEvent.addListener(marker, 'dragend', function(){
+          updateVal(marker.getPoint())
+        })
+        map_cont.addEventListener("DOMMouseScroll", function(e){
+          if (e.detail > 0 ) {
+            map.zoomOut()
+          } else {
+            map.zoomIn()
+          }
+          e.stopPropagation()
+          e.preventDefault()
+        }, false)
+        map_cont.unloadMonitor = setInterval(function(){
+          var o = loc
+          while (o) {
+            if (o == document.body) return
+            o = o.parentNode
+          }
+          clearInterval(map_cont.unloadMonitor)
+          map_cont.detachSelf()
+        },100)
+      }
+      map_cont.loadMonitor = setInterval(function(){
+        var o = loc
+        while (o) {
+          if (o == document.body) {
+            clearInterval(map_cont.loadMonitor)
+            loaded()
+            return
+          }
+          o = o.parentNode
+        }
+      },100)
+    }
     return loc
   },
 

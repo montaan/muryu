@@ -663,9 +663,15 @@ Portal.prototype = {
     if (x_out) {
       rx = -t.view.left
       rw = aw
+    } else if (rw > aw) {
+      if (rx+t.view.left < 0) rx = rx+(rw-aw)
+      rw = aw
     }
     if (y_out) {
       ry = -t.view.top
+      rh = ah
+    } else if (rh > ah) {
+      if (ry+t.view.top < 0) ry = ry+(rh-ah)
       rh = ah
     }
     if (info.x_out != x_out || info.y_out != y_out) {
@@ -920,13 +926,13 @@ Portal.prototype = {
       editor.detachSelf()
       infoDiv.editor = false
     } else {
+      var t = this
       var editor = Elem('div', null, null, 'editor',
         {
           position: 'absolute',
-          left: infoDiv.parentNode.computedStyle().left + 'px',
-          top: infoDiv.parentNode.computedStyle().top + 'px',
-          width: infoDiv.parentNode.offsetWidth + 'px',
-          height: infoDiv.parentNode.offsetHeight + 'px'
+          left: infoDiv.parentNode.computedStyle().left,
+          top: infoDiv.parentNode.computedStyle().top,
+          zIndex: 20
         }
       )
       infoDiv.editor = editor
@@ -960,7 +966,6 @@ Portal.prototype = {
           name: 'filename',
           value: info.path.split("/").last().split(".").slice(0,-1).join(".")
         }))
-      var t = this
       this.itemKeys.each(function(i) {
         dd.appendChild(Elem("h5", t.translate(i.name)))
         dd.appendChild(Editors[i.type[0]](i.name, info[i.name], i.type.slice(1)))
@@ -972,8 +977,23 @@ Portal.prototype = {
       dd = Elem('div')
       td.appendChild(dd)
       this.metadataKeys.each(function(i) {
+        var args
         dd.appendChild(Elem("h5", t.translate(i.name)))
-        dd.appendChild(Editors[i.type[0]]('metadata.'+i.name, info.metadata[i.name], i.type.slice(1)))
+        if (i.type[0] == 'list') {
+          i.type[1]
+          args = []
+        } else {
+          args = i.type.slice(1)
+        }
+        var ed = Editors[i.type[0]]('metadata.'+i.name, info.metadata[i.name], args)
+        if (i.type[0] == 'location') {
+          ed.mapAttachNode = editor
+          ed.mapTop = editor.computedStyle().top
+          ed.mapLeft = (parseInt(editor.computedStyle().left) +
+               Math.max(parseInt(editor.computedStyle().width),
+                        parseInt(editor.computedStyle().minWidth)) + 'px')
+        }
+        dd.appendChild(ed)
       })
       ef.appendChild(d)
       var es = Elem('div', null, null, 'editorSubmit')
@@ -985,7 +1005,6 @@ Portal.prototype = {
       }
       var done = Elem('input', null, null, null, null,
         {type:'submit', value:this.translate('done')})
-      var t = this
       done.onclick = function(e) {
         e.preventDefault()
         postForm(ef, function(res){
@@ -999,7 +1018,7 @@ Portal.prototype = {
       es.appendChild(done)
       ef.appendChild(es)
       editor.appendChild(ef)
-      infoDiv.parentNode.appendChild(editor)
+      t.view.appendChild(editor)
     }
   },
 
