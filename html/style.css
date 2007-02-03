@@ -233,12 +233,14 @@ div.editorSubmit {
 }
 .editor input[type=submit] {
   font-family: Trebuchet MS, Arial;
+  font-size: 11px;
   font-weight: bold;
   background-color: #AAFFAA;
   border-color: #AAFFAA;
 }
 .editor input[type=reset] {
   font-family: Trebuchet MS, Arial;
+  font-size: 11px;
   font-weight: bold;
   background-color: #FFAAAA;
   border-color: #FFAAAA;
@@ -265,11 +267,20 @@ div.listEditor {
   font-weight: normal;
   border: 0px;
 }
-.listEditor select[multiple] {
-  height: 80px;
-}
 .listEditor input[type=text] {
   margin-bottom: 2px;
+}
+.listEditor ul {
+  margin: 0px;
+  padding: 0px;
+  height: 80px;
+  overflow: auto;
+  list-style: none;
+}
+.listEditor li {
+  margin: 0px;
+  padding: 0px;
+  list-style: none;
 }
 .listOrNewSeparator {
   margin: 0px;
@@ -284,6 +295,13 @@ div.locationEditor {
   margin-left : 0px;
   margin-right : 0px;
   padding : 0px;
+}
+span.google_map {
+  padding: 8px;
+  height: 524px;
+  width: 400px;
+  padding-left: 0px;
+  background: url(/zogen/80_opacity_black.png);
 }
 .google_map div {
   margin-left : 0px;

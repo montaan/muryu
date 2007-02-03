@@ -952,8 +952,7 @@ Portal.prototype = {
         var ed
         dd.appendChild(Elem("h5", t.translate(i.name)))
         if (i.name == 'tags') {
-          ed = Editors[i.type[0]]('metadata.'+i.name,
-            info[i.name].map(function(it){return it.name}).join(", "), args)
+          ed = Editors[i.type[0]](i.name, info[i.name].join(", "), args)
         } else if (i.type[0] == 'list' || i.type[0] == 'listOrNew') {
           var list_name = args.shift()
           ed = Elem('span')
@@ -969,7 +968,7 @@ Portal.prototype = {
             ed.appendChild(Editors[i.type[0]](i.name, values, args))
           })
         } else {
-          ed = Editors[i.type[0]]('metadata.'+i.name, info[i.name], args)
+          ed = Editors[i.type[0]](i.name, info[i.name], args)
         }
         if (i.type[0] == 'location') {
           ed.mapAttachNode = editor
@@ -1109,7 +1108,7 @@ Portal.prototype = {
 
   mousedownHandler : function(e){
     if (!Mouse.normal(e)) return
-    if (['INPUT', 'SPAN', 'P', 'SELECT', 'OPTION'].includes(e.target.tagName)) return
+    if (['INPUT', 'SPAN', 'P', 'SELECT', 'OPTION', 'UL', 'LI'].includes(e.target.tagName)) return
     this.dragging = true
     this.dragX = e.clientX
     this.dragY = e.clientY
@@ -1151,7 +1150,7 @@ Portal.prototype = {
   },
 
   keyHandler : function(e){
-    if (e.target.tagName == 'INPUT') return
+    if (e.target.tagName == 'INPUT' || e.target.tagName == 'TEXTAREA') return
     switch(e.charCode | e.keyCode){
       case 90:
       case 122:

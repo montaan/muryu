@@ -19,20 +19,87 @@ class Items < DB::Tables::Items
   end
 
   def add_tag(tag_name)
-    tag_name = tag_name.name if tag_name.is_a? DB::Table
-    t = Tags.find_or_create(:name => tag_name)
+    if tag_name.is_a?(DB::Table)
+      t = tag_name
+    else
+      t = Tags.find_or_create(:name => tag_name)
+    end
     ItemsTags.find_or_create(:item => self, :tag => t)
     remove_instance_variable(:@tags) rescue nil
     remove_instance_variable(:@items_tags) rescue nil
   end
 
   def remove_tag(tag_name)
-    tag_name = tag_name.name if tag_name.is_a? DB::Table
-    t = Tags.find(:name => tag_name)
+    if tag_name.is_a?(DB::Table)
+      t = tag_name
+    else
+      t = Tags.find(:name => tag_name)
+    end
     return unless t
     ItemsTags.delete_all(:item => self, :tag => t)
     remove_instance_variable(:@tags) rescue nil
     remove_instance_variable(:@items_tags) rescue nil
+  end
+
+  def rset_tags(user, new_tag_names)
+    write(user) do
+      new_tags = []
+      DB.transaction do
+        new_tags = new_tag_names.uniq.map{|t| Tags.find_or_create(:name => t) }
+      end
+      DB.transaction do
+        (tags - new_tags).each{|t| remove_tag(t) }
+      end
+      DB.transaction do
+        (new_tags - tags).each{|t| add_tag(t) }
+      end
+    end
+  end
+
+  def rset_sets(user, new_set_names)
+    write(user) do
+      new_sets = []
+      DB.transaction do
+        new_sets = new_set_names.uniq.map{|t|
+          Sets.rfind_or_create(user, :name => t)
+        }
+      end
+      DB.transaction do
+        (sets - new_sets).each{|t| remove_set(t) }
+      end
+      DB.transaction do
+        (new_sets - sets).each{|t| add_set(t) }
+      end
+    end
+  end
+
+  def rset_groups(user, new_group_names)
+    write(user) do
+      new_groups = []
+      DB.transaction do
+        new_groups = new_group_names.uniq.map{|t|
+          Groups.rfind_or_create(user, :name => t)
+        }
+      end
+      DB.transaction do
+        (groups - new_groups).each{|t| remove_group(t) }
+      end
+      DB.transaction do
+        (new_groups - groups).each{|t| add_group(t) }
+      end
+    end
+  end
+
+  def add_group(group)
+    ItemsGroups.find_or_create(:item => self, :group => group)
+    remove_instance_variable(:@groups) rescue nil
+    remove_instance_variable(:@items_groups) rescue nil
+  end
+
+  def remove_group(group)
+    ItemsGroups.delete_all(:item => self, :group => group)
+    remove_instance_variable(:@groups) rescue nil
+    remove_instance_variable(:@items_groups) rescue nil
   end
 
   def add_set(set)

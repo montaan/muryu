@@ -1,5 +1,5 @@
 require 'ferret'
-
+require 'future/search/search_query'
 
 module Future
 
@@ -74,6 +74,11 @@ module Future
 
     def index
       @index ||= ItemIndex.new
+    end
+
+    def parse(query_string)
+      return {} if query_string.empty?
+      ast = SearchQuery.new.parse(query_string)
     end
 
     def parse_query(query_string, columns, options={})

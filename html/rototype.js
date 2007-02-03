@@ -463,8 +463,20 @@ function Text(txt) {
 }
 
 function postForm(form, onSuccess, onFailure){
-  var query = form.map(function(e){
-    return [e.name, e.value]
+  var query = []
+  form.each(function(e){
+    if (e.tagName == 'INPUT') {
+      if (e.type != 'checkbox' || e.checked) {
+        query.push([e.name, e.value])
+      }
+      return
+    } else if (e.tagName == 'SELECT' && e.multiple) {
+      e.options.findAll(function(opt){return opt.selected}).each(function(opt){
+        query.push([opt.name, opt.value])
+      })
+      return
+    }
+    query.push([e.name, e.value])
   })
   postQuery(form.action, query, onSuccess, onFailure)
 }
@@ -609,16 +621,31 @@ Editors = {
     var list_values = args[0]
     var pick_multiple = args[1]
     var list = Elem('div', null, null, 'listEditor')
-    var inp = Elem('select', null, null, null, null,
-      {name: name, multiple: pick_multiple})
     if (typeof value != 'object') value = [value]
-    list_values.each(function(lv){
-      var opt = Elem('option', lv)
-      opt.value = lv
-      if (value) opt.selected = value.includes(lv)
-      inp.appendChild(opt)
-    })
-    list.appendChild(inp)
+    if (pick_multiple) {
+      var ul = Elem('ul')
+      list_values.each(function(lv){
+        var d = Elem('li')
+        var opt = Elem('input')
+        opt.type = 'checkbox'
+        opt.name = name
+        opt.value = lv
+        if (value) opt.checked = value.includes(lv)
+        d.appendChild(opt)
+        d.appendChild(Text(lv))
+        ul.appendChild(d)
+      })
+      list.appendChild(ul)
+    } else {
+      var inp = Elem('select', null, null, null, null, {name: name})
+      list_values.each(function(lv){
+        var opt = Elem('option', lv)
+        opt.value = lv
+        if (value) opt.selected = value.includes(lv)
+        inp.appendChild(opt)
+      })
+      list.appendChild(inp)
+    }
     return list
   },
 
@@ -651,14 +678,16 @@ Editors = {
         latlng = value.replace(/[)(]/g, '').split(",").map(parseFloat)
       }
       if (isNaN(latlng[0]) || isNaN(latlng[1])) latlng = [0.0, 0.0]
-      var map_cont = Elem('span', null, null, 'google_map',
-        {width: '400px', height: '400px', left: '0px', top: '0px',
-         display: 'block', position: 'absolute'})
       loc.mapAttachNode = document.body
       var loaded = function() {
-        if (loc.mapLeft) map_cont.style.left = loc.mapLeft
-        if (loc.mapTop) map_cont.style.top = loc.mapTop
-        loc.mapAttachNode.appendChild(map_cont)
+        var map_outer_cont = Elem('span', null, null, 'google_map',
+          {display: 'block', position: 'absolute'})
+        if (loc.mapLeft) map_outer_cont.style.left = loc.mapLeft
+        if (loc.mapTop) map_outer_cont.style.top = loc.mapTop
+        loc.mapAttachNode.appendChild(map_outer_cont)
+        var map_cont = Elem('span', null, null, null,
+          {width: '100%', height: '100%', display: 'block'})
+        map_outer_cont.appendChild(map_cont)
         var map = new GMap2(map_cont)
         map.setCenter(new GLatLng(latlng[0], latlng[1]), 3)
         var marker = new GMarker(new GLatLng(latlng[0], latlng[1]), {draggable: true})
@@ -685,21 +714,22 @@ Editors = {
           e.stopPropagation()
           e.preventDefault()
         }, false)
-        map_cont.unloadMonitor = setInterval(function(){
+        map_outer_cont.unloadMonitor = setInterval(function(){
           var o = loc
           while (o) {
             if (o == document.body) return
             o = o.parentNode
           }
-          clearInterval(map_cont.unloadMonitor)
-          map_cont.detachSelf()
+          clearInterval(map_outer_cont.unloadMonitor)
+          map_outer_cont.detachSelf()
+          GUnload()
         },100)
       }
-      map_cont.loadMonitor = setInterval(function(){
+      loc.loadMonitor = setInterval(function(){
         var o = loc
         while (o) {
           if (o == document.body) {
-            clearInterval(map_cont.loadMonitor)
+            clearInterval(loc.loadMonitor)
             loaded()
             return
           }

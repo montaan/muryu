@@ -75,11 +75,12 @@ range_unary_expr:
    UN_OP range_values   { result = Unary.new(val[0], val[1]) }
 ;
 
-range_basic_expr:
+range_basic_expr
   # implicit == ?
   #  string            { result = val[0] }
-  RANGE_OP string { result = Unary.new(val[0], val[1]) }
-;
+  : RANGE_OP string { result = Unary.new(val[0], val[1]) }
+  | string
+  ;
 
 range_expr:
     range_values BI_OP range_values { result = Binary.new(val[1], val[0], val[2]) }

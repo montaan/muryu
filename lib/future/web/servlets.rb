@@ -78,7 +78,7 @@ module FutureServlet
   
   def do_POST(req,res)
     if req.body
-      pp req.header
+#       pp req.header
       nq = CGI.parse(req.body)
       puts req.body
       nq.each{|k,v|
@@ -134,11 +134,13 @@ module FutureServlet
         self.servlet_target = nil
       end
       if respond_to?(:columns)
-        qkeys = (req.query.keys & (columns.keys + ["sort"]))
-        h = qkeys.map{|k| [k, [req.query[k].to_s]]}.to_hash
-        words = req.query["text"].to_s.split(" ").map &[[:gsub, /\+/, " "]]
-        self.search_query = SearchQueryParser.tokens_and_words_to_query_hash(h, words)
-        #p SearchQueryParser.parse_query(req.query['q'].to_s, columns)
+#         qkeys = (req.query.keys & (columns.keys + ["sort"]))
+#         h = qkeys.map{|k| [k, [req.query[k].to_s]]}.to_hash
+#         words = req.query["text"].to_s.split(" ").map &[[:gsub, /\+/, " "]]
+#         self.search_query = SearchQueryParser.tokens_and_words_to_query_hash(h, words)
+
+#        self.search_query = SearchQueryParser.parse(req.query['q'].to_s)
+        self.search_query = SearchQueryParser.parse_query(req.query['q'].to_s, columns)
       end
       mode = 'list' if ["/", ""].include?(req.path_info)
       __send__("do_#{mode}", req, res)
@@ -684,9 +686,9 @@ extend FutureServlet
       return false unless servlet_target
       h = servlet_target.to_hash
       %w(mimetype_id owner_id metadata_id internal_path).each{|k| h.delete(k)}
-      h[:groups] = servlet_target.groups.map{|g| {:name => g.name, :namespace => g.namespace}}
-      h[:sets] = servlet_target.sets.map{|g| {:name => g.name, :namespace => g.namespace}}
-      h[:tags] = servlet_target.tags.map{|g| {:name => g.name, :namespace => g.namespace}}
+      h[:groups] = servlet_target.groups.map{|g| g.name }
+      h[:sets] = servlet_target.sets.map{|g| g.name }
+      h[:tags] = servlet_target.tags.map{|g| g.name }
       h[:owner] = servlet_target.owner.name
       h[:metadata] = servlet_target.metadata.to_hash
       h[:mimetype] = servlet_target.mimetype
@@ -713,14 +715,46 @@ extend FutureServlet
           baseparts = basename.split(".")
           if baseparts[0..-2].join(".") != fn
             newname = fn.gsub(/[^a-z0-9_.,-]/, "_") + "." + baseparts.last
-            p ['new_path', parts[0..-2].join("/") + "/" + newname]
+#             p ['new_path', parts[0..-2].join("/") + "/" + newname]
             servlet_target.path = parts[0..-2].join("/") + "/" + newname
           end
         end
       end
       if req.query.has_key?('tags')
-        tags = req.query['tags'].split(",")
-        p tags, servlet_target.tags
+        tags = req.query['tags'].to_s.split(",").map{|t|t.strip}
+        unless tags.empty?
+          servlet_target.rset_tags(servlet_user, tags)
+        end
+      end
+      if req.query.has_key?('groups')
+        gs = req.query['groups']
+        gs = [gs] unless gs.is_a?(Array)
+        servlet_target.rset_groups(servlet_user, gs)
+      end
+      if req.query.has_key?('sets')
+        gs = req.query['sets']
+        gs = [gs] unless gs.is_a?(Array)
+        servlet_target.rset_sets(servlet_user, gs)
+      end
+      if req.query.has_key?('groups.new')
+        gs = req.query['groups.new'].to_s.split(",")
+        unless gs.empty?
+          servlet_target.write(servlet_user) do
+            gs.each do |g|
+              servlet_target.add_group(Groups.rfind_or_create(servlet_user, :name => g.strip))
+            end
+          end
+        end
+      end
+      if req.query.has_key?('sets.new')
+        gs = req.query['sets.new'].to_s.split(",")
+        unless gs.empty?
+          servlet_target.write(servlet_user) do
+            gs.each do |g|
+              servlet_target.add_set(Sets.rfind_or_create(servlet_user, :name => g.strip))
+            end
+          end
+        end
       end
       super
       servlet_target.write(servlet_user) do
@@ -733,7 +767,7 @@ extend FutureServlet
           edits = metadata_fields.find_all{|k,v|
             servlet_target.metadata[k].to_s != v
           }
-          pp edits
+#           pp edits
           edits.each{|k,v|
             servlet_target.metadata[k] = v
           }
@@ -1055,15 +1089,17 @@ extend FutureServlet
       h['owner'] = servlet_target.owner.name
       res.body = h.to_json
     else
-      objs = servlet_list_rows(req)
-      cols = req.query['columns'].to_s.split(",") & columns.keys
-      cols = columns.keys if cols.empty?
-      cols.delete_if{|c| servlet_invisible_column?(c) }
-      res.body = objs.map{|o|
-        h = cols.map{|c| [c, o[c]] }.to_hash
-        h['owner'] = o.owner.name
-        h
-      }.to_json
+      req.query['columns'] = 'name'
+      res.body = servlet_list_rows(req).map{|c| c.name }.to_json
+#       objs = servlet_list_rows(req)
+#       cols = req.query['columns'].to_s.split(",") & columns.keys
+#       cols = columns.keys if cols.empty?
+#       cols.delete_if{|c| servlet_invisible_column?(c) }
+#       res.body = objs.map{|o|
+#         h = cols.map{|c| [c, o[c]] }.to_hash
+#         h['owner'] = o.owner.name
+#         h
+#       }.to_json
     end
   end
 
@@ -1095,15 +1131,17 @@ extend FutureServlet
       h['owner'] = servlet_target.owner.name
       res.body = h.to_json
     else
-      objs = servlet_list_rows(req)
-      cols = req.query['columns'].to_s.split(",") & columns.keys
-      cols = columns.keys if cols.empty?
-      cols.delete_if{|c| servlet_invisible_column?(c) }
-      res.body = objs.map{|o|
-        h = cols.map{|c| [c, o[c]] }.to_hash
-        h['owner'] = o.owner.name
-        h
-      }.to_json
+      req.query['columns'] = 'name'
+      res.body = servlet_list_rows(req).map{|c| c.name }.to_json
+#       objs = servlet_list_rows(req)
+#       cols = req.query['columns'].to_s.split(",") & columns.keys
+#       cols = columns.keys if cols.empty?
+#       cols.delete_if{|c| servlet_invisible_column?(c) }
+#       res.body = objs.map{|o|
+#         h = cols.map{|c| [c, o[c]] }.to_hash
+#         h['owner'] = o.owner.name
+#         h
+#       }.to_json
     end
   end
 
