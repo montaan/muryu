@@ -449,7 +449,7 @@ module FutureServlet
       objs = servlet_list_rows(req)
       cols = req.query['columns'].to_s.split(",") & columns.keys
       cols = columns.keys if cols.empty?
-      cols.delete_if?{|c| servlet_invisible_column?(c) }
+      cols.delete_if{|c| servlet_invisible_column?(c) }
       res.body = objs.map{|o|
         cols.map{|c| [c, o[c]] }.to_hash
       }.to_json
@@ -635,6 +635,7 @@ extend FutureServlet
 
   class << self
     def modes
+      ['json']
     end
 
     def do_view(req,res)
@@ -642,6 +643,10 @@ extend FutureServlet
     end
 
     def do_list(req,res)
+      do_json(req,res)
+    end
+
+    def do_json(req,res)
       res['Content-type'] = 'text/plain'
       res.body = find_all.map{|t| t.major + "/" + t.minor }.to_json
     end
@@ -686,6 +691,11 @@ extend FutureServlet
       h[:metadata] = servlet_target.metadata.to_hash
       h[:mimetype] = servlet_target.mimetype
       h[:writable] = !!servlet_target.writable_by(servlet_user)
+      h[:emblems] = [
+        ['e', 'FUNNY HATS!! - £4.99 from eBay.co.uk', 'http://www.ebay.co.uk'],
+        ['euro', 'Rocket Ship - 8.49€ from Amazon.de', 'http://www.amazon.com'],
+        ['location', 'Bavaria, Germania', 'http://maps.google.com']
+      ]
       res.body = h.to_json
     end
 
@@ -707,6 +717,10 @@ extend FutureServlet
             servlet_target.path = parts[0..-2].join("/") + "/" + newname
           end
         end
+      end
+      if req.query.has_key?('tags')
+        tags = req.query['tags'].split(",")
+        p tags, servlet_target.tags
       end
       super
       servlet_target.write(servlet_user) do
@@ -1027,6 +1041,32 @@ extend FutureServlet
     ['files','users','groups','tags','sets']
   end
 
+  def self.servlet_invisible_columns
+    super | [:owner_id]
+  end
+
+  def self.do_json(req,res)
+    res['Content-type'] = 'text/plain'
+    if servlet_target
+      h = {}
+      columns.map{|c, cl|
+        h[c] = servlet_target[c] unless servlet_invisible_column?(c)
+      }
+      h['owner'] = servlet_target.owner.name
+      res.body = h.to_json
+    else
+      objs = servlet_list_rows(req)
+      cols = req.query['columns'].to_s.split(",") & columns.keys
+      cols = columns.keys if cols.empty?
+      cols.delete_if{|c| servlet_invisible_column?(c) }
+      res.body = objs.map{|o|
+        h = cols.map{|c| [c, o[c]] }.to_hash
+        h['owner'] = o.owner.name
+        h
+      }.to_json
+    end
+  end
+
 end
 
 
@@ -1037,8 +1077,34 @@ extend FutureServlet
     super | [:namespace]
   end
 
+  def self.servlet_invisible_columns
+    super | [:owner_id]
+  end
+
   def self.sub_modes
     ['files','users','items','tags','sets']
+  end
+
+  def self.do_json(req,res)
+    res['Content-type'] = 'text/plain'
+    if servlet_target
+      h = {}
+      columns.map{|c, cl|
+        h[c] = servlet_target[c] unless servlet_invisible_column?(c)
+      }
+      h['owner'] = servlet_target.owner.name
+      res.body = h.to_json
+    else
+      objs = servlet_list_rows(req)
+      cols = req.query['columns'].to_s.split(",") & columns.keys
+      cols = columns.keys if cols.empty?
+      cols.delete_if{|c| servlet_invisible_column?(c) }
+      res.body = objs.map{|o|
+        h = cols.map{|c| [c, o[c]] }.to_hash
+        h['owner'] = o.owner.name
+        h
+      }.to_json
+    end
   end
 
 end

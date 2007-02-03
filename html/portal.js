@@ -564,7 +564,7 @@ Portal.prototype = {
     bottom_info.appendChild(this.parseItemTitle('div', infoObj, true, true, 'infoDiv'))
     info.overlayElements = [top_left_info, top_right_info, bottom_info]
     if (info.w >= 256) {
-      var emblems = this.getEmblems(infoObj)
+      var emblems = infoObj.emblems
       var emblemContainer = Elem('div')
       top_left_info.appendChild(emblemContainer)
       var emblem_size = ((info.w >= 512) ? 32 : 16)
@@ -598,14 +598,6 @@ Portal.prototype = {
 
   removeViewMonitor : function(key) {
     this.viewMonitors.deleteIf(function(t){ return t[0] == key })
-  },
-
-  getEmblems : function(info) {
-    var emblems = [
-      ['e', 'FUNNY HATS!! - £4.99 from eBay.co.uk', 'http://www.ebay.co.uk'],
-      ['euro', 'Rocket Ship - 8.49€ from Amazon.de', 'http://www.amazon.com'],
-      ['location', 'Bavaria, Germania', 'http://maps.google.com']]
-    return emblems
   },
 
   expandEmblems : function(emblems, sz) {
@@ -752,17 +744,6 @@ Portal.prototype = {
     i.src = this.filePrefix + info.path + this.fileSuffix
     this.infoLayer.appendChild(i)
     this.infoLayer.appendChild(this.parseItemMetadata(info))
-//     info.emblems.each(function(n){
-//       var d = Elem('div')
-//       var a = Elem('a', n[1], null, 'infoLink')
-//       a.href = n[1]
-//       var el = Elem('img')
-//       el.style.display = 'inline'
-//       el.src = '/zogen/' + n[0] + '_32.png'
-//       d.appendChild(el)
-//       d.appendChild(a)
-//       infoLayer.appendChild(d)
-//     })
     this.infoLayer.style.display = 'block'
   },
 
@@ -967,8 +948,37 @@ Portal.prototype = {
           value: info.path.split("/").last().split(".").slice(0,-1).join(".")
         }))
       this.itemKeys.each(function(i) {
+        var args = i.type.slice(1)
+        var ed
         dd.appendChild(Elem("h5", t.translate(i.name)))
-        dd.appendChild(Editors[i.type[0]](i.name, info[i.name], i.type.slice(1)))
+        if (i.name == 'tags') {
+          ed = Editors[i.type[0]]('metadata.'+i.name,
+            info[i.name].map(function(it){return it.name}).join(", "), args)
+        } else if (i.type[0] == 'list' || i.type[0] == 'listOrNew') {
+          var list_name = args.shift()
+          ed = Elem('span')
+          postQuery('/'+list_name+'/json', '', function(res){
+            var items = res.responseText.parseRawJSON()
+            var list_parse = function(it){
+              return ((typeof it == 'string') ? it : it.name + ':' + it.namespace)
+             }
+            var poss_vals = items.map(list_parse)
+            var values = ((typeof info[i.name] == 'string') ?
+                          info[i.name] : info[i.name].map(list_parse))
+            args = [poss_vals].concat(args)
+            ed.appendChild(Editors[i.type[0]](i.name, values, args))
+          })
+        } else {
+          ed = Editors[i.type[0]]('metadata.'+i.name, info[i.name], args)
+        }
+        if (i.type[0] == 'location') {
+          ed.mapAttachNode = editor
+          ed.mapTop = editor.computedStyle().top
+          ed.mapLeft = (parseInt(editor.computedStyle().left) +
+               Math.max(parseInt(editor.computedStyle().width),
+                        parseInt(editor.computedStyle().minWidth)) + 'px')
+        }
+        dd.appendChild(ed)
       })
       td = Elem('td')
       td.width = "50%"
@@ -977,15 +987,23 @@ Portal.prototype = {
       dd = Elem('div')
       td.appendChild(dd)
       this.metadataKeys.each(function(i) {
-        var args
+        var args = i.type.slice(1)
+        var ed
         dd.appendChild(Elem("h5", t.translate(i.name)))
-        if (i.type[0] == 'list') {
-          i.type[1]
-          args = []
+        if (i.type[0] == 'list' || i.type[0] == 'listOrNew') {
+          var list_name = args.shift()
+          ed = Elem('span')
+          postQuery('/'+list_name+'/json', '', function(res){
+            var items = res.responseText.parseRawJSON()
+            var list_parse = function(it){ return it.name + ':' + it.namespace }
+            var poss_vals = items.map(list_parse)
+            var values = info.metadata[i.name].map(list_parse)
+            args = [values, poss_vals].concat(args)
+            ed.appendChild(Editors[i.type[0]]('metadata.'+i.name, info.metadata[i.name], args))
+          })
         } else {
-          args = i.type.slice(1)
+          ed = Editors[i.type[0]]('metadata.'+i.name, info.metadata[i.name], args)
         }
-        var ed = Editors[i.type[0]]('metadata.'+i.name, info.metadata[i.name], args)
         if (i.type[0] == 'location') {
           ed.mapAttachNode = editor
           ed.mapTop = editor.computedStyle().top
