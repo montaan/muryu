@@ -114,10 +114,16 @@ module DB
     end
 
     def reserve
-      obj = @objects.shift
-      yield obj
-    ensure
-      @objects.push(obj)
+      if Thread.current.conn.is_a? klass
+        yield Thread.current.conn
+      else
+        begin
+          obj = @objects.shift
+          yield obj
+        ensure
+          @objects.push(obj)
+        end
+      end
     end
   
     def method_missing(*a, &b)
@@ -192,7 +198,7 @@ module DB
     begin
       conn.exec('BEGIN')
       conn.exec('SET TRANSACTION ISOLATION LEVEL '+isolation_level+' '+access_mode)
-      rv = yield # maybe a bug here? if using DB::Conn directly..
+      rv = yield
       conn.exec('COMMIT')
       rv
     rescue TransactionRollback
@@ -438,7 +444,7 @@ module DB
         columns.find{|c,t| c == name.to_s }
       end
 
-      def foreign_key? k, ignore_direct=false
+      def foreign_key?(k, ignore_direct=false)
         (ignore_direct and foreign_keys[k.to_s]) or
         (columns[k.to_s+"_id"] and foreign_keys[k.to_s+"_id"])
       end
@@ -776,123 +782,6 @@ module DB
 
       def parse_query(h)
         parse_query_into_sql_array(h).join("\n")
-        #old_parse_query(h)
-      end
-
-      def old_parse_query(h)
-        h = h.clone
-        order_by = h.delete:order_by
-        desc = h.delete:desc
-        asc = h.delete:asc
-        limit = h.delete:limit
-        offset = h.delete:offset
-        cols = h.delete:columns
-        case cols
-        when Array
-          cols = ([:id] + cols).uniq.compact
-        when :all
-          cols = columns.keys
-        else
-          cols = [:id, cols].uniq.compact
-        end
-        foreign_key_cols = h.keys.find_all{|k|
-          f = k.to_s.split(".",2).first
-          foreign_key?(f) or (k.to_s.size > f.size and Tables.table? f)
-        }
-        bad_cols = h.keys.find_all{|k| not columns[k.to_s]} - foreign_key_cols
-        unless bad_cols.empty?
-          raise(
-            "Inexisting column#{'s' if bad_cols.size > 1}: #{bad_cols.join(", ")}"
-          )
-        end
-        tables = []
-        predicates = []
-        h.map{|k,v| t, p = __comparison(k,v)
-          tables << t
-          predicates << p
-        }
-        tables = Hash[*tables.flatten.reverse]
-        predicates.flatten!
-        tn = table_name
-        tn = escape(tables.find_all{|n,t| t == table_name}.min[0]) unless tables.empty?
-        q =  %Q(SELECT #{cols.map{|c|tn+"."+escape(c)}.join(", ")})
-        q << if tables.empty?
-          %Q(\nFROM #{escape table_name})
-        else
-          %Q(\nFROM #{tables.map{|n,t| escape(t)+" "+escape(n) }.join(", ")})
-        end
-        q << %Q(\nWHERE #{predicates.uniq.join(" AND ")}) unless predicates.empty?
-        q << %Q(\n#{%Q(ORDER BY #{parse_order_by order_by, desc, asc}) if order_by}
-          #{"LIMIT #{limit.to_i}" if limit}
-          #{"OFFSET #{offset.to_i}" if offset}
-        )
-        q
-      end
-
-      def __comparison(k,v,lvl="0")
-        k = k.to_s
-        table = k.split(".").first
-        if fk = foreign_key?(table.to_s)
-          comp = case v
-          when Table
-            return __comparison(fk.column_name, v[fk.foreign_column_name], lvl)
-          else
-            k = k.sub(table+".","")
-            ft = fk.foreign_table
-            jt = fk.join_table_name
-            t, pr = ft.__comparison(k,v,lvl.succ)
-            t << [table_name, table_name+lvl]
-            t << [jt, jt+lvl.succ] if jt
-            t << [ft.table_name, ft.table_name+lvl.succ]
-            pr << fk.__comparison(lvl)
-            return [t,pr]
-          end
-        elsif table.size < k.size
-          k = k.sub(table+".","")
-          ft = Tables[table]
-          return ft.__comparison(k,v,lvl)
-        end
-        k = "#{escape(table_name+lvl)}.#{escape k}"
-        comp = get_comparison(k,v,lvl)
-        cmp_table = []
-        if v.is_a? Symbol
-          vs = v.to_s.split(".")
-          if vs.length > 1
-            cmp_table << vs[0] << vs[0]+lvl
-          end
-        end
-        [[table_name, table_name+lvl, *cmp_table], [comp]]
-      end
-
-      COMPARISON_OPS = ['<','>','in','not in','=','>=','<=']
-      def get_comparison(k, v, lvl=nil)
-        if v.is_a? Array and COMPARISON_OPS.include?(v[0].to_s.downcase)
-          cmp, v = v
-        else
-          cmp = nil
-        end
-        case v
-        when Regexp
-          "#{k} ~#{'*' if v.casefold?} #{
-            quote((v.inspect+" ").split("/")[1..-2].join("/"))
-          }"
-        when Range
-          min,max = v.to_a.sort
-          "#{k} >= #{quote min} AND #{k} <= #{quote max}"
-        when Symbol
-          vs = v.to_s.split(".")
-          vs[0] << lvl if vs.length > 1
-          k + " #{cmp || "="} " + vs.map{|i|escape i }.join(".")
-        when Array
-          if v[0].to_s[-2,2] == "()"
-            f = v[0].to_s[0...-2]
-            v = v[1..-1]
-          end
-          # problematic f(1,2,3,4) vs. (f(1),f(2),f(3),f(4)) ?
-          "#{k} #{cmp || (f ? "=" : "IN")} #{f}(#{v.map{|i| quote i}.join(",")})"
-        when nil
-          "#{k} #{cmp || "="} FALSE"
-        end or "#{k} #{cmp || "="} #{quote v}"
       end
 
       def query(h={})
