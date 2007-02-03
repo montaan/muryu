@@ -90,7 +90,7 @@ class ImageCache
         ###       that there's no need to rescale every time. Do scaling on GPU.
         ###       Cache created tiles.
         pn = Pathname.new(item.internal_path)
-        tn = Future.cache_dir + "tmpthumb-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.jpg"
+        tn = Future.cache_dir + "tmpthumb-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.tga"
         w = 2**zoom
         @@cache_draw_mutex.synchronize do
           pn.thumbnail(tn, w, 0, "#{image.width}x#{image.height}+#{-[0, x].min}+#{-[0, y].min}")

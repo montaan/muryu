@@ -1,6 +1,7 @@
 require 'future/metadata'
 require 'future/utils'
 require 'fileutils'
+require 'imlib2'
 
 
 class Pathname
@@ -88,23 +89,70 @@ module Mimetype
   end
 
   def image_thumbnail(filename, thumb_filename, thumb_size, page=0, crop='0x0+0+0')
-    dims = filename.to_pn.dimensions
-    return false unless dims[0] and dims[1]
-    scale_fac = 1
-    if dims.min < thumb_size
-      scale_fac = thumb_size / dims.min.to_f
-    elsif dims.max > thumb_size
-      scale_fac = thumb_size / dims.max.to_f
-    end
-    density = scale_fac * 72
     tfn = thumb_filename.to_pn
     tmp_filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.object_id}#{tfn.extname}"
-    args = ["-density", density.to_s,
-            "#{filename}[#{page}]",
-            "-scale", "#{thumb_size}x#{thumb_size}",
-            "-crop", crop.to_s,
-            tmp_filename.to_s]
-    system("convert", *args)
+    if to_s =~ /^image/
+      img = Imlib2::Image.load(filename)
+      begin
+        ow, oh = img.width, img.height
+        larger = [ow, oh].max
+        wr = img.width.to_f / larger
+        hr = img.height.to_f / larger
+        sr = larger / thumb_size.to_f
+        w,h,x,y = crop.scan(/[+-]?[0-9]+/).map{|i|i.to_i}
+        w = thumb_size * wr if w == 0
+        h = thumb_size * hr if h == 0
+        rx,ry,rw,rh = [x,y,w,h].map{|i| i * sr }
+        img.has_alpha = true
+        if rx > ow or ry > oh
+          ctx = Imlib2::Context.get
+          ctx.blend = false
+          ctx.color = Imlib2::Color::TRANSPARENT
+          ctx.op = Imlib2::Op::COPY
+          img.crop!(0, 0, w, h)
+          img.fill_rectangle([0, 0, w, h])
+          ctx.blend = true
+        else
+          img.crop_scaled!(rx,ry,rw,rh, w, h)
+          if rx+rw > ow
+            d = rx+rw - ow
+            ctx = Imlib2::Context.get
+            ctx.blend = false
+            ctx.color = Imlib2::Color::TRANSPARENT
+            ctx.op = Imlib2::Op::COPY
+            img.fill_rectangle([w - d / sr, 0, w, h])
+            ctx.blend = true
+          else
+            d = ry+rh - oh
+            ctx = Imlib2::Context.get
+            ctx.blend = false
+            ctx.color = Imlib2::Color::TRANSPARENT
+            ctx.op = Imlib2::Op::COPY
+            img.fill_rectangle([0, h - d / sr, w, h])
+            ctx.blend = true
+          end
+        end
+        img.save(tmp_filename.to_s)
+      ensure
+        img.delete!
+      end
+    else
+      dims = filename.to_pn.dimensions
+      return false unless dims[0] and dims[1]
+      scale_fac = 1
+      if dims.min < thumb_size
+        scale_fac = thumb_size / dims.min.to_f
+      elsif dims.max > thumb_size
+        scale_fac = thumb_size / dims.max.to_f
+      end
+      density = scale_fac * 72
+      args = ["-density", density.to_s,
+              "#{filename}[#{page}]",
+              "-scale", "#{thumb_size}x#{thumb_size}",
+              "-crop", crop.to_s,
+              tmp_filename.to_s]
+      system("convert", *args)
+    end
     if tmp_filename.exist?
       tmp_filename.rename(tfn)
       true
