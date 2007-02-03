@@ -112,7 +112,7 @@ class RecursiveDownloader
     child_uris = csscode.scan(/@import\s+url\(([^)]+)\)/).flatten
     child_uris.concat(csscode.scan(/@import\s+"([^"]+)"/).flatten)
     # ugh
-    child_uris.concat(csscode.scan(/@import\s+'([^"]+)'/).flatten)
+    child_uris.concat(csscode.scan(/@import\s+'([^']+)'/).flatten)
     child_uris.each do |child_uri|
       resolved_uri = uri.merge(child_uri).normalize
       next if @fetched[resolved_uri.to_s] || @redirected[resolved_uri.to_s]
