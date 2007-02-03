@@ -183,11 +183,15 @@ class Uploader
         if "text/plain" == mimetype.to_s
           Itemtexts.find_or_create(:sha1_hash => handle.sha1digest, :text => item.read)
         end
-        ([[owner.group, true]] + groups).each do |group, can_modify|
+        ([[owner.group, true]] + groups).each do |group, cm|
+          cm = can_modify if cm.nil?
+          unless group.is_a? DB::Table
+            group = Groups.rfind_or_create(owner, :name => group)
+          end
           ItemsGroups.find_or_create(
             :item_id => item.id,
             :group_id => group.id,
-            :can_modify => can_modify ? true : false)
+            :can_modify => cm ? true : false)
         end
       end
       item.update_thumbnail
