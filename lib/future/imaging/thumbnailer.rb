@@ -109,18 +109,19 @@ module Mimetype
           ctx.blend = false
           ctx.color = Imlib2::Color::TRANSPARENT
           ctx.op = Imlib2::Op::COPY
-          img.crop!(0, 0, w, h)
-          img.fill_rectangle([0, 0, w, h])
+          nimg = Imlib2::Image.new(w, h)
+          nimg.has_alpha = true
+          nimg.fill_rectangle([0, 0, w, h])
           ctx.blend = true
         else
-          img.crop_scaled!(rx,ry,rw,rh, w, h)
+          nimg = img.crop_scaled(rx,ry,rw,rh, w, h)
           if rx+rw > ow
             d = rx+rw - ow
             ctx = Imlib2::Context.get
             ctx.blend = false
             ctx.color = Imlib2::Color::TRANSPARENT
             ctx.op = Imlib2::Op::COPY
-            img.fill_rectangle([w - d / sr, 0, w, h])
+            nimg.fill_rectangle([w - d / sr, 0, w, h])
             ctx.blend = true
           else
             d = ry+rh - oh
@@ -128,13 +129,14 @@ module Mimetype
             ctx.blend = false
             ctx.color = Imlib2::Color::TRANSPARENT
             ctx.op = Imlib2::Op::COPY
-            img.fill_rectangle([0, h - d / sr, w, h])
+            nimg.fill_rectangle([0, h - d / sr, w, h])
             ctx.blend = true
           end
         end
-        img.save(tmp_filename.to_s)
+        nimg.save(tmp_filename.to_s)
       ensure
         img.delete!
+        nimg.delete!(true)
       end
     else
       dims = filename.to_pn.dimensions
