@@ -9,9 +9,9 @@ require 'racc/parser'
 
 class QueryStringParser < Racc::Parser
 
-module_eval <<'..end lib/future/query_grammar.racc modeval..ida89eafb671', 'lib/future/query_grammar.racc', 93
+module_eval <<'..end lib/future/query_grammar.racc modeval..id939b447cc5', 'lib/future/query_grammar.racc', 93
 
-Negation = Struct.new(:op, :child)
+Negation = Struct.new(:child)
 Unary = Struct.new(:op, :child)
 BinaryAnd = Struct.new(:left, :right)
 BinaryOr = Struct.new(:left, :right)
@@ -28,7 +28,7 @@ def next_token
   @lexer.next_token
 end
 
-..end lib/future/query_grammar.racc modeval..ida89eafb671
+..end lib/future/query_grammar.racc modeval..id939b447cc5
 
 ##### racc 1.4.4 generates ###
 
@@ -276,7 +276,7 @@ module_eval <<'.,.,', 'lib/future/query_grammar.racc', 13
 
 module_eval <<'.,.,', 'lib/future/query_grammar.racc', 17
   def _reduce_2( val, _values, result )
- result = Negation.new(val[0], val[1])
+ result = Negation.new(val[1])
    result
   end
 .,.,
@@ -453,7 +453,7 @@ module_eval <<'.,.,', 'lib/future/query_grammar.racc', 53
 
 module_eval <<'.,.,', 'lib/future/query_grammar.racc', 59
   def _reduce_28( val, _values, result )
- result = Negation.new(val[0], val[1])
+ result = Negation.new(val[1])
    result
   end
 .,.,
@@ -596,7 +596,7 @@ class Lexer
 
 # lexer def
   def_state(:normal) do
-    on(/!|~/){|op| [:UN_OP, op]}
+    on(/!|~/){|op| [:NOT_OP, op]}
     on(/\(|\)/)
     on(/"[^"]+"/){|str| [:STRING_LITERAL, str[1..-2]] }
     on(/&|and\b/){ [:BI_AND, '&'] }

@@ -15,7 +15,7 @@ start: query { result = val[0] }
 ;
 
 query: 
-    NOT_OP query             { result = Negation.new(val[0], val[1])         }
+    NOT_OP query             { result = Negation.new(val[1])         }
   | '(' query ')'           { result = val[1]                            }
   | query BI_AND query       { result = BinaryAnd.new(val[0], val[2]) }
   | query BI_OR query       { result = BinaryOr.new(val[0], val[2]) }
@@ -57,7 +57,7 @@ range_key
 # set:!((work & home) | (auction | !house))
 # set:!work & home | (auction | !house)
 discrete_values 
-  : NOT_OP discrete_values                 { result = Negation.new(val[0], val[1]) }
+  : NOT_OP discrete_values                 { result = Negation.new(val[1]) }
   | '(' discrete_values ')'               { result = val[1] }
   | discrete_values BI_AND discrete_values { result = BinaryAnd.new(val[0], val[2]) }
   | discrete_values BI_OR discrete_values { result = BinaryOr.new(val[0], val[2]) }
@@ -91,7 +91,7 @@ range_expr:
 
 ---- inner stuff
 
-Negation = Struct.new(:op, :child)
+Negation = Struct.new(:child)
 Unary = Struct.new(:op, :child)
 BinaryAnd = Struct.new(:left, :right)
 BinaryOr = Struct.new(:left, :right)
@@ -155,7 +155,7 @@ class Lexer
 
 # lexer def
   def_state(:normal) do
-    on(/!|~/){|op| [:UN_OP, op]}
+    on(/!|~/){|op| [:NOT_OP, op]}
     on(/\(|\)/)
     on(/"[^"]+"/){|str| [:STRING_LITERAL, str[1..-2]] }
     on(/&|and\b/){ [:BI_AND, '&'] }

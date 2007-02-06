@@ -22,6 +22,22 @@ class TestQueryGenerator < Test::Unit::TestCase
     assert_equal("ALL", qhash["sets.name"].predicate)
   end
 
+  def test_query_hashes_basic_negation
+    qhash = @q_generator.query_hashes("!set:foo")
+    assert_equal({"sets.name" => -["foo"]}, qhash)
+    assert_equal("NOT ANY", qhash["sets.name"].predicate)
+
+    qhash = @q_generator.query_hashes("set:!foo")
+    assert_equal({"sets.name" => -["foo"]}, qhash)
+    assert_equal("NOT ANY", qhash["sets.name"].predicate)
+  end
+
+  def xtest_query_hashes_coalesce_negation
+    qhash = @q_generator.query_hashes("(!set:foo) & (!set:bar) ")
+    assert_equal({"sets.name" => -%w[foo bar]}, qhash)
+    assert_equal("NOT ANY", qhash["sets.name"].predicate)
+  end
+
   def test_query_hashes_basic_or
     qhash = @q_generator.query_hashes("tag:foo")
     assert_equal({"tags.name" => ["foo"]}, qhash)

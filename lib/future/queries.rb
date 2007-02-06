@@ -7,9 +7,8 @@ class QueryGenerator
   EASY_FIELDS = {
     "set"    => "sets.name",
     "tag"    => "tags.name",
-    "user"   => :owner, # TODO
-    "group"  => :group,
-    "author" => :author,
+    "group"  => "groups",
+    "author" => "metadata.author",
   }
   def initialize
     @parser = QueryStringParser.new
@@ -26,6 +25,15 @@ class QueryGenerator
   def ast_to_query_hash(ast, hash = {})
     pp ast if $DEBUG
     case ast
+    when QueryStringParser::Negation
+      child = ast_to_query_hash(ast.child)
+      child.each_pair do |key, val|
+        case val.predicate 
+        when "ALL"; raise "cannot handle comple expressions"
+        when "ANY"; hash[key] = -val
+        when "NOT ANY"; hash[key] = [].concat(val) # get rid of @predicate
+        end
+      end
     when QueryStringParser::BinaryAnd, QueryStringParser::BinaryOr
       left = ast_to_query_hash(ast.left)
       right = ast_to_query_hash(ast.right)
@@ -74,6 +82,9 @@ class QueryGenerator
       [left, right].flatten
     when String
       [ast]
+    when QueryStringParser::Negation
+      raise "cannot handle complex expressions" unless String === ast.child
+      -[ast.child]
     end
   end
 
