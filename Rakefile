@@ -24,6 +24,7 @@ def create_new_db(environment)
 end
 
 file "lib/future/query_grammar.rb" => "lib/future/query_grammar.racc" do |t|
+  sh "racc --version"
   sh "racc -o #{t.name} #{t.prerequisites[0]}"
 end
 
@@ -78,7 +79,7 @@ Rake::TestTask.new(:test) do |t|
   t.test_files = FileList['test/test*.rb']
   t.verbose = true
 end
-task :test => "db:test:prepare"
+task :test => ["lib/future/query_grammar.rb", "db:test:prepare"]
 
 namespace :test do
   Rake::TestTask.new(:unit) do |t|
@@ -111,6 +112,5 @@ end
 task :rcovsave => "db:test:prepare"
 
 task :default => :test
-task :test => "lib/future/query_grammar.rb"
 
 # vim: set sw=2 ft=ruby:
