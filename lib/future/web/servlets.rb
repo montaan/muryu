@@ -80,7 +80,7 @@ module FutureServlet
     if req.body
 #       pp req.header
       nq = CGI.parse(req.body)
-      puts req.body
+#       puts req.body
       nq.each{|k,v|
         req.query[k] = (v.size == 1 ? v[0] : v)
       }
@@ -133,19 +133,18 @@ module FutureServlet
       else
         self.servlet_target = nil
       end
-      if respond_to?(:columns)
-#         qkeys = (req.query.keys & (columns.keys + ["sort"]))
-#         h = qkeys.map{|k| [k, [req.query[k].to_s]]}.to_hash
-#         words = req.query["text"].to_s.split(" ").map &[[:gsub, /\+/, " "]]
-#         self.search_query = SearchQueryParser.tokens_and_words_to_query_hash(h, words)
-
-#        self.search_query = SearchQueryParser.parse(req.query['q'].to_s)
-        self.search_query = SearchQueryParser.parse_query(req.query['q'].to_s, columns)
-      end
+      parse_search_query(req) if respond_to?(:columns)
       mode = 'list' if ["/", ""].include?(req.path_info)
       __send__("do_#{mode}", req, res)
       Thread.current.conn = nil
     end
+  end
+
+  def parse_search_query(req)
+    qkeys = (req.query.keys & (columns.keys + ["sort"]))
+    h = qkeys.map{|k| [k, [req.query[k].to_s]]}.to_hash
+    words = req.query["text"].to_s.split(" ").map{|t| t.gsub(/\+/, ' ') }
+    self.search_query = SearchQueryParser.tokens_and_words_to_query_hash(h, words)
   end
   
   def user_auth(req, res)
@@ -472,7 +471,7 @@ module FutureServlet
           column? k and servlet_target[k].to_s != v and
           not servlet_uneditable_column?(k)
         }
-        pp edits
+#         pp edits
         edits.each{|k,v|
           servlet_target[k] = v
         }
@@ -540,9 +539,18 @@ extend FutureServlet
     def do_view(req,res)
       res['Content-type'] = 'text/plain'
       x,y,z,w,h = Tile.parse_tile_geometry(servlet_path)
+      sq = self.search_query.clone
+      if z >= 4
+        sq = sq.merge(:columns => ['path'])
+      end
+      if z >= 7
+#         sq.columns.push(*['metadata.width', 'metadata.height'])
+      end
+      if z >= 8
+#         sq.columns.push(*['owner.name', 'metadata'])
+      end
       res.body = Tiles.info(
-        servlet_user,
-        search_query.merge(:columns => [:path]),
+        servlet_user, sq,
         :rows, x, y, z, w, h
       ).to_a.map do |iind,((x,y,sz), info)|
         {:image_index => iind, :x => x, :y => y, :sz => sz, :info => info}
@@ -552,33 +560,13 @@ extend FutureServlet
     def do_list(req,res)
       res['Content-type'] = 'text/plain'
       res.body = {
-        "maxZoom" => 12,
+        "maxZoom" => 15,
         "title" => servlet_user.name
       }.to_json
     end
   end
 
 end
-
-# 
-# class Zogen
-# extend FutureServlet
-# 
-#   class << self
-#     def servlet_modes
-#       []
-#     end
-# 
-#     def do_list(req,res)
-#       res.body = File.read("./html/zogen.html")
-#     end
-# 
-#     def do_view(req,res)
-#       res.body = File.read("./html/rototype.js")
-#     end
-#   end
-# 
-# end
 
 
 class Files
@@ -669,6 +657,10 @@ extend FutureServlet
       :path
     end
 
+    def parse_search_query(req)
+      self.search_query = SearchQueryParser.parse(req.query['q'].to_s)
+    end
+    
     def servlet_uneditable_columns
       super | ['modified_at', 'created_at', 'size',
                'sha1_hash', 'image_index', 'metadata_id',
@@ -1091,15 +1083,6 @@ extend FutureServlet
     else
       req.query['columns'] = 'name'
       res.body = servlet_list_rows(req).map{|c| c.name }.to_json
-#       objs = servlet_list_rows(req)
-#       cols = req.query['columns'].to_s.split(",") & columns.keys
-#       cols = columns.keys if cols.empty?
-#       cols.delete_if{|c| servlet_invisible_column?(c) }
-#       res.body = objs.map{|o|
-#         h = cols.map{|c| [c, o[c]] }.to_hash
-#         h['owner'] = o.owner.name
-#         h
-#       }.to_json
     end
   end
 
@@ -1133,15 +1116,6 @@ extend FutureServlet
     else
       req.query['columns'] = 'name'
       res.body = servlet_list_rows(req).map{|c| c.name }.to_json
-#       objs = servlet_list_rows(req)
-#       cols = req.query['columns'].to_s.split(",") & columns.keys
-#       cols = columns.keys if cols.empty?
-#       cols.delete_if{|c| servlet_invisible_column?(c) }
-#       res.body = objs.map{|o|
-#         h = cols.map{|c| [c, o[c]] }.to_hash
-#         h['owner'] = o.owner.name
-#         h
-#       }.to_json
     end
   end
 

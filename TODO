@@ -7,10 +7,8 @@ High priority (vital for utility / business):
     software or would be very inconvenient with existing software
 
 * Write search query parser (sets:!work sets:todo tags:bank user:carol)
-  - half-way there
+  - make search query parser actually work
 
-* port upload semantics from upload.cgi
-* make upload form
 * port future.xpi
 
 * view user items, groups, etc.
@@ -51,9 +49,12 @@ High priority (vital for utility / business):
 Medium priority (improves use experience / codebase):
 =====================================================
 
+* port upload semantics from upload.cgi
+  - missing compressed and remote compressed
+
 * grab sidebar from augen
 * get nice filenames from tile_info
-* floater views (zoomed in map portion, overview map portion)
+* zoom lens and mini map
 * nested portal system for doing titled views (instead of drawing on server)
   - subportal engulfs all items inside it, crop to window/container border
     -> zoom changes subportal size
@@ -90,7 +91,7 @@ Medium priority (improves use experience / codebase):
 
 * design and implement undo (argh, important feature but a bit painful)
 
-* emblems for items
+* server-side-drawn emblems for items
 * drawing lines between two items
 
 * rearrange items by dragging
@@ -114,7 +115,6 @@ Medium priority (improves use experience / codebase):
 Low priority (would be nice / possible):
 ========================================
 
-* switch to tile-generated-from-item at 256x256 (easier to do server-side)
 * special thumbnail handling for multipage docs: big header page with all doc
   pages on the side as tiny, zoom in to read
 

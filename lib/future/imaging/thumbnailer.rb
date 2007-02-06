@@ -103,36 +103,26 @@ module Mimetype
         w = thumb_size * wr if w == 0
         h = thumb_size * hr if h == 0
         rx,ry,rw,rh = [x,y,w,h].map{|i| i * sr }
-        img.has_alpha = true
+        ctx = Imlib2::Context.get
+        ctx.blend = false
+        ctx.color = Imlib2::Color::TRANSPARENT
+        ctx.op = Imlib2::Op::COPY
         if rx > ow or ry > oh
-          ctx = Imlib2::Context.get
-          ctx.blend = false
-          ctx.color = Imlib2::Color::TRANSPARENT
-          ctx.op = Imlib2::Op::COPY
           nimg = Imlib2::Image.new(w, h)
           nimg.has_alpha = true
           nimg.fill_rectangle([0, 0, w, h])
-          ctx.blend = true
         else
           nimg = img.crop_scaled(rx,ry,rw,rh, w, h)
+          nimg.has_alpha = true
           if rx+rw > ow
             d = rx+rw - ow
-            ctx = Imlib2::Context.get
-            ctx.blend = false
-            ctx.color = Imlib2::Color::TRANSPARENT
-            ctx.op = Imlib2::Op::COPY
             nimg.fill_rectangle([w - d / sr, 0, w, h])
-            ctx.blend = true
-          else
+          elsif ry+rh > oh
             d = ry+rh - oh
-            ctx = Imlib2::Context.get
-            ctx.blend = false
-            ctx.color = Imlib2::Color::TRANSPARENT
-            ctx.op = Imlib2::Op::COPY
             nimg.fill_rectangle([0, h - d / sr, w, h])
-            ctx.blend = true
           end
         end
+        ctx.blend = true
         nimg.save(tmp_filename.to_s)
       ensure
         img.delete!

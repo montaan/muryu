@@ -102,7 +102,18 @@ function createNewPortalWindow(x, y, w, h, parent, config) {
 }
 
 function createNewSubPortal() {
-  window.focusedPortal.addSubPortal(256, 0)
+  var container = Elem('div', null, null, 'portal',
+    { position : 'absolute', zIndex : 1 }
+  )
+  var fp = window.focusedPortal
+  var sp = new Portal({
+    subPortal : true,
+    left: 256, top: 128*fp.subPortals.length,
+    width: 256, height: 256,
+    relativeZoom: -1,
+    container: container,
+    afterInit: function(){ fp.addSubPortal(sp) }
+  })
 }
 
 
@@ -115,6 +126,7 @@ Portal = function(config) {
       var obj = res.responseText.parseRawJSON()
       t.mergeD(obj)
       t.init()
+      if (t.afterInit) t.afterInit()
     },
     this.queryErrorHandler('Loading portal info')
   )
@@ -180,6 +192,7 @@ Portal.prototype = {
       if (xyz[2] && xyz[2].match(/^[-+]?[0-9]+$/)) this.y = parseInt(xyz[2])
       if (xyz[3] && xyz[3].match(/^[0-9]+$/)) this.zoom = parseInt(xyz[3])
     }
+    this.subPortals = []
     this.loadQueue = []
     this.tiles = {tilesInCache : 0}
     this.initView()
@@ -239,6 +252,74 @@ Portal.prototype = {
     ti.addEventListener("mousedown", this.linkDown, false)
     ti.style.zIndex = 2
     this.view.appendChild(this.itemLink)
+  },
+
+  addSubPortal : function(sp) {
+    this.subPortals.push(sp)
+    sp.parentPortal = this
+    this.view.appendChild(sp.container)
+    this.updateSubPortal(sp)
+  },
+
+  updateSubPortal : function(sp) {
+    if (this.updateSubPortalCoords(sp)) {
+      if (!sp.container.parentNode) this.view.appendChild(sp.container)
+    } else if (sp.container.parentNode) {
+      sp.container.detachSelf()
+    }
+  },
+
+  updateSubPortalCoords : function(sp) {
+    var ax, ay, aw, ah
+    var zf = Math.pow(2, this.zoom)
+    var rzf = zf * Math.pow(2, sp.relativeZoom)
+    ax = sp.left * zf
+    ay = sp.top * zf
+    aw = sp.width * rzf
+    ah = sp.height * rzf
+    if (
+      ay + ah > -this.view.top &&
+      ax + aw > -this.view.left &&
+      ay < -this.view.top + this.container.offsetHeight &&
+      ax < -this.view.left + this.container.offsetWidth
+    ) {
+      // FIXME make this clip loaded tiles instead of container dimensions :(
+      sp.setZoom(this.zoom + sp.relativeZoom)
+      // clip subportal extents to this.container
+      var ldx = ax + this.view.left
+      var tdy = ay + this.view.top
+      var rdx = ldx + aw - this.container.offsetWidth
+      var bdy = tdy + ah - this.container.offsetHeight
+      var px = 0
+      var py = 0
+      if (ldx < 0) {
+        ax -= ldx
+        aw += ldx
+        px = ldx
+      }
+      if (tdy < 0) {
+        ay -= tdy
+        ah += tdy
+        py = tdy
+      }
+      if (rdx > 0) aw -= rdx
+      if (bdy > 0) ah -= bdy
+      sp.container.style.mergeD({
+        left: ax + 'px',
+        top : ay + 'px',
+        width: aw + 'px',
+        height: ah + 'px'
+      })
+      sp.panTo(-px, -py)
+      return true
+    } else {
+      return false
+    }
+  },
+
+  updateSubPortals : function() {
+    for(var i=0; i<this.subPortals.length; i++)
+      this.updateSubPortal(this.subPortals[i])
   },
 
   updateTiles : function(zoomed){
@@ -700,7 +781,8 @@ Portal.prototype = {
             (Math.abs(e.clientY - this.downY) > 3)) {
           return false
         }
-        if (!t.infoLayerVisible() || t.infoTargetChanged()) {
+        t.centerClicked(e)
+        /*if (!t.infoLayerVisible() || t.infoTargetChanged()) {
           var c = t.viewCoords(e.clientX, e.clientY)
           t.infoTarget = t.itemLink.infoObj
           postQuery(t.itemPrefix+t.itemLink.infoObj.info.path+t.itemJSONSuffix, '',
@@ -712,9 +794,18 @@ Portal.prototype = {
           )
         } else {
           t.hideInfoLayer()
-        }
+        }*/
         return false
       }
+    }
+  },
+
+  centerClicked : function(e) {
+    var info = this.itemLink.infoObj
+    if (info) {
+      var cx = info.x - 0.5*(this.container.offsetWidth-info.w)
+      var cy = info.y - 0.5*(this.container.offsetHeight-info.h)
+      this.animatedPanTo(cx, cy)
     }
   },
 
@@ -1053,8 +1144,8 @@ Portal.prototype = {
   pan : function(x,y,e){
     var v = this.view
     var ptz = 1 / this.tileSize
-    v.left += x
-    v.top += y
+    v.left += parseInt(x)
+    v.top += parseInt(y)
     var lt = Math.floor(-v.left * ptz)
     var tt = Math.floor(-v.top * ptz)
     if (v.leftTile != lt || v.topTile != tt) {
@@ -1062,11 +1153,55 @@ Portal.prototype = {
       v.topTile = tt
       this.updateTiles()
     }
+    this.updateSubPortals()
     v.style.left = v.left + 'px'
     v.style.top = v.top + 'px'
     if (e && e.preventDefault) e.preventDefault()
   },
 
+  animatedPanTo : function(x,y,duration) {
+    if (this.subPortal) {
+      var rzf = Math.pow(2, this.relativeZoom)
+      var pzf = Math.pow(2, this.parentPortal.zoom)
+      var rx = pzf * this.left + x
+      var ry = pzf * this.top + y
+      this.parentPortal.animatedPanTo(rx, ry, duration)
+    } else {
+      if (!duration) duration = 500
+      var ox = -this.view.left
+      var oy = -this.view.top
+      var dx = x - ox
+      var dy = y - oy
+      var st = new Date().getTime()
+      var t = this
+      clearInterval(t.panAnimation)
+      this.panAnimation = setInterval(function() {
+        var ct = new Date().getTime()
+        var v = (ct - st) / duration
+        if (v > 1) v = 1
+        var iv = t.cos_interpolate(v)
+        t.panTo(ox + dx*iv, oy + dy*iv)
+        if (v == 1) clearInterval(t.panAnimation)
+      }, 16)
+    }
+  },
+
+  panTo : function(x,y) {
+    var dx = -(this.view.left + x)
+    var dy = -(this.view.top + y)
+    this.pan(dx, dy)
+  },
+
+  cos_interpolate : function(v) {
+    return Math.sin(v * 0.5*Math.PI)
+  },
+
+  setZoom : function(z) {
+    if (this.zoom != z && z >= 0 && z <= this.maxZoom) {
+      this.zoom = z
+    }
+  },
+  
   // Zooms out from the mouse pointer.
   zoomOut : function(e){
     if (this.zoom > 0) {
@@ -1103,6 +1238,7 @@ Portal.prototype = {
       t.view.style.top = t.view.top + 'px'
       t.view.topTile = t.view.leftTile = null
       t.updateTiles(true)
+      t.updateSubPortals()
     }, 0)
   },
 

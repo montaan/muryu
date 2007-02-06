@@ -277,7 +277,7 @@ Element = {
       if (!this.styleMonitor) {
         this.styleMonitor = this.makeStyleMonitor()
         var obj = this
-        while(obj.offsetLeft != null) { // not very nice, adding monitors to parents
+        while(obj && obj.offsetLeft != null) { // not very nice, adding monitors to parents
           obj.addEventListener("DOMAttrModified", this.styleMonitor, false)
           obj = obj.parentNode
         }
@@ -298,7 +298,7 @@ Element = {
     var obj = this
     var l = 0
     var t = 0
-    while(obj.offsetLeft != null) {
+    while(obj && obj.offsetLeft != null) {
       l += obj.offsetLeft
       t += obj.offsetTop
       obj = obj.parentNode
