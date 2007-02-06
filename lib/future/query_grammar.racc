@@ -1,9 +1,9 @@
 
 ### (grammar to be reworked, bogus AST)
-class SearchQuery
+class QueryStringParser
   prechigh
-    nonassoc STRING_LITERAL WORD UN_OP RANGE_OP
-    left     BI_OP
+    nonassoc STRING_LITERAL WORD NOT_OP RANGE_OP
+    left     BI_AND BI_OR
     nonassoc SET TAG USER GROUP TYPE AUTHOR
     nonassoc SIZE DATE LENGTH WIDTH HEIGHT PAGES WORDS BITRATE RATING
   preclow
@@ -15,9 +15,10 @@ start: query { result = val[0] }
 ;
 
 query: 
-    UN_OP query             { result = Unary.new(val[0], val[1])         }
+    NOT_OP query             { result = Negation.new(val[0], val[1])         }
   | '(' query ')'           { result = val[1]                            }
-  | query BI_OP query       { result = Binary.new(val[1], val[0], val[2]) }
+  | query BI_AND query       { result = BinaryAnd.new(val[0], val[2]) }
+  | query BI_OR query       { result = BinaryOr.new(val[0], val[2]) }
   | STRING_LITERAL          { result = val[0] }
   | keyval_expression       { result = val[0] }
   | WORD                    { result = val[0] }
@@ -56,9 +57,10 @@ range_key
 # set:!((work & home) | (auction | !house))
 # set:!work & home | (auction | !house)
 discrete_values 
-  : UN_OP discrete_values                 { result = Unary.new(val[0], val[1]) }
+  : NOT_OP discrete_values                 { result = Negation.new(val[0], val[1]) }
   | '(' discrete_values ')'               { result = val[1] }
-  | discrete_values BI_OP discrete_values { result = Binary.new(val[1], val[0], val[2]) }
+  | discrete_values BI_AND discrete_values { result = BinaryAnd.new(val[0], val[2]) }
+  | discrete_values BI_OR discrete_values { result = BinaryOr.new(val[0], val[2]) }
   | string                                { result = val[0] }
   ;
 
@@ -83,13 +85,16 @@ range_basic_expr
   ;
 
 range_expr:
-    range_values BI_OP range_values { result = Binary.new(val[1], val[0], val[2]) }
+    range_values BI_AND range_values { result = BinaryAnd.new(val[0], val[2]) }
+    range_values BI_OR range_values { result = BinaryOr.new(val[0], val[2]) }
 ;
 
 ---- inner stuff
 
+Negation = Struct.new(:op, :child)
 Unary = Struct.new(:op, :child)
-Binary = Struct.new(:op, :left, :right)
+BinaryAnd = Struct.new(:left, :right)
+BinaryOr = Struct.new(:left, :right)
 KeyValExpr = Struct.new(:key, :values)
 
 require 'strscan'
@@ -153,8 +158,8 @@ class Lexer
     on(/!|~/){|op| [:UN_OP, op]}
     on(/\(|\)/)
     on(/"[^"]+"/){|str| [:STRING_LITERAL, str[1..-2]] }
-    on(/&|and\b/){ [:BI_OP, '&'] }
-    on(/\||or\b/){ [:BI_OP, '|'] }
+    on(/&|and\b/){ [:BI_AND, '&'] }
+    on(/\||or\b/){ [:BI_OR, '|'] }
     %w[set tag user group type author size date length width height pages words bitrate rating].each do |qualifier|
       on(/#{qualifier}\b/){ [qualifier.upcase.to_sym, qualifier] }
     end
@@ -168,7 +173,7 @@ end
 
 if __FILE__ == $0
   require 'pp'
-  parser = SearchQuery.new
+  parser = QueryStringParser.new
   print "Enter expression (^D or q to quit): "
   until (line = gets.to_s.strip).empty? || line == "q"
     ast = parser.parse(line)

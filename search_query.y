@@ -31,7 +31,7 @@ string
 query
   : unary_operator query
   | '(' query ')'
-  | query infix_operatory query
+  | query infix_operator query
   | STRING_LITERAL
   | keyval_expression
   | WORD
