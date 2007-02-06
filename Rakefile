@@ -23,6 +23,10 @@ def create_new_db(environment)
   end
 end
 
+file "lib/future/query_grammar.rb" => "lib/future/query_grammar.racc" do |t|
+  sh "racc -o #{t.name} #{t.prerequisites[0]}"
+end
+
 require 'future/config'
 require 'future/database/creator'
 namespace :db do
@@ -107,5 +111,6 @@ end
 task :rcovsave => "db:test:prepare"
 
 task :default => :test
+task :test => "lib/future/query_grammar.rb"
 
 # vim: set sw=2 ft=ruby:
