@@ -9,13 +9,14 @@ require 'racc/parser'
 
 class QueryStringParser < Racc::Parser
 
-module_eval <<'..end lib/future/query_grammar.racc modeval..id939b447cc5', 'lib/future/query_grammar.racc', 93
+module_eval <<'..end lib/future/query_grammar.racc modeval..id6854d4d8b3', 'lib/future/query_grammar.racc', 93
 
 Negation = Struct.new(:child)
 Unary = Struct.new(:op, :child)
 BinaryAnd = Struct.new(:left, :right)
 BinaryOr = Struct.new(:left, :right)
 KeyValExpr = Struct.new(:key, :values)
+RangeKeyValExpr = Struct.new(:key, :values)
 
 require 'strscan'
 def parse(str)
@@ -28,7 +29,7 @@ def next_token
   @lexer.next_token
 end
 
-..end lib/future/query_grammar.racc modeval..id939b447cc5
+..end lib/future/query_grammar.racc modeval..id6854d4d8b3
 
 ##### racc 1.4.4 generates ###
 
@@ -341,7 +342,7 @@ module_eval <<'.,.,', 'lib/future/query_grammar.racc', 31
 
 module_eval <<'.,.,', 'lib/future/query_grammar.racc', 32
   def _reduce_12( val, _values, result )
- result = KeyValExpr.new(val[0], val[2])
+ result = RangeKeyValExpr.new(val[0], val[2])
    result
   end
 .,.,

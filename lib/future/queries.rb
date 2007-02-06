@@ -4,7 +4,7 @@ module Future
 require 'future/query_grammar'
 
 class QueryGenerator
-  EASY_FIELDS = {
+  DISCRETE_FIELDS = {
     "set"    => "sets.name",
     "tag"    => "tags.name",
     "user"   => "users.name",
@@ -12,6 +12,17 @@ class QueryGenerator
     "type"   => "mimetypes.major",
     "author" => "metadata.author",
   }
+  RANGE_FIELDS = {
+    "size"    => "size",
+    "date"    => "created_at",
+    "length"  => "metadata.length",
+    "width"   => "metadata.width",
+    "pages"   => "metadata.pages",
+    "words"   => "metadata.words",
+    "bitrate" => "metadata.bitrate",
+    "rating"  => "metadata.rating",
+  }
+  NUMERIC_FIELDS = RANGE_FIELDS.values - %w[created_at]
   def initialize
     @parser = QueryStringParser.new
   end
@@ -59,15 +70,45 @@ class QueryGenerator
         hash[key] = merged
       end
     when QueryStringParser::KeyValExpr
-      field = EASY_FIELDS[ast.key] 
+      field = DISCRETE_FIELDS[ast.key] 
       values = linearize_discrete_values(ast.values)
       if hash.has_key?(field)
         raise "cannot handle complex expressions" unless values.predicate == hash[field].predicate
         values = hash[field].dup.concat(values)
       end
+      values = values.map{|x| x.to_i} if NUMERIC_FIELDS.include?(field)
       hash.update(field => values)
+    when QueryStringParser::RangeKeyValExpr
+      field = RANGE_FIELDS[ast.key]
+      values = linearize_range_values(ast.values)
+      if hash.has_key?(field)
+        raise "cannot handle complex expressions" #unless values.predicate == hash[field].predicate
+      end
+      if NUMERIC_FIELDS.include?(field)
+        values = values.map do |x|
+          case x
+          when Array
+            [x[0], x[1].map{|y| y.to_i}]
+          else
+            x.to_i
+          end
+        end
+      end
+      hash.update(field => values.flatten)
     end
     hash
+  end
+
+  def linearize_range_values(ast)
+    case ast
+    when QueryStringParser::BinaryAnd, QueryStringParser::BinaryOr
+      linearize_discrete_values(ast)
+    when QueryStringParser::Unary
+      values = linearize_discrete_values(ast.child)
+      [[ast.op, values]]
+    else
+      linearize_discrete_values(ast)
+    end
   end
 
   def linearize_discrete_values(ast, type = nil)

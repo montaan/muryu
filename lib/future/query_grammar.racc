@@ -30,7 +30,7 @@ string
 
 keyval_expression
   : discrete_key ':' discrete_values  { result = KeyValExpr.new(val[0], val[2]) }
-  | range_key ':' range_values        { result = KeyValExpr.new(val[0], val[2]) }
+  | range_key ':' range_values        { result = RangeKeyValExpr.new(val[0], val[2]) }
   ;
 
 discrete_key
@@ -96,6 +96,7 @@ Unary = Struct.new(:op, :child)
 BinaryAnd = Struct.new(:left, :right)
 BinaryOr = Struct.new(:left, :right)
 KeyValExpr = Struct.new(:key, :values)
+RangeKeyValExpr = Struct.new(:key, :values)
 
 require 'strscan'
 def parse(str)

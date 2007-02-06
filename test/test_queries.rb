@@ -99,4 +99,26 @@ class TestQueryGenerator < Test::Unit::TestCase
     assert_equal({"sets.name" => +["foo"], "tags.name" => ["bar"]}, 
                  @q_generator.query_hashes("(set:foo) & tag:bar"))
   end
+
+  def test_query_hashes_range_field_simple
+    qhash = @q_generator.query_hashes("size:1000")
+    assert_equal({"size" => [1000]}, qhash)
+  end
+
+  def test_query_hashes_range_field_range_op
+    qhash = @q_generator.query_hashes("size:>1000")
+    assert_equal({"size" => [">", 1000]}, qhash)
+    qhash = @q_generator.query_hashes("size:<1000")
+    assert_equal({"size" => ["<", 1000]}, qhash)
+  end
+
+  def test_query_hashes_range_field_multiple
+    qhash = @q_generator.query_hashes("(size:>1000) & pages:>100")
+    assert_equal({"size" => [">", 1000], "metadata.pages" => [">", 100]}, qhash)
+  end
+
+  def xtest_query_hashes_range_coalescing
+    qhash = @q_generator.query_hashes("(size:>1000) & size:>10000")
+    assert_equal({"size" => [">", 1000, 10000]}, qhash)
+  end
 end
