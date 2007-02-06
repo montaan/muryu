@@ -7,7 +7,9 @@ class QueryGenerator
   EASY_FIELDS = {
     "set"    => "sets.name",
     "tag"    => "tags.name",
-    "group"  => "groups",
+    "user"   => "users.name",
+    "group"  => "groups.name",
+    "type"   => "mimetypes.major",
     "author" => "metadata.author",
   }
   def initialize
