@@ -192,6 +192,11 @@ Portal.prototype = {
       if (xyz[2] && xyz[2].match(/^[-+]?[0-9]+$/)) this.y = parseInt(xyz[2])
       if (xyz[3] && xyz[3].match(/^[0-9]+$/)) this.zoom = parseInt(xyz[3])
     }
+    if (this.subPortal) {
+      this.x = 0
+      this.y = 0
+    }
+    this.topPortal = this
     this.subPortals = []
     this.loadQueue = []
     this.tiles = {tilesInCache : 0}
@@ -205,8 +210,10 @@ Portal.prototype = {
     this.container.addEventListener("DOMAttrModified", this.bind('containerResizeHandler'), false)
     this.view.addEventListener("DOMAttrModified", this.bind('viewScrollHandler'), false)
     this.container.addEventListener("mousedown", this.bind('mousedownHandler'), false)
-    this.container.addEventListener("DOMMouseScroll", this.bind('DOMMouseScrollHandler'), false)
-    this.container.addEventListener("keypress", this.bind('keyHandler'), false)
+    if (!this.subPortal) {
+      this.container.addEventListener("DOMMouseScroll", this.bind('DOMMouseScrollHandler'), false)
+      this.container.addEventListener("keypress", this.bind('keyHandler'), false)
+    }
     window.addEventListener("mousemove", this.bind('mousemoveHandler'), false)
     window.addEventListener("mouseup", this.bind('mouseupHandler'), false)
     window.addEventListener("blur", this.bind('mouseupHandler'), false)
@@ -223,15 +230,17 @@ Portal.prototype = {
     v.style.top = v.top + 'px'
     v.cX = this.container.offsetWidth/2
     v.cY = this.container.offsetHeight/2
-    var t = Elem('h2', this.title)
-    t.style.mergeD({
-      position: 'absolute',
-      fontSize: '20px',
-      left: '0px', top: '-20px',
-      zIndex: 4, color: 'white'
-    })
-    this.titleElem = t
-    v.appendChild(t)
+    if (!this.subPortal) {
+      var t = Elem('h2', this.title)
+      t.style.mergeD({
+        position: 'absolute',
+        fontSize: '20px',
+        left: '0px', top: '-20px',
+        zIndex: 4, color: 'white'
+      })
+      this.titleElem = t
+      v.appendChild(t)
+    }
     this.view = v
   },
 
@@ -257,13 +266,16 @@ Portal.prototype = {
   addSubPortal : function(sp) {
     this.subPortals.push(sp)
     sp.parentPortal = this
+    sp.topPortal = this.topPortal
     this.view.appendChild(sp.container)
     this.updateSubPortal(sp)
   },
 
   updateSubPortal : function(sp) {
+    var vis = sp.visible
     if (this.updateSubPortalCoords(sp)) {
       if (!sp.container.parentNode) this.view.appendChild(sp.container)
+      if (vis != sp.visible) sp.updateTiles()
     } else if (sp.container.parentNode) {
       sp.container.detachSelf()
     }
@@ -277,42 +289,23 @@ Portal.prototype = {
     ay = sp.top * zf
     aw = sp.width * rzf
     ah = sp.height * rzf
+    sp.setZoom(this.zoom + sp.relativeZoom)
     if (
       ay + ah > -this.view.top &&
       ax + aw > -this.view.left &&
       ay < -this.view.top + this.container.offsetHeight &&
       ax < -this.view.left + this.container.offsetWidth
     ) {
-      // FIXME make this clip loaded tiles instead of container dimensions :(
-      sp.setZoom(this.zoom + sp.relativeZoom)
-      // clip subportal extents to this.container
-      var ldx = ax + this.view.left
-      var tdy = ay + this.view.top
-      var rdx = ldx + aw - this.container.offsetWidth
-      var bdy = tdy + ah - this.container.offsetHeight
-      var px = 0
-      var py = 0
-      if (ldx < 0) {
-        ax -= ldx
-        aw += ldx
-        px = ldx
-      }
-      if (tdy < 0) {
-        ay -= tdy
-        ah += tdy
-        py = tdy
-      }
-      if (rdx > 0) aw -= rdx
-      if (bdy > 0) ah -= bdy
       sp.container.style.mergeD({
         left: ax + 'px',
         top : ay + 'px',
         width: aw + 'px',
         height: ah + 'px'
       })
-      sp.panTo(-px, -py)
+      sp.visible = true
       return true
     } else {
+      sp.visible = false
       return false
     }
   },
@@ -322,12 +315,26 @@ Portal.prototype = {
       this.updateSubPortal(this.subPortals[i])
   },
 
+  // Updates visible tile set, loading new tiles if needed, prioritized so that
+  // the tiles nearest to the cursor are loaded first. Removes invisible tiles
+  // when the tile cache is full and after zooming.
+  // 
+  // FIXME make cursor coords behave right for subportals
+  //       make removing invisible tiles work right
   updateTiles : function(zoomed){
     var t = this
     var v = this.view
-    var c = this.container
-    var sl = -(v.left - (v.left % t.tileSize))
-    var st = -(v.top - (v.top % t.tileSize))
+    var c = this.topPortal.container
+    if (this.subPortal) {
+      if (!this.parentPortal) return
+      var vl = parseInt(this.container.style.left) + this.parentPortal.view.left
+      var vt = parseInt(this.container.style.top) + this.parentPortal.view.top
+    } else {
+      var vl = v.left
+      var vt = v.top
+    }
+    var sl = -(vl - (vl % t.tileSize))
+    var st = -(vt - (vt % t.tileSize))
     this.x = -v.left
     this.y = -v.top
     if (this.currentLocation)
@@ -337,24 +344,34 @@ Portal.prototype = {
     var tile_coords = []
     var visible_tiles = 0
     var vc = {
-      x : c.offsetWidth/2 - v.left,
-      y : c.offsetHeight/2 - v.top 
+      x : c.offsetWidth/2 - vl,
+      y : c.offsetHeight/2 - vt
     }
     if (v.cX && v.cY) {
       vc = this.viewCoords(v.cX, v.cY)
     }
     var midX = vc.x - t.tileSize / 2
     var midY = vc.y - t.tileSize / 2
-    this.titleElem.style.fontSize = parseInt(10 * Math.pow(2, this.zoom)) + 'px'
-    this.titleElem.style.top = parseInt(-15 * Math.pow(2, this.zoom)) + 'px'
+    if (!this.subPortal) {
+      this.titleElem.style.fontSize = parseInt(10 * Math.pow(2, this.zoom)) + 'px'
+      this.titleElem.style.top = parseInt(-15 * Math.pow(2, this.zoom)) + 'px'
+    }
     if (zoomed) {
       this.clearQueue()
       this.view.byTag("div").each(function(d){
         if (d.className == 'info' || d.className == 'infoText') d.detachSelf()
       })
+      for (var k in this.tiles)
+        if (this.tiles[k].key)
+          this.removeTile(this.tiles[k])
     }
-    var xMax = Math.ceil(c.offsetWidth/t.tileSize) + 1
-    var yMax = Math.ceil(c.offsetHeight/t.tileSize) + 1
+    if (this.subPortal) {
+      var xMax = Math.ceil((c.offsetWidth)/t.tileSize) + 1
+      var yMax = Math.ceil((c.offsetHeight)/t.tileSize) + 1
+    } else {
+      var xMax = Math.ceil(c.offsetWidth/t.tileSize) + 1
+      var yMax = Math.ceil(c.offsetHeight/t.tileSize) + 1
+    }
     for(var i=-1; i < xMax; i++) {
       var x = i*t.tileSize+sl
       var dx = x - midX
@@ -370,45 +387,58 @@ Portal.prototype = {
       if (zoomed) t.itemCoords = {}
       t.removeTiles(sl - t.tileSize,
                     st - t.tileSize,
-                    sl + c.offsetWidth + t.tileSize,
-                    st + c.offsetHeight + t.tileSize)
+                    sl + xMax*t.tileSize,
+                    st + yMax*t.tileSize)
     }
+    this.subPortals.each(function(sp){ if (sp.visible) sp.updateTiles(zoomed) })
     this.processQueue()
   },
 
   removeTiles : function(left, top, right, bottom){
+    var tile
     for (var i in this.tiles) {
-      if (i.match(/:/)) {
-        var xy = i.split(":")
-        var x = parseInt(xy[0])
-        var y = parseInt(xy[1])
-        var zoom = parseInt(xy[2])
-        if (zoom != this.zoom ||
-            x < left || x > right || y < top || y > bottom)
-        {
-          if (this.tiles[i].onload) this.tiles[i].onload(false)
-          try{ this.view.removeChild(this.tiles[i]) } catch(e) {}
-          this.tiles[i].src = null
-          this.tiles.tilesInCache--
-          this.deleteInfoEntries(this.tiles[i].infoEntries)
-          delete this.tiles[i]
-        }
+      tile = this.tiles[i]
+      if ((tile.key) && (tile.tileZoom != this.zoom ||
+           tile.tileX < left || tile.tileX > right ||
+           tile.tileY < top || tile.tileY > bottom)
+      ) {
+        this.removeTile(tile)
       }
     }
     this.processQueue()
   },
 
+  removeTile : function(tile) {
+    if (tile.onload) tile.onload(false)
+    tile.onload = false
+    tile.cancelLoad = true
+    tile.src = null
+    try{ tile.detachSelf() } catch(e) {}
+    this.deleteInfoEntries(tile.infoEntries)
+//     if (this.subPortal) console.log('removing tile', tile.key)
+    if (this.tiles[tile.key]) {
+      this.tiles.tilesInCache--
+      delete this.tiles[tile.key]
+    }
+  },
+
   // Loads the tile at x,y with the given priority.
   showTile : function(x, y, priority){
-    if (!this.tiles[x+':'+y+':'+this.zoom]) {
+    var key = x+':'+y+':'+this.zoom
+    if (!this.tiles[key]) {
       var tile = Elem('img',null,null,'tile')
+      tile.key = key
+      tile.tileX = x
+      tile.tileY = y
+      tile.tileZoom = this.zoom
       tile.style.position = 'absolute'
       tile.style.left = x + 'px'
       tile.style.top = y + 'px'
-      this.tiles[x+':'+y+':'+this.zoom] = tile
+      this.tiles[key] = tile
       this.tiles.tilesInCache++
       var t = this
       tile.timeout = this.insertLoader(priority, function(done){
+        if (tile.cancelLoad) return
         tile.style.visibility = 'hidden'
         var tileQuery = 'x'+ x +'y'+ y +'z'+ t.zoom +
                     'w'+ t.tileSize +'h'+ t.tileSize
@@ -803,8 +833,8 @@ Portal.prototype = {
   centerClicked : function(e) {
     var info = this.itemLink.infoObj
     if (info) {
-      var cx = info.x - 0.5*(this.container.offsetWidth-info.w)
-      var cy = info.y - 0.5*(this.container.offsetHeight-info.h)
+      var cx = info.x - 0.5*(this.topPortal.container.offsetWidth-info.w)
+      var cy = info.y - 0.5*(this.topPortal.container.offsetHeight-info.h)
       this.animatedPanTo(cx, cy)
     }
   },
@@ -1161,10 +1191,9 @@ Portal.prototype = {
 
   animatedPanTo : function(x,y,duration) {
     if (this.subPortal) {
-      var rzf = Math.pow(2, this.relativeZoom)
-      var pzf = Math.pow(2, this.parentPortal.zoom)
-      var rx = pzf * this.left + x
-      var ry = pzf * this.top + y
+      var rx = parseInt(this.container.style.left) + x
+      var ry = parseInt(this.container.style.top) + y
+//       console.log(x, y, rx, ry)
       this.parentPortal.animatedPanTo(rx, ry, duration)
     } else {
       if (!duration) duration = 500
@@ -1255,7 +1284,7 @@ Portal.prototype = {
   mousemoveHandler : function(e){
     this.view.cX = e.clientX
     this.view.cY = e.clientY
-    if (this.dragging) {
+    if (this.dragging && !this.subPortal) {
       this.pan(e.clientX-this.dragX, e.clientY-this.dragY)
       this.dragX = e.clientX
       this.dragY = e.clientY

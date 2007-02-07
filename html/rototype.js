@@ -11,6 +11,7 @@ function require(url) {
 }
 require('json.js')
 String.prototype.parseRawJSON = function(){
+  if (this.length == 0) return undefined
   return eval('('+this+')')
 }
 
