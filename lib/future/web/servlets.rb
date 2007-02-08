@@ -500,6 +500,10 @@ extend FutureServlet
 
     delegate "Items", :rfind, :rfind_all, :columns
 
+    def parse_search_query(req)
+      self.search_query = SearchQueryParser.parse_query(req.query['q'].to_s, Items.columns)
+    end
+    
     def do_view(req,res)
       res['Content-type'] = 'image/jpeg'
       x,y,z,w,h = parse_tile_geometry(servlet_path)
@@ -536,18 +540,23 @@ extend FutureServlet
 
     delegate "Items", :rfind, :rfind_all, :columns
 
+    def parse_search_query(req)
+      self.search_query = SearchQueryParser.parse_query(req.query['q'].to_s, Items.columns)
+    end
+    
     def do_view(req,res)
       res['Content-type'] = 'text/plain'
       x,y,z,w,h = Tile.parse_tile_geometry(servlet_path)
       sq = self.search_query.clone
       if z >= 4
-        sq = sq.merge(:columns => ['path'])
+        sq[:columns] ||= []
+        sq[:columns] << 'path'
       end
       if z >= 7
-#         sq.columns.push(*['metadata.width', 'metadata.height'])
+#         sq['columns'].push(*['metadata.width', 'metadata.height'])
       end
       if z >= 8
-#         sq.columns.push(*['owner.name', 'metadata'])
+#         sq['columns'].push(*['owner.name', 'metadata'])
       end
       res.body = Tiles.info(
         servlet_user, sq,

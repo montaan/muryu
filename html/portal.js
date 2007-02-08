@@ -111,6 +111,7 @@ function createNewSubPortal() {
     left: 256, top: 128*fp.subPortals.length,
     width: 256, height: 256,
     relativeZoom: -1,
+    query: 'q=sort:big',
     container: container,
     afterInit: function(){ fp.addSubPortal(sp) }
   })
@@ -121,7 +122,7 @@ function createNewSubPortal() {
 Portal = function(config) {
   this.mergeD(config)
   var t = this
-  postQuery(this.tileInfoPrefix, '',
+  postQuery(this.tileInfoPrefix, this.query,
     function(res){
       var obj = res.responseText.parseRawJSON()
       t.mergeD(obj)
@@ -172,7 +173,7 @@ Portal.prototype = {
   filePrefix : '/files/',
   fileSuffix : '',
   
-  query : '?' + window.location.search.substring(1),
+  query : window.location.search.substring(1),
 
   translate : function(key, string) {
     var tr = (this.translations[this.language] || {})[key]
@@ -456,7 +457,7 @@ Portal.prototype = {
           }
         tile.width = t.tileSize
         tile.height = t.tileSize
-        tile.src = t.tilePrefix + tileQuery + t.tileInfoSuffix + t.query
+        tile.src = t.tilePrefix + tileQuery + t.tileInfoSuffix + '?' + t.query
         t.view.appendChild(tile)
         tile.timeout = false
       })

@@ -77,13 +77,14 @@ extend self
 
   private
   def sanitize_query(query)
-    str = query.to_a.sort_by{|k,v| k}.map do |key, val| 
+    str = query.to_a.sort_by{|k,v| k.to_s}.map do |key, val| 
       [key, val].map{|str| str.to_s.gsub(/[^A-Za-z0-9_]/){|x| "%%%02X" % x[0]}}.join("_")
     end.join("+")
+    str
     if str.size < 40
       str
     else
-      Digest::Sha1.hexdigest(str)
+      Digest::SHA1.hexdigest(str).to_s
     end
   end
 
