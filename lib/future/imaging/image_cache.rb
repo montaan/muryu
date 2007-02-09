@@ -115,6 +115,13 @@ class ImageCache
     end
   end
 
+  def read_image_at(index, sz)
+    z = (Math.log(sz) / Math.log(2)).to_i
+    cache_pyramid = cache_pyramid_for(index)
+    pyramid_index = (index) % @cache_pyramid_size
+    cache_pyramid.read_image_at(pyramid_index, z)
+  end
+
   # Retrieves the image cache pyramid for the given index.
   #
   def cache_pyramid_for(index)
@@ -225,6 +232,15 @@ class ImageCachePyramid
     end
   end
 
+  def read_image_at(index, level, batch=nil)
+    str = nil
+    at(index, batch, [level]) do |cache_img, cache_idx|
+      str = cache_img.read_image_at(cache_idx)
+      cache_img.delete! unless batch
+    end
+    str
+  end
+
 end
 
 
@@ -327,6 +343,18 @@ class CacheImage
       #t = Time.now.to_f
       Imlib2::Context.get.blend = true
       img.blend!(image, x*sz, y*sz, sz, sz, ix, iy, sz, sz)
+      #@total += Time.now.to_f - t
+      #@count += 1
+    end
+  end
+
+  def read_image_at(idx)
+    x = idx % thumbs_per_row
+    y = idx / thumbs_per_row
+    sz = thumb_size
+    @mutex.synchronize do
+      #t = Time.now.to_f
+      image.crop(x*sz,y*sz,sz,sz).data
       #@total += Time.now.to_f - t
       #@count += 1
     end
