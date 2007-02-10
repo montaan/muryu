@@ -34,7 +34,7 @@ extend self
       qtext = sanitize_query(query)
       #fn = Future.tile_cache_dir + %!tile_#{qtext}_#{[r,"#{w}x#{h}",z,x,y].join("_")}.jpg!
       fn = Future.tile_cache_dir + "tmptile-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.jpg"
-      tile['quality'] = [20, [(z-1)*10, 90].min].max
+      tile['quality'] = [30, [(z-1)*10, 90].min].max
       tile.save(fn.to_s)
       tile.delete!(true)
       #File.rename(tmp, fn.to_s)
@@ -130,62 +130,74 @@ class TileDrawer
     end
   end
 
-  @@draw_mutex = Mutex.new
-
   def draw_tile_rend(indexes, x, y, z)
-    data = ""
-    @@draw_mutex.synchronize do
-      init_rend
-      @@draw_queue.push([indexes, x, y, @image_cache.thumb_size_at_zoom(z)])
-      data = @@result_queue.shift
-      Imlib2::Image.create_using_data(256, 256, data)
-    end
+    init_rend unless @@rend_init
+    rq = Queue.new
+    @@draw_queue.push([rq, [indexes, x, y, @image_cache.thumb_size_at_zoom(z)]])
+    Imlib2::Image.create_using_data(256, 256, rq.pop)
   end
 
   @@rend_init = false
   @@draw_queue = Queue.new
-  @@result_queue = Queue.new
+  @@init_mutex = Mutex.new
 
   def init_rend
     return if @@rend_init
-    @@rend_init = true
-    require 'rend'
-    m = Rend::Model.new
-    start = false
-    m.on_frame{
-      if start
-        begin
-          GL::Enable(GL::TEXTURE_RECTANGLE_EXT)
-          GL::BindTexture(GL::TEXTURE_RECTANGLE_EXT, start[0])
-          q = @@draw_queue.shift
-          puts q[3]
-          puts Time.now.to_f
-          draw_query(*q)
-          puts Time.now.to_f
-        rescue => e
-          puts e, e.backtrace[0,5]
-          puts
-        end
-        GL::Flush()
-        GL::ReadBuffer(GL::BACK)
-        d = GL::ReadPixels(
-          0,0, Rend.width, Rend.height,
-          Rend::Renderer::NATIVE_TEXTURE_FORMAT, GL::UNSIGNED_BYTE)
-        puts Time.now.to_f
-        puts
-        @@result_queue.push(d)
-      else
-        start = GL::GenTextures(1)
+    @@init_mutex.synchronize do
+      return if @@rend_init
+      @@rend_init = true
+      Thread.new do
+        require 'opengl'
+        require 'glut'
+        require 'glew'
+        GLUT.Init
+        GLUT.InitDisplayMode(GLUT::DOUBLE | GLUT::RGB)
+        GLUT.InitWindowSize(256, 256)
+        GLUT.CreateWindow
+        GL.ClearColor(0.055, 0.137, 0.220, 1.0)
+        GL.Enable(GL::BLEND)
+        GL.BlendFunc(GL::SRC_ALPHA, GL::ONE_MINUS_SRC_ALPHA)
+        tex = GL::GenTextures(1)[0]
         GL::Enable(GL::TEXTURE_RECTANGLE_EXT)
-        GL::BindTexture(GL::TEXTURE_RECTANGLE_EXT, start[0])
+        GL::BindTexture(GL::TEXTURE_RECTANGLE_EXT, tex)
         GL::TexImage2D(GL::TEXTURE_RECTANGLE_EXT, 0,
           GL::RGBA, 512,512,0, GL::RGBA,
           GL::UNSIGNED_BYTE, "\000\000\000\000"*(512*512))
+        GL.Viewport(0,0,256,256)
+        GL.MatrixMode(GL::PROJECTION)
+        GL.LoadIdentity
+        GLU.Ortho2D(0, 256, 0, 256)
+        GL.MatrixMode(GL::MODELVIEW)
+        GL.LoadIdentity
+        GL.ReadBuffer(GL::BACK)
+        GLUT.IdleFunc(
+          lambda do
+            GL.Clear(GL::COLOR_BUFFER_BIT)
+            begin
+              GL.Enable(GL::TEXTURE_RECTANGLE_EXT)
+              GL.BindTexture(GL::TEXTURE_RECTANGLE_EXT, tex)
+              rq, query = @@draw_queue.shift
+              puts query[3]
+              puts Time.now.to_f
+              draw_query(*query)
+              puts Time.now.to_f
+            rescue => e
+              puts e, e.backtrace[0,5]
+              puts
+            end
+            GL::Flush()
+            d = GL::ReadPixels(
+              0,0, 256, 256,
+              GL::BGRA, GL::UNSIGNED_BYTE)
+            puts Time.now.to_f
+            puts
+            rq.push(d)
+            GLUT.SwapBuffers()
+          end
+        )
+        GLUT.MainLoop
       end
-    }
-    Rend.init(:width => 256, :height => 256, :use_picking => false)
-    Rend.scene.background = [0.1, 0.15, 0.3, 1.0]
-    Rend.overlay << m
+    end
   end
 
   def print_time

@@ -19,7 +19,7 @@ end
 
 class Thread
   attr_accessor :servlet_target, :servlet_path, :servlet_root,
-    :servlet_target_path, :search_query, :session_id, :servlet_user
+    :servlet_target_path, :search_query, :session_id, :servlet_user, :request_time
 end
 
 module Future
@@ -111,9 +111,10 @@ module FutureServlet
   @@mutex = Mutex.new
   delegate_accessor "Thread.current",
     :servlet_target, :servlet_path, :servlet_root, :servlet_target_path,
-    :search_query, :session_id, :servlet_user
+    :search_query, :session_id, :servlet_user, :request_time
 
   def handle_request(req, res)
+    self.request_time = Time.now.to_f
     DB::Conn.reserve do |conn|
       Thread.current.conn = conn
       user_auth(req, res)
@@ -508,6 +509,7 @@ extend FutureServlet
       res['Content-type'] = 'image/jpeg'
       x,y,z,w,h = parse_tile_geometry(servlet_path)
       res.body = Tiles.read(servlet_user, search_query, :rows, x, y, z, w, h)
+      puts Time.now.to_f - self.request_time
     end
   
     def do_list(req,res)
