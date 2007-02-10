@@ -146,32 +146,41 @@ class TileDrawer
     @@init_mutex.synchronize do
       return if @@rend_init
       @@rend_init = true
-      Thread.new do
-        require 'opengl'
-        require 'glut'
-        require 'glew'
+      require 'opengl'
+      require 'glut'
+      require 'glew'
+      t = Thread.new do
         GLUT.Init
         GLUT.InitDisplayMode(GLUT::DOUBLE | GLUT::RGB)
-        GLUT.InitWindowSize(256, 256)
+        GLUT.InitWindowSize(128, 128)
         GLUT.CreateWindow
+        GLEW.Init
         GL.ClearColor(0.055, 0.137, 0.220, 1.0)
         GL.Enable(GL::BLEND)
         GL.BlendFunc(GL::SRC_ALPHA, GL::ONE_MINUS_SRC_ALPHA)
-        tex = GL::GenTextures(1)[0]
+        tex, fbo_tex = GL::GenTextures(2)
+        fbo = GL.GenFramebuffersEXT(1)[0]
         GL::Enable(GL::TEXTURE_RECTANGLE_EXT)
+        GL::BindTexture(GL::TEXTURE_RECTANGLE_EXT, fbo_tex)
+        GL::TexImage2D(GL::TEXTURE_RECTANGLE_EXT, 0,
+          GL::RGBA, 256,256,0, GL::RGBA,
+          GL::UNSIGNED_BYTE, nil)
         GL::BindTexture(GL::TEXTURE_RECTANGLE_EXT, tex)
         GL::TexImage2D(GL::TEXTURE_RECTANGLE_EXT, 0,
           GL::RGBA, 512,512,0, GL::RGBA,
           GL::UNSIGNED_BYTE, "\000\000\000\000"*(512*512))
-        GL.Viewport(0,0,256,256)
+        GL.BindFramebufferEXT(GL::FRAMEBUFFER_EXT, fbo)
+        GL.FramebufferTexture2DEXT(GL::FRAMEBUFFER_EXT,
+          GL::COLOR_ATTACHMENT0_EXT, GL::TEXTURE_RECTANGLE_EXT, fbo_tex, 0)
+        GL.ReadBuffer(fbo)
         GL.MatrixMode(GL::PROJECTION)
         GL.LoadIdentity
         GLU.Ortho2D(0, 256, 0, 256)
         GL.MatrixMode(GL::MODELVIEW)
         GL.LoadIdentity
-        GL.ReadBuffer(GL::BACK)
         GLUT.IdleFunc(
           lambda do
+            GL.Viewport(0,0,256,256)
             GL.Clear(GL::COLOR_BUFFER_BIT)
             begin
               GL.Enable(GL::TEXTURE_RECTANGLE_EXT)
@@ -197,6 +206,7 @@ class TileDrawer
         )
         GLUT.MainLoop
       end
+      t.abort_on_exception = true
     end
   end
 
