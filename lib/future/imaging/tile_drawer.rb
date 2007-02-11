@@ -133,7 +133,7 @@ class TileDrawer
   def draw_tile_rend(indexes, x, y, z)
     init_rend unless @@rend_init
     rq = Queue.new
-    @@draw_queue.push([rq, [indexes, x, y, @image_cache.thumb_size_at_zoom(z)]])
+    @@draw_queue.push([rq, [indexes, x, y, z, @image_cache.thumb_size_at_zoom(z)]])
     Imlib2::Image.create_using_data(256, 256, rq.pop)
   end
 
@@ -149,6 +149,7 @@ class TileDrawer
       require 'opengl'
       require 'glut'
       require 'glew'
+      init_image_cache(1_000_000, 6)
       t = Thread.new do
         GLUT.Init
         GLUT.InitDisplayMode(GLUT::DOUBLE | GLUT::RGB)
@@ -355,11 +356,14 @@ class TileDrawer
           GL_BGRA, GL_UNSIGNED_BYTE, tex);
         free(tex);
       }
-      
+
+      char** icache;
+      uint_32 icache_levels;
+
       void setup_texture
       (
         VALUE self, VALUE query,
-        uint_32 sz, uint_64 *indexes, uint_32 indexes_length
+        uint_32 z, uint_32 sz, uint_64 *indexes, uint_32 indexes_length
       )
       {
         VALUE image_cache, thumb_data;
@@ -372,23 +376,35 @@ class TileDrawer
         sz24 = sz*sz*4;
         pixels = (char*)malloc(sz24*indexes_length);
         for(i=0;i<sz24*indexes_length;i++) pixels[i] = 0;
-        data = (char*)malloc(sz24);
-        for(i=0;i<sz24;i++) data[i] = 255;
         image_cache = rb_ivar_get(self, rb_intern("@image_cache"));
         qlen = RARRAY(query)->len;
         qptr = RARRAY(query)->ptr;
         rb_funcall(self, rb_intern("print_time"), 0);
         for(i=0; i<indexes_length; i++) {
           index = indexes[i];
-          if (index >= qlen) {
-            /* memcpy(pixels+(sz24*i), data, sz24); */
-          } else {
-            thumb_data = rb_funcall(
-              image_cache,
-              rb_intern("read_image_at"), 2,
-              qptr[index], INT2FIX(sz)
-            );
-            memcpy(pixels+(sz24*i), StringValuePtr(thumb_data), sz24);
+          if (index < qlen) {
+            if (z < icache_levels) {
+              if (icache[z*32768 + index] != NULL) {
+                memcpy(pixels+(sz24*i), icache[z*32768 + index], sz24);
+              } else {
+                thumb_data = rb_funcall(
+                  image_cache,
+                  rb_intern("read_image_at"), 2,
+                  qptr[index], INT2FIX(z)
+                );
+                data = (char*)malloc(sz24);
+                memcpy(data, StringValuePtr(thumb_data), sz24);
+                icache[z*32768 + index] = data;
+                memcpy(pixels+(sz24*i), data, sz24);
+              }
+            } else {
+              thumb_data = rb_funcall(
+                image_cache,
+                rb_intern("read_image_at"), 2,
+                qptr[index], INT2FIX(z)
+              );
+              memcpy(pixels+(sz24*i), StringValuePtr(thumb_data), sz24);
+            }
           }
         }
         rb_funcall(self, rb_intern("print_time"), 0);
@@ -396,7 +412,8 @@ class TileDrawer
         free(pixels);
       }
 
-      void draw(VALUE self, VALUE query, uint_64 x, uint_64 y, uint_32 sz)
+
+      void draw(VALUE self, VALUE query, uint_64 x, uint_64 y, uint_32 z, uint_32 sz)
       {
         uint_64* indexes;
         GLfloat* vertex_array;
@@ -404,7 +421,7 @@ class TileDrawer
         uint_32 indexes_length;
         row_layout(&indexes_length, &indexes, &vertex_array, &texcoords,
                     x, y, sz, 256, 256);
-        setup_texture(self, query, sz, indexes, indexes_length);
+        setup_texture(self, query, z, sz, indexes, indexes_length);
 #ifdef NO_DEBUG
         glColor3f(1,1,1);
         glEnable(GL_TEXTURE_RECTANGLE_EXT);
@@ -436,14 +453,26 @@ class TileDrawer
     builder.c_raw <<-EOF
       VALUE draw_query(int argc, VALUE *argv, VALUE self)
       {
-        if (argc != 4) {
+        if (argc != 5) {
           rb_raise(rb_eArgError, "Wrong number of args");
           return Qundef;
         }
         draw(self,
           argv[0],
-          FIX2INT(argv[1]),FIX2INT(argv[2]),FIX2INT(argv[3]));
+          FIX2INT(argv[1]),FIX2INT(argv[2]),FIX2INT(argv[3]),FIX2INT(argv[4]));
         return Qnil;
+      }
+    EOF
+
+    builder.c <<-EOF
+      void init_image_cache(int cache_size, int cache_levels)
+      {
+        int i;
+        icache = (char**)malloc(sizeof(char*) * cache_size * cache_levels);
+        icache_levels = (uint_32)cache_levels;
+        for(i=0; i < cache_size*cache_levels; i++) {
+          icache[i] = NULL;
+        }
       }
     EOF
 

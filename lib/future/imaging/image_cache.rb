@@ -24,7 +24,6 @@ class ImageCache
     @max_thumbnail_size = max_thumbnail_size
     @cache_dir = cache_dir
     @cache_pyramids = []
-    @read_cache = Hash.new{|h,k| h[k] = {} }
     @cache_pyramid_size = cache_pyramid_size
     @max_zoom = (Math.log(max_thumbnail_size) / Math.log(2)).to_i
     @batch_ops = nil
@@ -116,19 +115,10 @@ class ImageCache
     end
   end
 
-  def read_image_at(index, sz)
-    z = (Math.log(sz) / Math.log(2)).to_i
-    if z < 6
-      @read_cache[z][index] ||= (
-        cache_pyramid = cache_pyramid_for(index)
-        pyramid_index = (index) % @cache_pyramid_size
-        cache_pyramid.read_image_at(pyramid_index, z)
-      )
-    else
-      cache_pyramid = cache_pyramid_for(index)
-      pyramid_index = (index) % @cache_pyramid_size
-      cache_pyramid.read_image_at(pyramid_index, z)
-    end
+  def read_image_at(index, z)
+    cache_pyramid = cache_pyramid_for(index)
+    pyramid_index = (index) % @cache_pyramid_size
+    cache_pyramid.read_image_at(pyramid_index, z)
   end
 
   # Retrieves the image cache pyramid for the given index.
