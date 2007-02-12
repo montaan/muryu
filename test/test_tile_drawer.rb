@@ -41,7 +41,12 @@ include Future
         tilefile = pn + "#{zoom}_#{x}_#{y}.jpg"
         tile = td.draw_tile(indexes, :rows, x*w, y*h, zoom, w, h)
         if tile
-          tile.save(tilefile.to_s)
+          tilefile.open('w'){|f|
+            IO.popen('rawtoppm 256 256 | ppmtojpeg', 'rb+'){|p|
+              Thread.new{ p.write tile }
+              f.write p.read
+            }
+          }
         else
           break
         end

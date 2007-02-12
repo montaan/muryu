@@ -509,7 +509,9 @@ extend FutureServlet
       res['Content-type'] = 'image/jpeg'
       x,y,z,w,h = parse_tile_geometry(servlet_path)
       res.body = Tiles.read(servlet_user, search_query, :rows, x, y, z, w, h)
+      puts Time.now.to_f
       puts Time.now.to_f - self.request_time
+      puts 
     end
   
     def do_list(req,res)

@@ -13,7 +13,9 @@ extend self
   @@infos = {}
   @@mutex = Mutex.new
 
-  def open(user, query, *tile_args, &block)
+  @@fn_data = nil
+
+  def read(user, query, *tile_args)
     ### FIXME query optimization problematic (need to layout to get wanted spans,
     ###       then do a query for each (semi-)continuous span, e.g. layout says
     ###       that 4-10, 16-22, 28-34, 4182-4188, 4194-4200 needed
@@ -27,33 +29,38 @@ extend self
       end
       tile = TileDrawer.new.draw_tile(indexes, *tile_args)
     end
-    Future.tile_cache_dir.mkdir_p
     if tile
-      ### FIXME cache badness
       r,x,y,z,w,h = *tile_args
       qtext = sanitize_query(query)
-      #fn = Future.tile_cache_dir + %!tile_#{qtext}_#{[r,"#{w}x#{h}",z,x,y].join("_")}.jpg!
-      fn = Future.tile_cache_dir + "tmptile-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.jpg"
-      tile['quality'] = [30, [(z-1)*10, 90].min].max
-      tile.save(fn.to_s)
-      tile.delete!(true)
-      #File.rename(tmp, fn.to_s)
-    else
-      fn = Future.empty_tile
-      unless fn.exist?
-        img = Imlib2::Image.new(*tile_args[-2,2])
-        img.fill_rectangle(0,0, img.width, img.height, BACKGROUND_COLOR)
+      if tile.is_a? String
+        IO.popen('rawtoppm 256 256 | ppmtojpeg', 'rb+'){|f|
+          Thread.new{ f.write(tile) }
+          f.read
+        }
+      else
+        Future.tile_cache_dir.mkdir_p
         tmp = Future.tile_cache_dir + "tmptile-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.jpg"
-        img.save(tmp.to_s)
-        img.delete!(true)
-        File.rename(tmp, fn)
+        tile.save(tmp.to_s)
+        tile.delete!(true)
+        d = tmp.read
+        tmp.unlink
+        d
       end
+    else
+      @@fn_data ||= (
+        fn = Future.empty_tile
+        unless fn.exist?
+          img = Imlib2::Image.new(*tile_args[-2,2])
+          img.fill_rectangle(0,0, img.width, img.height, BACKGROUND_COLOR)
+          Future.tile_cache_dir.mkdir_p
+          tmp = Future.tile_cache_dir + "tmptile-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.jpg"
+          img.save(tmp.to_s)
+          img.delete!(true)
+          File.rename(tmp, fn)
+        end
+        fn.read
+      )
     end
-    fn.open('rb', &block)
-  end
-
-  def read(*a)
-    open(*a){|f| f.read }
   end
 
   def info(user, query, *tile_args)
@@ -134,7 +141,10 @@ class TileDrawer
     init_rend unless @@rend_init
     rq = Queue.new
     @@draw_queue.push([rq, [indexes, x, y, z, @image_cache.thumb_size_at_zoom(z)]])
-    Imlib2::Image.create_using_data(256, 256, rq.pop)
+    puts Time.now.to_f
+    img = rq.pop #Imlib2::Image.create_using_data(256, 256, rq.pop)
+    puts Time.now.to_f
+    img
   end
 
   @@rend_init = false
@@ -198,9 +208,8 @@ class TileDrawer
             GL::Flush()
             d = GL::ReadPixels(
               0,0, 256, 256,
-              GL::BGRA, GL::UNSIGNED_BYTE)
+              GL::RGB, GL::UNSIGNED_BYTE)
             puts Time.now.to_f
-            puts
             rq.push(d)
             GLUT.SwapBuffers()
           end
