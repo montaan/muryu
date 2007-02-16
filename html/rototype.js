@@ -560,9 +560,11 @@ Editors = {
     var min = Editors.limitedIntInput('minute', value.getMinutes(), [0, 59, 2])
     var s = Editors.limitedIntInput('second', value.getSeconds(), [0, 59, 2])
     var hid = Editors.hiddenInput(name)
+    var tz = ({value: value.getTimezoneOffset() / 60})
     var updater = function(){
       hid.value = ([y.value, m.value, d.value].join("-") + ' ' +
-                   [h.value, min.value, s.value].join(":"))
+                   [h.value, min.value, s.value].join(":") + ' ' +
+                   (tz.value < 0 ? tz.value : '+'+tz.value))
     }
     if (nullVal) {
       hid.value = ''

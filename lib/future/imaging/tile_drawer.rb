@@ -189,29 +189,30 @@ class TileDrawer
         GLU.Ortho2D(0, 256, 0, 256)
         GL.MatrixMode(GL::MODELVIEW)
         GL.LoadIdentity
+        GL.Enable(GL::TEXTURE_RECTANGLE_EXT)
+        GL.BindTexture(GL::TEXTURE_RECTANGLE_EXT, tex)
         GLUT.IdleFunc(
           lambda do
-            GL.Viewport(0,0,256,256)
-            GL.Clear(GL::COLOR_BUFFER_BIT)
-            begin
-              GL.Enable(GL::TEXTURE_RECTANGLE_EXT)
-              GL.BindTexture(GL::TEXTURE_RECTANGLE_EXT, tex)
-              rq, query = @@draw_queue.shift
-              puts query[3]
+            loop do
+              GL.Viewport(0,0,256,256)
+              GL.Clear(GL::COLOR_BUFFER_BIT)
+              begin
+                rq, query = @@draw_queue.shift
+                puts query[3]
+                puts Time.now.to_f
+                draw_query(*query)
+                puts Time.now.to_f
+              rescue => e
+                puts e, e.backtrace[0,5]
+                puts
+              end
+              GL.Flush()
+              d = GL.ReadPixels(
+                0,0, 256, 256,
+                GL::RGB, GL::UNSIGNED_BYTE)
               puts Time.now.to_f
-              draw_query(*query)
-              puts Time.now.to_f
-            rescue => e
-              puts e, e.backtrace[0,5]
-              puts
+              rq.push(d)
             end
-            GL::Flush()
-            d = GL::ReadPixels(
-              0,0, 256, 256,
-              GL::RGB, GL::UNSIGNED_BYTE)
-            puts Time.now.to_f
-            rq.push(d)
-            GLUT.SwapBuffers()
           end
         )
         GLUT.MainLoop

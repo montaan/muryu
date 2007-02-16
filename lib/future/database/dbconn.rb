@@ -78,7 +78,7 @@ end
 
 class StandardDateTime < DateTime
   def to_s
-    strftime "%Y-%m-%d %H:%M:%S"
+    strftime "%Y-%m-%d %H:%M:%S %z"
   end
 end
 
@@ -162,7 +162,7 @@ module DB
 
     "bool" => lambda{|i| i == 't'},
 
-    "timestamp" => lambda{|i| StandardDateTime.parse i},
+    "timestamp" => lambda{|i| Time.parse(i) rescue StandardDateTime.parse(i) },
 
     :default => lambda{|i|i}
   }
@@ -177,7 +177,7 @@ module DB
 
     "bool" => lambda{|i| i == true},
 
-    "timestamp" => lambda{|i| DB::Table.quote StandardDateTime.parse(i).to_s},
+    "timestamp" => lambda{|i| DB::Table.quote((Time.parse(i) rescue StandardDateTime.parse(i)).to_s)},
 
     :default => lambda{|i| DB::Table.quote i}
   }

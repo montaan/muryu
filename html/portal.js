@@ -33,7 +33,8 @@ function createNewPortal(x, y, z, w, h, parent, config) {
   )
   config.container = container
   parent.appendChild(container)
-  var portal = new Portal(config)
+  var portal = new Portal.FileMap(config)
+  portal.initialize()
   container.addEventListener('mousedown',
     function(e){
       window.focusedPortal = portal
@@ -106,7 +107,7 @@ function createNewSubPortal() {
     { position : 'absolute', zIndex : 1 }
   )
   var fp = window.focusedPortal
-  var sp = new Portal({
+  var sp = new Portal.FileMap({
     subPortal : true,
     left: 256, top: 128*fp.subPortals.length,
     width: 256, height: 256,
@@ -119,71 +120,130 @@ function createNewSubPortal() {
 
 
 
-Portal = function(config) {
+Portal = {}
+
+
+
+Portal.MapCanvas = function(config) {
   this.mergeD(config)
-  var t = this
-  postQuery(this.tileInfoPrefix, this.query,
-    function(res){
-      var obj = res.responseText.parseRawJSON()
-      t.mergeD(obj)
-      t.init()
-      if (t.afterInit) t.afterInit()
+  if (this.initialize) this.initialize()
+}
+Portal.MapCanvas.prototype = {
+}
+
+Portal.FloaterHelpers = {}
+
+Portal.OverlayHelpers = {}
+
+
+
+Portal.PriorityQueue = function(){
+  this.queue = []
+  this.mergeD({
+    insert : function(priority, value) {
+      for(var i=0; i<this.queue.length; i++) {
+        if (this.queue[i][0] > priority) {
+          this.queue.splice(i, 0, [priority, value])
+          return
+        }
+      }
+      this.queue.push([priority, value])
     },
-    this.queryErrorHandler('Loading portal info')
-  )
+
+    shift : function(){
+      if (this.queue.length == 0) return false
+      return this.queue.shift()[1]
+    }
+  })
 }
 
 
-Portal.prototype = {
+
+Portal.TileLoader = function(config) {
+  this.mergeD({
+    maxFlightSize : 6,
+
+    // Inserts loader to queue at the given priority.
+    // The smaller the priority value, the earlier it is called.
+    insert : function(priority, loader) {
+      this.queue.insert(priority, loader)
+      this.process()
+    },
+
+    // Processes queue by shifting and calling from the queue until
+    // flight size is equal to maxFlightSize or the queue is empty.
+    process : function() {
+      while (this.flight.length < this.maxFlightSize) {
+        var obj = this.queue.shift()
+        if (!obj) break
+        this.flight.push(obj)
+        obj(this.makeDone(obj))
+      }
+    },
+
+    makeDone : function(obj){
+      var t = this
+      return function(){
+        t.flight.deleteAll(obj)
+        t.process()
+      }
+    },
+
+    // Clears the queue and flight.
+    clear : function() {
+      while(this.queue.shift()) false
+      this.flight = []
+    }
+  })
+  this.mergeD(config)
+  this.flight = []
+  this.queue = new Portal.PriorityQueue()
+  this.tiles = {}
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+Portal.TileMap = function(config) {
+  this.mergeD(config)
+}
+Portal.TileMap.prototype = {
   title : 'portal',
   language: guessLanguage(),
   defaultLanguage : 'en-US',
-  
+
   x : -20,
   y : -60,
   zoom : 2,
   maxZoom : 7,
   tileSize : 256,
 
-  loadsInFlight : 0,
-  maxLoadFlightSize : 2,
-
-  loadLinks : true,
-  createLinks : true,
-
   tilePrefix : '/tile/',
   tileSuffix : '',
+  query : '',
 
   tileInfoPrefix : '/tile_info/',
   tileInfoSuffix : '',
 
-  itemPrefix : '/items/',
-  itemSuffix : '',
-  itemJSONSuffix : '/json',
-  editSuffix : '/edit',
+  loadTileInfo : true,
 
-  emblemPrefix : '/zogen/',
-  emblemSuffix : '.png',
-
-  thumbnailPrefix : '/items/',
-  thumbnailSuffix : '/thumbnail',
-
-  userPrefix : '/users/',
-
-  filePrefix : '/files/',
-  fileSuffix : '',
-  
-  query : window.location.search.substring(1),
-
-  translate : function(key, string) {
-    var tr = (this.translations[this.language] || {})[key]
-    if (!tr) tr = this.translations[this.defaultLanguage][key]
-    if (!tr) return false
-    if (!string) string = ''
-    if (typeof tr == 'string')
-      return tr + string
-    else
-      return tr(string)
+  initialize : function(){
+    var t = this
+    postQuery(this.tileInfoPrefix, this.query,
+      function(res){
+        var obj = res.responseText.parseRawJSON()
+        t.mergeD(obj)
+        t.init()
+        if (t.afterInit) t.afterInit()
+      },
+      this.queryErrorHandler('Loading portal info')
+    )
   },
 
   init : function() {
@@ -199,17 +259,17 @@ Portal.prototype = {
     }
     this.topPortal = this
     this.subPortals = []
-    this.loadQueue = []
     this.tiles = {tilesInCache : 0}
+    this.loader = new Portal.TileLoader()
     this.initView()
     this.viewMonitors = []
     this.container.appendChild(this.view)
     this.itemCoords = {}
     this.infoOverlays = {}
-    this.initItemLink()
     this.updateTiles()
     this.container.addEventListener("DOMAttrModified", this.bind('containerResizeHandler'), false)
     this.view.addEventListener("DOMAttrModified", this.bind('viewScrollHandler'), false)
+    // this.view.addEventListener("dblclick", this.bind('zoomIn'), false)
     this.container.addEventListener("mousedown", this.bind('mousedownHandler'), false)
     if (!this.subPortal) {
       this.container.addEventListener("DOMMouseScroll", this.bind('DOMMouseScrollHandler'), false)
@@ -218,8 +278,6 @@ Portal.prototype = {
     window.addEventListener("mousemove", this.bind('mousemoveHandler'), false)
     window.addEventListener("mouseup", this.bind('mouseupHandler'), false)
     window.addEventListener("blur", this.bind('mouseupHandler'), false)
-    this.infoLayer = Elem('div', null, null, 'infoLayer')
-    this.view.appendChild(this.infoLayer)
   },
 
   initView : function(){
@@ -254,14 +312,6 @@ Portal.prototype = {
     if (e.target == this.container && e.attrName == 'style') {
       this.updateTiles()
     }
-  },
-
-  initItemLink : function(i) {
-    var ti = this.itemLink = Elem('a', null, null, 'itemLink')
-    ti.addEventListener("click", this.linkClick(), false)
-    ti.addEventListener("mousedown", this.linkDown, false)
-    ti.style.zIndex = 2
-    this.view.appendChild(this.itemLink)
   },
 
   addSubPortal : function(sp) {
@@ -319,7 +369,7 @@ Portal.prototype = {
   // Updates visible tile set, loading new tiles if needed, prioritized so that
   // the tiles nearest to the cursor are loaded first. Removes invisible tiles
   // when the tile cache is full and after zooming.
-  // 
+  //
   // FIXME make cursor coords behave right for subportals
   //       make removing invisible tiles work right
   updateTiles : function(zoomed){
@@ -358,7 +408,7 @@ Portal.prototype = {
       this.titleElem.style.top = parseInt(-15 * Math.pow(2, this.zoom)) + 'px'
     }
     if (zoomed) {
-      this.clearQueue()
+      this.loader.clear()
       this.view.byTag("div").each(function(d){
         if (d.className == 'info' || d.className == 'infoText') d.detachSelf()
       })
@@ -366,13 +416,8 @@ Portal.prototype = {
         if (this.tiles[k].key)
           this.removeTile(this.tiles[k])
     }
-    if (this.subPortal) {
-      var xMax = Math.ceil((c.offsetWidth)/t.tileSize) + 1
-      var yMax = Math.ceil((c.offsetHeight)/t.tileSize) + 1
-    } else {
-      var xMax = Math.ceil(c.offsetWidth/t.tileSize) + 1
-      var yMax = Math.ceil(c.offsetHeight/t.tileSize) + 1
-    }
+    var xMax = Math.ceil(c.offsetWidth/t.tileSize) + 1
+    var yMax = Math.ceil(c.offsetHeight/t.tileSize) + 1
     for(var i=-1; i < xMax; i++) {
       var x = i*t.tileSize+sl
       var dx = x - midX
@@ -392,7 +437,7 @@ Portal.prototype = {
                     st + yMax*t.tileSize)
     }
     this.subPortals.each(function(sp){ if (sp.visible) sp.updateTiles(zoomed) })
-    this.processQueue()
+    this.loader.process()
   },
 
   removeTiles : function(left, top, right, bottom){
@@ -400,23 +445,20 @@ Portal.prototype = {
     for (var i in this.tiles) {
       tile = this.tiles[i]
       if ((tile.key) && (tile.tileZoom != this.zoom ||
-           tile.tileX < left || tile.tileX > right ||
-           tile.tileY < top || tile.tileY > bottom)
-      ) {
-        this.removeTile(tile)
-      }
+          tile.tileX < left || tile.tileX > right ||
+          tile.tileY < top || tile.tileY > bottom)
+      ) this.removeTile(tile)
     }
-    this.processQueue()
+    this.loader.process()
   },
 
   removeTile : function(tile) {
-    if (tile.onload) tile.onload(false)
-    tile.onload = false
     tile.cancelLoad = true
+    if (tile.onload) tile.onload(false)
     tile.src = null
     try{ tile.detachSelf() } catch(e) {}
-    this.deleteInfoEntries(tile.infoEntries)
-//     if (this.subPortal) console.log('removing tile', tile.key)
+    if (tile.destructor) tile.destructor()
+    // if (this.subPortal) console.log('removing tile', tile.key)
     if (this.tiles[tile.key]) {
       this.tiles.tilesInCache--
       delete this.tiles[tile.key]
@@ -438,19 +480,19 @@ Portal.prototype = {
       this.tiles[key] = tile
       this.tiles.tilesInCache++
       var t = this
-      tile.timeout = this.insertLoader(priority, function(done){
-        if (tile.cancelLoad) return
-        tile.style.visibility = 'hidden'
+      var tl = function(done){
+        if (tile.cancelLoad) return done()
+        tile.style.display = 'none'
         var tileQuery = 'x'+ x +'y'+ y +'z'+ t.zoom +
                     'w'+ t.tileSize +'h'+ t.tileSize
         tile.onload = function(e){
             tile.onload = false
             done()
             if (e) {
-              tile.style.visibility = 'visible'
-              if (!t.loadLinks || t.zoom < 5) return
+              tile.style.display = 'block'
+              if (!t.loadTileInfo) return
               postQuery(t.tileInfoPrefix + tileQuery + t.tileInfoSuffix, t.query,
-                function(res){ t.createInfoEntries(res, tile, x, y) },
+                function(res){ t.handleTileInfo(res, tile, x, y) },
                 t.queryErrorHandler(t.translate('loading_tile_info'))
               )
             }
@@ -460,42 +502,290 @@ Portal.prototype = {
         tile.src = t.tilePrefix + tileQuery + t.tileInfoSuffix + '?' + t.query
         t.view.appendChild(tile)
         tile.timeout = false
-      })
-    }
-  },
-
-  // Inserts loader to loadQueue at the given priority.
-  // The smaller the priority value, the earlier it is called.
-  insertLoader : function(priority, loader) {
-    for(var i=0; i<this.loadQueue.length; i++) {
-      if (this.loadQueue[i][0] > priority) {
-        this.loadQueue.splice(i, 0, [priority, loader])
-        return
       }
+      tl.query = [x,y,t.zoom]
+      tl.tile = tile
+      tile.timeout = this.loader.insert(priority, tl)
     }
-    this.loadQueue.push([priority, loader])
-    this.processQueue()
   },
 
-  // Processes loadQueue by shifting and calling from the queue until
-  // loadsInFlight is equal to maxLoadFlightSize or the loadQueue is empty.
-  processQueue : function() {
+  tileInit : function(tile) {},
+
+  handleTileInfo : function(res, tile, tx, ty){
+  },
+
+  addViewMonitor : function(key, monitor) {
+    this.viewMonitors.push([key, monitor])
+  },
+
+  removeViewMonitor : function(key) {
+    this.viewMonitors.deleteIf(function(t){ return t[0] == key })
+  },
+
+  centerClicked : function(e) {
+    this.animatedPanTo(e.clientX-this.topPortal.container.absoluteLeft() - this.view.left - 0.5*(this.topPortal.container.offsetWidth), e.clientY-this.topPortal.container.absoluteTop() - this.view.top - 0.5*(this.topPortal.container.offsetHeight))
+  },
+
+  queryErrorHandler : function(operation) {
+    return function(res){
+      alert(operation + ": " + res.statusText + "(" + res.statusCode + ")")
+    }
+  },
+
+  pan : function(x,y,e){
+    var v = this.view
+    var ptz = 1 / this.tileSize
+    v.left += parseInt(x)
+    v.top += parseInt(y)
+    var lt = Math.floor(-v.left * ptz)
+    var tt = Math.floor(-v.top * ptz)
+    if (v.leftTile != lt || v.topTile != tt) {
+      v.leftTile = lt
+      v.topTile = tt
+      this.updateTiles()
+    }
+    this.updateSubPortals()
+    v.style.left = v.left + 'px'
+    v.style.top = v.top + 'px'
+    if (e && e.preventDefault) e.preventDefault()
+    if (e) e.stopPropagation()
+  },
+
+  animatedPanTo : function(x,y,duration) {
+    if (this.subPortal) {
+      var rx = parseInt(this.container.style.left) + x
+      var ry = parseInt(this.container.style.top) + y
+//       console.log(x, y, rx, ry)
+      this.parentPortal.animatedPanTo(rx, ry, duration)
+    } else {
+      if (!duration) duration = 500
+      var ox = -this.view.left
+      var oy = -this.view.top
+      var dx = x - ox
+      var dy = y - oy
+      var st = new Date().getTime()
+      var t = this
+      clearInterval(t.panAnimation)
+      this.panAnimation = setInterval(function() {
+        var ct = new Date().getTime()
+        var v = (ct - st) / duration
+        if (v > 1) v = 1
+        var iv = t.cos_interpolate(v)
+        t.panTo(ox + dx*iv, oy + dy*iv)
+        if (v == 1) clearInterval(t.panAnimation)
+      }, 16)
+    }
+  },
+
+  panTo : function(x,y) {
+    var dx = -(this.view.left + x)
+    var dy = -(this.view.top + y)
+    this.pan(dx, dy)
+  },
+
+  cos_interpolate : function(v) {
+    return Math.sin(v * 0.5*Math.PI)
+  },
+
+  setZoom : function(z) {
+    if (this.zoom != z && z >= 0 && z <= this.maxZoom) {
+      this.zoom = z
+    }
+  },
+
+  // Zooms out from the mouse pointer.
+  zoomOut : function(e){
+    if (this.zoom > 0) {
+      var lx = this.view.cX - this.view.left - this.container.absoluteLeft()
+      var ly = this.view.cY - this.view.top - this.container.absoluteTop()
+      this.zoom--
+      this.view.left += parseInt(lx / 2)
+      this.view.top += parseInt(ly / 2)
+      this.updateZoom(-1)
+    }
+    if (e && e.preventDefault) e.preventDefault()
+    if (e) e.stopPropagation()
+  },
+
+  // Zooms in towards the mouse pointer.
+  zoomIn : function(e){
+    if (this.zoom < this.maxZoom) {
+      var lx = this.view.cX - this.view.left - this.container.absoluteLeft()
+      var ly = this.view.cY - this.view.top - this.container.absoluteTop()
+      this.zoom++
+      this.view.left -= (lx)
+      this.view.top -= (ly)
+      this.updateZoom(+1)
+    }
+    if (e && e.preventDefault) e.preventDefault()
+    if (e) e.stopPropagation()
+  },
+
+  // Sets zoom timeout for updating the map.
+  // FIXME Make this do nice animated zoom
+  updateZoom : function(direction) {
+    if(this.zoomTimeout) clearTimeout(this.zoomTimeout)
     var t = this
-    while (this.loadsInFlight < this.maxLoadFlightSize && this.loadQueue.length > 0) {
-      var l = this.loadQueue.shift()
-      t.loadsInFlight++
-      l[1](function(){
-        t.loadsInFlight--
-        if (t.loadsInFlight < 0) t.loadsInFlight = 0
-        t.processQueue()
-      })
+    this.zoomTimeout = setTimeout(function(){
+      t.view.style.left = t.view.left + 'px'
+      t.view.style.top = t.view.top + 'px'
+      t.view.topTile = t.view.leftTile = null
+      t.updateTiles(true)
+      t.updateSubPortals()
+    }, 0)
+  },
+
+  mousedownHandler : function(e){
+    if (!Mouse.normal(e)) return
+    if (['INPUT', 'SPAN', 'P', 'SELECT', 'OPTION', 'UL', 'LI'].includes(e.target.tagName)) return
+    this.dragging = true
+    this.dragX = e.clientX
+    this.dragY = e.clientY
+    this.container.focus()
+    e.preventDefault()
+    e.stopPropagation()
+  },
+
+  mousemoveHandler : function(e){
+    this.view.cX = e.clientX
+    this.view.cY = e.clientY
+    if (this.dragging && !this.subPortal) {
+      this.pan(e.clientX-this.dragX, e.clientY-this.dragY)
+      this.dragX = e.clientX
+      this.dragY = e.clientY
+    }
+    this.view.rX = e.clientX - this.container.absoluteLeft() - this.view.left
+    this.view.rY = e.clientY - this.container.absoluteTop() - this.view.top
+  },
+
+  viewCoords: function(x, y) {
+    return {
+      x: x - this.container.absoluteLeft() - this.view.left,
+      y: y - this.container.absoluteTop() - this.view.top
     }
   },
 
-  // Clears the loadQueue and resets loadsInFlight.
-  clearQueue : function() {
-    this.loadsInFlight = 0
-    this.loadQueue = []
+  mouseupHandler : function(e){
+    this.dragging = false
+  },
+
+  DOMMouseScrollHandler : function(e){
+    if (e.detail > 0 ) {
+      this.zoomOut(e)
+    } else {
+      this.zoomIn(e)
+    }
+  },
+
+  keyHandler : function(e){
+    if (e.target.tagName == 'INPUT' || e.target.tagName == 'TEXTAREA') return
+    switch(e.charCode | e.keyCode){
+      case 90:
+      case 122:
+        this.zoomIn(e)
+        break
+      case 88:
+      case 120:
+        this.zoomOut(e)
+        break
+      case 37:
+        this.pan(64,0,e)
+        break
+      case 38:
+        this.pan(0,64,e)
+        break
+      case 39:
+        this.pan(-64,0,e)
+        break
+      case 40:
+        this.pan(0,-64,e)
+        break
+    }
+  },
+
+  translate : function(key, string) {
+    var tr = (this.translations[this.language] || {})[key]
+    if (!tr) tr = this.translations[this.defaultLanguage][key]
+    if (!tr) return false
+    if (!string) string = ''
+    if (typeof tr == 'string')
+      return tr + string
+    else
+      return tr(string)
+  },
+
+  translations : {
+    'en-US' : {loading_tile_info : 'Loading tile info failed'}
+  }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+Portal.FileMap = function(config) {
+  this.mergeD(config)
+  this.initialize()
+}
+Portal.FileMap.prototype = new Portal.TileMap()
+Portal.FileMap.prototype.mergeD({
+  title : 'portal',
+  
+  loadLinks : true,
+  createLinks : true,
+
+  itemPrefix : '/items/',
+  itemSuffix : '',
+  itemJSONSuffix : '/json',
+  editSuffix : '/edit',
+
+  emblemPrefix : '/zogen/',
+  emblemSuffix : '.png',
+
+  thumbnailPrefix : '/items/',
+  thumbnailSuffix : '/thumbnail',
+
+  userPrefix : '/users/',
+
+  filePrefix : '/files/',
+  fileSuffix : '',
+
+  query : window.location.search.substring(1),
+
+  init : function() {
+    Portal.TileMap.prototype.init.call(this)
+    this.initItemLink()
+    this.infoLayer = Elem('div', null, null, 'infoLayer')
+    this.container.appendChild(this.infoLayer)
+  },
+
+  initItemLink : function(i) {
+    var ti = this.itemLink = Elem('a', null, null, 'itemLink')
+    ti.addEventListener("click", this.linkClick(), false)
+    ti.addEventListener("mousedown", this.linkDown, false)
+    ti.style.zIndex = 2
+    this.view.appendChild(this.itemLink)
+  },
+
+  tileInit : function(tile) {
+    var t = this
+    tile.destructor = function(){ t.deleteInfoEntries(this.infoEntries) }
+  },
+  
+  mousemoveHandler : function(e) {
+    Portal.TileMap.prototype.mousemoveHandler.call(this, e)
+    var ie = this.findInfoEntry(this.view.rX, this.view.rY)
+    if (ie) this.updateItemLink(ie)
+  },
+
+  handleTileInfo : function(res, tile, tx, ty){
+    this.createInfoEntries(res, tile, tx, ty)
   },
 
   // Inserts the info into itemCoords for the tile
@@ -520,12 +810,10 @@ Portal.prototype = {
       var info = t.infoOverlays[ie.x + ":" + ie.y]
       if (info && info.references > 0) {
         info.references--
-//         console.log('dec references', info.info.path, info.references)
         if (info.references < 1) {
           delete t.infoOverlays[ie.x + ":" + ie.y]
           info.overlayElements.each(function(ole){ try{ ole.detachSelf() } catch(err) {} })
           info.overlayElements = []
-//           console.log('detached overlayElements of '+info.info.path)
         }
       }
       var mods = [[0,0], [ie.w, 0], [0, ie.h], [ie.w, ie.h]]
@@ -536,7 +824,6 @@ Portal.prototype = {
         if (entries) {
           entries.deleteAll(ie)
           if (entries.isEmpty()) {
-//             console.log('deleting entries at '+x+","+y)
             var row = t.coordsRow(y)
             delete row[Math.floor(x / t.tileSize)]
             var empty = true
@@ -547,7 +834,6 @@ Portal.prototype = {
               }
             }
             if (empty) {
-//               console.log('deleting row at '+x+","+y)
               delete t.itemCoords[Math.floor(y / t.tileSize)]
             }
           }
@@ -598,11 +884,9 @@ Portal.prototype = {
     var i = this.infoOverlays[info.x + ":" + info.y]
     if (i) {
       i.references++
-//       console.log('inc references', i.info.path, i.references)
       return false
     }
     this.infoOverlays[info.x + ":" + info.y] = info
-//     console.log('inc references', info.info.path, info.references)
     info.references++
     var t = this
     postQuery(this.itemPrefix + info.info.path + this.itemJSONSuffix, '',
@@ -666,6 +950,40 @@ Portal.prototype = {
     ti.infoObj = i
   },
 
+  // Note where mouse button went down to avoid misclicks when dragging.
+  linkDown : function(e) {
+    this.downX = e.clientX
+    this.downY = e.clientY
+  },
+
+  // When clicking a link with LMB and no modifier, toggle its info floater.
+  linkClick : function() {
+    var t = this
+    return function(e) {
+      if (Mouse.normal(e)) {
+        e.preventDefault()
+        if ((Math.abs(e.clientX - this.downX) > 3) &&
+            (Math.abs(e.clientY - this.downY) > 3)) {
+          return false
+        }
+        if (!t.infoLayerVisible() || t.infoTargetChanged()) {
+          var c = t.viewCoords(e.clientX, e.clientY)
+          t.infoTarget = t.itemLink.infoObj
+          postQuery(t.itemPrefix+t.itemLink.infoObj.info.path+t.itemJSONSuffix, '',
+            function(res) {
+              var fullInfo = res.responseText.parseRawJSON()
+              t.showInfoLayer(0, 0, fullInfo)
+            },
+            t.queryErrorHandler(t.translate('loading_item_info'))
+          )
+        } else {
+          t.hideInfoLayer()
+        }
+        return false
+      }
+    }
+  },
+
   // Creates an info overlay from the infoObj and attaches it to the view at info.
   createInfoOverlay : function(info, infoObj) {
     var t = this
@@ -702,14 +1020,6 @@ Portal.prototype = {
     t.updateOverlayCoords(info,top_left_info,top_right_info,bottom_info,emblemElems,true)
     this.view.appendChild(top_left_info)
     this.view.appendChild(top_right_info)
-  },
-
-  addViewMonitor : function(key, monitor) {
-    this.viewMonitors.push([key, monitor])
-  },
-
-  removeViewMonitor : function(key) {
-    this.viewMonitors.deleteIf(function(t){ return t[0] == key })
   },
 
   expandEmblems : function(emblems, sz) {
@@ -759,11 +1069,11 @@ Portal.prototype = {
     var aw = this.container.offsetWidth
     var ah = this.container.offsetHeight
     var x_out = (rw > aw &&
-                 -t.view.left > rx &&
-                 -t.view.left+aw < rx+rw)
+                -t.view.left > rx &&
+                -t.view.left+aw < rx+rw)
     var y_out = (rh > ah &&
-                 -t.view.top > ry &&
-                 -t.view.top+ah < ry+rh)
+                -t.view.top > ry &&
+                -t.view.top+ah < ry+rh)
     if (x_out) {
       rx = -t.view.left
       rw = aw
@@ -796,42 +1106,7 @@ Portal.prototype = {
     }
   },
 
-  // Note where mouse button went down to avoid misclicks when dragging.
-  linkDown : function(e) {
-    this.downX = e.clientX
-    this.downY = e.clientY
-  },
-
-  // When clicking a link with LMB and no modifier, toggle its info floater.
-  linkClick : function() {
-    var t = this
-    return function(e) {
-      if (Mouse.normal(e)) {
-        e.preventDefault()
-        if ((Math.abs(e.clientX - this.downX) > 3) &&
-            (Math.abs(e.clientY - this.downY) > 3)) {
-          return false
-        }
-        t.centerClicked(e)
-        /*if (!t.infoLayerVisible() || t.infoTargetChanged()) {
-          var c = t.viewCoords(e.clientX, e.clientY)
-          t.infoTarget = t.itemLink.infoObj
-          postQuery(t.itemPrefix+t.itemLink.infoObj.info.path+t.itemJSONSuffix, '',
-            function(res) {
-              var fullInfo = res.responseText.parseRawJSON()
-              t.showInfoLayer(c.x, c.y, fullInfo)
-            },
-            t.queryErrorHandler(t.translate('loading_item_info'))
-          )
-        } else {
-          t.hideInfoLayer()
-        }*/
-        return false
-      }
-    }
-  },
-
-  centerClicked : function(e) {
+  centerClickedItem : function(e) {
     var info = this.itemLink.infoObj
     if (info) {
       var cx = info.x - 0.5*(this.topPortal.container.offsetWidth-info.w)
@@ -861,15 +1136,31 @@ Portal.prototype = {
     this.infoLayer.appendChild(this.parseItemTitle('h3', info, true, true))
     this.infoLayer.appendChild(this.parseUserInfo(info))
     var i = Elem('img')
-    i.width = info.metadata.width
-    i.height = info.metadata.height
+    var mw = this.container.offsetWidth
+    var mh = this.container.offsetHeight
+    var iw = info.metadata.width
+    var ih = info.metadata.height
+    i.width = 0
+    i.height = 0
+    i.onclick = this.bind(this.hideInfoLayer)
     i.src = this.filePrefix + info.path + this.fileSuffix
     this.infoLayer.appendChild(i)
     this.infoLayer.appendChild(this.parseItemMetadata(info))
+    if (mw < (iw + 20)) {
+      ih *= (mw - 20) / iw
+      iw = mw - 20
+    }
     this.infoLayer.style.display = 'block'
+    var lh = 16 + this.infoLayer.offsetHeight
+    if (mh < (ih + lh)) {
+      iw *= (mh - lh) / ih
+      ih = mh - lh
+    }
+    i.width = iw
+    i.height = ih
   },
 
-  // Create item title from info. Show title if metadata.title exists and 
+  // Create item title from info. Show title if metadata.title exists and
   // show_title is true. Show possible dimensions and author when show_metadata
   // is true.
   //
@@ -1009,7 +1300,7 @@ Portal.prototype = {
     {name:'sets', type:['listOrNew', 'sets', true]},
     {name:'groups', type:['listOrNew', 'groups', true]}
   ],
-  
+
   metadataKeys : [
     {name:'title', type:['string']},
     {name:'author', type:['autoComplete', 'authors']},
@@ -1022,7 +1313,7 @@ Portal.prototype = {
     {name:'album', type:['listOrNew', 'albums']},
     {name:'tracknum', type:['intInput']} */
   ],
-  
+
   itemEditForm : function(infoDiv, info) {
     if (infoDiv.editor) {
       var editor = infoDiv.editor
@@ -1082,7 +1373,7 @@ Portal.prototype = {
             var items = res.responseText.parseRawJSON()
             var list_parse = function(it){
               return ((typeof it == 'string') ? it : it.name + ':' + it.namespace)
-             }
+            }
             var poss_vals = items.map(list_parse)
             var values = ((typeof info[i.name] == 'string') ?
                           info[i.name] : info[i.name].map(list_parse))
@@ -1096,7 +1387,7 @@ Portal.prototype = {
           ed.mapAttachNode = editor
           ed.mapTop = editor.computedStyle().top
           ed.mapLeft = (parseInt(editor.computedStyle().left) +
-               Math.max(parseInt(editor.computedStyle().width),
+              Math.max(parseInt(editor.computedStyle().width),
                         parseInt(editor.computedStyle().minWidth)) + 'px')
         }
         dd.appendChild(ed)
@@ -1129,7 +1420,7 @@ Portal.prototype = {
           ed.mapAttachNode = editor
           ed.mapTop = editor.computedStyle().top
           ed.mapLeft = (parseInt(editor.computedStyle().left) +
-               Math.max(parseInt(editor.computedStyle().width),
+              Math.max(parseInt(editor.computedStyle().width),
                         parseInt(editor.computedStyle().minWidth)) + 'px')
         }
         dd.appendChild(ed)
@@ -1161,187 +1452,11 @@ Portal.prototype = {
     }
   },
 
-  queryErrorHandler : function(operation) {
-    return function(res){
-      alert(operation + ": " + res.statusText + "(" + res.statusCode + ")")
-    }
-  },
 
   hideInfoLayer : function() {
     this.infoLayerData = false
     this.infoLayer.style.display = 'none'
   },
-
-  pan : function(x,y,e){
-    var v = this.view
-    var ptz = 1 / this.tileSize
-    v.left += parseInt(x)
-    v.top += parseInt(y)
-    var lt = Math.floor(-v.left * ptz)
-    var tt = Math.floor(-v.top * ptz)
-    if (v.leftTile != lt || v.topTile != tt) {
-      v.leftTile = lt
-      v.topTile = tt
-      this.updateTiles()
-    }
-    this.updateSubPortals()
-    v.style.left = v.left + 'px'
-    v.style.top = v.top + 'px'
-    if (e && e.preventDefault) e.preventDefault()
-  },
-
-  animatedPanTo : function(x,y,duration) {
-    if (this.subPortal) {
-      var rx = parseInt(this.container.style.left) + x
-      var ry = parseInt(this.container.style.top) + y
-//       console.log(x, y, rx, ry)
-      this.parentPortal.animatedPanTo(rx, ry, duration)
-    } else {
-      if (!duration) duration = 500
-      var ox = -this.view.left
-      var oy = -this.view.top
-      var dx = x - ox
-      var dy = y - oy
-      var st = new Date().getTime()
-      var t = this
-      clearInterval(t.panAnimation)
-      this.panAnimation = setInterval(function() {
-        var ct = new Date().getTime()
-        var v = (ct - st) / duration
-        if (v > 1) v = 1
-        var iv = t.cos_interpolate(v)
-        t.panTo(ox + dx*iv, oy + dy*iv)
-        if (v == 1) clearInterval(t.panAnimation)
-      }, 16)
-    }
-  },
-
-  panTo : function(x,y) {
-    var dx = -(this.view.left + x)
-    var dy = -(this.view.top + y)
-    this.pan(dx, dy)
-  },
-
-  cos_interpolate : function(v) {
-    return Math.sin(v * 0.5*Math.PI)
-  },
-
-  setZoom : function(z) {
-    if (this.zoom != z && z >= 0 && z <= this.maxZoom) {
-      this.zoom = z
-    }
-  },
-  
-  // Zooms out from the mouse pointer.
-  zoomOut : function(e){
-    if (this.zoom > 0) {
-      var lx = this.view.cX - this.view.left - this.container.absoluteLeft()
-      var ly = this.view.cY - this.view.top - this.container.absoluteTop()
-      this.zoom--
-      this.view.left += parseInt(lx / 2)
-      this.view.top += parseInt(ly / 2)
-      this.updateZoom(-1)
-    }
-    if (e && e.preventDefault) e.preventDefault()
-  },
-
-  // Zooms in towards the mouse pointer.
-  zoomIn : function(e){
-    if (this.zoom < this.maxZoom) {
-      var lx = this.view.cX - this.view.left - this.container.absoluteLeft()
-      var ly = this.view.cY - this.view.top - this.container.absoluteTop()
-      this.zoom++
-      this.view.left -= (lx)
-      this.view.top -= (ly)
-      this.updateZoom(+1)
-    }
-    if (e && e.preventDefault) e.preventDefault()
-  },
-
-  // Sets zoom timeout for updating the map.
-  // FIXME Make this do nice animated zoom
-  updateZoom : function(direction) {
-    if(this.zoomTimeout) clearTimeout(this.zoomTimeout)
-    var t = this
-    this.zoomTimeout = setTimeout(function(){
-      t.view.style.left = t.view.left + 'px'
-      t.view.style.top = t.view.top + 'px'
-      t.view.topTile = t.view.leftTile = null
-      t.updateTiles(true)
-      t.updateSubPortals()
-    }, 0)
-  },
-
-  mousedownHandler : function(e){
-    if (!Mouse.normal(e)) return
-    if (['INPUT', 'SPAN', 'P', 'SELECT', 'OPTION', 'UL', 'LI'].includes(e.target.tagName)) return
-    this.dragging = true
-    this.dragX = e.clientX
-    this.dragY = e.clientY
-    this.container.focus()
-    e.preventDefault()
-  },
-
-  mousemoveHandler : function(e){
-    this.view.cX = e.clientX
-    this.view.cY = e.clientY
-    if (this.dragging && !this.subPortal) {
-      this.pan(e.clientX-this.dragX, e.clientY-this.dragY)
-      this.dragX = e.clientX
-      this.dragY = e.clientY
-    }
-    this.view.rX = e.clientX - this.container.absoluteLeft() - this.view.left
-    this.view.rY = e.clientY - this.container.absoluteTop() - this.view.top
-    var ie = this.findInfoEntry(this.view.rX, this.view.rY)
-    if (ie) this.updateItemLink(ie)
-  },
-
-  viewCoords: function(x, y) {
-    return {
-      x: x - this.container.absoluteLeft() - this.view.left,
-      y: y - this.container.absoluteTop() - this.view.top
-    }
-  },
-
-  mouseupHandler : function(e){
-    this.dragging = false
-  },
-
-  DOMMouseScrollHandler : function(e){
-    if (e.detail > 0 ) {
-      this.zoomOut(e)
-    } else {
-      this.zoomIn(e)
-    }
-  },
-
-  keyHandler : function(e){
-    if (e.target.tagName == 'INPUT' || e.target.tagName == 'TEXTAREA') return
-    switch(e.charCode | e.keyCode){
-      case 90:
-      case 122:
-        this.zoomIn(e)
-        break
-      case 88:
-      case 120:
-        this.zoomOut(e)
-        break
-      case 37:
-        this.pan(64,0,e)
-        break
-      case 38:
-        this.pan(0,64,e)
-        break
-      case 39:
-        this.pan(-64,0,e)
-        break
-      case 40:
-        this.pan(0,-64,e)
-        break
-    }
-  },
-
-
 
   translations : {
     'en-US' : {
@@ -1485,4 +1600,5 @@ Portal.prototype = {
     }
   }
 
-}
+})
+

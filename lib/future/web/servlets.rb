@@ -17,6 +17,12 @@ class StandardDateTime < DateTime
   end
 end
 
+class Time
+  def to_json(*a)
+    strftime("new Date(\"%m/%d/%Y %H:%M:%S %z\")")
+  end
+end
+
 class Thread
   attr_accessor :servlet_target, :servlet_path, :servlet_root,
     :servlet_target_path, :search_query, :session_id, :servlet_user, :request_time
@@ -113,7 +119,22 @@ module FutureServlet
     :servlet_target, :servlet_path, :servlet_root, :servlet_target_path,
     :search_query, :session_id, :servlet_user, :request_time
 
+  @@reqs = []
+  @@log_mutex = Mutex.new
+
+  def log_req val
+    @@log_mutex.synchronize do
+      @@reqs << val
+      if @@reqs.size > 100
+        oreqs = @@reqs
+        @@reqs = []
+        File.open("reqs.log", 'a'){|f| f.puts oreqs }
+      end
+    end
+  end
+
   def handle_request(req, res)
+    rt = Time.now.to_f
     self.request_time = Time.now.to_f
     DB::Conn.reserve do |conn|
       Thread.current.conn = conn
@@ -139,6 +160,8 @@ module FutureServlet
       __send__("do_#{mode}", req, res)
       Thread.current.conn = nil
     end
+    sz = res.body.size
+    log_req([rt, Time.now.to_f-rt, sz].join(" "))
   end
 
   def parse_search_query(req)
@@ -552,6 +575,10 @@ extend FutureServlet
       res['Content-type'] = 'text/plain'
       x,y,z,w,h = Tile.parse_tile_geometry(servlet_path)
       sq = self.search_query.clone
+      if z < 4
+        res.body = [].to_json
+        return
+      end
       if z >= 4
         sq[:columns] ||= []
         sq[:columns] << 'path'
