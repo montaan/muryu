@@ -34,7 +34,6 @@ function createNewPortal(x, y, z, w, h, parent, config) {
   config.container = container
   parent.appendChild(container)
   var portal = new Portal.FileMap(config)
-  portal.initialize()
   container.addEventListener('mousedown',
     function(e){
       window.focusedPortal = portal
@@ -1158,6 +1157,19 @@ Portal.FileMap.prototype.mergeD({
     }
     i.width = iw
     i.height = ih
+    if (i.width < info.metadata.width || i.height < info.metadata.height) {
+      var ic = Elem('canvas')
+      ic.style.display = 'block'
+      ic.width = iw
+      ic.height = ih
+      ic.onclick = i.onclick
+      i.onload = function(){
+        i.style.display = 'none'
+        i.parentNode.insertBefore(ic, i)
+        var c = ic.getContext('2d')
+        c.drawImage(i,0,0,iw,ih)
+      }
+    }
   },
 
   // Create item title from info. Show title if metadata.title exists and
@@ -1324,8 +1336,8 @@ Portal.FileMap.prototype.mergeD({
       var editor = Elem('div', null, null, 'editor',
         {
           position: 'absolute',
-          left: infoDiv.parentNode.computedStyle().left,
-          top: infoDiv.parentNode.computedStyle().top,
+          left: (this.container.offsetWidth / 2) - 413 + 'px',
+          top: (this.container.offsetHeight / 2) - 270 + 'px',
           zIndex: 20
         }
       )
@@ -1448,7 +1460,7 @@ Portal.FileMap.prototype.mergeD({
       es.appendChild(done)
       ef.appendChild(es)
       editor.appendChild(ef)
-      t.view.appendChild(editor)
+      t.container.appendChild(editor)
     }
   },
 

@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="style.css"/>
     <script src="rototype.js"></script>
     <script src="portal.js"></script>
-     <script src="http://maps.google.com/maps?file=api&amp;v=2&amp;key=ABQIAAAAWpSYHNXxjMT-MLolMNpBmRTCNcOO4yOkKgt0L38AwHqhnHpSGBTZh68sFfaoxmfyFFzGWAMa5KUFOQ" type="text/javascript"></script>
+<!--     <script src="http://maps.google.com/maps?file=api&amp;v=2&amp;key=ABQIAAAAWpSYHNXxjMT-MLolMNpBmRTCNcOO4yOkKgt0L38AwHqhnHpSGBTZh68sFfaoxmfyFFzGWAMa5KUFOQ" type="text/javascript"></script>-->
     <script>
       window.addEventListener("load",function(){
         var zs = $S("#zogen").style
@@ -26,7 +26,8 @@
           z.container.style.width = window.innerWidth - z.container.absoluteLeft() + 'px'
           z.container.style.height = window.innerHeight - z.container.absoluteTop() + 'px'
         }
-        document.body.addEventListener("unload", GUnload, false)
+        if (typeof GUnload != 'undefined')
+          document.body.addEventListener("unload", GUnload, false)
       },false)
     </script>
   </head>

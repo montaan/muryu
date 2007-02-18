@@ -694,10 +694,10 @@ Editors = {
     var loc = Elem('div', null, null, 'locationEditor')
     var hid = Elem('input', null, null, null, null,
       {type:"hidden", "name": name, "value": value})
-    var txt = Elem('span', value)
     loc.appendChild(hid)
-    loc.appendChild(txt)
-    if (GBrowserIsCompatible()) {
+    if (typeof GBrowserIsCompatible != 'undefined' && GBrowserIsCompatible()) {
+      var txt = Elem('span', value)
+      loc.appendChild(txt)
       var latlng = [ NaN ]
       if (value) {
         latlng = value.replace(/[)(]/g, '').split(",").map(parseFloat)
@@ -761,6 +761,8 @@ Editors = {
           o = o.parentNode
         }
       },100)
+    } else {
+      hid.type = 'text'
     }
     return loc
   },
