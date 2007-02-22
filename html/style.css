@@ -1,5 +1,6 @@
 body {
   overflow: hidden;
+  background: #33363B;
   color: #CCCCCC;
   font-family: URW Gothic L, Arial;
   font-size: 11px;
@@ -9,22 +10,53 @@ h3 {
   color: white;
 }
 
+
+.login {
+  display: none;
+}
+
+#sign_in {
+  display: none;
+}
+
+#login_form {
+  vertical-align: middle;
+}
+
+.login input {
+  font-family: Trebuchet MS, Arial;
+  vertical-align: middle;
+  font-size: 12px;
+  border-width: 1px;
+}
+
+.login input[type=text], .login input[type=password] {
+  width: 80px;
+  padding: 1px;
+  border-width: 0px;
+  background-color: #CCCCCC;
+}
+
+.logout {
+  display: none;
+}
+
 #currentLocation {
   z-index: 10;
   position:absolute;
   left: 0px;
   top: 0px;
-  height: 16px;
+  height: 18px;
   width: 100%;
-  padding-bottom: 2px;
-  padding-top: 0px;
   background: black;
   color: #99969B;
+  background: url(80_opacity_black.png);
   text-indent: 2px;
 }
 
 #currentLocation a {
-  color: #99969B;
+  color: #CCCCCC;
+  font-weight: bold;
 }
 
 #zogen {
@@ -63,8 +95,8 @@ h3 {
   z-index:10;
 }
 
-.portalWindow {
-  background: url(/zogen/80_opacity_black.png);
+.floater {
+  background: url(80_opacity_black.png);
   position: absolute;
   z-index: 8;
   padding: 4px;
@@ -75,16 +107,19 @@ h3 {
   font-weight: bold;
 }
 
-.portalWindow h2 {
+.floaterTitle {
   text-align: center;
   margin-top: 0px;
   margin-bottom: 4px;
 }
 
+.floaterContent {
+}
+
 
 .infoLayer {
   display: none;
-  background: url(/zogen/50_opacity_black.png);
+  background: url(80_opacity_black.png);
   position: absolute;
   z-index: 8;
   padding: 4px;
@@ -95,9 +130,11 @@ h3 {
   font-weight: bold;
 }
 
-.infoLayer h3 {
-  margin-top: 0px;
-  margin-bottom: 6px;
+.infoTitle {
+  margin-top: -2px;
+  margin-bottom: 0px;
+  padding-bottom: 2px;
+  border-bottom: 1px dotted #888;
 }
 
 .editable:hover {
@@ -106,10 +143,6 @@ h3 {
 
 .infoLayer img {
   vertical-align: middle;
-}
-
-.infoLayer div {
-  background: url(/zogen/80_opacity_black.png);
 }
 
 .emblemImage16 {
@@ -145,7 +178,7 @@ a.emblemText32:visited {
   padding: 0px;
   padding-left:12px;
   padding-right:4px;
-  background: url(/zogen/80_opacity_black.png);
+  background: url(80_opacity_black.png);
   z-index: 1;
 }
 .emblemText32 {
@@ -159,7 +192,7 @@ a.emblemText32:visited {
   padding: 0px;
   padding-left:20px;
   padding-right:4px;
-  background: url(/zogen/80_opacity_black.png);
+  background: url(80_opacity_black.png);
   z-index: 1;
 }
 
@@ -172,7 +205,7 @@ a:visited {
 }
 
 .editor {
-  background: url(/zogen/80_opacity_black.png);
+  background: url(80_opacity_black.png);
   min-width: 450px;
   min-height: 540px;
   width: 450px;
@@ -301,7 +334,7 @@ span.google_map {
   height: 524px;
   width: 400px;
   padding-left: 0px;
-  background: url(/zogen/80_opacity_black.png);
+  background: url(80_opacity_black.png);
 }
 .google_map div {
   margin-left : 0px;
@@ -315,12 +348,12 @@ span.google_map {
 }
 
 .infoDiv {
-  padding-left: 4px;
-  padding-right: 4px;
+  padding-left: 0px;
+  padding-right: 0px;
 }
 
 .infoDiv p {
-  padding-top: 1px;
+  padding-top: 0px;
   padding-bottom: 2px;
   margin-top: 0px;
   margin-bottom: 0px;
@@ -336,7 +369,7 @@ span.google_map {
 }
 
 .infoText {
-  background: url(/zogen/50_opacity_black.png);
+  background: url(80_opacity_black.png);
   position: absolute;
   z-index: 7;
   color: white;

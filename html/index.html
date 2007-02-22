@@ -26,6 +26,31 @@
           z.container.style.width = window.innerWidth - z.container.absoluteLeft() + 'px'
           z.container.style.height = window.innerHeight - z.container.absoluteTop() + 'px'
         }
+        var lf = $('login_form')
+        lf.style.display = 'none'
+        lf.style.marginTop = '3px'
+        lf.style.paddingTop = '1px'
+        lf.style.background = 'url(80_opacity_black.png)'
+        var si = $('sign_in')
+        si.style.display = 'inline'
+        si.addEventListener("click", function(e){
+          if (Mouse.normal(e)) {
+            lf.style.display = (lf.style.display == 'none' ? 'block' : 'none')
+            e.preventDefault()
+          }
+        }, false)
+        postQuery('/users/json', '', function(res){
+          var obj = res.responseText.parseRawJSON()[0]
+          if (obj.name != 'anonymous') {
+            $('greet').innerHTML = z.translate('welcome', '<a class="username" href="/users/'+obj.name+'">'+obj.name+'</a>')
+            $('sign_out').innerHTML = z.translate('sign_out')
+            $S('.logout').style.display = 'inline'
+          } else {
+            $('sign_in').innerHTML = z.translate('sign_in')
+            $('submit_sign_in').value = z.translate('sign_in')
+            $S('.login').style.display = 'inline'
+          }
+        })
         if (typeof GUnload != 'undefined')
           document.body.addEventListener("unload", GUnload, false)
       },false)
@@ -34,14 +59,33 @@
 
   <body>
     <div id="currentLocation" style="font-family: Trebuchet MS, Arial; font-size: 12px;">
-      <a id="currentLocationLink" href="zogen.html#x0y0z2">Link here</a>
-      | Create [
-        <a href="javascript:void(createNewPortalWindow(100, 100, 640, 480, document.body))">new portal</a>
-      | <a href="javascript:void(createNewSubPortal())">new subportal</a>
-      ] Toggle [
-        <a href="javascript:toggleCSSDisplay('.info')">emblems</a>
-      | <a href="javascript:toggleCSSDisplay('.infoText')">filename</a>
-      | <a href="javascript:toggleCSSDisplay('.itemLink')">links</a> ]
+      <table width="100%" border="0" cellspacing="0" cellpadding="0">
+      <tr valign="top"><td align="left">
+        <a id="currentLocationLink" href="zogen.html#x0y0z2">Link here</a>
+        | Create [
+          <a href="javascript:void(createNewPortalWindow(100, 100, 640, 480, document.body))">new portal</a>
+        | <a href="javascript:void(createNewSubPortal())">new subportal</a>
+        ] Toggle [
+          <a href="javascript:toggleCSSDisplay('.info')">emblems</a>
+        | <a href="javascript:toggleCSSDisplay('.infoText')">filename</a>
+        | <a href="javascript:toggleCSSDisplay('.itemLink')">links</a> ]
+      </td>
+      <td align="right">
+        <span class="login">
+          <a id="sign_in" href="/users/login">Sign in</a>
+          <form id="login_form" action="/users/login" method="POST">
+            <span id="form_username">Username</span>
+            <input name="username" type="text"/>
+            <span id="form_password">Password</span>
+            <input name="password" type="password"/>
+            <input id="submit_sign_in" value="Sign in" type="submit"/>
+          </form>
+        </span>
+        <span class="logout">
+          <span id="greet">Welcome!</span> | 
+          <a id="sign_out" href="/users/logout">Sign out</a>
+        </span>
+      </td></tr></table>
     </div>
   </body>
 

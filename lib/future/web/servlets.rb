@@ -886,6 +886,7 @@ extend FutureServlet
             source = sources.find{|r| r.scan(/[0-9]+/)[0] == num }
             referrer = referrers.find{|r| r.scan(/[0-9]+/)[0] == num }
             f = {}
+            f[:filename] = 'unnamed'
             f[:io] = req.query[u]
             f[:source] = req.query[source] if source
             f[:referrer] = req.query[referrer] if referrer
@@ -995,6 +996,8 @@ extend FutureServlet
 
     def do_login(req,res)
       if servlet_user != Users.anonymous
+        res.status = 302
+        res['location'] = '/'
         res.body = Builder::XmlMarkup.new.html do |b|
           b.head { b.title("Already logged in") }
           b.body {
@@ -1030,6 +1033,8 @@ extend FutureServlet
       servlet_user.logout if servlet_user
       user_auth(req, res)
       do_login(req,res)
+      res.status = 302
+      res['location'] = '/'
     end
 
     def do_create(req,res)

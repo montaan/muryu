@@ -73,12 +73,15 @@ function $S(selname)
 function toggleCSSDisplay(selector) {
   var s = $S(selector)
   var d = s.style.display
+  if (s.style.originalDisplay == undefined)
+    s.style.originalDisplay = s.style.display
   if (d && d == 'none') {
-    s.style.display = 'block'
+    s.style.display = s.style.originalDisplay
   } else {
     s.style.display = 'none'
   }
 }
+
 
 
 Enumerable = {
@@ -137,8 +140,10 @@ Enumerable = {
   }
 
   , each : function(f){
-    for(var i=0; i<this.length; i++){
-      f(this[i])
+    if (this.length != undefined) {
+      for(var i=0; i<this.length; i++) f(this[i])
+    } else {
+      for(var i in this) f([i, this[i]])
     }
     return this
   }
@@ -361,7 +366,9 @@ Object.prototype.inspect = function(o){
 
 Object.prototype.mergeD = Enumerable.mergeD
 Object.prototype.mergeD(Enumerable)
-Object.prototype.mergeD(Element)
+Object.prototype.$ = Element.$
+Object.prototype.byTag = Element.byTag
+HTMLElement.prototype.mergeD(Element)
 
 var or = Array.prototype.reverse
 Array.prototype.mergeD(Enumerable)

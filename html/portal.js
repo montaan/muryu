@@ -42,59 +42,15 @@ function createNewPortal(x, y, z, w, h, parent, config) {
 }
 
 function createNewPortalWindow(x, y, w, h, parent, config) {
-  var win = Elem('div', null, null, 'portalWindow',
-    { position: 'absolute',
-      left: x+'px',
-      top: y+'px',
-      zIndex: 2,
-      display: 'block' }, {left: x, top: y}
-  )
-  var title = Elem('h2', '', null, null,
-    {cursor : 'move'})
-  title.onmousedown = function(e){
-    if (Mouse.normal(e)) {
-      title.dragging = true
-      title.prevX = e.clientX
-      title.prevY = e.clientY
-      e.preventDefault()
-    }
-  }
-  title.addEventListener("dblclick", function(e) {
-    if ( Mouse.normal(e) ) {
-      title.dragging = false
-      var ns = title.nextSibling
-      if (ns) {
-        if (ns.style.display != 'none') {
-          title.style.width = ns.offsetWidth + 'px'
-          ns.style.display = 'none'
-        } else {
-          title.style.width = null
-          ns.style.display = null
-        }
-      }
-    }
-  }, false)
-  window.addEventListener("mouseup", function(e) { title.dragging = false }, false)
-  window.addEventListener("mousemove", function(e){
-    if (title.dragging) {
-      var dx = e.clientX - title.prevX
-      var dy = e.clientY - title.prevY
-      title.prevX = e.clientX
-      title.prevY = e.clientY
-      win.left += dx
-      win.top += dy
-      win.style.left = win.left + 'px'
-      win.style.top = win.top + 'px'
-    }
-  }, false)
-  win.appendChild(title)
-  parent.appendChild(win)
-  var portal = createNewPortal(0, 0, 1, w, h, win)
+  var win = new Portal.Floater({
+    x:x, y:y, container:parent
+  })
+  var portal = createNewPortal(0, 0, 1, w, h, win.content)
   portal.container.style.position = 'relative'
   portal.onlocationchange = function(x, y, z){
-    title.innerHTML = portal.title + " (" + [x, y, z].join(":") + ")"
+    win.title = portal.title + " (" + [x, y, z].join(":") + ")"
   }
-  win.addEventListener('mousedown',
+  win.element.addEventListener('mousedown',
     function(e){
       window.focusedPortal = portal
     }, false)
@@ -121,6 +77,126 @@ function createNewSubPortal() {
 
 Portal = {}
 
+
+Portal.Floater = function(config) {
+  if (config) this.mergeD(config)
+  this.initialize()
+}
+Portal.Floater.prototype = {
+  resizable : false,
+  title : 'Floater',
+  windowShade : true,
+  visible : true,
+  x : 0,
+  y : 0,
+  z : 2,
+
+  initialize : function() {
+    if (!this.container)
+      this.container = document.body
+    var el = this.element = Elem('div', null, null, 'floater',
+      { position: 'absolute',
+        left: this.x+'px',
+        top: this.y+'px',
+        zIndex: this.z,
+        display: 'none' }
+    )
+    var te = this.titleElement = Elem('h3', this.title, null, 'floaterTitle')
+    this.content = Elem('div', null, null, 'floaterContent', {display: 'block'})
+    el.addEventListener('mousedown', this.bind('elementMousedown'), false)
+    te.addEventListener("dblclick", this.bind('titleDblclick'), false)
+    window.addEventListener("mouseup", this.bind('windowMouseup'), false)
+    window.addEventListener("mousemove", this.bind('windowMousemove'), false)
+    this.element.appendChild(te)
+    this.element.appendChild(this.content)
+    this.container.appendChild(this.element)
+    this.watch('x', this.styleIntChanger('element', 'left', 'px'))
+    this.watch('y', this.styleIntChanger('element', 'top', 'px'))
+    this.watch('z', this.styleIntChanger('element', 'zIndex'))
+    this.watch('width', this.styleIntChanger('content', 'width', 'px'))
+    this.watch('height', this.styleIntChanger('content', 'height', 'px'))
+    this.watch('title', this.titleChanger())
+    if (this.visible) this.show()
+  },
+
+  show : function(){
+    this.visible = true
+    this.element.style.display = 'block'
+  },
+
+  hide : function(){
+    this.visible = false
+    this.element.style.display = 'none'
+  },
+
+  elementMousedown : function(e){
+    if (Mouse.normal(e)) {
+      window.focusedFloater = this
+      this.dragging = true
+      this.prevX = e.clientX
+      this.prevY = e.clientY
+      e.preventDefault()
+    }
+  },
+
+  titleDblclick : function(e) {
+    if ( Mouse.normal(e) && this.windowShade ) {
+      this.dragging = false
+      var ns = this.content
+      if (ns) {
+        if (ns.style.display != 'none') {
+          this.titleElement.style.width = ns.offsetWidth + 'px'
+          ns.style.display = 'none'
+        } else {
+          this.titleElement.style.width = null
+          ns.style.display = null
+        }
+      }
+    }
+  },
+
+  windowMouseup : function(e) {
+    this.dragging = false
+  },
+
+  windowMousemove : function(e){
+    if (this.dragging) {
+      var dx = e.clientX - this.prevX
+      var dy = e.clientY - this.prevY
+      this.prevX = e.clientX
+      this.prevY = e.clientY
+      this.x += dx
+      this.y += dy
+      e.preventDefault()
+    }
+  },
+  
+  titleChanger : function(){
+    return this.bind(function(k,o,n){
+      if (typeof n == 'string') {
+        this.titleElement.innerHTML = n
+      } else {
+        this.titleElement.innerHTML = ''
+        this.titleElement.appendChild(n)
+      }
+      return n
+    })
+  },
+
+  styleIntChanger : function(elem, name, suffix) {
+    if (!suffix) suffix = 0
+    return this.bind(function(k, o, n) {
+      n = parseInt(n)
+      if (!isNaN(n)) {
+        this[elem].style[name] = n + suffix
+        return n
+      } else {
+        return o
+      }
+    })
+  }
+
+}
 
 
 Portal.MapCanvas = function(config) {
@@ -550,12 +626,35 @@ Portal.TileMap.prototype = {
     if (e) e.stopPropagation()
   },
 
-  animatedPanTo : function(x,y,duration) {
+  apX : 0, apY : 0,
+
+  animatedPan : function(x,y,duration,e) {
+    if (this.apInProgress) {
+      clearTimeout(this.apInProgress)
+    } else {
+      this.panStartX = this.view.left
+      this.panStartY = this.view.top
+    }
+    var dx = this.view.left - this.panStartX
+    var dy = this.view.top - this.panStartY
+    this.apX += x
+    this.apY += y
+    this.animatedPanTo(-this.view.left+dx-this.apX, -this.view.top+dy-this.apY, duration)
+    this.apInProgress = setTimeout(this.bind(function(){
+      this.apX = this.apY = 0
+      this.panStartX = this.panStartY = 0
+      this.apInProgress = false
+    }), duration)
+    if (e && e.preventDefault) e.preventDefault()
+    if (e) e.stopPropagation()
+  },
+
+  animatedPanTo : function(x,y,duration,e) {
     if (this.subPortal) {
       var rx = parseInt(this.container.style.left) + x
       var ry = parseInt(this.container.style.top) + y
 //       console.log(x, y, rx, ry)
-      this.parentPortal.animatedPanTo(rx, ry, duration)
+      this.parentPortal.animatedPanTo(rx, ry, duration, e)
     } else {
       if (!duration) duration = 500
       var ox = -this.view.left
@@ -570,7 +669,7 @@ Portal.TileMap.prototype = {
         var v = (ct - st) / duration
         if (v > 1) v = 1
         var iv = t.cos_interpolate(v)
-        t.panTo(ox + dx*iv, oy + dy*iv)
+        t.panTo(ox + dx*iv, oy + dy*iv, e)
         if (v == 1) clearInterval(t.panAnimation)
       }, 16)
     }
@@ -636,7 +735,7 @@ Portal.TileMap.prototype = {
 
   mousedownHandler : function(e){
     if (!Mouse.normal(e)) return
-    if (['INPUT', 'SPAN', 'P', 'SELECT', 'OPTION', 'UL', 'LI'].includes(e.target.tagName)) return
+    if (!e.target.className.match(/\btile\b/)) return
     this.dragging = true
     this.dragX = e.clientX
     this.dragY = e.clientY
@@ -676,30 +775,21 @@ Portal.TileMap.prototype = {
     }
   },
 
+  keyHandlers : {
+    z: function(e) { this.zoomOut(e) },
+    a: function(e) { this.zoomIn(e) },
+    s: function(e) { this.animatedPan(64,0,500,e) },
+    e: function(e) { this.animatedPan(0,64,500,e) },
+    f: function(e) { this.animatedPan(-64,0,500,e) },
+    d: function(e) { this.animatedPan(0,-64,500,e) }
+  },
+  
   keyHandler : function(e){
     if (e.target.tagName == 'INPUT' || e.target.tagName == 'TEXTAREA') return
-    switch(e.charCode | e.keyCode){
-      case 90:
-      case 122:
-        this.zoomIn(e)
-        break
-      case 88:
-      case 120:
-        this.zoomOut(e)
-        break
-      case 37:
-        this.pan(64,0,e)
-        break
-      case 38:
-        this.pan(0,64,e)
-        break
-      case 39:
-        this.pan(-64,0,e)
-        break
-      case 40:
-        this.pan(0,-64,e)
-        break
-    }
+    var k = (e.charCode | e.keyCode)
+    var ks = String.fromCharCode(k)
+    var kh = (this.keyHandlers[k] || this.keyHandlers[ks])
+    if (kh) kh.call(this, e)
   },
 
   translate : function(key, string) {
@@ -744,7 +834,7 @@ Portal.FileMap.prototype.mergeD({
   itemJSONSuffix : '/json',
   editSuffix : '/edit',
 
-  emblemPrefix : '/zogen/',
+  emblemPrefix : '',
   emblemSuffix : '.png',
 
   thumbnailPrefix : '/items/',
@@ -760,12 +850,14 @@ Portal.FileMap.prototype.mergeD({
   init : function() {
     Portal.TileMap.prototype.init.call(this)
     this.initItemLink()
-    this.infoLayer = Elem('div', null, null, 'infoLayer')
-    this.container.appendChild(this.infoLayer)
+    this.infoLayer = new Portal.Floater({
+      container : this.container, visible: false
+    })
+    this.infoLayer.titleElement.className = 'infoTitle'
   },
 
   initItemLink : function(i) {
-    var ti = this.itemLink = Elem('a', null, null, 'itemLink')
+    var ti = this.itemLink = Elem('a', null, null, 'itemLink tile')
     ti.addEventListener("click", this.linkClick(), false)
     ti.addEventListener("mousedown", this.linkDown, false)
     ti.style.zIndex = 2
@@ -961,7 +1053,7 @@ Portal.FileMap.prototype.mergeD({
     return function(e) {
       if (Mouse.normal(e)) {
         e.preventDefault()
-        if ((Math.abs(e.clientX - this.downX) > 3) &&
+        if ((Math.abs(e.clientX - this.downX) > 3) ||
             (Math.abs(e.clientY - this.downY) > 3)) {
           return false
         }
@@ -1115,7 +1207,7 @@ Portal.FileMap.prototype.mergeD({
   },
 
   infoLayerVisible : function() {
-    return(this.infoLayer.style.display != 'none')
+    return(this.infoLayer.visible)
   },
 
   infoTargetChanged : function() {
@@ -1126,14 +1218,17 @@ Portal.FileMap.prototype.mergeD({
   // make it visible.
   //
   showInfoLayer : function(x,y,info) {
-    this.infoLayer.style.display = 'none'
-    this.infoLayer.style.left = x + 'px'
-    this.infoLayer.style.top = y + 'px'
     this.infoLayerData = info
-    var infoLayer = this.infoLayer
-    this.infoLayer.innerHTML = ''
-    this.infoLayer.appendChild(this.parseItemTitle('h3', info, true, true))
-    this.infoLayer.appendChild(this.parseUserInfo(info))
+    this.setupInfoFloater(this.infoLayer, x, y, info)
+  },
+
+  setupInfoFloater : function(infoFloater, x,y,info) {
+    infoFloater.hide()
+    infoFloater.x = x
+    infoFloater.y = y
+    infoFloater.title = this.parseItemTitle('span', info, true, true)
+    infoFloater.content.innerHTML = ''
+    infoFloater.content.appendChild(this.parseUserInfo(info))
     var i = Elem('img')
     var mw = this.container.offsetWidth
     var mh = this.container.offsetHeight
@@ -1141,16 +1236,24 @@ Portal.FileMap.prototype.mergeD({
     var ih = info.metadata.height
     i.width = 0
     i.height = 0
-    i.onclick = this.bind(this.hideInfoLayer)
+    i.onmousedown = function(e){
+      this.downX = e.clientX
+      this.downY = e.clientY
+    }
+    i.onclick = function(e){
+      if (Mouse.normal(e) &&
+          Math.abs(this.downX - e.clientX) < 3 &&
+          Math.abs(this.downY - e.clientY) < 3) infoFloater.hide()
+    }
     i.src = this.filePrefix + info.path + this.fileSuffix
-    this.infoLayer.appendChild(i)
-    this.infoLayer.appendChild(this.parseItemMetadata(info))
+    infoFloater.content.appendChild(i)
+    infoFloater.content.appendChild(this.parseItemMetadata(info))
     if (mw < (iw + 20)) {
       ih *= (mw - 20) / iw
       iw = mw - 20
     }
-    this.infoLayer.style.display = 'block'
-    var lh = 16 + this.infoLayer.offsetHeight
+    infoFloater.show()
+    var lh = 16 + infoFloater.element.offsetHeight
     if (mh < (ih + lh)) {
       iw *= (mh - lh) / ih
       ih = mh - lh
@@ -1159,15 +1262,20 @@ Portal.FileMap.prototype.mergeD({
     i.height = ih
     if (i.width < info.metadata.width || i.height < info.metadata.height) {
       var ic = Elem('canvas')
-      ic.style.display = 'block'
-      ic.width = iw
-      ic.height = ih
-      ic.onclick = i.onclick
-      i.onload = function(){
-        i.style.display = 'none'
-        i.parentNode.insertBefore(ic, i)
-        var c = ic.getContext('2d')
-        c.drawImage(i,0,0,iw,ih)
+      if (ic.getContext) {
+        ic.style.display = 'block'
+        ic.width = iw
+        ic.height = ih
+        ic.onclick = i.onclick
+        i.onload = function(){
+          i.style.position = 'absolute'
+          i.style.opacity = 0
+          i.style.zIndex = 2
+          ic.style.zIndex = 1
+          i.parentNode.insertAfter(ic, i)
+          var c = ic.getContext('2d')
+          c.drawImage(i,0,0,iw,ih)
+        }
       }
     }
   },
@@ -1305,7 +1413,6 @@ Portal.FileMap.prototype.mergeD({
   },
 
   itemKeys : [
-    {name:'mimetype', type:['list', 'mimetypes']},
     {name:'source', type:['url']},
     {name:'referrer', type:['url']},
     {name:'tags', type:['autoComplete', 'tags']},
@@ -1467,7 +1574,7 @@ Portal.FileMap.prototype.mergeD({
 
   hideInfoLayer : function() {
     this.infoLayerData = false
-    this.infoLayer.style.display = 'none'
+    this.infoLayer.hide()
   },
 
   translations : {
@@ -1482,6 +1589,11 @@ Portal.FileMap.prototype.mergeD({
                 d.getSeconds().toString().rjust(2, '0') + ' ' +
                 (d.getHours() < 13 ? 'am' : 'pm'))
       },
+      welcome : function(name){
+        return 'Welcome, '+name
+      },
+      sign_in : 'Sign in',
+      sign_out : 'Sign out',
       by : 'by',
       author : 'author',
       date_taken : 'date taken',

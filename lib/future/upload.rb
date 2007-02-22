@@ -88,7 +88,8 @@ class Uploader
     if latest_numbered
       fn = latest_numbered.path
       num = fn.split(".")[-2].to_i + 1
-      base + num.to_s.rjust(3, '0') + ext
+      s = base + "." + num.to_s.rjust(3, '0') + ext
+      s
     elsif Items.find(:path => "#{base}#{ext}")
       base + ".001" + ext
     else
