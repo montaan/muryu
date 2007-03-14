@@ -30,6 +30,10 @@ end
 
 module Future
   
+  module Tiles
+    @@indexes.clear
+    @@infos.clear
+  end
 # API:
 # 
 # Non-namespaced / default-namespaced access:
@@ -171,6 +175,7 @@ module FutureServlet
     self.search_query = SearchQueryParser.tokens_and_words_to_query_hash(h, words)
   end
   
+  ### FIXME how do these cookies work :(
   def user_auth(req, res)
     un = req.query['username']
     pw = req.query['password']
@@ -894,8 +899,14 @@ extend FutureServlet
           }
         end
       end
-      res.status = 302
-      res['location'] = '/items/create'
+      if req.query.has_key?('close_when_done')
+        res.body = <<-EOF
+          <html><head><script>window.close()</script></head></html>
+        EOF
+      else
+        res.status = 302
+        res['location'] = '/items/create'
+      end
     end
 
     def do_create(req, res)

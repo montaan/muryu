@@ -78,6 +78,44 @@ function createNewSubPortal() {
 Portal = {}
 
 
+Portal.Button = function(
+  name, normal_image, hover_image, down_image, onclickHandler
+){
+  var button = Elem('a')
+  button.name = name
+  button.href = 'javascript:void(null)'
+  button.normal_image = normal_image
+  button.hover_image = hover_image
+  button.down_image = down_image
+  button.onclickHandler = onclickHandler
+  button.image = Elem('img')
+  button.image.alt = name
+  button.image.title = name
+  button.image.style.border = '0px'
+  button.image.src = normal_image
+  button.toggle = function(){
+    var tmp = this.down_image
+    this.down_image = this.normal_image
+    this.normal_image = tmp
+  }
+  button.onmouseover = function(e){ this.image.src = this.hover_image }
+  button.onmouseout = function(e){ this.image.src = this.normal_image }
+  button.onmousedown = function(e){
+    this.image.src = this.down_image
+    e.stopPropagation()
+    e.preventDefault()
+  }
+  button.onclick = function(e){
+    this.onclickHandler(this, e)
+    this.image.src = this.normal_image
+    e.stopPropagation()
+    e.preventDefault()
+  }
+  button.appendChild(button.image)
+  return button
+}
+
+
 Portal.Floater = function(config) {
   if (config) this.mergeD(config)
   this.initialize()
@@ -87,6 +125,13 @@ Portal.Floater.prototype = {
   title : 'Floater',
   windowShade : true,
   visible : true,
+  maximized : false,
+  shaded : false,
+  sticky : false,
+  buttonImageDir : 'images/',
+  buttonInactiveSuffix : '_grey',
+  buttonActiveSuffix : '_yellow',
+  enabledButtons : ['close', 'maximize', 'duplicate'],
   x : 0,
   y : 0,
   z : 2,
@@ -101,6 +146,7 @@ Portal.Floater.prototype = {
         zIndex: this.z,
         display: 'none' }
     )
+    this.initButtons()
     var te = this.titleElement = Elem('h3', this.title, null, 'floaterTitle')
     this.content = Elem('div', null, null, 'floaterContent', {display: 'block'})
     el.addEventListener('mousedown', this.bind('elementMousedown'), false)
@@ -116,17 +162,80 @@ Portal.Floater.prototype = {
     this.watch('width', this.styleIntChanger('content', 'width', 'px'))
     this.watch('height', this.styleIntChanger('content', 'height', 'px'))
     this.watch('title', this.titleChanger())
+    this.watch('container', this.bind('containerChange'))
+    this.watch('sticky', this.bind('stickyChange'))
+    this.watch('maximized', this.bind('maximizedChange'))
+    this.watch('shaded', this.bind('shadedChange'))
+    this.watch('visible', this.bind('visibleChange'))
     if (this.visible) this.show()
   },
 
-  show : function(){
-    this.visible = true
-    this.element.style.display = 'block'
+  buttonURL : function(button_name, active) {
+    return (this.buttonImageDir.replace(/\/?$/, '/') + button_name +
+            (active ? this.buttonActiveSuffix : this.buttonInactiveSuffix) +
+            '.png')
   },
 
-  hide : function(){
+  initButtons : function() {
+    var bs = this.buttons = Elem('div', null, null, 'floaterButtons')
+    var t = this
+    this.enabledButtons.each(function(b){
+      var button = Portal.Button(
+        b.capitalize(),
+        t.buttonURL(b, false),
+        t.buttonURL(b, true),
+        t.buttonURL(b, true),
+        t.buttonClickHandler(b)
+      )
+      t[b+'Button'] = button
+      bs.appendChild(button)
+    })
+    this.element.appendChild(bs)
+  },
+
+  buttonClickHandler : function(buttonName) {
+    var hn = buttonName + 'ButtonClick'
+    return this.bind(function(button, e){
+      if (this[hn]) this[hn](this, e)
+    })
+  },
+
+  closeButtonClick : function() {
+    this.close()
+  },
+
+  maximizeButtonClick : function() {
+    this.toggleMaximize()
+  },
+
+  stickyButtonClick : function() {
+    this.toggleSticky()
+  },
+
+  toggleMaximize : function() {
+    this.maximized = !this.maximized
+  },
+
+  toggleSticky : function() {
+    this.sticky = !this.sticky
+  },
+  
+  close : function() {
     this.visible = false
-    this.element.style.display = 'none'
+    this.element.detachSelf()
+  },
+
+  visibleChange : function(k,o,n){
+    this.element.style.display = (n ? 'block' : 'none')
+    return n
+  },
+  
+  show : function() {
+    this.visible = true
+  },
+
+  hide : function() {
+    this.visible = false
   },
 
   elementMousedown : function(e){
@@ -136,22 +245,16 @@ Portal.Floater.prototype = {
       this.prevX = e.clientX
       this.prevY = e.clientY
       e.preventDefault()
+      e.stopPropagation()
     }
   },
 
   titleDblclick : function(e) {
     if ( Mouse.normal(e) && this.windowShade ) {
+      e.stopPropagation()
+      e.preventDefault()
       this.dragging = false
-      var ns = this.content
-      if (ns) {
-        if (ns.style.display != 'none') {
-          this.titleElement.style.width = ns.offsetWidth + 'px'
-          ns.style.display = 'none'
-        } else {
-          this.titleElement.style.width = null
-          ns.style.display = null
-        }
-      }
+      this.shaded = !this.shaded
     }
   },
 
@@ -168,9 +271,42 @@ Portal.Floater.prototype = {
       this.x += dx
       this.y += dy
       e.preventDefault()
+      e.stopPropagation()
     }
   },
+
+  containerChange : function(k,o,n){
+    this.element.detachSelf()
+    n.appendChild(this.element)
+    return n
+  },
+
+  shadedChange : function(k,o,n){
+    var ns = this.content
+    if (n) {
+      this.titleElement.style.minWidth = ns.offsetWidth-44 + 'px'
+      ns.style.display = 'none'
+    } else {
+      this.titleElement.style.minWidth = null
+      ns.style.display = null
+    }
+    return n
+  },
   
+  maximizedChange : function(k,o,n){
+    if (this.maximizeButton)
+      this.maximizeButton.toggle()
+    if (this.maximizedHandler) this.maximizedHandler(this, n)
+    return n
+  },
+
+  stickyChange : function(k,o,n){
+    if (this.stickyButtonImage)
+      this.stickyButton.toggle()
+    if (this.stickyHandler) this.stickyHandler(this, n)
+    return n
+  },
+
   titleChanger : function(){
     return this.bind(function(k,o,n){
       if (typeof n == 'string') {
@@ -631,6 +767,8 @@ Portal.TileMap.prototype = {
   animatedPan : function(x,y,duration,e) {
     if (this.apInProgress) {
       clearTimeout(this.apInProgress)
+      x /= 2
+      y /= 2
     } else {
       this.panStartX = this.view.left
       this.panStartY = this.view.top
@@ -854,6 +992,75 @@ Portal.FileMap.prototype.mergeD({
       container : this.container, visible: false
     })
     this.infoLayer.titleElement.className = 'infoTitle'
+    this.infoLayer.deleteButtonClick = this.bind('deleteFloater')
+    this.infoLayer.editButtonClick = this.bind('editFloater')
+    this.infoLayer.duplicateButtonClick = this.bind('duplicateFloater')
+    this.infoLayer.maximizedHandler = this.bind('toggleFloaterMaximized')
+  },
+
+  deleteFloater : function(floater) {
+  },
+
+  editFloater : function(floater) {
+  },
+
+  duplicateFloater : function(floater) {
+    var copy = new Portal.Floater({
+      container: this.container,
+      x: Math.max(0, floater.x + 10),
+      y: Math.max(0, floater.y + 10)
+    })
+    copy.titleElement.className = 'infoTitle'
+    copy.duplicateButtonClick = this.bind('duplicateFloater')
+    copy.maximizedHandler = this.bind('toggleFloaterMaximized')
+    this.setupInfoFloater(copy, floater.info, false)
+  },
+  
+  toggleFloaterSticky : function(floater, sticky) {
+    var c
+    if (sticky) {
+      c = this.viewCoords(
+        floater.element.absoluteLeft(),
+        floater.element.absoluteTop())
+      floater.container = this.view
+    } else {
+      c = {x: floater.element.absoluteLeft(),
+           y: floater.element.absoluteTop() }
+      floater.container = this.container
+    }
+    floater.x = c.x
+    floater.y = c.y
+  },
+
+  toggleFloaterMaximized : function(floater, maximized) {
+    var img = floater.content.byTag('img')[0]
+    if (img) {
+      var using_canvas = (img.nextSibling.tagName == 'CANVAS')
+      if (maximized) {
+        img.origCoords = [img.width, img.height]
+        if (using_canvas) {
+          img.style.position = null
+          img.style.opacity = null
+          img.nextSibling.style.display = 'none'
+        }
+        img.width = floater.info.metadata.width
+        img.height = floater.info.metadata.height
+      } else if (img.origCoords) {
+        if (using_canvas) {
+          floater.y += 1 // hack to force firefox relayout
+          if (floater.x < 0) floater.x = 0
+          if (floater.y < 0) floater.y = 0
+          setTimeout(function(){
+            if (floater.y != 0) floater.y -= 1
+          },0)
+          img.nextSibling.style.display = null
+          img.style.opacity = 0
+          img.style.position = 'absolute'
+        }
+        img.width = img.origCoords[0]
+        img.height = img.origCoords[1]
+      }
+    }
   },
 
   initItemLink : function(i) {
@@ -1219,64 +1426,113 @@ Portal.FileMap.prototype.mergeD({
   //
   showInfoLayer : function(x,y,info) {
     this.infoLayerData = info
-    this.setupInfoFloater(this.infoLayer, x, y, info)
+    if (this.infoLayer.sticky) this.infoLayer.sticky = false
+    if (!this.infoLayer.element.parentNode) {
+      this.infoLayer.container = this.container
+      this.infoLayer.x = 0
+      this.infoLayer.y = 0
+    }
+    if (this.infoLayer.x < 0) this.infoLayer.x = 0
+    if (this.infoLayer.y < 0) this.infoLayer.y = 0
+    if (this.infoLayer.maximized) this.infoLayer.maximized = false
+    if (this.infoLayer.shaded) this.infoLayer.shaded = false
+    this.setupInfoFloater(this.infoLayer, info, true)
   },
 
-  setupInfoFloater : function(infoFloater, x,y,info) {
+  setupInfoFloater : function(infoFloater, info, click_image_to_close) {
+    infoFloater.info = info
     infoFloater.hide()
-    infoFloater.x = x
-    infoFloater.y = y
     infoFloater.title = this.parseItemTitle('span', info, true, true)
     infoFloater.content.innerHTML = ''
     infoFloater.content.appendChild(this.parseUserInfo(info))
-    var i = Elem('img')
-    var mw = this.container.offsetWidth
-    var mh = this.container.offsetHeight
-    var iw = info.metadata.width
-    var ih = info.metadata.height
-    i.width = 0
-    i.height = 0
-    i.onmousedown = function(e){
-      this.downX = e.clientX
-      this.downY = e.clientY
-    }
-    i.onclick = function(e){
-      if (Mouse.normal(e) &&
-          Math.abs(this.downX - e.clientX) < 3 &&
-          Math.abs(this.downY - e.clientY) < 3) infoFloater.hide()
-    }
-    i.src = this.filePrefix + info.path + this.fileSuffix
-    infoFloater.content.appendChild(i)
-    infoFloater.content.appendChild(this.parseItemMetadata(info))
-    if (mw < (iw + 20)) {
-      ih *= (mw - 20) / iw
-      iw = mw - 20
-    }
-    infoFloater.show()
-    var lh = 16 + infoFloater.element.offsetHeight
-    if (mh < (ih + lh)) {
-      iw *= (mh - lh) / ih
-      ih = mh - lh
-    }
-    i.width = iw
-    i.height = ih
-    if (i.width < info.metadata.width || i.height < info.metadata.height) {
-      var ic = Elem('canvas')
-      if (ic.getContext) {
-        ic.style.display = 'block'
-        ic.width = iw
-        ic.height = ih
-        ic.onclick = i.onclick
-        i.onload = function(){
-          i.style.position = 'absolute'
-          i.style.opacity = 0
-          i.style.zIndex = 2
-          ic.style.zIndex = 1
-          i.parentNode.insertAfter(ic, i)
-          var c = ic.getContext('2d')
-          c.drawImage(i,0,0,iw,ih)
-        }
+    if (['image/jpeg','image/png','image/gif'].includes(info.mimetype)) {
+      var i = Elem('img')
+      var mw = this.container.offsetWidth
+      var mh = this.container.offsetHeight
+      var iw = info.metadata.width
+      var ih = info.metadata.height
+      i.width = 0
+      i.height = 0
+      i.onmousedown = function(e){
+        this.downX = e.clientX
+        this.downY = e.clientY
       }
+      var h = (click_image_to_close ? '' : 'dbl')
+      i['on'+h+'click'] = function(e){
+        if (Mouse.normal(e) &&
+            Math.abs(this.downX - e.clientX) < 3 &&
+            Math.abs(this.downY - e.clientY) < 3) infoFloater.close()
+      }
+      i.src = this.filePrefix + info.path + this.fileSuffix
+      infoFloater.content.appendChild(i)
+      infoFloater.content.appendChild(this.parseItemMetadata(info))
+      if (mw < (iw + 20)) {
+        ih *= (mw - 20) / iw
+        iw = mw - 20
+      }
+      infoFloater.show()
+      var lh = 16 + infoFloater.element.offsetHeight
+      if (mh < (ih + lh)) {
+        iw *= (mh - lh) / ih
+        ih = mh - lh
+      }
+      i.width = iw
+      i.height = ih
+      if (i.width < info.metadata.width || i.height < info.metadata.height) {
+        if (navigator.userAgent.match(/rv:1\.[78].*Gecko/)) {
+          var ic = Elem('canvas')
+          if (ic.getContext) {
+            ic.style.display = 'block'
+            ic.width = iw
+            ic.height = ih
+            ic.onclick = i.onclick
+            i.onload = function(){
+              i.style.position = 'absolute'
+              i.style.opacity = 0
+              i.style.zIndex = 2
+              ic.style.zIndex = 1
+              i.parentNode.insertAfter(ic, i)
+              var c = ic.getContext('2d')
+              c.drawImage(i,0,0,iw,ih)
+            }
+          }
+        }
+      } else {
+        infoFloater.maximized = true
+      }
+    } else if (info.mimetype == 'text/html') {
+      var i = Elem('iframe')
+      i.width = 600
+      i.height = 400
+      i.src = this.filePrefix + info.path + this.fileSuffix
+      infoFloater.content.appendChild(i)
+      infoFloater.content.appendChild(this.parseItemMetadata(info))
+      infoFloater.show()
+    } else if (info.mimetype.split("/")[0] == 'text') {
+      var i = Elem('iframe')
+      i.style.backgroundColor = "white"
+      i.width = 600
+      i.height = 400
+      i.src = this.filePrefix + info.path + this.fileSuffix
+      infoFloater.content.appendChild(i)
+      infoFloater.content.appendChild(this.parseItemMetadata(info))
+      infoFloater.show()
+    } else {
+      var i = Elem('img')
+      i.onmousedown = function(e){
+        this.downX = e.clientX
+        this.downY = e.clientY
+      }
+      var h = (click_image_to_close ? '' : 'dbl')
+      i['on'+h+'click'] = function(e){
+        if (Mouse.normal(e) &&
+            Math.abs(this.downX - e.clientX) < 3 &&
+            Math.abs(this.downY - e.clientY) < 3) infoFloater.close()
+      }
+      i.src = this.thumbnailPrefix + info.path + this.thumbnailSuffix
+      infoFloater.content.appendChild(i)
+      infoFloater.content.appendChild(this.parseItemMetadata(info))
+      infoFloater.show()
     }
   },
 
@@ -1593,7 +1849,10 @@ Portal.FileMap.prototype.mergeD({
         return 'Welcome, '+name
       },
       sign_in : 'Sign in',
+      register : 'Create account',
       sign_out : 'Sign out',
+      username : 'Account name',
+      password : 'Password',
       by : 'by',
       author : 'author',
       date_taken : 'date taken',
@@ -1651,6 +1910,14 @@ Portal.FileMap.prototype.mergeD({
                 d.getMinutes().toString().rjust(2, '0') + ':' +
                 d.getSeconds().toString().rjust(2, '0'))
       },
+      welcome : function(name){
+        return 'Tervetuloa, '+name
+      },
+      sign_in : 'Kirjaudu sisään',
+      register : 'Luo tunnuksesi',
+      sign_out : 'Lopeta',
+      username : 'Tunnus',
+      password : 'Salasana',
       by : '-',
       author : 'tekijä',
       date_taken : 'otettu',

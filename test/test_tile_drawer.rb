@@ -31,7 +31,8 @@ include Future
       end
     end
     td = TileDrawer.new(@image_cache)
-    indexes = (0...photos.size).to_a
+    indexes = (0...photos.size).to_a.map{|i| [i,0]}
+    palette = [[0,0,0,0]]
     x,y,w,h = 0, 0, 256, 256
     pn = Pathname.new(File.dirname(__FILE__)).join("data", "tile_drawer_output")
     pn.rmtree if pn.exist?
@@ -39,14 +40,9 @@ include Future
     (0..7).each{|zoom|
       (0..20).each{|x|
         tilefile = pn + "#{zoom}_#{x}_#{y}.jpg"
-        tile = td.draw_tile(indexes, :rows, x*w, y*h, zoom, w, h)
+        tile = td.draw_tile(indexes, palette, :rows, x*w, y*h, zoom, w, h)
         if tile
-          tilefile.open('w'){|f|
-            IO.popen('rawtoppm 256 256 | ppmtojpeg', 'rb+'){|p|
-              Thread.new{ p.write tile }
-              f.write p.read
-            }
-          }
+          tile.save(tilefile.to_s)
         else
           break
         end

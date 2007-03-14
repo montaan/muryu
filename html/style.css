@@ -109,11 +109,24 @@ h3 {
 
 .floaterTitle {
   text-align: center;
-  margin-top: 0px;
-  margin-bottom: 4px;
+  margin-top: -2px;
+  margin-bottom: 0px;
+  margin-left: 44px;
 }
 
-.floaterContent {
+.floaterButtons {
+  margin-bottom:-14px;
+  margin-top:2px;
+  text-align:left;
+}
+.floaterButtons img {
+  margin-left: 2px;
+  margin-right: 3px;
+}
+
+.infoTitle + .floaterContent {
+  margin-top: 2px;
+  border-top: 1px dotted #888;
 }
 
 
@@ -133,8 +146,7 @@ h3 {
 .infoTitle {
   margin-top: -2px;
   margin-bottom: 0px;
-  padding-bottom: 2px;
-  border-bottom: 1px dotted #888;
+  margin-left: 44px;
 }
 
 .editable:hover {
@@ -371,7 +383,7 @@ span.google_map {
 .infoText {
   background: url(80_opacity_black.png);
   position: absolute;
-  z-index: 7;
+  z-index: 1;
   color: white;
   font-family: URW Gothic L, Arial;
   font-weight: bold;
@@ -380,7 +392,7 @@ span.google_map {
 
 .info {
   position: absolute;
-  z-index: 6;
+  z-index: 1;
 }
 
 .itemLink {

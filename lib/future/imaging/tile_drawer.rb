@@ -12,8 +12,45 @@ extend self
   @@indexes = {}
   @@infos = {}
   @@mutex = Mutex.new
+  @@indexes_mtime = 0
 
   @@fn_data = nil
+  @@palette = nil
+
+  BLUE    = [ 13,   7, 255, 127]
+  RED     = [178,   0,   0, 127]
+  GREEN   = [ 42, 224,   0, 127]
+  MAGENTA = [227,  73, 255, 127]
+  YELLOW  = [255, 229, 127, 127]
+  BLACK   = [  0,   0,   0, 127]
+
+
+  @@type_colors = {
+    'image' => BLUE,
+    'application' => RED,
+    'audio' => GREEN,
+    'text' => YELLOW,
+    'video' => MAGENTA
+  }
+
+  @@default_color = BLACK
+
+  def palette
+    @@palette ||= create_palette
+  end
+
+  def create_palette
+    mts = Mimetypes.find_all(:columns => [:major])
+    h = {}
+    mts.each{|mt|
+      h[mt.id] = color_for_type(mt.major)
+    }
+    h
+  end
+
+  def color_for_type(major)
+    @@type_colors[major] || @@default_color
+  end
 
   def read(user, query, *tile_args)
     ### FIXME query optimization problematic (need to layout to get wanted spans,
@@ -25,12 +62,18 @@ extend self
     indexes = nil
     if not bad_tile
       @@mutex.synchronize do
-        indexes = (@@indexes[user.name + "::" + sanitize_query(query)] ||= Items.rfind_all(user, query.merge(:columns => [:image_index])).map{|i| i.image_index })
+        key = user.name + "::" + sanitize_query(query)
+        t = @@indexes[key]
+        unless t
+          idxs = Items.rfind_all(user, query.merge(:columns => [:image_index, :mimetype_id])).map{|i| [i.image_index, i.mimetype_id] }
+          t = @@indexes[key] = idxs
+        end
+        indexes = t
       end
-      tile = TileDrawer.new.draw_tile(indexes, *tile_args)
+      r,x,y,z,w,h = *tile_args
+      tile = TileDrawer.new.draw_tile(indexes, palette, r,x,y,z,w,h)
     end
     if tile
-      r,x,y,z,w,h = *tile_args
       qtext = sanitize_query(query)
       if tile.is_a? String
         IO.popen('rawtoppm 256 256 | ppmtojpeg', 'rb+'){|f|
@@ -71,12 +114,15 @@ extend self
     q[:columns] |= [:image_index]
     indexes = iindexes = nil
     @@mutex.synchronize do
-      indexes, iindexes = *(@@infos[user.name + "::" + sanitize_query(q)] ||= (
-        result = Items.rfind_all(user, q)
-        idxs = result.map{|r| r.image_index }
-        iidxs = result.map{|r| [r.image_index, (q[:columns] - [:image_index]).map{|c| [c, r[c]]}.to_hash ] }.to_hash
-        [idxs, iidxs]
-      ))
+        key = user.name + "::" + sanitize_query(query)
+        t = @@infos[key]
+        unless t
+          result = Items.rfind_all(user, q)
+          idxs = result.map{|i| i.image_index }
+          iidxs = result.map{|r| [r.image_index, (q[:columns] - [:image_index]).map{|c| [c, r[c]]}.to_hash ] }.to_hash
+          t = @@infos[key] = [idxs, iidxs]
+        end
+        indexes, iindexes = t
     end
     infos = {}
     TileDrawer.new.tile_info(indexes, *tile_args){|i, *a| infos[i] = [a, iindexes[i]]}
@@ -107,7 +153,7 @@ class TileDrawer
     @image_cache = image_cache
   end
 
-  def draw_tile(indexes, layouter_name, x, y, zoom, w, h, *layouter_args)
+  def draw_tile(indexes, palette, layouter_name, x, y, zoom, w, h, *layouter_args)
     layouter = LAYOUTERS[layouter_name.to_s]
     raise ArgumentError, "Bad layouter_name: #{layouter_name.inspect}" unless layouter
     sz = @image_cache.thumb_size_at_zoom(zoom)
@@ -117,12 +163,13 @@ class TileDrawer
       break
     end
     return false if empty_tile
-    return draw_tile_rend(indexes, x, y, zoom) if zoom <= 7
+#     return draw_tile_rend(indexes, palette, x, y, zoom) if zoom <= 7
     tile = Imlib2::Image.new(w,h)
     tile.fill_rectangle(0,0, w, h, BACKGROUND_COLOR)
     @image_cache.batch do
       layouter.each(indexes, x, y, sz, w, h, *layouter_args) do |i, ix, iy|
-        @image_cache.draw_image_at(i, zoom, tile, ix, iy)
+        @image_cache.draw_image_at(i[0], zoom, tile, ix, iy)
+        tile.fill_rectangle(ix, iy, sz, sz, Imlib2::Color::RgbaColor.new(palette[i[1]]))
       end
     end
     tile

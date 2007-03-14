@@ -37,6 +37,7 @@ tmp_img = 'tmp/tex.tga'
 
 verts = []
 texcoords = []
+colors = []
 
 imi = Imlib2::Image.load(img)
 imi.crop_scaled!(0, 0, imi.width, imi.height, sz, sz)
@@ -49,14 +50,17 @@ eimgs = (1..extra_images).map{
 }
 File.open("tmp/tex.raw",'wb'){|f| f.write(i.texture.pixels) }
 
+tcolors = [[0.3, 0.3, 1, 1], [0, 1, 0, 1], [0, 1, 1,1], [1,1,0,1], [1,0,0,1]]
+
 (0...256).each{|x|
   (0...256).each{|y|
     verts.push(x, y, 0, x+1, y, 0, x+1, y+1, 0, x, y+1, 0)
     texcoords.push(x, y, x+1, y, x+1, y+1, x, y+1)
+    colors.push(*(tcolors[(rand**4)*5]*4))
   }
 }
 
-g = Geometry.new(:type => :quads, :vertices => verts, :texcoords => texcoords.pack("f*"))
+g = Geometry.new(:type => :quads, :vertices => verts, :texcoords => texcoords.pack("f*"), :colors => colors.pack("f*"))
 puts g.vert_count / 4
 t = i.texture
 t.mode = :PIXEL_RECTANGLE

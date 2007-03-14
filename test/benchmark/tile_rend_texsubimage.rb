@@ -88,6 +88,7 @@ class TextureUploader
         uint_64** rindexes,
         GLfloat** vertex_array,
         GLfloat** texcoords,
+        GLfloat** colors,
         uint_64 x,
         uint_64 y,
         uint_32 sz,
@@ -103,8 +104,8 @@ class TextureUploader
         uint_64 first_column_in_view, last_column_in_view, columns_in_view, rows_in_view;
         uint_64 i,r,j,c;
         uint_64 *indexes;
-        GLfloat *varr, *texc;
-        uint_32 tile_image_count, k, l, tx, ty;
+        GLfloat *varr, *texc, *carr;
+        uint_32 tile_image_count, k, l, tx, ty, m;
 
         row_offset = sz / 2.0;
         columns = 200; 
@@ -134,6 +135,8 @@ class TextureUploader
         varr = (GLfloat*)malloc( sizeof(GLfloat)*(columns_in_view * rows_in_view)*4*3 );
         /* 4 2D points */
         texc = (GLfloat*)malloc( sizeof(GLfloat)*(columns_in_view * rows_in_view)*4*2 );
+        /* 4 RGBA values */
+        carr = (GLfloat*)malloc( sizeof(GLfloat)*(columns_in_view * rows_in_view)*4*4 );
         
         tile_image_count = 0;
 
@@ -151,6 +154,7 @@ class TextureUploader
             indexes[tile_image_count] = (bigrow * bigrow_img_count) + (c * rows) + (r % rows);
             l = tile_image_count * 12;
             k = tile_image_count * 8;
+            m = tile_image_count * 16;
             tx = (tile_image_count * sz) % w;
             ty = (tile_image_count * sz) / w;
             varr[l+2] = varr[l+5] = varr[l+8] = varr[l+11] = 0.0f;
@@ -162,6 +166,10 @@ class TextureUploader
             texc[k+4] = texc[k+6] = tx + sz;
             texc[k+1] = texc[k+7] = ty;
             texc[k+3] = texc[k+5] = ty + sz;
+            carr[m]   = carr[m+4] = carr[m+8]  = carr[m+12] = 1.0; /* red   */
+            carr[m+1] = carr[m+5] = carr[m+9]  = carr[m+13] = 0.0; /* green */
+            carr[m+2] = carr[m+6] = carr[m+10] = carr[m+14] = 0.0; /* blue  */
+            carr[m+3] = carr[m+7] = carr[m+11] = carr[m+15] = 1.0; /* alpha */
             tile_image_count++;
           }
         }
@@ -169,6 +177,7 @@ class TextureUploader
         *rindexes = indexes;
         *vertex_array = varr;
         *texcoords = texc;
+        *colors = carr;
       }
 
       void setup_texture
@@ -185,19 +194,21 @@ class TextureUploader
         uint_64* indexes;
         GLfloat* vertex_array;
         GLfloat* texcoords;
+        GLfloat* colors;
         uint_32 indexes_length;
         int i;
-        row_layout(&indexes_length, &indexes, &vertex_array, &texcoords,
+        row_layout(&indexes_length, &indexes, &vertex_array, &texcoords, &colors,
                     x, y, sz, 256, 256);
         setup_texture(query, query_len, indexes, indexes_length);
         glEnableClientState( GL_VERTEX_ARRAY );
         glEnableClientState( GL_TEXTURE_COORD_ARRAY );
+        glEnableClientState( GL_COLOR_ARRAY );
         glDisableClientState( GL_NORMAL_ARRAY );
-        glDisableClientState( GL_COLOR_ARRAY );
         glVertexPointer(3, GL_FLOAT, 0, vertex_array);
         glTexCoordPointer(2, GL_FLOAT, 0, texcoords);
+        glColorPointer(4, GL_FLOAT, 0, colors);
         glDrawArrays(GL_QUADS, 0, indexes_length);
-        for(i=12000; i<12032; i++)
+/*        for(i=12000; i<12032; i++)
         {
           printf("(%.0f, %.0f, %.0f)-(%.0f, %.0f) ",
                  vertex_array[i*3], vertex_array[i*3+1], vertex_array[i*3+2],
@@ -206,9 +217,10 @@ class TextureUploader
           if (i%4 == 3) printf("\\n");
         }
         printf("\\n");
-        free(texcoords);
+*/        free(texcoords);
         free(vertex_array);
         free(indexes);
+        free(colors);
       }
     EOF
 

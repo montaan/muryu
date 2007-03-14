@@ -40,7 +40,7 @@ String.prototype.parseRawJSON = function(){
 function timed(f, msg) {
     var t = new Date().getTime()
     f()
-    alert(msg + ": " + (new Date().getTime() - t))
+    console.log(msg + ": " + (new Date().getTime() - t))
 }
 
 function R(s, e){
@@ -59,11 +59,11 @@ function Rg(s,e){
 function $S(selname)
 {
   var sheets = document.styleSheets
-  for (i=0; i<sheets.length; i++)
+  for (var i=0; i<sheets.length; i++)
   {
     var rules = sheets[i].cssRules
     if (!rules) continue
-    for (j=0; j<rules.length; j++)
+    for (var j=0; j<rules.length; j++)
       if (rules[j].selectorText == selname)
         return rules[j]
   }
@@ -82,7 +82,9 @@ function toggleCSSDisplay(selector) {
   }
 }
 
-
+String.prototype.capitalize = function(){
+  return this.replace(/^./, function(m){ return m.toUpperCase() })
+}
 
 Enumerable = {
   mergeD : function(other){
@@ -287,7 +289,8 @@ Element = {
   }
 
   , detachSelf : function(obj) {
-    return this.parentNode.removeChild(this)
+    if (this.parentNode)
+      return this.parentNode.removeChild(this)
   }
 
   , absoluteLeft : function() {
@@ -404,9 +407,47 @@ function formatTime(msec) {
   return (hour>0 ? hour+":" : '') + min + ":" + sec
 }
 
+function parseQuery(query) {
+  if (!query) query = document.location.search
+  var parts = query.replace(/^\?/,'').split("&")
+  var obj = {}
+  for (var i=0; i<parts.length; i++) {
+    var kv = parts[i].split("=").map(decodeURIComponent)
+    obj[kv[0]] = kv[1]
+  }
+  return obj
+}
+
+function parseCookie(cookie) {
+  if (!cookie) cookie = document.cookie
+  var obj = {}
+  cookie.split(";").each(function(c){
+    var kv = c.split("=")
+    obj[kv[0]] = kv[1]
+  })
+  return obj
+}
+
+function parseHash(hash) {
+  if (!hash) hash = document.location.hash
+  return parseQuery(hash.replace(/^#/,''))
+}
+
+function parseSession() {
+  var c = parseCookie()
+  var q = parseQuery()
+  var h = parseHash()
+  var s = c.merge(q).merge(h)
+  s.cookie = c
+  s.query = q
+  s.hash = h
+  return s
+}
+
 function guessLanguage() {
-  return ( navigator.language || navigator.browserLanguage ||
-           navigator.userLanguage || 'en-US' )
+  return ( parseSession().lang || navigator.language ||
+           navigator.browserLanguage || navigator.userLanguage ||
+           'en-US' )
 }
 
 function makeEditable(elem, path, key, validator, title) {
