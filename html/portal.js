@@ -79,7 +79,7 @@ Portal = {}
 
 
 Portal.Button = function(
-  name, normal_image, hover_image, down_image, onclickHandler
+  name, normal_image, hover_image, down_image, onclickHandler, text
 ){
   var button = Elem('a')
   button.name = name
@@ -112,6 +112,15 @@ Portal.Button = function(
     e.preventDefault()
   }
   button.appendChild(button.image)
+  if (text) {
+    var cont = Elem('span')
+    cont.appendChild(button)
+    cont.appendChild(Text(' '))
+    var tb = Elem('a').mergeD(button)
+    tb.appendChild(Text(button.name))
+    cont.appendChild(tb)
+    return cont
+  }
   return button
 }
 
@@ -438,6 +447,7 @@ Portal.TileMap.prototype = {
   tilePrefix : '/tile/',
   tileSuffix : '',
   query : '',
+  color : true,
 
   tileInfoPrefix : '/tile_info/',
   tileInfoSuffix : '',
@@ -498,6 +508,7 @@ Portal.TileMap.prototype = {
     v.top = -this.y
     v.style.left = v.left + 'px'
     v.style.top = v.top + 'px'
+    v.style.zIndex = 0
     v.cX = this.container.offsetWidth/2
     v.cY = this.container.offsetHeight/2
     if (!this.subPortal) {
@@ -710,7 +721,7 @@ Portal.TileMap.prototype = {
           }
         tile.width = t.tileSize
         tile.height = t.tileSize
-        tile.src = t.tilePrefix + tileQuery + t.tileInfoSuffix + '?' + t.query
+        tile.src = t.tilePrefix + tileQuery + t.tileInfoSuffix + '?' + t.query + '&color=' + t.color
         t.view.appendChild(tile)
         tile.timeout = false
       }
@@ -718,6 +729,11 @@ Portal.TileMap.prototype = {
       tl.tile = tile
       tile.timeout = this.loader.insert(priority, tl)
     }
+  },
+
+  toggleColor : function() {
+    this.color = !this.color
+    this.updateTiles(true)
   },
 
   tileInit : function(tile) {},
@@ -1500,6 +1516,14 @@ Portal.FileMap.prototype.mergeD({
       } else {
         infoFloater.maximized = true
       }
+    } else if (info.mimetype.match(/^video\//)) {
+      var i = Elem('embed')
+      i.width = info.metadata.width
+      i.height = info.metadata.height
+      i.src = this.filePrefix + info.path + this.fileSuffix
+      infoFloater.content.appendChild(i)
+      infoFloater.content.appendChild(this.parseItemMetadata(info))
+      infoFloater.show()
     } else if (info.mimetype == 'text/html') {
       var i = Elem('iframe')
       i.width = 600
@@ -1653,17 +1677,28 @@ Portal.FileMap.prototype.mergeD({
     }
 //     infoDiv.appendChild(Elem('pre', info.metadata.exif))
     if (info.writable && !hide_edit_link) {
-      var editLink = Elem("a", this.translate("edit"), null, null,
-        {textAlign:'right', display:'block'},
-        {href:this.itemPrefix+info.path+this.itemSuffix})
       var t = this
-      editLink.addEventListener("click", function(e){
-        if (Mouse.normal(e)) {
-          e.preventDefault()
-          t.itemEditForm(infoDiv, info)
-        }
-      }, false)
-      infoDiv.appendChild(editLink)
+      var editButton = Portal.Button(
+        this.translate("edit"),
+        Portal.Floater.prototype.buttonURL("edit", false),
+        Portal.Floater.prototype.buttonURL("edit", true),
+        Portal.Floater.prototype.buttonURL("edit", true),
+        function(){ t.itemEditForm(infoDiv, info) },
+        true
+      )
+      var deleteButton = Portal.Button(
+        this.translate("delete"),
+        Portal.Floater.prototype.buttonURL("delete", false),
+        Portal.Floater.prototype.buttonURL("delete", true),
+        Portal.Floater.prototype.buttonURL("delete", true),
+        function(){ t.deleteItem(infoDiv, info) },
+        true
+      )
+      var editDiv = Elem("div", null, null, 'editDiv',
+        {textAlign:'right', display:'block', marginTop:'3px'})
+      editDiv.appendChild(editButton)
+      editDiv.appendChild(deleteButton)
+      infoDiv.appendChild(editDiv)
     }
     return infoDiv
   },
@@ -1859,7 +1894,8 @@ Portal.FileMap.prototype.mergeD({
       camera : 'camera',
       manufacturer : 'manufacturer',
       software : 'software',
-      edit : 'edit metadata',
+      edit : 'Edit metadata',
+      delete : 'Delete',
       filename : 'filename',
       source : 'source',
       referrer : 'referrer',
@@ -1924,7 +1960,8 @@ Portal.FileMap.prototype.mergeD({
       camera : 'kamera',
       manufacturer : 'valmistaja',
       software : 'ohjelmisto',
-      edit : 'muokkaa tietoja',
+      edit : 'Muokkaa tietoja',
+      delete : 'Poista',
       filename : 'tiedostonimi',
       source : 'lähde',
       referrer : 'viittaaja',

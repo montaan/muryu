@@ -126,6 +126,17 @@ class Items < DB::Tables::Items
     end
   end
 
+  def purge
+    if self.class.find_all(:sha1_hash => sha1_hash).size == 1
+      File.unlink(internal_path) if File.exist?(internal_path)
+      File.unlink(thumbnail) if File.exist?(internal_path)
+    end
+    self.sha1_hash = nil
+    self.deleted = true
+    self.source = nil
+    self.referrer = nil
+  end
+
   def thumbnail(sz=256)
     Future.thumbnail_dir.join(*sha1_hash.scan(/(..)(..)(.*)/)[0]) + "#{sz}.png"
   end

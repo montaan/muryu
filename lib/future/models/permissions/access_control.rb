@@ -224,10 +224,19 @@ extend AccessControlClass
     end
   end
 
+  def rpurge(user)
+    write(user) do
+      purge
+      update_image_cache
+    end
+  end
+
   def rundelete(user)
     write(user) do
-      self.deleted = false
-      update_image_cache
+      if File.exist?(internal_path)
+        self.deleted = false
+        update_image_cache
+      end
     end
   end
 

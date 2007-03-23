@@ -7,8 +7,11 @@
     <link rel="stylesheet" href="style.css"/>
     <script src="rototype.js"></script>
     <script src="portal.js"></script>
-<!--     <script src="http://maps.google.com/maps?file=api&amp;v=2&amp;key=ABQIAAAAWpSYHNXxjMT-MLolMNpBmRTCNcOO4yOkKgt0L38AwHqhnHpSGBTZh68sFfaoxmfyFFzGWAMa5KUFOQ" type="text/javascript"></script> -->
+     <script src="http://maps.google.com/maps?file=api&amp;v=2&amp;key=ABQIAAAAWpSYHNXxjMT-MLolMNpBmRTCNcOO4yOkKgt0L38AwHqhnHpSGBTZh68sFfaoxmfyFFzGWAMa5KUFOQ" type="text/javascript"></script>
     <script>
+      function toggleColor() {
+        focusedPortal.toggleColor()
+      }
       window.addEventListener("load",function(){
         var zs = $S("#zogen").style
         var x = parseInt(zs.left || 0)
@@ -76,11 +79,11 @@
         ] Toggle [
           <a href="javascript:toggleCSSDisplay('.info')">emblems</a>
         | <a href="javascript:toggleCSSDisplay('.infoText')">filename</a>
-        | <a href="javascript:toggleCSSDisplay('.itemLink')">links</a> ]
+        | <a href="javascript:toggleCSSDisplay('.itemLink')">links</a>
+        | <a href="javascript:toggleColor()">color</a> ]
       </td>
       <td align="right">
         <span class="login">
-          <a id="register" href="/users/create">Register</a> |
           <a id="sign_in" href="/users/login">Sign in</a>
           <form id="login_form" action="/users/login" method="POST">
             <span id="form_username">Username</span>
@@ -88,6 +91,7 @@
             <span id="form_password">Password</span>
             <input name="password" type="password"/>
             <input id="submit_sign_in" value="Sign in" type="submit"/>
+            | <a id="register" href="/users/create">Register</a>
           </form>
         </span>
         <span class="logout">

@@ -35,8 +35,12 @@ extend self
 
   @@default_color = BLACK
 
-  def palette
-    @@palette ||= create_palette
+  def palette(colors=false)
+    if colors
+      @@palette ||= create_palette
+    else
+      false
+    end
   end
 
   def create_palette
@@ -70,8 +74,8 @@ extend self
         end
         indexes = t
       end
-      r,x,y,z,w,h = *tile_args
-      tile = TileDrawer.new.draw_tile(indexes, palette, r,x,y,z,w,h)
+      r,x,y,z,w,h,colors = *tile_args
+      tile = TileDrawer.new.draw_tile(indexes, palette(colors), r,x,y,z,w,h)
     end
     if tile
       qtext = sanitize_query(query)
@@ -103,6 +107,7 @@ extend self
         end
         fn.read
       )
+      return false
     end
   end
 
@@ -166,10 +171,11 @@ class TileDrawer
 #     return draw_tile_rend(indexes, palette, x, y, zoom) if zoom <= 7
     tile = Imlib2::Image.new(w,h)
     tile.fill_rectangle(0,0, w, h, BACKGROUND_COLOR)
-    @image_cache.batch do
-      layouter.each(indexes, x, y, sz, w, h, *layouter_args) do |i, ix, iy|
-        @image_cache.draw_image_at(i[0], zoom, tile, ix, iy)
-        tile.fill_rectangle(ix, iy, sz, sz, Imlib2::Color::RgbaColor.new(palette[i[1]]))
+    layouter.each(indexes, x, y, sz, w, h, *layouter_args) do |i, ix, iy|
+      @image_cache.draw_image_at(i[0], zoom, tile, ix, iy)
+      if palette
+        tile.fill_rectangle(ix, iy, sz, sz,
+          Imlib2::Color::RgbaColor.new(palette[i[1]]))
       end
     end
     tile

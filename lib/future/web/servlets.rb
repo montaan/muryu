@@ -536,7 +536,17 @@ extend FutureServlet
     def do_view(req,res)
       res['Content-type'] = 'image/jpeg'
       x,y,z,w,h = parse_tile_geometry(servlet_path)
-      res.body = Tiles.read(servlet_user, search_query, :rows, x, y, z, w, h)
+      if req.query['color'].to_s == 'false'
+        tile = Tiles.read(servlet_user, search_query, :rows, x, y, z, w, h, false)
+      else
+        tile = Tiles.read(servlet_user, search_query, :rows, x, y, z, w, h, true)
+      end
+      if tile
+        res.body = tile
+      else
+        res.status = 302
+        res['location'] = '/empty.jpg'
+      end
       puts Time.now.to_f
       puts Time.now.to_f - self.request_time
       puts 
@@ -695,7 +705,27 @@ extend FutureServlet
 
   class << self
     def sub_modes
-      ['owner','file','groups','tags','sets','thumbnail','upload']
+      ['owner','file','groups','tags','sets','thumbnail','upload','purge']
+    end
+    
+    def servlet_view_actions(req)
+      if servlet_target.writable_by(servlet_user)
+        if column? 'deleted' and servlet_target.deleted
+          if servlet_target.sha1_hash
+            [["Undelete", File.join(servlet_target_path, "undelete")],
+             ["Purge", File.join(servlet_target_path, "purge")]
+            ]
+          else
+            []
+          end
+        else
+          [["Delete", File.join(servlet_target_path, "delete")],
+           ["Purge", File.join(servlet_target_path, "purge")]
+          ]
+        end
+      else
+        []
+      end
     end
 
     def servlet_path_key
@@ -847,6 +877,10 @@ extend FutureServlet
         res['Content-type'] = 'image/png'
         res.body = servlet_target.thumbnail.read
       end
+    end
+
+    def do_purge(req,res)
+      servlet_target.rpurge(servlet_user)
     end
 
     ### FIXME implement compressed and remote_compressed uploads.
