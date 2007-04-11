@@ -986,6 +986,10 @@ Portal.FileMap.prototype.mergeD({
   itemPrefix : '/items/',
   itemSuffix : '',
   itemJSONSuffix : '/json',
+  
+  deleteSuffix : '/delete',
+  undeleteSuffix : '/undelete',
+  purgeSuffix : '/purge',
   editSuffix : '/edit',
 
   emblemPrefix : '',
@@ -1703,6 +1707,22 @@ Portal.FileMap.prototype.mergeD({
     return infoDiv
   },
 
+  deleteItem : function(div, info) {
+    if (div)
+      div.parentNode.parentNode.detachSelf()
+    var url = this.itemPrefix + info.path + this.itemSuffix + this.deleteSuffix
+    postQuery(url, '',
+      this.bind(function(res){
+        this.updateTiles(true)
+      }),
+      this.bind(function(res){
+        this.queryErrorHandler(
+          this.translate("delete_failed")
+        )
+      })
+    )
+  },
+
   itemKeys : [
     {name:'source', type:['url']},
     {name:'referrer', type:['url']},
@@ -1916,6 +1936,7 @@ Portal.FileMap.prototype.mergeD({
       cancel : 'cancel',
       done : 'save',
       edit_failed : 'Saving edits failed',
+      delete_failed : 'Deleting item failed',
       loading_tile_info : 'Loading tile info failed',
       loading_item_info : 'Loading item info failed',
       byte_abbr : 'B',
@@ -1982,6 +2003,7 @@ Portal.FileMap.prototype.mergeD({
       cancel : 'peruuta',
       done : 'tallenna',
       edit_failed : 'Muutosten tallentaminen epäonnistui',
+      delete_failed : 'Poisto epäonnistui',
       loading_tile_info : 'Tiilen tietojen lataaminen epäonnistui',
       loading_item_info : 'Kohteen tietojen lataaminen epäonnistui',
       byte_abbr : 'T',
