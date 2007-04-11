@@ -16,6 +16,12 @@ class MuryuQuery
   class BadKey < ArgumentError
   end
   
+  class BadGet < ArgumentError
+  end
+  
+  class BadPost < ArgumentError
+  end
+  
   attr_reader(:path, :type, :method, :key, :list_query, :get, :post)
 
   class << self
@@ -28,18 +34,8 @@ class MuryuQuery
     'sets' => %w(create json edit delete undelete view),
     'users' => %w(create login logout json edit delete view),
     'groups' => %w(create json edit delete undelete view),
-    'tile' => %w(),
-    'tile_info' => %w()
-  }
-  
-  self.type_list_query = {
-    'items' => true,
-    'files' => true,
-    'sets' => ['name', 'namespace', 'user'],
-    'users' => false,
-    'groups' => false,
-    'tile' => false,
-    'tile_info' => false
+    'tile' => %w(view),
+    'tile_info' => %w(view)
   }
   
   uint = '(([1-9][0-9]*)|0)'
@@ -49,16 +45,16 @@ class MuryuQuery
   relative_path = '([0-9A-Za-z._-]+/[0-9]{4}/[0-9]{2}-[0-9]{2}-(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/[0-9A-Za-z._-]+)'
   itemkey = "(#{uint}|#{relative_path})"
   filename = '(\S+)'
-  setname = '(\S+)'
+  setname = '(.+)'
   username = '([0-9A-Za-z._-]+)'
-  password = '.*'
+  password = '(.+)'
   tagname = '(\S+)'
   setkey = "(#{username}/#{setname})"
   groupname = '([0-9A-Za-z._-]+)'
   tile = "(x[0-9]+\\.[0-9]+y[0-9]+\\.[0-9]+z#{uint}w#{uint}h#{uint})"
   boolean = '(true|false)'
-  url = '.*'
-  string = '.*'
+  url = '(.*)'
+  string = '(.*)'
   location = "(\\(#{float},#{float}\\))"
   mimetype = '([a-z]+/[0-9a-z._-]+)'
   date = '(-?[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})'
@@ -88,6 +84,24 @@ class MuryuQuery
     'username' => e(username),
     'password' => e(password)
   }
+  
+  self.type_list_query = {
+    'items' => {
+      'q' => e(string)
+    },
+    'files' => {
+      'q' => e(string)
+    },
+    'sets' => {
+      'name' => e(setname),
+      'owner' => e(username)
+    },
+    'users' => false,
+    'groups' => false,
+    'tile' => false,
+    'tile_info' => false
+  }
+  
   self.type_method_get_validators = {
     'items' => {
       'view' => up,
@@ -124,10 +138,12 @@ class MuryuQuery
       'view' => {
         'q' => e(string),
         'color' => e(boolean),
+        'columns' => list_of[field_names],
         'bgcolor' => e(color)
       }.merge(up)
     }
   }
+
 
   item_edit = up.merge({
     'filename' => e(string),
@@ -176,7 +192,7 @@ class MuryuQuery
       'logout' => {
       },
       'create' => up,
-      'edit' => up,
+      'edit' => {'new_password' => e(password)}.merge(up),
       'delete' => up,
       'undelete' => up
     },
@@ -195,9 +211,9 @@ class MuryuQuery
   }
   
   def initialize(req)
-    self.path = req.relative_path
     @get = req.get
     @post = req.post
+    self.path = req.relative_path
   end
 
   def valid_methods
@@ -221,15 +237,20 @@ class MuryuQuery
   end
 
   def valid_get?(key, val)
-    v = self.class.type_method_get_validators[@type][@method]
-    return false unless v
-    v.match(val)
+    validate('get', key, val)
   end
   
   def valid_post?(key, val)
-    v = self.class.type_method_post_validators[@type][@method]
-    return false unless v
-    v.match(val)
+    validate('post', key, val)
+  end
+
+  def validate(t, key, val)
+    v = self.class.__send__('type_method_'+t+'_validators')[@type][@method]
+    if @list_query
+      v = v.merge(self.class.type_list_query[@type])
+    end
+    return false unless v and v[key]
+    v[key].match(val)
   end
   
   def has_list_query?
@@ -241,6 +262,7 @@ class MuryuQuery
     @type, rest = path.split("/", 2)
     raise(UnknownType) unless valid_type?
     parts = rest.to_s.split("/").reject{|s| s.empty? }
+    @list_query = false
     if parts.length > 1
       if valid_method?(parts.last)
         @method = parts.last
@@ -250,27 +272,26 @@ class MuryuQuery
         @key = parts.join("/")
       end
       raise(BadKey) unless valid_key?(@key)
-      @list_query = false
     elsif parts.length == 1 and not valid_method?(parts[0])
       @method = 'view'
       @key = parts[0]
       raise(BadKey) unless valid_key?(@key)
-      @list_query = false
-    elsif (has_list_query? ||
-           parts[0] == 'create' ||
+    elsif (parts[0] == 'create' ||
            @type == 'items' && parts[0] == 'upload' ||
            @type == 'users' && parts[0] == 'login' )
+      @method = parts[0]
+    elsif (has_list_query?)
       @method = parts[0] || 'view'
       @list_query = true
     else
       raise(NoListQuery)
     end
-    if !@list_query
-      if @post and not @post.empty?
-        raise(BadPost) unless @post.all?{|k,v| valid_post?(k, v) }
-      elsif @get and not @get.empty?
-        raise(BadGet) unless @get.all?{|k,v| valid_get?(k, v) }
-      end
+    if @post and not @post.empty?
+      bp = @post.find_all{|k,v| !valid_post?(k, v) }
+      raise(BadPost, "@type=#@type, @method=#@method, @list_query=#@list_query, "+bp.inspect) unless bp.empty?
+    elsif @get and not @get.empty?
+      bg = @get.find_all{|k,v| !valid_get?(k, v) }
+      raise(BadGet, "@type=#@type, @method=#@method, @list_query=#@list_query, "+bg.inspect) unless bg.empty?
     end
   end
   
