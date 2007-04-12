@@ -35,7 +35,7 @@ end
 
 class TestDispatch < Test::Unit::TestCase
   def test_single
-    r = Req.new('items/foo/2007/12-01-Mon/bob.jpg')
+    r = Req.new('items/foo/2007/12-01/bob.jpg')
     rv = MuryuDispatch.dispatch(r)
     assert_equal(rv, 'items')
     r = Req.new('tile_info/x0.38y1.29z39w38h39')
@@ -63,7 +63,7 @@ class TestMuryuQuery < Test::Unit::TestCase
   end
 
   def test_default
-    q = mq('items/foo/2007/12-01-Mon/bob.jpg')
+    q = mq('items/foo/2007/12-01/bob.jpg')
     q2 = mq('items/48821')
     q3 = mq('items')
     q4 = mq('items/')
@@ -74,13 +74,13 @@ class TestMuryuQuery < Test::Unit::TestCase
   end
   
   def test_simple
-    q = mq('items/foo/2007/12-01-Mon/bob.jpg/json')
-    assert_equal(q.path, 'items/foo/2007/12-01-Mon/bob.jpg/json')
+    q = mq('items/foo/2007/12-01/bob.jpg/json')
+    assert_equal(q.path, 'items/foo/2007/12-01/bob.jpg/json')
     assert_equal(q.method, 'json')
     assert_equal(q.list_query, false)
     assert_equal(q.get, nil)
     assert_equal(q.post, nil)
-    assert_equal(q.key, 'foo/2007/12-01-Mon/bob.jpg')
+    assert_equal(q.key, 'foo/2007/12-01/bob.jpg')
     assert_equal(q.type, 'items')
   end
   
@@ -166,13 +166,13 @@ class TestMuryuQuery < Test::Unit::TestCase
       mq('items/bob/foo.jpg')
     }
     assert_raise(MuryuQuery::BadKey){
-      mq('items/bob/200/10-10-Thu/foo.jpg')
+      mq('items/bob/200/10-10/foo.jpg')
     }
     assert_raise(MuryuQuery::BadKey){
-      mq('items/bob/2005/1-10-Thu/foo.jpg')
+      mq('items/bob/2005/1-10/foo.jpg')
     }
     assert_raise(MuryuQuery::BadKey){
-      mq('items/bob/2005/10-10-Thu/foo.jpg/bats')
+      mq('items/bob/2005/10-10/foo.jpg/bats')
     }
     assert_raise(MuryuQuery::BadKey){
       mq('users/bob/foo.jpg')
@@ -202,17 +202,17 @@ class TestMuryuQuery < Test::Unit::TestCase
       mq('files/39485')
     }
     assert_raise(MuryuQuery::BadKey){
-      mq('files/bob/200/10-10-Thu/foo.jpg')
+      mq('files/bob/200/10-10/foo.jpg')
     }
     assert_raise(MuryuQuery::BadKey){
-      mq('files/bob/200/10-10-Thu/foo.jpg/bats')
+      mq('files/bob/200/10-10/foo.jpg/bats')
     }
   end
   
   def test_good_key
-    mq('items/bob/2005/10-10-Thu/Foo.jpg')
+    mq('items/bob/2005/10-10/Foo.jpg')
     mq('items/38682')
-    mq('files/bob/2005/10-10-Thu/Foo.jpg')
+    mq('files/bob/2005/10-10/Foo.jpg')
     mq('users/bob')
     mq('users/bob-badaluk')
     mq('users/bob_badaluk')
@@ -248,17 +248,17 @@ class TestMuryuQuery < Test::Unit::TestCase
     mq('items/json', {
       'q' => 'set:bank user:bob account details'
     })
-    mq('items/foo/2007/10-10-Thu/bob.jpg/json', {
+    mq('items/foo/2007/10-10/bob.jpg/json', {
       'columns' => 'metadata,owner'
     })
-    mq('items/foo/2007/10-10-Thu/bob.jpg/json', {
+    mq('items/foo/2007/10-10/bob.jpg/json', {
       'columns' => 'all'
     })
-    mq('items/foo/2007/10-10-Thu/bob.jpg/json', {})
-    mq('items/foo/2007/10-10-Thu/bob.jpg/view', {})
-    mq('items/foo/2007/10-10-Thu/bob.jpg/thumbnail', {})
-    mq('items/foo/2007/10-10-Thu/bob.jpg/file', {})
-    mq('files/foo/2007/10-10-Thu/bob.jpg')
+    mq('items/foo/2007/10-10/bob.jpg/json', {})
+    mq('items/foo/2007/10-10/bob.jpg/view', {})
+    mq('items/foo/2007/10-10/bob.jpg/thumbnail', {})
+    mq('items/foo/2007/10-10/bob.jpg/file', {})
+    mq('files/foo/2007/10-10/bob.jpg')
     mq('files/', {
       'q' => 'set:bank user:bob account details'
     })
@@ -267,39 +267,39 @@ class TestMuryuQuery < Test::Unit::TestCase
   def test_good_items_post
     mq('items/upload', nil, {
     })
-    mq('items/foo/2007/10-10-Thu/bob.jpg/edit', nil, {
+    mq('items/foo/2007/10-10/bob.jpg/edit', nil, {
     })
-    mq('items/foo/2007/10-10-Thu/bob.jpg/delete', nil, {
+    mq('items/foo/2007/10-10/bob.jpg/delete', nil, {
     })
-    mq('items/foo/2007/10-10-Thu/bob.jpg/undelete', nil, {
+    mq('items/foo/2007/10-10/bob.jpg/undelete', nil, {
     })
-    mq('items/foo/2007/10-10-Thu/bob.jpg/purge', nil, {
+    mq('items/foo/2007/10-10/bob.jpg/purge', nil, {
       'password' => 'oi9825jau'
     })
   end
 
   def test_bad_items_get
     assert_raise(MuryuQuery::BadGet){
-      mq('items/foo/2007/10-10-Thu/bob.jpg/json', {
+      mq('items/foo/2007/10-10/bob.jpg/json', {
         'badamuk' => 'badaluk'})
     }
     assert_raise(MuryuQuery::BadGet){
-      mq('items/foo/2007/10-10-Thu/bob.jpg/view', {
+      mq('items/foo/2007/10-10/bob.jpg/view', {
         'badamuk' => 'badaluk'})
     }
     assert_raise(MuryuQuery::BadGet){
-      mq('items/foo/2007/10-10-Thu/bob.jpg/thumbnail', {
+      mq('items/foo/2007/10-10/bob.jpg/thumbnail', {
         'badamuk' => 'badaluk'})
     }
     assert_raise(MuryuQuery::BadGet){
-      mq('items/foo/2007/10-10-Thu/bob.jpg/file', {
+      mq('items/foo/2007/10-10/bob.jpg/file', {
         'badamuk' => 'badaluk'})
     }
   end
 
   def test_bad_items_post
     assert_raise(MuryuQuery::BadPost){
-      mq('items/foo/2007/10-10-Thu/bob.jpg/edit', nil, {
+      mq('items/foo/2007/10-10/bob.jpg/edit', nil, {
         'badamuk' => 'badaluk'})
     }
   end

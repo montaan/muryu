@@ -6,20 +6,23 @@ end
 
 
 class MuryuQuery
+
+  class MuryuError < ArgumentError
+  end
   
-  class UnknownType < ArgumentError
+  class UnknownType < MuryuError
   end
 
-  class NoListQuery < ArgumentError
+  class NoListQuery < MuryuError
   end
   
-  class BadKey < ArgumentError
+  class BadKey < MuryuError
   end
   
-  class BadGet < ArgumentError
+  class BadGet < MuryuError
   end
   
-  class BadPost < ArgumentError
+  class BadPost < MuryuError
   end
   
   attr_reader(:path, :type, :method, :key, :list_query, :get, :post)
@@ -42,7 +45,7 @@ class MuryuQuery
   int = "((-|\\+)?#{uint})"
   ufloat = "((#{uint}(\.[0-9])?|0\.[0-9])[0-9]*)"
   float = "((-|\\+)?#{ufloat})"
-  relative_path = '([0-9A-Za-z._-]+/[0-9]{4}/[0-9]{2}-[0-9]{2}-(Mon|Tue|Wed|Thu|Fri|Sat|Sun)/[0-9A-Za-z._-]+)'
+  relative_path = '([0-9A-Za-z._-]+/[0-9]{4}/[0-9]{2}-[0-9]{2}/[0-9A-Za-z._-]+)'
   itemkey = "(#{uint}|#{relative_path})"
   filename = '(\S+)'
   setname = '(.+)'
@@ -260,7 +263,7 @@ class MuryuQuery
   def path=(path)
     @path = path
     @type, rest = path.split("/", 2)
-    raise(UnknownType) unless valid_type?
+    raise(UnknownType, "@path=#@path, @type=#@type") unless valid_type?
     parts = rest.to_s.split("/").reject{|s| s.empty? }
     @list_query = false
     if parts.length > 1
@@ -271,11 +274,11 @@ class MuryuQuery
         @method = 'view'
         @key = parts.join("/")
       end
-      raise(BadKey) unless valid_key?(@key)
+      raise(BadKey, "@path=#@path, @type=#@type, @key=#@key}") unless valid_key?(@key)
     elsif parts.length == 1 and not valid_method?(parts[0])
       @method = 'view'
       @key = parts[0]
-      raise(BadKey) unless valid_key?(@key)
+      raise(BadKey, "@path=#@path, @type=#@type, @key=#@key}") unless valid_key?(@key)
     elsif (parts[0] == 'create' ||
            @type == 'items' && parts[0] == 'upload' ||
            @type == 'users' && parts[0] == 'login' )
@@ -284,7 +287,7 @@ class MuryuQuery
       @method = parts[0] || 'view'
       @list_query = true
     else
-      raise(NoListQuery)
+      raise(NoListQuery, "@path=#@path, @type=#@type")
     end
     if @post and not @post.empty?
       bp = @post.find_all{|k,v| !valid_post?(k, v) }
