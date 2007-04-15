@@ -272,7 +272,7 @@ class TileDrawer
               GL.Flush()
               d = GL.ReadPixels(
                 0,0, 256, 256,
-                GL::RGBA, GL::UNSIGNED_BYTE)
+                GL::BGRA, GL::UNSIGNED_BYTE)
               puts Time.now.to_f
               rq.push(d)
               GLUT.SwapBuffers() unless use_fbo
