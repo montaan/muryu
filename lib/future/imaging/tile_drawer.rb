@@ -16,6 +16,7 @@ extend self
 
   @@fn_data = nil
   @@palette = nil
+  @@transparent_palette = nil
 
   BLUE    = [ 13,   7, 255, 127]
   RED     = [178,   0,   0, 127]
@@ -168,7 +169,7 @@ class TileDrawer
       break
     end
     return false if empty_tile
-#     return draw_tile_rend(indexes, palette, x, y, zoom) if zoom <= 7
+    return draw_tile_rend(indexes, palette, x, y, zoom) if zoom <= 7
     tile = Imlib2::Image.new(w,h)
     tile.fill_rectangle(0,0, w, h, BACKGROUND_COLOR)
     layouter.each(indexes, x, y, sz, w, h, *layouter_args) do |i, ix, iy|
@@ -190,12 +191,18 @@ class TileDrawer
     end
   end
 
-  def draw_tile_rend(indexes, x, y, z)
+  def draw_tile_rend(indexes, palette, x, y, z)
     init_rend unless @@rend_init
     rq = Queue.new
-    @@draw_queue.push([rq, [indexes, x, y, z, @image_cache.thumb_size_at_zoom(z)]])
+    if palette
+      pmax = palette.keys.max
+      cpalette = (0..pmax).map{|i| palette[i] || [0,0,0,0]}.flatten.pack("c*").unpack("L*")
+    else
+      cpalette = []
+    end
+    @@draw_queue.push([rq, [indexes, cpalette, x, y, z, @image_cache.thumb_size_at_zoom(z)]])
     puts Time.now.to_f
-    img = rq.pop #Imlib2::Image.create_using_data(256, 256, rq.pop)
+    img = Imlib2::Image.create_using_data(256, 256, rq.pop)
     puts Time.now.to_f
     img
   end
@@ -212,11 +219,12 @@ class TileDrawer
       require 'opengl'
       require 'glut'
       require 'glew'
+      use_fbo = true
       init_image_cache(1_000_000, 6)
       t = Thread.new do
         GLUT.Init
-        GLUT.InitDisplayMode(GLUT::DOUBLE | GLUT::RGB)
-        GLUT.InitWindowSize(128, 128)
+        GLUT.InitDisplayMode(GLUT::RGBA | GLUT::DOUBLE)
+        GLUT.InitWindowSize(256, 256)
         GLUT.CreateWindow
         GLEW.Init
         GL.ClearColor(0.055, 0.137, 0.220, 1.0)
@@ -233,10 +241,12 @@ class TileDrawer
         GL::TexImage2D(GL::TEXTURE_RECTANGLE_EXT, 0,
           GL::RGBA, 512,512,0, GL::RGBA,
           GL::UNSIGNED_BYTE, "\000\000\000\000"*(512*512))
-        GL.BindFramebufferEXT(GL::FRAMEBUFFER_EXT, fbo)
-        GL.FramebufferTexture2DEXT(GL::FRAMEBUFFER_EXT,
-          GL::COLOR_ATTACHMENT0_EXT, GL::TEXTURE_RECTANGLE_EXT, fbo_tex, 0)
-        GL.ReadBuffer(fbo)
+        if use_fbo
+          GL.BindFramebufferEXT(GL::FRAMEBUFFER_EXT, fbo)
+          GL.FramebufferTexture2DEXT(GL::FRAMEBUFFER_EXT,
+            GL::COLOR_ATTACHMENT0_EXT, GL::TEXTURE_RECTANGLE_EXT, fbo_tex, 0)
+          GL.ReadBuffer(fbo)
+        end
         GL.MatrixMode(GL::PROJECTION)
         GL.LoadIdentity
         GLU.Ortho2D(0, 256, 0, 256)
@@ -262,9 +272,10 @@ class TileDrawer
               GL.Flush()
               d = GL.ReadPixels(
                 0,0, 256, 256,
-                GL::RGB, GL::UNSIGNED_BYTE)
+                GL::RGBA, GL::UNSIGNED_BYTE)
               puts Time.now.to_f
               rq.push(d)
+              GLUT.SwapBuffers() unless use_fbo
             end
           end
         )
@@ -305,6 +316,10 @@ class TileDrawer
         uint_64** rindexes,
         GLfloat** vertex_array,
         GLfloat** texcoords,
+        GLuint** colors,
+        uint_32* iindex_colors,
+        uint_32 iindexes_length,
+        GLuint* palette,
         uint_64 x,
         uint_64 y,
         uint_32 sz,
@@ -319,9 +334,11 @@ class TileDrawer
         uint_64 first_row_in_view, last_row_in_view, first_row_y;
         uint_64 first_column_in_view, last_column_in_view, columns_in_view, rows_in_view;
         uint_64 i,r,j,c;
+        uint_64 index;
         uint_64 *indexes;
         GLfloat *varr, *texc;
-        uint_32 tile_image_count, k, l, tx, ty;
+        GLuint *colr;
+        uint_32 tile_image_count, k, l, m, tx, ty;
 
         tpt = 512 / sz;
 
@@ -353,6 +370,8 @@ class TileDrawer
         varr = (GLfloat*)malloc( sizeof(GLfloat)*(columns_in_view * rows_in_view)*4*3 );
         /* 4 2D points */
         texc = (GLfloat*)malloc( sizeof(GLfloat)*(columns_in_view * rows_in_view)*4*2 );
+        /* 4 packed colors */
+        colr = (GLuint*)malloc( sizeof(GLuint)*(columns_in_view * rows_in_view)*4 );
         
         tile_image_count = 0;
 
@@ -367,9 +386,11 @@ class TileDrawer
             if (c >= columns || c < 0) continue;
             ix = j*sz - x%sz;
             if (ix >= w) continue;
-            indexes[tile_image_count] = (bigrow * bigrow_img_count) + (c * rows) + (r % rows);
+            index = (bigrow * bigrow_img_count) + (c * rows) + (r % rows);
+            indexes[tile_image_count] = index;
             l = tile_image_count * 12;
             k = tile_image_count * 8;
+            m = tile_image_count * 4;
             tx = (tile_image_count % tpt) * sz;
             ty = (tile_image_count / tpt) * sz;
 
@@ -383,6 +404,13 @@ class TileDrawer
             texc[k+4] = texc[k+2] = tx + sz;
             texc[k+1] = texc[k+3] = ty;
             texc[k+7] = texc[k+5] = ty + sz;
+
+            if (palette != NULL) {
+              colr[m] = colr[m+1] = colr[m+2] = colr[m+3] = (
+                (index >= iindexes_length) ?
+                0x00000000 :
+                palette[iindex_colors[index]]);
+            }
             tile_image_count++;
           }
         }
@@ -390,6 +418,7 @@ class TileDrawer
         *rindexes = indexes;
         *vertex_array = varr;
         *texcoords = texc;
+        *colors = colr;
       }
 
       void upload(char* pixels, uint_32 pxlen, uint_32 sz)
@@ -425,27 +454,23 @@ class TileDrawer
 
       void setup_texture
       (
-        VALUE self, VALUE query,
+        VALUE self, uint_64* iindexes, uint_32 iindexes_length,
         uint_32 z, uint_32 sz, uint_64 *indexes, uint_32 indexes_length
       )
       {
         VALUE image_cache, thumb_data;
         char *pixels, *data;
         uint_32 i, sz24;
-        VALUE *qptr;
-        int qlen;
         uint_64 index;
         
         sz24 = sz*sz*4;
         pixels = (char*)malloc(sz24*indexes_length);
         for(i=0;i<sz24*indexes_length;i++) pixels[i] = 0;
         image_cache = rb_ivar_get(self, rb_intern("@image_cache"));
-        qlen = RARRAY(query)->len;
-        qptr = RARRAY(query)->ptr;
         rb_funcall(self, rb_intern("print_time"), 0);
         for(i=0; i<indexes_length; i++) {
           index = indexes[i];
-          if (index < qlen) {
+          if (index < iindexes_length) {
             if (z < icache_levels) {
               if (icache[z*32768 + index] != NULL) {
                 memcpy(pixels+(sz24*i), icache[z*32768 + index], sz24);
@@ -453,7 +478,7 @@ class TileDrawer
                 thumb_data = rb_funcall(
                   image_cache,
                   rb_intern("read_image_at"), 2,
-                  qptr[index], INT2FIX(z)
+                  INT2FIX(iindexes[index]), INT2FIX(z)
                 );
                 data = (char*)malloc(sz24);
                 memcpy(data, StringValuePtr(thumb_data), sz24);
@@ -464,7 +489,7 @@ class TileDrawer
               thumb_data = rb_funcall(
                 image_cache,
                 rb_intern("read_image_at"), 2,
-                qptr[index], INT2FIX(z)
+                INT2FIX(iindexes[index]), INT2FIX(z)
               );
               memcpy(pixels+(sz24*i), StringValuePtr(thumb_data), sz24);
             }
@@ -476,15 +501,43 @@ class TileDrawer
       }
 
 
-      void draw(VALUE self, VALUE query, uint_64 x, uint_64 y, uint_32 z, uint_32 sz)
+      void draw(VALUE self, VALUE query, VALUE palette, uint_64 x, uint_64 y, uint_32 z, uint_32 sz)
       {
         uint_64* indexes;
         GLfloat* vertex_array;
         GLfloat* texcoords;
+        GLuint* colors;
         uint_32 indexes_length;
-        row_layout(&indexes_length, &indexes, &vertex_array, &texcoords,
-                    x, y, sz, 256, 256);
-        setup_texture(self, query, z, sz, indexes, indexes_length);
+        uint_64* iindexes;
+        uint_32* iindex_colors;
+        uint_32 iindexes_length;
+        GLuint* gl_palette;
+        VALUE *qptr;
+        uint_32 i, plen;
+        
+        qptr = RARRAY(query)->ptr;
+        iindexes_length = RARRAY(query)->len;
+        iindexes = (uint_64*)malloc(iindexes_length * sizeof(uint_64));
+        iindex_colors = (uint_32*)malloc(iindexes_length * sizeof(uint_32));
+        for(i=0; i<iindexes_length; i++) {
+          iindexes[i] = FIX2UINT(RARRAY(qptr[i])->ptr[0]);
+          iindex_colors[i] = FIX2UINT(RARRAY(qptr[i])->ptr[1]);
+        }
+        plen = RARRAY(palette)->len;
+        qptr = RARRAY(palette)->ptr;
+        if (plen == 0) {
+          gl_palette = NULL;
+        } else {
+          gl_palette = (GLuint*)malloc(plen * sizeof(GLuint));
+          for(i=0; i<plen; i++) {
+            gl_palette[i] = FIX2UINT(qptr[i]);
+          }
+        }
+        
+        row_layout(&indexes_length, &indexes, &vertex_array, &texcoords, &colors,
+                   iindex_colors, iindexes_length, gl_palette,
+                   x, y, sz, 256, 256);
+        setup_texture(self, iindexes, iindexes_length, z, sz, indexes, indexes_length);
 #ifdef NO_DEBUG
         glColor3f(1,1,1);
         glEnable(GL_TEXTURE_RECTANGLE_EXT);
@@ -499,30 +552,53 @@ class TileDrawer
         glVertex3f(0,256,0);
         glEnd();
 #else
-        glEnableClientState( GL_VERTEX_ARRAY );
-        glEnableClientState( GL_TEXTURE_COORD_ARRAY );
-        glDisableClientState( GL_NORMAL_ARRAY );
-        glDisableClientState( GL_COLOR_ARRAY );
-        glVertexPointer(3, GL_FLOAT, 0, vertex_array);
-        glTexCoordPointer(2, GL_FLOAT, 0, texcoords);
-        glDrawArrays(GL_QUADS, 0, indexes_length*4);
+        glPushAttrib(GL_COLOR_BUFFER_BIT | GL_CURRENT_BIT | GL_ENABLE_BIT | GL_TEXTURE_BIT);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDisable(GL_DEPTH_TEST);
+        
+        glPushClientAttrib(GL_CLIENT_VERTEX_ARRAY_BIT);
+          glEnable( GL_TEXTURE_RECTANGLE_EXT );
+          glDisableClientState( GL_NORMAL_ARRAY );
+          glDisableClientState( GL_COLOR_ARRAY );
+          glEnableClientState( GL_VERTEX_ARRAY );
+          glEnableClientState( GL_TEXTURE_COORD_ARRAY );
+          glColor4f(1.0, 1.0, 1.0, 1.0);
+          
+          glVertexPointer(3, GL_FLOAT, 0, vertex_array);
+          glTexCoordPointer(2, GL_FLOAT, 0, texcoords);
+          
+          glDrawArrays(GL_QUADS, 0, indexes_length*4);
+          if (gl_palette != NULL) {
+            glDisable( GL_TEXTURE_RECTANGLE_EXT );
+            glDisableClientState( GL_TEXTURE_COORD_ARRAY );
+            glEnableClientState( GL_COLOR_ARRAY );
+            glColorPointer(4, GL_UNSIGNED_BYTE, 0, colors);
+            glDrawArrays(GL_QUADS, 0, indexes_length*4);
+          }
+        glPopClientAttrib();
+        glPopAttrib();
 #endif
         free(texcoords);
         free(vertex_array);
         free(indexes);
+        free(colors);
+        free(iindexes);
+        free(iindex_colors);
+        free(gl_palette);
       }
     EOF
 
     builder.c_raw <<-EOF
       VALUE draw_query(int argc, VALUE *argv, VALUE self)
       {
-        if (argc != 5) {
+        if (argc != 6) {
           rb_raise(rb_eArgError, "Wrong number of args");
           return Qundef;
         }
         draw(self,
-          argv[0],
-          FIX2INT(argv[1]),FIX2INT(argv[2]),FIX2INT(argv[3]),FIX2INT(argv[4]));
+          argv[0], argv[1],
+          FIX2INT(argv[2]),FIX2INT(argv[3]),FIX2INT(argv[4]),FIX2INT(argv[5]));
         return Qnil;
       }
     EOF

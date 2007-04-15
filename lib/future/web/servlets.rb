@@ -675,6 +675,46 @@ extend FutureServlet
 end
 
 
+class Subfiles
+extend FutureServlet
+  def self.handle_request(req, res)
+    rt = Time.now.to_f
+    self.request_time = Time.now.to_f
+    DB::Conn.reserve do |conn|
+      Thread.current.conn = conn
+      user_auth(req, res)
+      spl = req.path_info.split("/")
+      path = spl[0,5].join("/")[1..-1]
+      rest = spl[5..-1].join("/")
+      item = Items.rfind(servlet_user, :path => path)
+      p [path, rest]
+      if item
+        ip = File.split(item.internal_path).first
+        sp = rest.gsub(/\A\.*\/|(\/\.\.\/)|(\/\.\.\Z)/, '')
+        fn = File.join(ip, sp)
+        if fn.index(File.dirname(ip)) == 0
+          if File.directory?(fn)
+            res.status = 403
+            res.body = "<html><body> No directory listings </body></html>"
+          else
+            res.body = File.read(fn)
+          end
+        else
+          res.status = 404
+          res.body = "<html><body> File not found </body></html>"
+        end
+      else
+        res.status = 404
+        res.body = "<html><body> File not found </body></html>"
+      end
+      Thread.current.conn = nil
+    end
+    sz = res.body.size
+    log_req([rt, Time.now.to_f-rt, sz].join(" "))
+  end
+end
+
+
 class Mimetypes
 extend FutureServlet
 
