@@ -7,6 +7,17 @@ end
 
 class MuryuQuery
 
+  class Matcher
+    def initialize(*sig, &block)
+      @sig = sig
+      @block = block if block_given?
+    end
+  
+    def match(obj)
+      @sig.all?{|s| obj.respond_to?(s)} and (!@block or @block.call(obj))
+    end
+  end
+
   class MuryuError < ArgumentError
   end
   
@@ -25,7 +36,7 @@ class MuryuQuery
   class BadPost < MuryuError
   end
   
-  attr_reader(:path, :type, :method, :key, :list_query, :get, :post)
+  attr_reader(:path, :type, :method, :key, :list_query, :get, :post, :cookie)
 
   class << self
     attr_accessor(:type_methods, :type_list_query, :type_keys, :type_method_get_validators, :type_method_post_validators)
@@ -62,6 +73,7 @@ class MuryuQuery
   mimetype = '([a-z]+/[0-9a-z._-]+)'
   date = '(-?[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})'
   color = '([0-9a-fA-F]{6})'
+  file = Matcher.new(:read, :filename)
 
   def self.e(pattern)
     Regexp.new('\A'+pattern+'\Z')
@@ -171,8 +183,8 @@ class MuryuQuery
       'upload' => item_edit.merge({
         'remote_file' => e(url),
         'remote_archive' => e(url),
-        'local_file' => e(string),
-        'local_archive' => e(string)
+        'local_file' => file,
+        'local_archive' => file
       }),
       'edit' => item_edit,
       'delete' => up,
@@ -216,6 +228,7 @@ class MuryuQuery
   def initialize(req)
     @get = req.get
     @post = req.post
+    @cookie = req.cookie
     self.path = req.relative_path
   end
 

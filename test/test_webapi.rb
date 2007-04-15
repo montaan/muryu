@@ -1,7 +1,7 @@
 require 'future/web/webapi_1'
 require 'test/unit'
 
-Req = Struct.new(:relative_path, :get, :post)
+Req = Struct.new(:relative_path, :get, :post, :cookie)
 
 class MuryuDispatch
   class TileInfo
@@ -60,6 +60,14 @@ end
 class TestMuryuQuery < Test::Unit::TestCase
   def mq(*args)
     MuryuQuery.new(Req.new(*args))
+  end
+
+  class MockFile
+    def read
+    end
+
+    def filename
+    end
   end
 
   def test_default
@@ -276,6 +284,10 @@ class TestMuryuQuery < Test::Unit::TestCase
     mq('items/foo/2007/10-10/bob.jpg/purge', nil, {
       'password' => 'oi9825jau'
     })
+    mq('items/upload', nil, {
+      'local_file' => MockFile.new,
+      'local_archive' => MockFile.new,
+    })
   end
 
   def test_bad_items_get
@@ -301,6 +313,16 @@ class TestMuryuQuery < Test::Unit::TestCase
     assert_raise(MuryuQuery::BadPost){
       mq('items/foo/2007/10-10/bob.jpg/edit', nil, {
         'badamuk' => 'badaluk'})
+    }
+    assert_raise(MuryuQuery::BadPost){
+      mq('items/upload', nil, {
+        'local_file' => 'bababad'
+      })
+    }
+    assert_raise(MuryuQuery::BadPost){
+      mq('items/upload', nil, {
+        'local_archive' => 'bababad'
+      })
     }
   end
   
