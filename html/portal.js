@@ -721,7 +721,7 @@ Portal.TileMap.prototype = {
           }
         tile.width = t.tileSize
         tile.height = t.tileSize
-        tile.src = t.tilePrefix + tileQuery + t.tileInfoSuffix + '?' + t.query + '&color=' + t.color
+        tile.src = t.tilePrefix + tileQuery + t.tileInfoSuffix + '?' + t.query + '&color=' + t.color + ((t.bgcolor != null) ? '&bgcolor='+t.bgcolor : '')
         t.view.appendChild(tile)
         tile.timeout = false
       }
@@ -733,6 +733,11 @@ Portal.TileMap.prototype = {
 
   toggleColor : function() {
     this.color = !this.color
+    this.updateTiles(true)
+  },
+
+  setBgColor : function(color) {
+    this.bgcolor = color
     this.updateTiles(true)
   },
 

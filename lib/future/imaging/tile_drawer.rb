@@ -18,6 +18,8 @@ extend self
   @@palette = nil
   @@transparent_palette = nil
 
+  DEFAULT_BGCOLOR = [14, 35, 56, 255]
+
   BLUE    = [ 13,   7, 255, 127]
   RED     = [178,   0,   0, 127]
   GREEN   = [ 42, 224,   0, 127]
@@ -65,6 +67,18 @@ extend self
     ###
     bad_tile = (tile_args[1] < 0 or tile_args[2] < 0)
     indexes = nil
+    r,x,y,z,w,h,colors,bgcolor = *tile_args
+    if bgcolor
+      if bgcolor.size == 3
+        abgcolor = bgcolor.scan(/./).map{|s| (s*2).hex }
+      else
+        abgcolor = bgcolor[0,6].scan(/../).map{|s| s.hex }
+      end
+      vbgcolor = (0..2).map{|i| abgcolor[i] || 0 }
+      vbgcolor[3] = 255
+    else
+      vbgcolor = DEFAULT_BGCOLOR
+    end
     if not bad_tile
       @@mutex.synchronize do
         key = user.name + "::" + sanitize_query(query)
@@ -75,8 +89,7 @@ extend self
         end
         indexes = t
       end
-      r,x,y,z,w,h,colors = *tile_args
-      tile = TileDrawer.new.draw_tile(indexes, palette(colors), r,x,y,z,w,h)
+      tile = TileDrawer.new.draw_tile(vbgcolor,indexes, palette(colors), r,x,y,z,w,h)
     end
     if tile
       qtext = sanitize_query(query)
@@ -95,20 +108,15 @@ extend self
         d
       end
     else
-      @@fn_data ||= (
-        fn = Future.empty_tile
-        unless fn.exist?
-          img = Imlib2::Image.new(*tile_args[-2,2])
-          img.fill_rectangle(0,0, img.width, img.height, BACKGROUND_COLOR)
-          Future.tile_cache_dir.mkdir_p
-          tmp = Future.tile_cache_dir + "tmptile-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.jpg"
-          img.save(tmp.to_s)
-          img.delete!(true)
-          File.rename(tmp, fn)
-        end
-        fn.read
-      )
-      return false
+      img = Imlib2::Image.new(w,h)
+      img.fill_rectangle(0,0, img.width, img.height, Imlib2::Color::RgbaColor.new(vbgcolor))
+      Future.tile_cache_dir.mkdir_p
+      tmp = Future.tile_cache_dir + "tmptile-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.jpg"
+      img.save(tmp.to_s)
+      img.delete!(true)
+      d = tmp.read
+      tmp.unlink
+      d
     end
   end
 
@@ -159,7 +167,7 @@ class TileDrawer
     @image_cache = image_cache
   end
 
-  def draw_tile(indexes, palette, layouter_name, x, y, zoom, w, h, *layouter_args)
+  def draw_tile(bgcolor, indexes, palette, layouter_name, x, y, zoom, w, h, *layouter_args)
     layouter = LAYOUTERS[layouter_name.to_s]
     raise ArgumentError, "Bad layouter_name: #{layouter_name.inspect}" unless layouter
     sz = @image_cache.thumb_size_at_zoom(zoom)
@@ -169,9 +177,9 @@ class TileDrawer
       break
     end
     return false if empty_tile
-    return draw_tile_rend(indexes, palette, x, y, zoom) if zoom <= 7
+    return draw_tile_rend(bgcolor, indexes, palette, x, y, zoom) if zoom <= 7
     tile = Imlib2::Image.new(w,h)
-    tile.fill_rectangle(0,0, w, h, BACKGROUND_COLOR)
+    tile.fill_rectangle(0,0, w, h, Imlib2::Color::RgbaColor.new(bgcolor))
     layouter.each(indexes, x, y, sz, w, h, *layouter_args) do |i, ix, iy|
       @image_cache.draw_image_at(i[0], zoom, tile, ix, iy)
       if palette
@@ -191,7 +199,7 @@ class TileDrawer
     end
   end
 
-  def draw_tile_rend(indexes, palette, x, y, z)
+  def draw_tile_rend(bgcolor, indexes, palette, x, y, z)
     init_rend unless @@rend_init
     rq = Queue.new
     if palette
@@ -200,7 +208,7 @@ class TileDrawer
     else
       cpalette = []
     end
-    @@draw_queue.push([rq, [indexes, cpalette, x, y, z, @image_cache.thumb_size_at_zoom(z)]])
+    @@draw_queue.push([rq, [bgcolor, indexes, cpalette, x, y, z, @image_cache.thumb_size_at_zoom(z)]])
     puts Time.now.to_f
     img = Imlib2::Image.create_using_data(256, 256, rq.pop)
     puts Time.now.to_f
@@ -258,12 +266,13 @@ class TileDrawer
           lambda do
             loop do
               GL.Viewport(0,0,256,256)
-              GL.Clear(GL::COLOR_BUFFER_BIT)
               begin
                 rq, query = @@draw_queue.shift
                 puts query[3]
                 puts Time.now.to_f
-                draw_query(*query)
+                GL.Clear(GL::COLOR_BUFFER_BIT)
+                GL.ClearColor(*query[0].map{|i| i / 255.0 })
+                draw_query(*query[1..-1])
                 puts Time.now.to_f
               rescue => e
                 puts e, e.backtrace[0,5]

@@ -40,7 +40,7 @@ include Future
     (0..7).each{|zoom|
       (0..20).each{|x|
         tilefile = pn + "#{zoom}_#{x}_#{y}.jpg"
-        tile = td.draw_tile(indexes, palette, :rows, x*w, y*h, zoom, w, h)
+        tile = td.draw_tile([0,0,0,255],indexes, palette, :rows, x*w, y*h, zoom, w, h)
         if tile
           tile.save(tilefile.to_s)
         else

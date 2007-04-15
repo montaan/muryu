@@ -536,11 +536,11 @@ extend FutureServlet
     def do_view(req,res)
       res['Content-type'] = 'image/jpeg'
       x,y,z,w,h = parse_tile_geometry(servlet_path)
-      if req.query['color'].to_s == 'false'
-        tile = Tiles.read(servlet_user, search_query, :rows, x, y, z, w, h, false)
-      else
-        tile = Tiles.read(servlet_user, search_query, :rows, x, y, z, w, h, true)
-      end
+      color = (req.query['color'].to_s != 'false')
+      bgcolor = (req.query.has_key?('bgcolor') ?
+                  req.query['bgcolor'].to_s[0,6] : false)
+      tile = Tiles.read(servlet_user, search_query, :rows, x, y, z, w, h,
+                        color, bgcolor)
       if tile
         res.body = tile
       else
