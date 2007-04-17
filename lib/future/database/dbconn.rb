@@ -523,7 +523,9 @@ module DB
       end
 
       def find_all(h={})
+        arr = h[:as_array]
         q = query(h)
+        return q.result if arr
         idx = -1
         q.map{|i| new q, idx+=1 }
       end
@@ -760,13 +762,15 @@ module DB
         limit = h.delete:limit
         offset = h.delete:offset
         cols = h.delete:columns
+        arr = h.delete:as_array
+        pre = (arr ? nil : :id)
         case cols
         when Array
-          cols = ([:id] + cols).uniq.compact
+          cols = ([pre] + cols).uniq.compact
         when :all
           cols = columns.keys
         else
-          cols = [:id, cols].uniq.compact
+          cols = [pre, cols].uniq.compact
         end
         tn = escape(table_name)
         q = []
