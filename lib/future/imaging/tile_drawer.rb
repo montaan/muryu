@@ -84,8 +84,8 @@ extend self
         key = user.name + "::" + sanitize_query(query)
         t = @@indexes[key]
         unless t
-          idxs = Items.rfind_all(user, query.merge(:columns => [:image_index, :mimetype_id])).map{|i| [i.image_index, i.mimetype_id] }
-          t = @@indexes[key] = idxs
+          idxs = Items.rfind_all(user, query.merge(:columns => [:image_index, :mimetype_id], :as_array => true))
+          t = @@indexes[key] = idxs.map!{|i| i.map!{|j| j.to_i }}
         end
         indexes = t
       end
