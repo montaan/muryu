@@ -1,0 +1,36 @@
+#!/usr/bin/ruby
+
+require 'rubygems'
+require 'rack/request'
+require 'rack/response'
+require 'future/web/webapi_1.rb'
+
+class MuryuRack
+  def call(env)
+    req = Rack::Request.new(env)
+    mr = MuryuRequest.new(req)
+    r = MuryuDispatch.dispatch(mr)
+    [r.status, r.headers.merge("Content-type" => r.content_type), r.body]
+  end
+end
+
+class MuryuRequest
+  attr_reader :relative_path, :get, :post, :cookies
+  def initialize(req)
+    @relative_path = req.path_info.gsub(/\A\/+/, '')
+    @get = req.GET
+    @post = req.POST
+    @get.each{|k,v| @get[k] = [v] unless v.is_a?(Array) }
+    @post.each{|k,v| @post[k] = [v] unless v.is_a?(Array) }
+    @cookies = req.cookies
+  end
+end
+
+if __FILE__ == $0
+  require 'rack'
+  require 'rack/showexceptions'
+  Rack::Handler::WEBrick.run(
+    MuryuRack.new,
+    :Port => 9202)
+end
+
