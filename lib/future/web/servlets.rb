@@ -616,7 +616,7 @@ extend FutureServlet
       res['Content-type'] = 'text/plain'
       res.body = {
         "maxZoom" => 15,
-        "title" => servlet_user.name
+        "title" => servlet_user.name + ' ' + req.query['q'].to_s
       }.to_json
     end
   end

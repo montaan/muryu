@@ -3,14 +3,14 @@ Optimize:
 considerations: 256x256 tile = 65kquads max mesh size
                 timed drawing 65k items:
                   total time 2395ms
-                      - one texture load @ 2ms
-                      - one save jpg @ 3ms
+                      - one texture load @ 12ms
+                      - one save jpg @ 20ms
                       - 300ms to iterate the layout = slow! (C layouter in ext/ does in 2ms)
                       - 230ms to call Imlib2::Image#blend! = slow!
                       - 1860ms for ImageCache#draw_image_at overhead = SLOW!
-                      - (drawing with OpenGL: ~5ms)
-                texture load 2ms per tex, texture memory usage 1 meg
-                image save 3ms
+                      - (drawing with OpenGL: ~20ms)
+                texture load 12ms per tex, texture memory usage 1 meg
+                image save 20ms
 1Mitems =>
   4x     1x1     cache images   4MB, 65536 images per tile, max 4   cache images per tile = 8ms   (131 072ms @ 256Mitems)
   16x    2x2     cache images  16MB, 16384 images per tile, max 16  cache images per tile = 32ms  ( 32 768ms @ 64Mitems )
@@ -296,23 +296,23 @@ pp(random_drawing_perf_stats(0.25, 18, 0.2))
    [1024, 905.843, 13238.3078, 555475.9276],    # 9m15s
    [4096, 1005.288, 14690.2048, 616455.6016]]], # 10m16s
  [16777216,
-  [[4, 4.0, 71.4, 2465.8],                       !
-   [16, 16.0, 246.6, 9824.2],                    !
+  [[4, 4.0, 71.4, 2465.8],                       ! 1TB
+   [16, 16.0, 246.6, 9824.2],                    ! 256GB
    [64, 63.998, 947.3708, 39256.5736],           ! 64GB
    [256, 255.881, 3748.8626, 156919.2292],       ! 16GB <- ok speed
    [1024, 1015.94, 14845.724, 622987.408],       ! 4GB
    [4096, 3624.656, 52932.9776, 2222652.0592]]],   1GB
  [67108864,
-  [[4, 4.0, 71.4, 2465.8],                       !
-   [16, 16.0, 246.6, 9824.2],                    !
-   [64, 63.999, 947.3854, 39257.1868],           !
-   [256, 255.966, 3750.1036, 156971.3512],       ! 64GB <- ok speed
-   [1024, 1022.016, 14934.4336, 626713.2112],    ! 16GB
-   [4096, 3970.456, 57981.6576, 2434696.6192]]], ! 4GB
+  [[4, 4.0, 71.4, 2465.8],                       ! 4TB   HD (total 4TB) -> 72ms
+   [16, 16.0, 246.6, 9824.2],                    ! 1TB   Flash (total 1.3TB) -> 17ms (2+15ms)
+   [64, 63.999, 947.3854, 39257.1868],           ! 256GB Flash -> 22ms
+   [256, 255.966, 3750.1036, 156971.3512],       ! 64GB  RAM (total 86GB)-> ~0ms
+   [1024, 1022.016, 14934.4336, 626713.2112],    ! 16GB  RAM -> ~0ms
+   [4096, 3970.456, 57981.6576, 2434696.6192]]], ! 4GB   RAM -> ~0ms
  [268435456,
-  [[4, 4.0, 71.4, 2465.8],                       !
-   [16, 16.0, 246.6, 9824.2],                    !
-   [64, 64.0, 947.4, 39257.8],                   !
+  [[4, 4.0, 71.4, 2465.8],                       ! 16TB
+   [16, 16.0, 246.6, 9824.2],                    ! 4TB
+   [64, 64.0, 947.4, 39257.8],                   ! 1TB
    [256, 255.99, 3750.454, 156986.068],          ! 256GB <- ok speed
    [1024, 1023.539, 14956.6694, 627647.1148],    # 10m27s ! 64GB
    [4096, 4064.374, 59352.8604, 2492287.1368]]]] # 41m32s ! 16GB

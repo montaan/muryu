@@ -64,9 +64,9 @@ function createNewSubPortal() {
   var fp = window.focusedPortal
   var sp = new Portal.FileMap({
     subPortal : true,
-    left: 256, top: 128*fp.subPortals.length,
+    left: 256, top: 0,
     width: 256, height: 256,
-    relativeZoom: -1,
+    relativeZoom: 0,
     query: 'q=sort:big',
     container: container,
     afterInit: function(){ fp.addSubPortal(sp) }
@@ -424,6 +424,37 @@ Portal.TileLoader = function(config) {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -511,17 +542,17 @@ Portal.TileMap.prototype = {
     v.style.zIndex = 0
     v.cX = this.container.offsetWidth/2
     v.cY = this.container.offsetHeight/2
-    if (!this.subPortal) {
-      var t = Elem('h2', this.title)
-      t.style.mergeD({
-        position: 'absolute',
-        fontSize: '20px',
-        left: '0px', top: '-20px',
-        zIndex: 4, color: 'white'
-      })
-      this.titleElem = t
+    var t = Elem('h2', this.title)
+    t.style.mergeD({
+      position: 'absolute',
+      fontSize: '20px',
+      marginTop: '-20px',
+      left: '0px', top: '0px',
+      zIndex: 4, color: 'white'
+    })
+    this.titleElem = t
+    if (!this.subPortal)
       v.appendChild(t)
-    }
     this.view = v
   },
 
@@ -540,6 +571,9 @@ Portal.TileMap.prototype = {
     this.subPortals.push(sp)
     sp.parentPortal = this
     sp.topPortal = this.topPortal
+    sp.bgcolor = this.bgcolor
+    sp.color = this.color
+    this.view.appendChild(sp.titleElem)
     this.view.appendChild(sp.container)
     this.updateSubPortal(sp)
   },
@@ -562,6 +596,8 @@ Portal.TileMap.prototype = {
     ay = sp.top * zf
     aw = sp.width * rzf
     ah = sp.height * rzf
+    sp.titleElem.style.left = ax + 'px'
+    sp.titleElem.style.top = ay + 'px'
     sp.setZoom(this.zoom + sp.relativeZoom)
     if (
       ay + ah > -this.view.top &&
@@ -625,10 +661,10 @@ Portal.TileMap.prototype = {
     }
     var midX = vc.x - t.tileSize / 2
     var midY = vc.y - t.tileSize / 2
-    if (!this.subPortal) {
-      this.titleElem.style.fontSize = parseInt(10 * Math.pow(2, this.zoom)) + 'px'
-      this.titleElem.style.top = parseInt(-15 * Math.pow(2, this.zoom)) + 'px'
-    }
+    console.log(this.subPortal, midX, midY)
+    this.titleElem.style.fontSize = parseInt(10 * Math.pow(2, this.zoom)) + 'px'
+    this.titleElem.style.marginTop = parseInt(-15 * Math.pow(2, this.zoom)) + 'px'
+    this.titleElem.style.width = parseInt(256 * Math.pow(2, this.zoom)) + 'px'
     if (zoomed) {
       this.loader.clear()
       this.view.byTag("div").each(function(d){
@@ -640,14 +676,28 @@ Portal.TileMap.prototype = {
     }
     var xMax = Math.ceil(c.offsetWidth/t.tileSize) + 1
     var yMax = Math.ceil(c.offsetHeight/t.tileSize) + 1
+    var zf = Math.pow(2, this.zoom)
     for(var i=-1; i < xMax; i++) {
       var x = i*t.tileSize+sl
       var dx = x - midX
       for(var j=-1; j < yMax; j++) {
         var y = j*t.tileSize+st
-        var dy = y - midY
-        t.showTile(x,y, dx*dx+dy*dy)
-        visible_tiles++
+        var show = true
+        for (var k=0; k<this.subPortals.length; ++k) {
+          var sp = this.subPortals[k]
+          var rzf = zf * Math.pow(2, sp.relativeZoom)
+          if (sp.left*zf <= x && sp.left*zf + sp.width*rzf >= x+t.tileSize &&
+              sp.top*zf <= y && sp.top*zf + sp.height*rzf >= y+t.tileSize) {
+            console.log('skipping loading ' + this.title + ': '+x + ','+y)
+            show = false
+            break
+          }
+        }
+        if (show) {
+          var dy = y - midY
+          t.showTile(x,y, dx*dx+dy*dy)
+          visible_tiles++
+        }
       }
     }
     t.visible_tiles = visible_tiles
@@ -733,11 +783,13 @@ Portal.TileMap.prototype = {
 
   toggleColor : function() {
     this.color = !this.color
+    this.subPortals.each(function(sp){ sp.toggleColor() })
     this.updateTiles(true)
   },
 
   setBgColor : function(color) {
     this.bgcolor = color
+    this.subPortals.each(function(sp){ sp.setBgColor(color) })
     this.updateTiles(true)
   },
 
@@ -852,6 +904,7 @@ Portal.TileMap.prototype = {
 
   // Zooms out from the mouse pointer.
   zoomOut : function(e){
+    if (this.subPortal) return this.topPortal.zoomOut(e)
     if (this.zoom > 0) {
       var lx = this.view.cX - this.view.left - this.container.absoluteLeft()
       var ly = this.view.cY - this.view.top - this.container.absoluteTop()
@@ -866,6 +919,7 @@ Portal.TileMap.prototype = {
 
   // Zooms in towards the mouse pointer.
   zoomIn : function(e){
+    if (this.subPortal) return this.topPortal.zoomIn(e)
     if (this.zoom < this.maxZoom) {
       var lx = this.view.cX - this.view.left - this.container.absoluteLeft()
       var ly = this.view.cY - this.view.top - this.container.absoluteTop()
@@ -881,18 +935,19 @@ Portal.TileMap.prototype = {
   // Sets zoom timeout for updating the map.
   // FIXME Make this do nice animated zoom
   updateZoom : function(direction) {
-    if(this.zoomTimeout) clearTimeout(this.zoomTimeout)
-    var t = this
-    this.zoomTimeout = setTimeout(function(){
+    var t = this.topPortal
+    if(t.zoomTimeout) clearTimeout(t.zoomTimeout)
+    t.zoomTimeout = setTimeout(function(){
       t.view.style.left = t.view.left + 'px'
       t.view.style.top = t.view.top + 'px'
       t.view.topTile = t.view.leftTile = null
-      t.updateTiles(true)
       t.updateSubPortals()
+      t.updateTiles(true)
     }, 0)
   },
 
   mousedownHandler : function(e){
+    if (this.subPortal) return
     if (!Mouse.normal(e)) return
     if (!e.target.className.match(/\btile\b/)) return
     this.dragging = true
@@ -966,6 +1021,46 @@ Portal.TileMap.prototype = {
     'en-US' : {loading_tile_info : 'Loading tile info failed'}
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1090,8 +1185,8 @@ Portal.FileMap.prototype.mergeD({
 
   initItemLink : function(i) {
     var ti = this.itemLink = Elem('a', null, null, 'itemLink tile')
-    ti.addEventListener("click", this.linkClick(), false)
-    ti.addEventListener("mousedown", this.linkDown, false)
+    ti.addEventListener("click", this.bind('linkClick'), false)
+    ti.addEventListener("mousedown", this.bind('linkDown'), false)
     ti.style.zIndex = 2
     this.view.appendChild(this.itemLink)
   },
@@ -1275,35 +1370,34 @@ Portal.FileMap.prototype.mergeD({
 
   // Note where mouse button went down to avoid misclicks when dragging.
   linkDown : function(e) {
-    this.downX = e.clientX
-    this.downY = e.clientY
+    var t = this.topPortal
+    t.downX = e.clientX
+    t.downY = e.clientY
   },
 
   // When clicking a link with LMB and no modifier, toggle its info floater.
-  linkClick : function() {
-    var t = this
-    return function(e) {
-      if (Mouse.normal(e)) {
-        e.preventDefault()
-        if ((Math.abs(e.clientX - this.downX) > 3) ||
-            (Math.abs(e.clientY - this.downY) > 3)) {
-          return false
-        }
-        if (!t.infoLayerVisible() || t.infoTargetChanged()) {
-          var c = t.viewCoords(e.clientX, e.clientY)
-          t.infoTarget = t.itemLink.infoObj
-          postQuery(t.itemPrefix+t.itemLink.infoObj.info.path+t.itemJSONSuffix, '',
-            function(res) {
-              var fullInfo = res.responseText.parseRawJSON()
-              t.showInfoLayer(0, 0, fullInfo)
-            },
-            t.queryErrorHandler(t.translate('loading_item_info'))
-          )
-        } else {
-          t.hideInfoLayer()
-        }
+  linkClick : function(e) {
+    if (Mouse.normal(e)) {
+      e.preventDefault()
+      var t = this.topPortal
+      if ((Math.abs(e.clientX - t.downX) > 3) ||
+          (Math.abs(e.clientY - t.downY) > 3)) {
         return false
       }
+      if (!t.infoLayerVisible() || t.infoTargetChanged()) {
+        var c = t.viewCoords(e.clientX, e.clientY)
+        t.infoTarget = this.itemLink.infoObj
+        postQuery(t.itemPrefix+this.itemLink.infoObj.info.path+t.itemJSONSuffix, '',
+          function(res) {
+            var fullInfo = res.responseText.parseRawJSON()
+            t.showInfoLayer(0, 0, fullInfo)
+          },
+          t.queryErrorHandler(t.translate('loading_item_info'))
+        )
+      } else {
+        t.hideInfoLayer()
+      }
+      return false
     }
   },
 
