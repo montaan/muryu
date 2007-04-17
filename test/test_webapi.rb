@@ -1,34 +1,45 @@
 require 'future/web/webapi_1'
 require 'test/unit'
 
-Req = Struct.new(:relative_path, :get, :post, :cookie)
+Req = Struct.new(:relative_path, :get, :post, :cookies)
+class Req
+  def initialize(rp, get=nil, post=nil, cookies=nil)
+    get.each{|k,v| get[k] = [v] unless v.is_a?(Array) } if get
+    post.each{|k,v| post[k] = [v] unless v.is_a?(Array) } if post
+    super(rp, get, post, cookies)
+  end
+end
 
-class MuryuDispatch
-  class TileInfo
+module MuryuDispatch
+  module TileInfo
     def self.[](key)
-      new
+      Ti.new
     end
     
-    def self.view(q)
-      %w(tileinfo1 tileinfo2 tileinfo3)
+    def self.view(q,r)
+      r.body = %w(tileinfo1 tileinfo2 tileinfo3)
     end
     
-    def view(q)
-      'tile_info'
+    class Ti
+      def view(q,r)
+        r.body = 'tile_info'
+      end
     end
   end
   
-  class Items
+  module Items
     def self.[](key)
-      new
+      It.new
     end
     
-    def self.view(q)
-      %w(items1 items2 items3)
+    def self.view(q,r)
+      r.body = %w(items1 items2 items3)
     end
     
-    def view(q)
-      'items'
+    class It
+      def view(q,r)
+        r.body = 'items'
+      end
     end
   end
 end
@@ -37,16 +48,16 @@ class TestDispatch < Test::Unit::TestCase
   def test_single
     r = Req.new('items/foo/2007/12-01/bob.jpg')
     rv = MuryuDispatch.dispatch(r)
-    assert_equal(rv, 'items')
+    assert_equal(rv.body, 'items')
     r = Req.new('tile_info/x0.38y1.29z39w38h39')
     rv = MuryuDispatch.dispatch(r)
-    assert_equal(rv, 'tile_info')
+    assert_equal(rv.body, 'tile_info')
   end
   
   def test_list
     r = Req.new('items/')
     rv = MuryuDispatch.dispatch(r)
-    assert_equal(rv, %w(items1 items2 items3))
+    assert_equal(rv.body, %w(items1 items2 items3))
   end
   
   def no_list
@@ -62,11 +73,10 @@ class TestMuryuQuery < Test::Unit::TestCase
     MuryuQuery.new(Req.new(*args))
   end
 
-  class MockFile
-    def read
-    end
-
-    def filename
+  class MockFile < Hash
+    def initialize
+      super
+      self[:filename] = self[:tempfile] = true
     end
   end
 

@@ -26,6 +26,9 @@ class MuryuQuery
 
   class NoListQuery < MuryuError
   end
+
+  class BadMethod < MuryuError
+  end
   
   class BadKey < MuryuError
   end
@@ -36,7 +39,7 @@ class MuryuQuery
   class BadPost < MuryuError
   end
   
-  attr_reader(:path, :type, :method, :key, :list_query, :get, :post, :cookie)
+  attr_reader(:path, :type, :method, :key, :list_query, :get, :post, :cookies)
 
   class << self
     attr_accessor(:type_methods, :type_list_query, :type_keys, :type_method_get_validators, :type_method_post_validators)
@@ -57,6 +60,7 @@ class MuryuQuery
   ufloat = "((#{uint}(\.[0-9])?|0\.[0-9])[0-9]*)"
   float = "((-|\\+)?#{ufloat})"
   relative_path = '([0-9A-Za-z._-]+/[0-9]{4}/[0-9]{2}-[0-9]{2}/[0-9A-Za-z._-]+)'
+  items_query = '(.*)'
   itemkey = "(#{uint}|#{relative_path})"
   filename = '(\S+)'
   setname = '(.+)'
@@ -73,7 +77,9 @@ class MuryuQuery
   mimetype = '([a-z]+/[0-9a-z._-]+)'
   date = '(-?[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})'
   color = '([0-9a-fA-F]{6})'
-  file = Matcher.new(:read, :filename)
+  file = Matcher.new(:[]){|o|
+    o.is_a?(Hash) and o[:filename] and o[:tempfile]
+  }
 
   def self.e(pattern)
     Regexp.new('\A'+pattern+'\Z')
@@ -102,10 +108,10 @@ class MuryuQuery
   
   self.type_list_query = {
     'items' => {
-      'q' => e(string)
+      'q' => e(items_query)
     },
     'files' => {
-      'q' => e(string)
+      'q' => e(items_query)
     },
     'sets' => {
       'name' => e(setname),
@@ -114,7 +120,9 @@ class MuryuQuery
     'users' => false,
     'groups' => false,
     'tile' => false,
-    'tile_info' => false
+    'tile_info' => {
+      'q' => e(items_query)
+    }
   }
   
   self.type_method_get_validators = {
@@ -228,7 +236,7 @@ class MuryuQuery
   def initialize(req)
     @get = req.get
     @post = req.post
-    @cookie = req.cookie
+    @cookies = req.cookies
     self.path = req.relative_path
   end
 
@@ -260,13 +268,14 @@ class MuryuQuery
     validate('post', key, val)
   end
 
-  def validate(t, key, val)
+  def validate(t, key, vals)
     v = self.class.__send__('type_method_'+t+'_validators')[@type][@method]
+    raise(BadMethod, "#@type/#@method doesn't respond to #{t.upcase}") unless v
     if @list_query
       v = v.merge(self.class.type_list_query[@type])
     end
     return false unless v and v[key]
-    v[key].match(val)
+    vals.all?{|val| v[key].match(val) }
   end
   
   def has_list_query?
@@ -276,7 +285,7 @@ class MuryuQuery
   def path=(path)
     @path = path
     @type, rest = path.split("/", 2)
-    raise(UnknownType, "@path=#@path, @type=#@type") unless valid_type?
+    raise(UnknownType, "Unknown type: #@type.") unless valid_type?
     parts = rest.to_s.split("/").reject{|s| s.empty? }
     @list_query = false
     if parts.length > 1
@@ -287,11 +296,11 @@ class MuryuQuery
         @method = 'view'
         @key = parts.join("/")
       end
-      raise(BadKey, "@path=#@path, @type=#@type, @key=#@key}") unless valid_key?(@key)
+      raise(BadKey, "Malformed key for #@type: #@key") unless valid_key?(@key)
     elsif parts.length == 1 and not valid_method?(parts[0])
       @method = 'view'
       @key = parts[0]
-      raise(BadKey, "@path=#@path, @type=#@type, @key=#@key}") unless valid_key?(@key)
+      raise(BadKey, "Malformed key for #@type: #@key") unless valid_key?(@key)
     elsif (parts[0] == 'create' ||
            @type == 'items' && parts[0] == 'upload' ||
            @type == 'users' && parts[0] == 'login' )
@@ -300,39 +309,256 @@ class MuryuQuery
       @method = parts[0] || 'view'
       @list_query = true
     else
-      raise(NoListQuery, "@path=#@path, @type=#@type")
+      raise(NoListQuery, "You tried to reach #@type/#@method, but #@type doesn't have a list query.")
     end
     if @post and not @post.empty?
       bp = @post.find_all{|k,v| !valid_post?(k, v) }
-      raise(BadPost, "@type=#@type, @method=#@method, @list_query=#@list_query, "+bp.inspect) unless bp.empty?
+      raise(BadPost, "Bad POST query arguments for #@type/#@method (#{
+        @list_query ? 'list query' : "target: #{@key or 'new'}"
+      }): "+bp.map{|k,v| k + " => " + v.join(",") }.join(", ")) unless bp.empty?
     elsif @get and not @get.empty?
       bg = @get.find_all{|k,v| !valid_get?(k, v) }
-      raise(BadGet, "@type=#@type, @method=#@method, @list_query=#@list_query, "+bg.inspect) unless bg.empty?
+      raise(BadGet, "Bad GET query arguments for #@type/#@method (#{
+        @list_query ? 'list query' : "target: #{@key or 'new'}"
+      }): "+bg.map{|k,v| k + "=" + v.join(",") }.join(", ")) unless bg.empty?
     end
   end
   
 end
 
 
-class MuryuDispatch
+MuryuResponse = Struct.new(:status, :content_type, :body, :headers)
+
+
+module MuryuDispatch
 
   def self.dispatch(req)
-    new.dispatch_request(req)
+    dispatch_request(req)
   end
 
-  def get_handler(type)
-    MuryuDispatch.const_get(type.to_class_name)
+  def self.get_handler(type)
+    const_get(type.to_class_name)
   end
   
-  def dispatch_request(req)
-    q = MuryuQuery.new(req)
-    handler = get_handler(q.type)
-    if q.list_query
-      handler.__send__(q.method, q)
-    else
-      handler[q.key].__send__(q.method, q)
+  def self.dispatch_request(req)
+    r = MuryuResponse.new
+    r.status = 200
+    r.content_type = 'text/html'
+    r.body = ''
+    r.headers = {}
+    begin
+      q = MuryuQuery.new(req)
+      handler = get_handler(q.type)
+      if not q.key
+        handler.__send__(q.method, q, r)
+      else
+        handler[q.key].__send__(q.method, q, r)
+      end
+    rescue MuryuQuery::BadMethod => e
+      r.status = 405
+      r.body = error(e,r.status.to_s+" Unsupported method")
+    rescue MuryuQuery::BadKey, MuryuQuery::BadGet, MuryuQuery::BadPost => e
+      r.status = 400
+      r.body = error(e,r.status.to_s+" Bad request")
+    rescue MuryuQuery::NoListQuery, MuryuQuery::UnknownType => e
+      r.status = 404
+      r.body = error(e,r.status.to_s+" File not found")
     end
+    r
+  end
+
+  def self.error(e, s)
+    "
+    <html>
+      <head>
+        <title>#{s}</title>
+      </head>
+      <body>
+        <h1>#{s}: #{e.class.name}</h1>
+        <p>#{e.message}</p>
+      </body>
+    </html>"
+  end
+
+  module Items
+  extend self
+    def [](key)
+      self
+    end
+
+    ### VERBS
+    
+    def upload(q,r)
+    end
+
+    def edit(q,r)
+    end
+
+    def delete(q,r)
+    end
+
+    def undelete(q,r)
+    end
+
+    def purge(q,r)
+    end
+
+    ### PROPERTIES
+
+    def json(q,r)
+    end
+
+    def view(q,r)
+    end
+
+    def thumbnail(q,r)
+    end
+
+    def file(q,r)
+    end
+  end
+
+
+  module Files
+  extend self
+
+    def [](key)
+      self
+    end
+
+    ### PROPERTIES
+  
+    def view(q,r)
+    end
+
+    def item(q,r)
+    end
+  end
+
+
+  module Sets
+  extend self
+
+    def [](key)
+      self
+    end
+
+    ### VERBS
+
+    def create(q,r)
+    end
+
+    def edit(q,r)
+    end
+
+    def delete(q,r)
+    end
+
+    def undelete(q,r)
+    end
+
+    ### PROPERTIES
+
+    def json(q,r)
+    end
+
+    def view(q,r)
+    end
+
+  end
+
+
+  module Users
+  extend self
+
+    def [](key)
+      self
+    end
+
+    ### VERBS
+
+    def create(q,r)
+    end
+
+    def login(q,r)
+    end
+
+    def logout(q,r)
+    end
+
+    def edit(q,r)
+    end
+
+    def delete(q,r)
+    end
+
+    ### PROPERTIES
+
+    def json(q,r)
+    end
+
+    def view(q,r)
+    end
+
+  end
+
+
+  module Groups
+  extend self
+
+    def [](key)
+      self
+    end
+
+    ### VERBS
+
+    def create(q,r)
+    end
+
+    def edit(q,r)
+    end
+
+    def delete(q,r)
+    end
+
+    def undelete(q,r)
+    end
+
+    ### PROPERTIES
+
+    def json(q,r)
+    end
+
+    def view(q,r)
+    end
+
+  end
+
+
+  module Tile
+  extend self
+
+    def [](key)
+    end
+
+    def view(q,r)
+    end
+
+  end
+
+
+  module TileInfo
+  extend self
+
+    def [](key)
+    end
+
+    def view(q,r)
+    end
+
   end
   
 end
+
+
 
