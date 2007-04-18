@@ -491,6 +491,7 @@ Portal.TileMap.prototype = {
       function(res){
         var obj = res.responseText.parseRawJSON()
         t.mergeD(obj)
+//         t.query = 'q=owner:'+t.title.split(" ")[0]+' '+t.query.slice(2)
         t.init()
         if (t.afterInit) t.afterInit()
       },
@@ -661,7 +662,7 @@ Portal.TileMap.prototype = {
     }
     var midX = vc.x - t.tileSize / 2
     var midY = vc.y - t.tileSize / 2
-    console.log(this.subPortal, midX, midY)
+//     console.log(this.subPortal, midX, midY)
     this.titleElem.style.fontSize = parseInt(10 * Math.pow(2, this.zoom)) + 'px'
     this.titleElem.style.marginTop = parseInt(-15 * Math.pow(2, this.zoom)) + 'px'
     this.titleElem.style.width = parseInt(256 * Math.pow(2, this.zoom)) + 'px'
@@ -688,7 +689,7 @@ Portal.TileMap.prototype = {
           var rzf = zf * Math.pow(2, sp.relativeZoom)
           if (sp.left*zf <= x && sp.left*zf + sp.width*rzf >= x+t.tileSize &&
               sp.top*zf <= y && sp.top*zf + sp.height*rzf >= y+t.tileSize) {
-            console.log('skipping loading ' + this.title + ': '+x + ','+y)
+//             console.log('skipping loading ' + this.title + ': '+x + ','+y)
             show = false
             break
           }
