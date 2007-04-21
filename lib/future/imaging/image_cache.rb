@@ -27,7 +27,7 @@ class ImageCache
     @cache_pyramid_size = cache_pyramid_size
     @max_zoom = (Math.log(max_thumbnail_size) / Math.log(2)).to_i
     @raw_pyramid = RawPyramid.new(@cache_dir, 2**27, @max_zoom)
-    @use_raw = false
+    @use_raw = true
     @batch_ops = nil
   end
 
@@ -36,19 +36,20 @@ class ImageCache
   end
 
   def regenerate!
-    items = DB::Items.count
+    items = Items.count
     (0..items / 100).each do |batch_idx|
       batch do
-        (batch_idx*100..(batch_idx+1)*100).each do |i|
-          break if i >= items
-          update_cache_at(i)
-        end
+        Items.find_all(:order_by => [['image_index', :asc]],
+                   :columns => [:deleted, :path],
+                   :offset => batch_idx*100, :limit => 100).each{|i|
+          update_cache_at(i.image_index, i)
+        }
       end
     end
   end
 
   def item_at(index)
-    DB::Items.find(:continuous_index => index+1, :columns => [:deleted, :path])
+    Items.find('image_index' => index, :columns => [:deleted, :path])
   end
 
   # Updates the thumbnail stored at index.
@@ -91,25 +92,36 @@ class ImageCache
   
   def mipmap(item)
     @@cache_draw_mutex.synchronize do
-#       init_ctx
       if item.deleted
         thumb = Imlib2::Image.new(2**@max_zoom, 2**@max_zoom)
         thumb.has_alpha = true
+        init_ctx
         thumb.fill_rectangle(0,0,2**@max_zoom, 2**@max_zoom,
                              Imlib2::Color::TRANSPARENT)
       else
         thumb = Imlib2::Image.load(item.thumbnail)
+        init_ctx
       end
       larger = [thumb.width, thumb.height].max
       iw = thumb.width / larger.to_f
       ih = thumb.height / larger.to_f
+      if thumb.width != thumb.height
+        othumb = thumb
+        thumb = Imlib2::Image.new(2**@max_zoom, 2**@max_zoom)
+        thumb.has_alpha = true
+        init_ctx
+        thumb.fill_rectangle(0,0,2**@max_zoom, 2**@max_zoom,
+                             Imlib2::Color::TRANSPARENT)
+        thumb.blend!(othumb, 0, 0, othumb.width, othumb.height,
+                             0, 0, 2**@max_zoom*iw, 2**@max_zoom*ih)
+        othumb.delete!
+      end
       levels = (0..@max_zoom).to_a.reverse.map{|i|
-        thumb.crop_scaled!(0, 0, thumb.width, thumb.height, iw*2**i, ih*2**i)
         image = Imlib2::Image.new(2**i, 2**i)
         image.has_alpha = true
         image.fill_rectangle(0,0, 2**i, 2**i, Imlib2::Color::TRANSPARENT)
         image.blend!(thumb, 0, 0, thumb.width, thumb.height,
-                            0, 0, thumb.width, thumb.height)
+                            0, 0, 2**i, 2**i)
         px = image.data
         image.delete!
         px
@@ -250,13 +262,15 @@ class RawPyramid
   def update_cache_at(index, data_levels)
     @levels.each{|lvl|
       next unless data_levels[lvl]
-      open_at(lvl, index, 'wb+'){|f| puts "wrote: #{f.write(data_levels[lvl])}" }
+      open_at(lvl, index, 'rb+'){|f|
+        f.write(data_levels[lvl])
+      }
     }
   end
 
   def clear_at(index)
     @levels.each{|lvl|
-      open_at(lvl, index, 'wb+'){|f|
+      open_at(lvl, index, 'rb+'){|f|
         f.write("\000"*(2**(2*lvl) * 4))
       }
     }
@@ -268,6 +282,11 @@ class RawPyramid
     dirname = File.join(@cache_dir, level.to_s, (level_idx / 1000).to_s)
     FileUtils.mkdir_p(dirname)
     filename = File.join(dirname, level_idx.to_s)
+    unless File.exist?(filename)
+      File.open(filename, 'wb'){|f|
+        f.truncate(@cachefile_size)
+      }
+    end
     File.open(filename, mode){|f|
       f.seek((index % ipl) * 2**(2*level) * 4)
       yield(f)
@@ -286,7 +305,7 @@ class RawPyramid
     }
     if level_end_idx != level_start_idx
       open_at(level, index+length, 'rb'){|f|
-        sz = f.pos
+        sz = f.pos+1
         f.rewind
         str << f.read(sz)
       }
