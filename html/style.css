@@ -386,7 +386,7 @@ span.google_map {
 .infoText {
   background: url(80_opacity_black.png);
   position: absolute;
-  z-index: 1;
+  z-index: 3;
   color: white;
   font-family: URW Gothic L, Arial;
   font-weight: bold;
@@ -395,7 +395,7 @@ span.google_map {
 
 .info {
   position: absolute;
-  z-index: 1;
+  z-index: 3;
 }
 
 .itemLink {

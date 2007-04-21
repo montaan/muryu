@@ -13,7 +13,7 @@ class ImageCache
 
   attr_accessor :cache_dir
   attr_reader :cache_image_size, :cache_pyramid_size,
-              :max_thumbnail_size, :max_zoom
+              :max_thumbnail_size, :max_zoom, :raw_pyramid
 
   def initialize(cache_dir = Future.cache_dir + 'image_cache',
                  cache_image_type = 'tga',
@@ -26,6 +26,8 @@ class ImageCache
     @cache_pyramids = []
     @cache_pyramid_size = cache_pyramid_size
     @max_zoom = (Math.log(max_thumbnail_size) / Math.log(2)).to_i
+    @raw_pyramid = RawPyramid.new(@cache_dir, 2**27, @max_zoom)
+    @use_raw = false
     @batch_ops = nil
   end
 
@@ -60,15 +62,60 @@ class ImageCache
   #
   def update_cache_at(index, item = item_at(index))
     if item
-      cache_pyramid = cache_pyramid_for(index)
-      pyramid_index = (index) % @cache_pyramid_size
-      if item.deleted
-        cache_pyramid.clear_at(pyramid_index, @batch_ops)
+      if @use_raw
+        if item.deleted
+          @raw_pyramid.clear_at(index)
+        else
+          @raw_pyramid.update_cache_at(index, mipmap(item))
+        end
       else
-        cache_pyramid.update_at(pyramid_index, item.thumbnail, @batch_ops)
+        cache_pyramid = cache_pyramid_for(index)
+        pyramid_index = (index) % @cache_pyramid_size
+        if item.deleted
+          cache_pyramid.clear_at(pyramid_index, @batch_ops)
+        else
+          cache_pyramid.update_at(pyramid_index, item.thumbnail, @batch_ops)
+        end
       end
     else
       raise ArgumentError, 'Invalid index, should be a valid continuous_index for item.'
+    end
+  end
+
+  def init_ctx
+    ctx = Imlib2::Context.get
+    ctx.blend = false
+    ctx.color = Imlib2::Color::TRANSPARENT
+    ctx.op = Imlib2::Op::COPY
+  end
+  
+  def mipmap(item)
+    @@cache_draw_mutex.synchronize do
+#       init_ctx
+      if item.deleted
+        thumb = Imlib2::Image.new(2**@max_zoom, 2**@max_zoom)
+        thumb.has_alpha = true
+        thumb.fill_rectangle(0,0,2**@max_zoom, 2**@max_zoom,
+                             Imlib2::Color::TRANSPARENT)
+      else
+        thumb = Imlib2::Image.load(item.thumbnail)
+      end
+      larger = [thumb.width, thumb.height].max
+      iw = thumb.width / larger.to_f
+      ih = thumb.height / larger.to_f
+      levels = (0..@max_zoom).to_a.reverse.map{|i|
+        thumb.crop_scaled!(0, 0, thumb.width, thumb.height, iw*2**i, ih*2**i)
+        image = Imlib2::Image.new(2**i, 2**i)
+        image.has_alpha = true
+        image.fill_rectangle(0,0, 2**i, 2**i, Imlib2::Color::TRANSPARENT)
+        image.blend!(thumb, 0, 0, thumb.width, thumb.height,
+                            0, 0, thumb.width, thumb.height)
+        px = image.data
+        image.delete!
+        px
+      }.reverse
+      thumb.delete!
+      levels
     end
   end
 
@@ -108,6 +155,11 @@ class ImageCache
           end
         end
       end
+    elsif @use_raw
+      img = @raw_pyramid.read_images_as_imlib(zoom, [index])[0]
+      image.blend!(img, 0, 0, img.width, img.height,
+                        x, y, img.width, img.height)
+      img.delete!
     else
       cache_pyramid = cache_pyramid_for(index)
       pyramid_index = (index) % @cache_pyramid_size
@@ -116,9 +168,21 @@ class ImageCache
   end
 
   def read_image_at(index, z)
-    cache_pyramid = cache_pyramid_for(index)
-    pyramid_index = (index) % @cache_pyramid_size
-    cache_pyramid.read_image_at(pyramid_index, z)
+    if @use_raw
+      read_images_as_string(z, [index])
+    else
+      cache_pyramid = cache_pyramid_for(index)
+      pyramid_index = (index) % @cache_pyramid_size
+      cache_pyramid.read_image_at(pyramid_index, z)
+    end
+  end
+
+  def read_images_as_string(z, indexes)
+    @raw_pyramid.read_images_as_string(z, indexes)
+  end
+
+  def read_span_as_string(z, start, length)
+    @raw_pyramid.read_span_as_string(z, start, length)
   end
 
   # Retrieves the image cache pyramid for the given index.
@@ -126,7 +190,8 @@ class ImageCache
   def cache_pyramid_for(index)
     pyramid = index / @cache_pyramid_size
     @cache_pyramids[pyramid] ||= ImageCachePyramid.new(
-      @cache_dir, pyramid, @cache_image_type, @cache_image_size, @max_thumbnail_size
+      @cache_dir, pyramid, @cache_image_type,
+      @cache_image_size, @max_thumbnail_size
     )
   end
 
@@ -158,6 +223,100 @@ class ImageCache
       end
       @batch_ops = false
     end
+  end
+
+end
+
+
+# RawPyramid is a simpler and faster replacement for ImageCachePyramid.
+# RawPyramid deals in flat files with images saved as raw BGRA data.
+#
+# #update_cache_at is used for writing images.
+#
+# #read_images_as_string is used for building OpenGL textures.
+#
+# #read_span_as_string is used for slurping a range of thumbs into cache.
+#
+class RawPyramid
+
+  def initialize(cache_dir, cachefile_size=2**24, top_level=7)
+    @cache_dir = cache_dir
+    @cachefile_size = cachefile_size
+    @levels = (0..top_level)
+    @parallel_reads = 4
+    @indexes_per_level = @levels.map{|lvl| @cachefile_size / (2**(2*lvl) * 4) }
+  end
+
+  def update_cache_at(index, data_levels)
+    @levels.each{|lvl|
+      next unless data_levels[lvl]
+      open_at(lvl, index, 'wb+'){|f| puts "wrote: #{f.write(data_levels[lvl])}" }
+    }
+  end
+
+  def clear_at(index)
+    @levels.each{|lvl|
+      open_at(lvl, index, 'wb+'){|f|
+        f.write("\000"*(2**(2*lvl) * 4))
+      }
+    }
+  end
+
+  def open_at(level, index, mode)
+    ipl = @indexes_per_level[level].to_i
+    level_idx = (index / ipl).to_i
+    dirname = File.join(@cache_dir, level.to_s, (level_idx / 1000).to_s)
+    FileUtils.mkdir_p(dirname)
+    filename = File.join(dirname, level_idx.to_s)
+    File.open(filename, mode){|f|
+      f.seek((index % ipl) * 2**(2*level) * 4)
+      yield(f)
+    }
+  end
+
+  def read_span_as_string(level, start, length)
+    str = ""
+    ipl = @indexes_per_level[level].to_i
+    level_start_idx = (start / ipl).to_i
+    level_end_idx = (index+length / ipl).to_i
+    full_level_files = (level_start_idx+1..level_end_idx-1)
+    open_at(level, start, 'rb'){|f| str << f.read }
+    full_level_files.each{|lf|
+      open_at(level, lf * ipl, 'rb'){|f| str << f.read }
+    }
+    if level_end_idx != level_start_idx
+      open_at(level, index+length, 'rb'){|f|
+        sz = f.pos
+        f.rewind
+        str << f.read(sz)
+      }
+    end
+    str
+  end
+
+  def read_images(level, indexes)
+    reads = indexes.zip((0...indexes.size).to_a).sort_by{|a,b| a }
+    reads_per_thread = (indexes.size.to_f / @parallel_reads).ceil
+    sz = 2**(2*level) * 4
+    result = indexes.dup
+    (0...[@parallel_reads, indexes.size].min).map{|i|
+      Thread.new{
+        reads[i*reads_per_thread, reads_per_thread].map{|idx, j|
+          result[j] = open_at(level, idx, 'rb'){|f| f.read(sz) }
+        }
+      }
+    }.each{|t| t.join }
+    result
+  end
+
+  def read_images_as_string(*args)
+    read_images(*args).join
+  end
+
+  def read_images_as_imlib(level, indexes)
+    read_images(level, indexes).map{|d|
+      Imlib2::Image.create_using_data(2**level, 2**level, d)
+    }
   end
 
 end

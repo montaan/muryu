@@ -438,5 +438,9 @@ class TestMuryuQuery < Test::Unit::TestCase
     })
   end
 
+  def assert_json(json)
+    assert_equal("while(0)\n", json[0,9])
+  end
+
 end
 
