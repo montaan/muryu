@@ -460,6 +460,7 @@ class TileDrawer
 
       char** icache;
       uint_32 icache_levels;
+      uint_32 icache_size;
 
       void setup_texture
       (
@@ -468,15 +469,59 @@ class TileDrawer
       )
       {
         VALUE image_cache, thumb_data;
-        char *pixels, *data;
-        uint_32 i, sz24;
+        VALUE read_imgs;
+        char *pixels, *data, *thumb_ptr;
+        uint_32 i, j, sz24, len;
         uint_64 index;
+        int need_to_read = 0;
+        VALUE *ptr;
         
         sz24 = sz*sz*4;
         pixels = (char*)malloc(sz24*indexes_length);
         for(i=0;i<sz24*indexes_length;i++) pixels[i] = 0;
         image_cache = rb_ivar_get(self, rb_intern("@image_cache"));
         rb_funcall(self, rb_intern("print_time"), 0);
+        read_imgs = rb_ary_new();
+        for (i=0; i<indexes_length; i++) {
+          index = indexes[i];
+          if (index < iindexes_length && (z >= icache_levels ||
+              icache[z*icache_size + iindexes[index]] == NULL))
+          {
+            rb_funcall(read_imgs, rb_intern("push"), 1, INT2FIX(iindexes[index]));
+            need_to_read = 1;
+          }
+        }
+        if (need_to_read == 1) {
+          thumb_data = rb_funcall(image_cache,
+                                  rb_intern("read_images_as_string"), 2,
+                                  INT2FIX(z), read_imgs);
+          len = RARRAY(read_imgs)->len;
+          ptr = RARRAY(read_imgs)->ptr;
+          thumb_ptr = StringValuePtr(thumb_data);
+          if (z < icache_levels) {
+            for(i=0; i<len; i++) {
+              data = (char*)malloc(sz24);
+              memcpy(data, thumb_ptr+(i*sz24), sz24);
+              icache[z*icache_size + FIX2INT(ptr[i])] = data;
+            }
+          } else {
+            for(i=0,j=0; i<indexes_length; i++) {
+              index = indexes[i];
+              if (index < iindexes_length){
+                memcpy(pixels+(sz24*i), thumb_ptr+(j*sz24), sz24);
+                j++;
+              }
+            }
+          }
+        }
+        if (z < icache_levels) {
+          for(i=0; i<indexes_length; i++) {
+            index = indexes[i];
+            if (index < iindexes_length)
+              memcpy(pixels+(sz24*i), icache[z*icache_size + iindexes[index]], sz24);
+          }
+        }
+        /*
         for(i=0; i<indexes_length; i++) {
           index = indexes[i];
           if (index < iindexes_length) {
@@ -504,6 +549,7 @@ class TileDrawer
             }
           }
         }
+        */
         rb_funcall(self, rb_intern("print_time"), 0);
         upload(pixels, indexes_length, sz);
         free(pixels);
@@ -615,10 +661,12 @@ class TileDrawer
     builder.c <<-EOF
       void init_image_cache(int cache_size, int cache_levels)
       {
-        int i;
+        int i,j;
         icache = (char**)malloc(sizeof(char*) * cache_size * cache_levels);
+        icache_size = (uint_32)cache_size;
         icache_levels = (uint_32)cache_levels;
-        for(i=0; i < cache_size*cache_levels; i++) {
+        j = cache_size * cache_levels;
+        for(i=0; i < j; i++) {
           icache[i] = NULL;
         }
       }
