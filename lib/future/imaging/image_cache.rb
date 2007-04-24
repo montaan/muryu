@@ -255,7 +255,7 @@ class RawPyramid
     @cache_dir = cache_dir
     @cachefile_size = cachefile_size
     @levels = (0..top_level)
-    @parallel_reads = 4
+    @parallel_reads = 8
     @indexes_per_level = @levels.map{|lvl| @cachefile_size / (2**(2*lvl) * 4) }
   end
 
@@ -293,18 +293,27 @@ class RawPyramid
     }
   end
 
-  def read_span_as_string(level, start, length)
-    str = ""
+  def read_span_as_string(level, start, last)
+    sz = 2**(2*level) * 4
+    if start == last
+      return open_at(level, start, 'rb'){|f| f.read(sz) }
+    elsif start > last
+      return ""
+    end
     ipl = @indexes_per_level[level].to_i
     level_start_idx = (start / ipl).to_i
-    level_end_idx = (index+length / ipl).to_i
+    level_end_idx = (last / ipl).to_i
     full_level_files = (level_start_idx+1..level_end_idx-1)
+    if full_level_files.begin >= full_level_files.end
+      return open_at(level, start, 'rb'){|f| f.read(sz*(last-start+1)) }
+    end
+    str = ""
     open_at(level, start, 'rb'){|f| str << f.read }
     full_level_files.each{|lf|
       open_at(level, lf * ipl, 'rb'){|f| str << f.read }
     }
     if level_end_idx != level_start_idx
-      open_at(level, index+length, 'rb'){|f|
+      open_at(level, start+length, 'rb'){|f|
         sz = f.pos+1
         f.rewind
         str << f.read(sz)
@@ -315,16 +324,48 @@ class RawPyramid
 
   def read_images(level, indexes)
     reads = indexes.zip((0...indexes.size).to_a).sort_by{|a,b| a }
-    reads_per_thread = (indexes.size.to_f / @parallel_reads).ceil
     sz = 2**(2*level) * 4
+    stream_limit = 2**18 / sz # reading 262kB / 80MB/s =~ 3ms
     result = indexes.dup
-    (0...[@parallel_reads, indexes.size].min).map{|i|
-      Thread.new{
-        reads[i*reads_per_thread, reads_per_thread].map{|idx, j|
-          result[j] = open_at(level, idx, 'rb'){|f| f.read(sz) }
-        }
+    spans = reads.inject([]){|s, (idx,j)|
+      if s.last.nil? or s.last.first.end < idx-stream_limit
+        s << [(idx..idx), [[0, j]]]
+      else
+        r,is = s.last
+        s.last[0] = (r.begin..idx)
+        is << [idx-r.begin, j]
+      end
+      s
+    }
+    spans.each{|span,is|
+      puts "reading span #{span}"
+      s = read_span_as_string(level, span.begin, span.end)
+      is.each{|i,j|
+        result[j] = s[i*sz,sz]
       }
-    }.each{|t| t.join }
+    }
+#     reads_per_thread = (indexes.size.to_f / @parallel_reads).ceil
+#     pids = (0...[@parallel_reads, indexes.size].min).map{|i|
+#       rd, wr = IO.pipe
+#       preads = reads[i*reads_per_thread, reads_per_thread]
+#       pid = fork do
+#         rd.close
+#         preads.each{|idx, j|
+#           wr.write(open_at(level, idx, 'rb'){|f| f.read(sz) })
+#         }
+#         wr.close
+#         exit
+#       end
+#       wr.close
+#       [pid, rd, preads]
+#     }
+#     pids.each{|pid,rd,preads|
+#       preads.each{|idx, j|
+#         result[j] = rd.read(sz)
+#       }
+#       rd.close
+#       Process.wait(pid)
+#     }
     result
   end
 
