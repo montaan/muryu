@@ -18,6 +18,7 @@ extend self
   @@palette = nil
   @@transparent_palette = nil
 
+  MIMETYPE_DELETED = 2**10
   DEFAULT_BGCOLOR = [14, 35, 56, 255]
 
   BLUE    = [ 13,   7, 255, 127]
@@ -27,6 +28,7 @@ extend self
   YELLOW  = [255, 229, 127, 127]
   BLACK   = [  0,   0,   0, 127]
 
+  DELETED_COLOR = BLACK
 
   @@type_colors = {
     'image' => BLUE,
@@ -52,6 +54,7 @@ extend self
     mts.each{|mt|
       h[mt.id] = color_for_type(mt.major)
     }
+    h[MIMETYPE_DELETED] = DELETED_COLOR
     h
   end
 
@@ -84,40 +87,48 @@ extend self
         key = user.name + "::" + sanitize_query(query)
         t = @@indexes[key]
         unless t
-          idxs = Items.rfind_all(user, query.merge(:columns => [:image_index, :mimetype_id], :as_array => true))
-          t = @@indexes[key] = idxs.map!{|i| i.map!{|j| j.to_i }}
+          idxs = Items.rfind_all(user, query.merge(:columns => [:image_index, :mimetype_id, :deleted], :as_array => true))
+          tr = 't'
+          idxs.each{|i|
+            i[0]=i[0].to_i
+            i[1]=(i.pop == tr ? MIMETYPE_DELETED : i[1].to_i)
+          }
+          t = @@indexes[key] = idxs
         end
         indexes = t
       end
+      puts "#{Time.now.to_f}: indexes fetched"
       tile = TileDrawer.new.draw_tile(vbgcolor,indexes, palette(colors), r,x,y,z,w,h)
     end
     if tile
       qtext = sanitize_query(query)
       if tile.is_a? String
-        IO.popen('rawtoppm 256 256 | ppmtojpeg', 'rb+'){|f|
-          Thread.new{ f.write(tile) }
-          f.read
-        }
+        string_to_jpeg(tile)
       else
-        Future.tile_cache_dir.mkdir_p
-        tmp = Future.tile_cache_dir + "tmptile-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.jpg"
-        tile.save(tmp.to_s)
-        tile.delete!(true)
-        d = tmp.read
-        tmp.unlink
-        d
+        imlib_to_jpeg(tile)
       end
     else
       img = Imlib2::Image.new(w,h)
       img.fill_rectangle(0,0, img.width, img.height, Imlib2::Color::RgbaColor.new(vbgcolor))
-      Future.tile_cache_dir.mkdir_p
-      tmp = Future.tile_cache_dir + "tmptile-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.jpg"
-      img.save(tmp.to_s)
-      img.delete!(true)
-      d = tmp.read
-      tmp.unlink
-      d
+      imlib_to_jpeg(img)
     end
+  end
+
+  def imlib_to_jpeg(tile, delete=true)
+    Future.cache_dir.+('ramdisk').mkdir_p
+    tmp = Future.cache_dir + 'ramdisk' + "tmptile-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.jpg"
+    tile.save(tmp.to_s)
+    tile.delete!(true) if delete
+    d = tmp.read
+    tmp.unlink
+    d
+  end
+
+  def string_to_jpeg(tile)
+    IO.popen('rawtoppm 256 256 | ppmtojpeg', 'rb+'){|f|
+      Thread.new{ f.write(tile) }
+      f.read
+    }
   end
 
   def info(user, query, *tile_args)
@@ -208,10 +219,10 @@ class TileDrawer
     else
       cpalette = []
     end
+    puts "#{Time.now.to_f}: pushing query /tile/x#{x}y#{y}z#{z}"
     @@draw_queue.push([rq, [bgcolor, indexes, cpalette, x, y, z, @image_cache.thumb_size_at_zoom(z)]])
-    puts Time.now.to_f
     img = Imlib2::Image.create_using_data(256, 256, rq.pop)
-    puts Time.now.to_f
+    puts "#{Time.now.to_f}: created imlib image"
     img
   end
 
@@ -268,12 +279,12 @@ class TileDrawer
               GL.Viewport(0,0,256,256)
               begin
                 rq, query = @@draw_queue.shift
-                puts query[3]
-                puts Time.now.to_f
+                @draw_start = Time.now.to_f
+                puts "#{@draw_start}: got query /tile/x#{query[3]}y#{query[4]}z#{query[5]}"
                 GL.Clear(GL::COLOR_BUFFER_BIT)
                 GL.ClearColor(*query[0].map{|i| i / 255.0 })
                 draw_query(*query[1..-1])
-                puts Time.now.to_f
+                puts "#{Time.now.to_f-@draw_start}: query drawn /tile/x#{query[3]}y#{query[4]}z#{query[5]}"
               rescue => e
                 puts e, e.backtrace[0,5]
                 puts
@@ -282,7 +293,7 @@ class TileDrawer
               d = GL.ReadPixels(
                 0,0, 256, 256,
                 GL::BGRA, GL::UNSIGNED_BYTE)
-              puts Time.now.to_f
+              puts "#{Time.now.to_f-@draw_start}: image read from framebuffer"
               rq.push(d)
               GLUT.SwapBuffers() unless use_fbo
             end
@@ -294,8 +305,16 @@ class TileDrawer
     end
   end
 
-  def print_time
-    puts Time.now.to_f
+  def print_time_texture
+    puts "#{Time.now.to_f-@draw_start}: texture built"
+  end
+
+  def print_time_upload
+    puts "#{Time.now.to_f-@draw_start}: texture uploaded"
+  end
+
+  def print_time_layout
+    puts "#{Time.now.to_f-@draw_start}: layout done"
   end
 
   inline do |builder|
@@ -480,7 +499,6 @@ class TileDrawer
         pixels = (char*)malloc(sz24*indexes_length);
         for(i=0;i<sz24*indexes_length;i++) pixels[i] = 0;
         image_cache = rb_ivar_get(self, rb_intern("@image_cache"));
-        rb_funcall(self, rb_intern("print_time"), 0);
         read_imgs = rb_ary_new();
         for (i=0; i<indexes_length; i++) {
           index = indexes[i];
@@ -550,7 +568,7 @@ class TileDrawer
           }
         }
         */
-        rb_funcall(self, rb_intern("print_time"), 0);
+        rb_funcall(self, rb_intern("print_time_texture"), 0);
         upload(pixels, indexes_length, sz);
         free(pixels);
       }
@@ -569,7 +587,6 @@ class TileDrawer
         GLuint* gl_palette;
         VALUE *qptr;
         uint_32 i, plen;
-        
         qptr = RARRAY(query)->ptr;
         iindexes_length = RARRAY(query)->len;
         iindexes = (uint_64*)malloc(iindexes_length * sizeof(uint_64));
@@ -588,11 +605,13 @@ class TileDrawer
             gl_palette[i] = FIX2UINT(qptr[i]);
           }
         }
-        
+
         row_layout(&indexes_length, &indexes, &vertex_array, &texcoords, &colors,
                    iindex_colors, iindexes_length, gl_palette,
                    x, y, sz, 256, 256);
+        rb_funcall(self, rb_intern("print_time_layout"), 0);
         setup_texture(self, iindexes, iindexes_length, z, sz, indexes, indexes_length);
+        rb_funcall(self, rb_intern("print_time_upload"), 0);
 #ifdef NO_DEBUG
         glColor3f(1,1,1);
         glEnable(GL_TEXTURE_RECTANGLE_EXT);

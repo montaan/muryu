@@ -296,28 +296,32 @@ class RawPyramid
   def read_span_as_string(level, start, last)
     sz = 2**(2*level) * 4
     if start == last
-      return open_at(level, start, 'rb'){|f| f.read(sz) }
+      str = open_at(level, start, 'rb'){|f| f.read(sz) }
+      if str.size != (last-start+1)*sz
+        raise "Bad read! #{str.size} != #{(last-start+1)*sz}"
+      end
+      return str
     elsif start > last
-      return ""
+      raise "Bad read! Start #{start} bigger than last #{last}"
     end
     ipl = @indexes_per_level[level].to_i
     level_start_idx = (start / ipl).to_i
     level_end_idx = (last / ipl).to_i
     full_level_files = (level_start_idx+1..level_end_idx-1)
-    if full_level_files.begin >= full_level_files.end
-      return open_at(level, start, 'rb'){|f| f.read(sz*(last-start+1)) }
-    end
     str = ""
-    open_at(level, start, 'rb'){|f| str << f.read }
+    open_at(level, start, 'rb'){|f| str << f.read(sz*(last-start+1)) }
     full_level_files.each{|lf|
       open_at(level, lf * ipl, 'rb'){|f| str << f.read }
     }
     if level_end_idx != level_start_idx
-      open_at(level, start+length, 'rb'){|f|
-        sz = f.pos+1
+      open_at(level, last, 'rb'){|f|
+        rsz = f.pos
         f.rewind
-        str << f.read(sz)
+        str << f.read(rsz+sz)
       }
+    end
+    if str.size != (last-start+1)*sz
+      raise "Bad read! #{str.size} != #{(last-start+1)*sz}"
     end
     str
   end
@@ -337,8 +341,12 @@ class RawPyramid
       end
       s
     }
+    total_span_length = spans.inject(0){|s,(sp,r)| s+(sp.end-sp.begin+1) }
+    if indexes.size > total_span_length
+      raise "Bad spans! #{total_span_length} < #{indexes.size}: #{spans.map{|s,i| s}}"
+    end
     spans.each{|span,is|
-      puts "reading span #{span}"
+      log "reading span #{span}"
       s = read_span_as_string(level, span.begin, span.end)
       is.each{|i,j|
         result[j] = s[i*sz,sz]

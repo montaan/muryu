@@ -211,12 +211,6 @@ class Items < DB::Tables::Items
 include AccessControl
 extend AccessControlClass
 
-  def self.find_parse_args(user, h)
-    dh = {:deleted => false}
-    dh.delete(:deleted) if h[:limit] == 1
-    dh.merge(h)
-  end
-
   def rdelete(user)
     write(user) do
       self.deleted = true

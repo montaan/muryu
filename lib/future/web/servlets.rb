@@ -534,6 +534,9 @@ extend FutureServlet
     end
     
     def do_view(req,res)
+      tile_start = Time.now.to_f
+      puts "#{self.request_time}: got HTTP request"
+      puts "#{tile_start}: starting tile"
       res['Content-type'] = 'image/jpeg'
       x,y,z,w,h = parse_tile_geometry(servlet_path)
       color = (req.query['color'].to_s != 'false')
@@ -547,8 +550,9 @@ extend FutureServlet
         res.status = 302
         res['location'] = '/empty.jpg'
       end
-      puts Time.now.to_f
-      puts Time.now.to_f - self.request_time
+      puts "#{Time.now.to_f}: jpeg sent out"
+      puts "Tile time: #{Time.now.to_f - tile_start}"
+      puts "Total time: #{Time.now.to_f - self.request_time}"
       puts 
     end
   
