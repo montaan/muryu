@@ -112,10 +112,24 @@ extend self
     end
     if tile
       qtext = sanitize_query(query)
+      quality = case z
+                when 0: 70
+                when 1: 20
+                when 2: 20
+                when 3: 30
+                when 4: 40
+                when 5: 60
+                when 6: 80
+                when 7: 80
+                else
+                  90
+                end
+      quality += 20 if colors
+      quality = 90 if quality > 90
       if tile.is_a? String
-        string_to_jpeg(tile)
+        string_to_jpeg(tile, quality)
       else
-        imlib_to_jpeg(tile)
+        imlib_to_jpeg(tile, quality)
       end
     else
       img = Imlib2::Image.new(w,h)
@@ -124,9 +138,10 @@ extend self
     end
   end
 
-  def imlib_to_jpeg(tile, delete=true)
+  def imlib_to_jpeg(tile, quality=50, delete=true)
     Future.cache_dir.+('ramdisk').mkdir_p
     tmp = Future.cache_dir + 'ramdisk' + "tmptile-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.jpg"
+    tile['quality'] = quality
     tile.save(tmp.to_s)
     tile.delete!(true) if delete
     d = tmp.read
@@ -200,7 +215,7 @@ class TileDrawer
     end
     puts "#{Time.now.to_f}: checked tile emptiness"
     return false if empty_tile
-    return draw_tile_rend(bgcolor, indexes, palette, x, y, zoom) if zoom <= 7
+    return draw_tile_sw(bgcolor, indexes, palette, x, y, zoom) if zoom <= 7
     tile = Imlib2::Image.new(w,h)
     tile.fill_rectangle(0,0, w, h, Imlib2::Color::RgbaColor.new(bgcolor))
     layouter.each(indexes, x, y, sz, w, h, *layouter_args) do |i, ix, iy|
@@ -220,6 +235,29 @@ class TileDrawer
     layouter.each(indexes, x, y, sz, w, h, *layouter_args) do |i, ix, iy|
       yield(i, ix, iy, sz)
     end
+  end
+
+  def draw_tile_sw(bgcolor, indexes, palette, x, y, z)
+    init_sw unless @@sw_init
+    puts "#{Time.now.to_f}: sw tile palette gen /tile/x#{x}y#{y}z#{z}"
+    if palette
+      pmax = palette.keys.max
+      s = [0,0,0,0].pack("C*")
+      cpalette = (0..pmax).map{|i|
+        pl = palette[i]
+        pl ? pl.pack("CCC").reverse! << pl[3,1].pack("C") : s
+      }
+    else
+      cpalette = []
+    end
+    @draw_start = Time.now.to_f
+    puts "#{@draw_start}: sw tile starting draw /tile/x#{x}y#{y}z#{z}"
+    data = draw_query(indexes, cpalette, x, y, z,
+      @image_cache.thumb_size_at_zoom(z), bgcolor.pack("CCC").reverse! << 255)
+    puts "#{Time.now.to_f-@draw_start}: draw done"
+    img = Imlib2::Image.create_using_data(256, 256, data)
+    puts "#{Time.now.to_f-@draw_start}: created imlib image"
+    img
   end
 
   def draw_tile_rend(bgcolor, indexes, palette, x, y, z)
@@ -243,12 +281,20 @@ class TileDrawer
     img
   end
 
+  @@sw_init = false
+  def init_sw
+    @@init_mutex.synchronize do
+      return if @@sw_init
+      @@sw_init = true
+      init_image_cache(1_000_000, 6)
+    end
+  end
+
   @@rend_init = false
   @@draw_queue = Queue.new
   @@init_mutex = Mutex.new
 
   def init_rend
-    return if @@rend_init
     @@init_mutex.synchronize do
       return if @@rend_init
       @@rend_init = true
@@ -301,7 +347,7 @@ class TileDrawer
                 puts "#{@draw_start}: got query /tile/x#{query[3]}y#{query[4]}z#{query[5]}"
                 GL.Clear(GL::COLOR_BUFFER_BIT)
                 GL.ClearColor(*query[0].map{|i| i / 255.0 })
-                draw_query(*query[1..-1])
+                draw_query_gl(*query[1..-1])
               rescue => e
                 puts e, e.backtrace[0,5]
                 puts
@@ -324,8 +370,16 @@ class TileDrawer
     end
   end
 
+  def print_time_thumbs
+    puts "#{Time.now.to_f-@draw_start}: thumbs read"
+  end
+
   def print_time_texture
     puts "#{Time.now.to_f-@draw_start}: texture built"
+  end
+
+  def print_time_colors
+    puts "#{Time.now.to_f-@draw_start}: texture colored"
   end
 
   def print_time_upload
@@ -342,7 +396,7 @@ class TileDrawer
     builder.include "<GL/glew.h>"
     builder.include "<GL/gl.h>"
     builder.include "<GL/glu.h>"
-    builder.add_compile_flags "-Wall"
+    builder.add_compile_flags "-Wall -ffast-math"
     if $PLATFORM =~ /darwin/
       flags = "-lm -framework opengl -lruby"
     else
@@ -485,7 +539,143 @@ class TileDrawer
         *colors = NULL;
       }
 
-      void upload(char* pixels, uint_32 pxlen, uint_32 sz)
+      void sw_row_layout
+      (
+        uint_32* rtile_image_count,
+        uint_64** rindexes,
+        int** coords,
+        uint_32 iindexes_length,
+        uint_64 x,
+        uint_64 y,
+        uint_32 sz,
+        uint_32 w,
+        uint_32 h
+      )
+      {
+        uint_32 columns, rows, bigrow_img_count;
+        uint_32 y_offset, tpt;
+        uint_64 bigrow, first_bigrow_in_view, last_bigrow_in_view;
+        uint_64 first_row_in_view, last_row_in_view;
+        uint_64 first_column_in_view, last_column_in_view, columns_in_view, rows_in_view;
+        uint_64 i,r,j,c;
+        uint_64 index;
+        uint_64 *indexes;
+        float row_offset, bigrow_height, ix, iy, first_row_y,
+              first_bigrow_offset, last_bigrow_offset;
+        uint_32 tile_image_count, l;
+        int* cs = NULL;
+
+        tpt = 512 / sz;
+
+        row_offset = sz / 2.0;
+        columns = 200; 
+        rows = 5;
+        bigrow_height = (rows*sz) + row_offset;
+        bigrow_img_count = columns * rows;
+
+        first_bigrow_in_view = y / bigrow_height;
+        last_bigrow_in_view = (y+h) / bigrow_height;
+        first_bigrow_offset = row_offset * first_bigrow_in_view;
+        last_bigrow_offset = row_offset * last_bigrow_in_view;
+
+        first_row_in_view = (y-first_bigrow_offset) / sz;
+        last_row_in_view = (y+h-last_bigrow_offset) / sz;
+
+        first_row_y = first_row_in_view * sz + first_bigrow_offset;
+        y_offset = y - first_row_y;
+
+        first_column_in_view = x / sz;
+        last_column_in_view = (x+w) / sz;
+        columns_in_view = last_column_in_view - first_column_in_view + 1;
+        rows_in_view = last_row_in_view - first_row_in_view + 1;
+
+        indexes = (uint_64*)malloc((columns_in_view * rows_in_view) * sizeof(uint_64));
+        if (indexes == NULL) goto fail;
+        
+        /* 1 2D point */
+        cs = (int*)malloc( sizeof(int)*(columns_in_view * rows_in_view)*2 );
+        if (cs == NULL) goto fail;
+       
+        tile_image_count = 0;
+
+        for(i=0, r=first_row_in_view; r <= last_row_in_view; i++, r++)
+        {
+          if (r < 0) continue;
+          bigrow = r / rows;
+          iy = i*sz - y_offset + row_offset*(bigrow-first_bigrow_in_view);
+          if (iy >= h) continue;
+          for(j=0, c=first_column_in_view; c <= last_column_in_view; j++, c++)
+          {
+            if (c >= columns || c < 0) continue;
+            ix = j*sz - x%sz;
+            if (ix >= w) continue;
+            index = (bigrow * bigrow_img_count) + (c * rows) + (r % rows);
+            indexes[tile_image_count] = index;
+            l = tile_image_count * 2;
+
+            cs[l] = ix;
+            cs[l+1] = iy;
+            
+            tile_image_count++;
+          }
+        }
+        *rtile_image_count = tile_image_count;
+        *rindexes = indexes;
+        *coords = cs;
+        return;
+        
+        fail:
+        free(indexes);
+        free(cs);
+        *rtile_image_count = 0;
+        *rindexes = NULL;
+        *coords = NULL;
+      }
+
+      void colorize
+      (
+        VALUE self, unsigned char *thumbs,
+        uint_32 *colors, uint_32 colors_length,
+        uint_32 sz
+      )
+      {
+        uint_32 i,j,sz24,isz;
+        unsigned short sa, da;
+        uint_32 sr,sg,sb;
+        unsigned char *color;
+
+        sz24 = sz*sz*4;
+
+        for (i=0; i<colors_length; i++) {
+          if (colors[i] == 0) continue;
+          color = (unsigned char*)(colors + i);
+          isz = i*sz24+sz24;
+          sa = color[3];
+          da = 256 - sa;
+          sr = (color[0]<<8)*sa;
+          sg = (color[1]<<8)*sa;
+          sb = (color[2]<<8)*sa;
+          for (j=i*sz24; j<isz; j+=4) {
+            thumbs[j] = ((thumbs[j]<<8)*da + sr)>>16;
+            thumbs[j+1] = ((thumbs[j+1]<<8)*da + sg)>>16;
+            thumbs[j+2] = ((thumbs[j+2]<<8)*da + sb)>>16;
+            thumbs[j+3] = 255;
+          }
+        }
+      }
+
+      inline void blend_over(unsigned char* dst, unsigned char* src)
+      {
+        unsigned short sa, da;
+        sa = src[3];
+        da = 256 - sa;
+        src[0] = ((dst[0]<<8)*da + (src[0]<<8)*sa)>>16;
+        src[1] = ((dst[1]<<8)*da + (src[1]<<8)*sa)>>16;
+        src[2] = ((dst[2]<<8)*da + (src[2]<<8)*sa)>>16;
+        src[3] = 255;
+      }
+      
+      void upload(VALUE self, char* pixels, uint_32 pxlen, uint_32 sz)
       {
         int c, i, r2, r, sz24, sz4;
         char *tex = NULL, *xyo = NULL;
@@ -510,6 +700,7 @@ class TileDrawer
             memcpy(xyo+2048*i, pixels+(c*sz24 + sz4*i), sz4);
           }
         }
+        rb_funcall(self, rb_intern("print_time_texture"), 0);
         glTexSubImage2D(
           GL_TEXTURE_RECTANGLE_EXT, 0,
           0, 0, 512, 512,
@@ -521,7 +712,7 @@ class TileDrawer
       uint_32 icache_levels = 0;
       uint_32 icache_size = 0;
 
-      void setup_texture
+      char* setup_texture
       (
         VALUE self, uint_64* iindexes, uint_32 iindexes_length,
         uint_32 z, uint_32 sz, uint_64 *indexes, uint_32 indexes_length
@@ -539,7 +730,7 @@ class TileDrawer
         pixels = (char*)malloc(sz24*indexes_length);
         if (pixels == NULL) {
           rb_raise(rb_eRuntimeError, "Failed to allocate pixels");
-          return;
+          return NULL;
         }
         for(i=0;i<sz24*indexes_length;i++) pixels[i] = 0;
         image_cache = rb_ivar_get(self, rb_intern("@image_cache"));
@@ -563,6 +754,11 @@ class TileDrawer
           if (z < icache_levels) {
             for(i=0; i<len; i++) {
               data = (char*)malloc(sz24);
+              if (data == NULL) {
+                rb_raise(rb_eRuntimeError, "Failed to allocate new cache leaf");
+                free(pixels);
+                return NULL;
+              }
               memcpy(data, thumb_ptr+(i*sz24), sz24);
               icache[z][FIX2INT(ptr[i])] = data;
             }
@@ -583,18 +779,17 @@ class TileDrawer
               memcpy(pixels+(sz24*i), icache[z][iindexes[index]], sz24);
           }
         }
-        rb_funcall(self, rb_intern("print_time_texture"), 0);
-        upload(pixels, indexes_length, sz);
-        free(pixels);
+        return pixels;
       }
 
 
-      void draw(VALUE self, VALUE query, VALUE palette, uint_64 x, uint_64 y, uint_32 z, uint_32 sz)
+      void draw_gl(VALUE self, VALUE riindexes, VALUE palette, uint_64 x, uint_64 y, uint_32 z, uint_32 sz)
       {
         uint_64* indexes;
         GLfloat* vertex_array;
         GLfloat* texcoords;
         GLuint* colors;
+        char *thumbs;
         uint_32 indexes_length;
         uint_64* iindexes;
         uint_32* iindex_colors;
@@ -602,8 +797,8 @@ class TileDrawer
         GLuint* gl_palette;
         VALUE *qptr;
         uint_32 i, plen;
-        qptr = RARRAY(query)->ptr;
-        iindexes_length = RARRAY(query)->len;
+        qptr = RARRAY(riindexes)->ptr;
+        iindexes_length = RARRAY(riindexes)->len;
         iindexes = (uint_64*)malloc(iindexes_length * sizeof(uint_64));
         if (iindexes == NULL) {
           rb_raise(rb_eRuntimeError, "Failed to allocate iindexes");
@@ -643,7 +838,12 @@ class TileDrawer
           goto exit;
         }
         rb_funcall(self, rb_intern("print_time_layout"), 0);
-        setup_texture(self, iindexes, iindexes_length, z, sz, indexes, indexes_length);
+        thumbs = setup_texture(self, iindexes, iindexes_length, z, sz, indexes, indexes_length);
+        if (thumbs == NULL) {
+          goto exit;
+        }
+        rb_funcall(self, rb_intern("print_time_thumbs"), 0);
+        upload(self, thumbs, indexes_length, sz);
         rb_funcall(self, rb_intern("print_time_upload"), 0);
 
         glPushAttrib(GL_COLOR_BUFFER_BIT | GL_CURRENT_BIT | GL_ENABLE_BIT | GL_TEXTURE_BIT);
@@ -680,8 +880,147 @@ class TileDrawer
         free(colors);
         free(iindexes);
         free(iindex_colors);
+        free(thumbs);
         free(gl_palette);
       }
+
+      
+      char* draw_software
+      (
+        VALUE self,
+        VALUE riindexes,
+        VALUE palette,
+        uint_32 bgcolor,
+        uint_64 x, uint_64 y, uint_32 z, uint_32 sz
+      )
+      {
+        uint_64 *indexes;
+        char *thumbs, *bordered_render, *final_render;
+        uint_32 indexes_length;
+        uint_64 *iindexes;
+        uint_32 *iindex_colors, *colors = NULL;
+        uint_32 iindexes_length;
+        int *coords;
+        int tx, ty;
+        uint_32 *gl_palette;
+        VALUE *qptr;
+        uint_32 i, j, plen, sz24, sz4;
+        
+        sz24 = sz*sz*4;
+        sz4 = sz*4;
+        bordered_render = (char*)malloc(512*512*4);
+        if (bordered_render == NULL) {
+          rb_raise(rb_eRuntimeError, "Failed to allocate bordered_render");
+          goto exit;
+        }
+        final_render = (char*)malloc(256*256*4);
+        if (final_render == NULL) {
+          rb_raise(rb_eRuntimeError, "Failed to allocate final_render");
+          goto exit;
+        }
+
+        qptr = RARRAY(riindexes)->ptr;
+        iindexes_length = RARRAY(riindexes)->len;
+        iindexes = (uint_64*)malloc(iindexes_length * sizeof(uint_64));
+        if (iindexes == NULL) {
+          rb_raise(rb_eRuntimeError, "Failed to allocate iindexes");
+          goto exit;
+        }
+        iindex_colors = (uint_32*)malloc(iindexes_length * sizeof(uint_32));
+        if (iindex_colors == NULL) {
+          rb_raise(rb_eRuntimeError, "Failed to allocate iindex_colors");
+          goto exit;
+        }
+        for(i=0; i<iindexes_length; i++) {
+          iindexes[i] = FIX2UINT(RARRAY(qptr[i])->ptr[0]);
+          iindex_colors[i] = FIX2UINT(RARRAY(qptr[i])->ptr[1]);
+        }
+        plen = RARRAY(palette)->len;
+        qptr = RARRAY(palette)->ptr;
+        if (plen == 0) {
+          gl_palette = NULL;
+        } else {
+          gl_palette = (uint_32*)malloc(plen * sizeof(uint_32));
+          if (gl_palette == NULL) {
+            rb_raise(rb_eRuntimeError, "Failed to allocate gl_palette");
+            goto exit;
+          }
+          for(i=0; i<plen; i++) {
+            gl_palette[i] = *((uint_32*)StringValuePtr(qptr[i]));
+          }
+        }
+
+        sw_row_layout(
+                   &indexes_length, &indexes, &coords,
+                   iindexes_length,
+                   x, y, sz, 256, 256);
+        if (indexes == NULL || coords == NULL)
+        {
+          rb_raise(rb_eRuntimeError, "Failed to allocate layout");
+          goto exit;
+        }
+        rb_funcall(self, rb_intern("print_time_layout"), 0);
+        thumbs = setup_texture(self, iindexes, iindexes_length, z, sz, 
+                               indexes, indexes_length);
+        if (thumbs == NULL) {
+          goto exit;
+        }
+        for (i=0; i<indexes_length*sz24; i+=4) {
+          if (((unsigned char*)thumbs)[i+3] == 255) continue;
+          if (((unsigned char*)thumbs)[i+3] == 0) {
+            *((uint_32*)(thumbs+i)) = bgcolor;
+          } else {
+            blend_over((unsigned char*)(&bgcolor), (unsigned char*)(thumbs+i));
+          }
+        }
+        rb_funcall(self, rb_intern("print_time_thumbs"), 0);
+        colors = (uint_32*)malloc(sizeof(uint_32) * indexes_length);
+        if (colors == NULL) {
+          rb_raise(rb_eRuntimeError, "Failed to allocate colors");
+          goto exit;
+        }
+        for (i=0; i<indexes_length; i++) {
+          j = indexes[i];
+          if (j < iindexes_length) {
+            colors[i] = gl_palette[iindex_colors[j]];
+          } else {
+            colors[i] = 0;
+          }
+        }
+        colorize(self, (unsigned char*)thumbs, colors, indexes_length, sz);
+        rb_funcall(self, rb_intern("print_time_colors"), 0);
+
+        for(i=0; i<262144; i++) {
+          ((uint_32*)bordered_render)[i] = bgcolor;
+        }
+        
+        for(i=0; i<indexes_length; i++) {
+          if (indexes[i] >= iindexes_length) continue;
+          tx = coords[i*2] + 128;
+          ty = 512 * (coords[i*2+1] + 128);
+
+          for (j=0; j<sz; j++) {
+            memcpy(bordered_render + ty*4 + j*2048 + tx*4,
+                   thumbs + i*sz24 + j*sz4,
+                   sz4);
+          }
+        }
+
+        for(i=0; i<256; i++)
+          memcpy(final_render+1024*i, bordered_render+2048*(i+128)+512, 1024);
+          
+        exit:
+        free(bordered_render);
+        free(coords);
+        free(indexes);
+        free(iindexes);
+        free(iindex_colors);
+        free(gl_palette);
+        free(colors);
+        
+        return final_render;
+      }
+
       
       void destroy_image_cache()
       {
@@ -708,17 +1047,39 @@ class TileDrawer
     builder.c_raw <<-EOF
       VALUE draw_query(int argc, VALUE *argv, VALUE self)
       {
+        char *image;
+        VALUE rimage;
+        if (argc != 7) {
+          rb_raise(rb_eArgError, "Wrong number of args");
+          return Qundef;
+        }
+        image = draw_software(self,
+          argv[0], argv[1],
+          *((uint_32*)StringValuePtr(argv[6])),
+          FIX2INT(argv[2]),FIX2INT(argv[3]),FIX2INT(argv[4]),FIX2INT(argv[5]));
+        if (image == NULL) {
+          return Qnil;
+        } else {
+          rimage = rb_str_new(image, 256*256*4);
+          free(image);
+          return rimage;
+        }
+      }
+    EOF
+
+    builder.c_raw <<-EOF
+      VALUE draw_query_gl(int argc, VALUE *argv, VALUE self)
+      {
         if (argc != 6) {
           rb_raise(rb_eArgError, "Wrong number of args");
           return Qundef;
         }
-        draw(self,
+        draw_gl(self,
           argv[0], argv[1],
           FIX2INT(argv[2]),FIX2INT(argv[3]),FIX2INT(argv[4]),FIX2INT(argv[5]));
         return Qnil;
       }
     EOF
-
 
     builder.c <<-EOF
       void init_image_cache(int cache_size, int cache_levels)
