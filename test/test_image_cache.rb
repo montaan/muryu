@@ -9,10 +9,10 @@ Thread.abort_on_exception = true
 class ImageCacheTest < Test::Unit::TestCase
 include Future
 
-  def cache_setup name, type='tga'
+  def cache_setup name
     cache_path = Pathname.new(File.dirname(__FILE__)) + "data/image_cache_#{name}"
     cache_path.rmtree if cache_path.exist?
-    @image_cache = ImageCache.new cache_path, type
+    @image_cache = ImageCache.new cache_path
   end
 
   def item(thumbnail, deleted=false)
@@ -37,16 +37,16 @@ include Future
     (0..10).each do |i|
       ts << Thread.new do
         @image_cache.update_cache_at(
-          i%11,
-          item(File.join(File.dirname(__FILE__), "data/images/#{i%11}.png"), false)
+          i % 11,
+          item(File.join(File.dirname(__FILE__), "data/images/#{i % 11}.png"), false)
         )
       end
     end
     (0..10).each do |i|
       ts << Thread.new do
         @image_cache.update_cache_at(
-          i%11,
-          item(File.join(File.dirname(__FILE__), "data/images/#{10-(i%11)}.png"), false)
+          i % 11,
+          item(File.join(File.dirname(__FILE__), "data/images/#{10-(i % 11)}.png"), false)
         )
       end
     end

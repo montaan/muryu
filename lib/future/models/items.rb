@@ -138,6 +138,7 @@ class Items < DB::Tables::Items
   end
 
   def thumbnail(sz=256)
+    return nil unless sha1_hash
     Future.thumbnail_dir.join(*sha1_hash.scan(/(..)(..)(.*)/)[0]) + "#{sz}.png"
   end
 

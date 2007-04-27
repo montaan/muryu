@@ -1791,7 +1791,7 @@ Portal.FileMap.prototype.mergeD({
         true
       )
       var deleteButton = Portal.Button(
-        this.translate("delete"),
+        this.translate("delete_item"),
         Portal.Floater.prototype.buttonURL("delete", false),
         Portal.Floater.prototype.buttonURL("delete", true),
         Portal.Floater.prototype.buttonURL("delete", true),
@@ -2015,7 +2015,7 @@ Portal.FileMap.prototype.mergeD({
       manufacturer : 'manufacturer',
       software : 'software',
       edit : 'Edit metadata',
-      delete : 'Delete',
+      delete_item : 'Delete',
       filename : 'filename',
       source : 'source',
       referrer : 'referrer',
@@ -2082,7 +2082,7 @@ Portal.FileMap.prototype.mergeD({
       manufacturer : 'valmistaja',
       software : 'ohjelmisto',
       edit : 'Muokkaa tietoja',
-      delete : 'Poista',
+      delete_item : 'Poista',
       filename : 'tiedostonimi',
       source : 'lähde',
       referrer : 'viittaaja',

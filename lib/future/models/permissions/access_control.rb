@@ -214,7 +214,6 @@ extend AccessControlClass
   def rdelete(user)
     write(user) do
       self.deleted = true
-      update_image_cache
     end
   end
 
@@ -229,7 +228,6 @@ extend AccessControlClass
     write(user) do
       if File.exist?(internal_path)
         self.deleted = false
-        update_image_cache
       end
     end
   end

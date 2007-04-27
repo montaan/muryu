@@ -885,6 +885,10 @@ extend FutureServlet
           servlet_target[:modified_at] = Time.now.to_s if column?('modified_at')
         end
       end
+      Tiles.module_eval do
+        @@indexes.clear
+        @@infos.clear
+      end
     end
     
     def do_list(req,res)
@@ -923,10 +927,30 @@ extend FutureServlet
       end
     end
 
-    def do_purge(req,res)
+    def do_purge(req, res)
       servlet_target.rpurge(servlet_user)
+      Tiles.module_eval do
+        @@indexes.clear
+        @@infos.clear
+      end
     end
 
+    def do_delete(req, res)
+      servlet_target.rdelete(servlet_user)
+      Tiles.module_eval do
+        @@indexes.clear
+        @@infos.clear
+      end
+    end
+    
+    def do_undelete(req, res)
+      servlet_target.rundelete(servlet_user)
+      Tiles.module_eval do
+        @@indexes.clear
+        @@infos.clear
+      end
+    end
+    
     ### FIXME implement compressed and remote_compressed uploads.
     def do_upload(req, res)
       if servlet_user != Users.anonymous
@@ -984,6 +1008,10 @@ extend FutureServlet
       else
         res.status = 302
         res['location'] = '/items/create'
+      end
+      Tiles.module_eval do
+        @@indexes.clear
+        @@infos.clear
       end
     end
 

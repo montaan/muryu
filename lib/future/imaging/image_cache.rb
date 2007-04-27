@@ -12,22 +12,14 @@ module Future
 class ImageCache
 
   attr_accessor :cache_dir
-  attr_reader :cache_image_size, :cache_pyramid_size,
-              :max_thumbnail_size, :max_zoom, :raw_pyramid
+  attr_reader :max_thumbnail_size, :max_zoom, :raw_pyramid
 
   def initialize(cache_dir = Future.cache_dir + 'image_cache',
-                 cache_image_type = 'tga',
-                 cache_image_size = 512, max_thumbnail_size = 128)
-    cache_pyramid_size = cache_image_size ** 2
-    @cache_image_type = cache_image_type
-    @cache_image_size = cache_image_size
+                 max_thumbnail_size = 128)
     @max_thumbnail_size = max_thumbnail_size
     @cache_dir = cache_dir
-    @cache_pyramids = []
-    @cache_pyramid_size = cache_pyramid_size
     @max_zoom = (Math.log(max_thumbnail_size) / Math.log(2)).to_i
     @raw_pyramid = RawPyramid.new(@cache_dir, 2**27, @max_zoom)
-    @use_raw = true
     @batch_ops = nil
   end
 
@@ -63,20 +55,10 @@ class ImageCache
   #
   def update_cache_at(index, item = item_at(index))
     if item
-      if @use_raw
-        if item.deleted
-          @raw_pyramid.clear_at(index)
-        else
-          @raw_pyramid.update_cache_at(index, mipmap(item))
-        end
+      if item.deleted and not item.thumbnail
+        @raw_pyramid.clear_at(index)
       else
-        cache_pyramid = cache_pyramid_for(index)
-        pyramid_index = (index) % @cache_pyramid_size
-        if item.deleted
-          cache_pyramid.clear_at(pyramid_index, @batch_ops)
-        else
-          cache_pyramid.update_at(pyramid_index, item.thumbnail, @batch_ops)
-        end
+        @raw_pyramid.update_cache_at(index, mipmap(item))
       end
     else
       raise ArgumentError, 'Invalid index, should be a valid continuous_index for item.'
@@ -92,7 +74,7 @@ class ImageCache
   
   def mipmap(item)
     @@cache_draw_mutex.synchronize do
-      if item.deleted
+      if item.deleted and not item.thumbnail
         thumb = Imlib2::Image.new(2**@max_zoom, 2**@max_zoom)
         thumb.has_alpha = true
         init_ctx
@@ -117,11 +99,12 @@ class ImageCache
         othumb.delete!
       end
       levels = (0..@max_zoom).to_a.reverse.map{|i|
-        image = Imlib2::Image.new(2**i, 2**i)
+        sz = 2**i
+        image = Imlib2::Image.new(sz, sz)
         image.has_alpha = true
-        image.fill_rectangle(0,0, 2**i, 2**i, Imlib2::Color::TRANSPARENT)
+        image.fill_rectangle(0,0, sz, sz, Imlib2::Color::TRANSPARENT)
         image.blend!(thumb, 0, 0, thumb.width, thumb.height,
-                            0, 0, 2**i, 2**i)
+                            0, 0, sz, sz)
         px = image.data
         image.delete!
         px
@@ -138,6 +121,7 @@ class ImageCache
   def draw_image_at(index, zoom, image, x, y)
     if zoom > @max_zoom
       item = Items.find(:image_index => index)
+      return unless item.thumbnail
       if zoom == 8
         @@cache_draw_mutex.synchronize do
           t = Imlib2::Image.load(item.thumbnail.to_s)
@@ -167,26 +151,16 @@ class ImageCache
           end
         end
       end
-    elsif @use_raw
+    else
       img = @raw_pyramid.read_images_as_imlib(zoom, [index])[0]
       image.blend!(img, 0, 0, img.width, img.height,
                         x, y, img.width, img.height)
       img.delete!
-    else
-      cache_pyramid = cache_pyramid_for(index)
-      pyramid_index = (index) % @cache_pyramid_size
-      cache_pyramid.draw_image_at(pyramid_index, zoom, image, x, y, @batch_ops)
     end
   end
 
   def read_image_at(index, z)
-    if @use_raw
-      read_images_as_string(z, [index])
-    else
-      cache_pyramid = cache_pyramid_for(index)
-      pyramid_index = (index) % @cache_pyramid_size
-      cache_pyramid.read_image_at(pyramid_index, z)
-    end
+    read_images_as_string(z, [index])
   end
 
   def read_images_as_string(z, indexes)
@@ -195,16 +169,6 @@ class ImageCache
 
   def read_span_as_string(z, start, length)
     @raw_pyramid.read_span_as_string(z, start, length)
-  end
-
-  # Retrieves the image cache pyramid for the given index.
-  #
-  def cache_pyramid_for(index)
-    pyramid = index / @cache_pyramid_size
-    @cache_pyramids[pyramid] ||= ImageCachePyramid.new(
-      @cache_dir, pyramid, @cache_image_type,
-      @cache_image_size, @max_thumbnail_size
-    )
   end
 
   # Executes editing ops in batch, saving edited images only after
@@ -387,220 +351,6 @@ class RawPyramid
     }
   end
 
-end
-
-
-# ImageCachePyramid provides an interface to draw on multiple resolutions of
-# thumbnails with a single call.
-#
-# For e.g. an #update_at-call, it loads the CacheImage stack for the index,
-# then draws on each of the CacheImages.
-#
-class ImageCachePyramid
-
-  def initialize(cache_dir, toplevel_index, image_type='png', image_size=512, max_thumbnail_size=128)
-    @cache_dir = cache_dir
-    @toplevel_index = toplevel_index
-    @image_type = image_type
-    @image_size = image_size
-    @pyramid_dir = File.join(@cache_dir, @toplevel_index.to_s)
-    @levels = (0..(Math.log(max_thumbnail_size) / Math.log(2)).to_i)
-  end
-
-  def image_stack_for(index, batch=nil, levels=@levels)
-    levels.map do |lvl|
-      image_for(lvl, index, batch)
-    end
-  end
-
-  def image_for(level, index, batch=nil)
-    items_per_image = (@image_size / (1 << level)) ** 2
-    wanted_image = index / items_per_image
-    batch = {} unless batch
-    batch[[@pyramid_dir, level, wanted_image]] ||= CacheImage.new(File.join(@pyramid_dir, level.to_s, wanted_image.to_s), @image_size, 1 << level, @image_type)
-  end
-
-  def at(index, batch=nil, levels=@levels)
-    image_stack = image_stack_for(index, batch, levels)
-    image_stack.each_with_index do |cache_img, i|
-      thumb_size = 1 << levels[i]
-      thumbs_per_cache_img = (@image_size / thumb_size) ** 2
-      yield(cache_img, index % thumbs_per_cache_img)
-    end
-  end
-
-  def update_at(index, image_filename, batch = nil)
-    image = Imlib2::Image.load(image_filename)
-    at(index, batch) do |cache_img, cache_idx|
-      cache_img.draw_at(cache_idx, image)
-      unless batch
-        cache_img.save
-        cache_img.delete!
-      end
-    end
-    image.delete!(true)
-  end
-
-  def clear_at(index, batch = nil)
-    at(index, batch) do |cache_img, cache_idx|
-      cache_img.clear_at(cache_idx)
-      unless batch
-        cache_img.save
-        cache_img.delete!
-      end
-    end
-  end
-
-  def draw_image_at(index, level, image, x, y, batch=nil)
-    at(index, batch, [level]) do |cache_img, cache_idx|
-      cache_img.draw_image_at(cache_idx, image, x, y)
-      cache_img.delete! unless batch
-    end
-  end
-
-  def read_image_at(index, level, batch=nil)
-    str = nil
-    at(index, batch, [level]) do |cache_img, cache_idx|
-      str = cache_img.read_image_at(cache_idx)
-      cache_img.delete! unless batch
-    end
-    str
-  end
-
-end
-
-
-class CacheImage
-
-  attr_reader :directory, :image_size, :image, :filename, :thumb_size, :thumbs_per_row
-
-  attr_accessor :key, :total, :count
-  
-  @@open_images = {}
-  @@open_images_mutex = Mutex.new
-
-  def self.new(*a)
-    key = a
-    @@open_images_mutex.synchronize do
-      i = (@@open_images[key] ||= (
-        img = allocate
-        # expensive to serialize image loads?
-        # (may improve performance on one-disk system by serializing reads?)
-        img.instance_eval{ initialize(*a) } 
-        img.key = key
-        [img, 0]
-      ))
-      i[1] += 1 # increase refcount
-      i[0]
-    end
-  end
-  
-  def self.release(key)
-    @@open_images_mutex.synchronize do 
-      i = @@open_images[key]
-      return unless i
-      if (i[1] -= 1) < 1 # decrease refcount, delete image if refcount reaches zero
-        @@open_images.delete(key)
-        i[0].image.delete!
-        #p [i[0].filename, i[0].total, i[0].count, i[0].total/i[0].count] if i[0].count > 0
-      end
-    end
-  end
-  
-  def initialize(file_prefix, image_size, thumb_size, image_type_suffix = 'png')
-    @mutex = Mutex.new
-    @total = 0
-    @count = 0
-    @directory = File.dirname(file_prefix)
-    @image_size = image_size
-    FileUtils.mkdir_p(@directory)
-    @filename = file_prefix + "." + image_type_suffix
-    @thumb_size = thumb_size
-    @thumbs_per_row = (image_size / thumb_size)
-    if File.exist? filename
-      @image = Imlib2::Image.load(filename)
-    else
-      @image = Imlib2::Image.new(image_size, image_size)
-      @image.has_alpha = true
-      init_ctx
-      @image.fill_rectangle([0, 0, image_size, image_size])
-    end
-    @changed = nil
-  end
-
-  def init_ctx
-    ctx = Imlib2::Context.get
-    ctx.blend = false
-    ctx.color = Imlib2::Color::TRANSPARENT
-    ctx.op = Imlib2::Op::COPY
-  end
-
-  def draw_at(idx, img)
-    x = idx % thumbs_per_row
-    y = idx / thumbs_per_row
-    larger = [img.width, img.height].max
-    iw = (@thumb_size.to_f*img.width / larger).round
-    ih = (@thumb_size.to_f*img.height / larger).round
-    simg = img.crop_scaled(0,0,img.width,img.height,iw,ih)
-    @mutex.synchronize do
-      init_ctx
-      image.fill_rectangle([x*thumb_size,y*thumb_size, thumb_size,thumb_size])
-      image.blend!(simg, 0,0, iw,ih, x*thumb_size, y*thumb_size, iw,ih)
-      @changed = true
-    end
-    simg.delete!(true)
-  end
-  
-  def clear_at(idx)
-    x = idx % thumbs_per_row
-    y = idx / thumbs_per_row
-    @mutex.synchronize do
-      init_ctx
-      image.fill_rectangle([x*thumb_size,y*thumb_size, thumb_size,thumb_size])
-      @changed = true
-    end
-  end
-
-  def draw_image_at(idx, img, ix, iy)
-    x = idx % thumbs_per_row
-    y = idx / thumbs_per_row
-    sz = thumb_size
-    @mutex.synchronize do
-      #t = Time.now.to_f
-      Imlib2::Context.get.blend = true
-      img.blend!(image, x*sz, y*sz, sz, sz, ix, iy, sz, sz)
-      #@total += Time.now.to_f - t
-      #@count += 1
-    end
-  end
-
-  def read_image_at(idx)
-    x = idx % thumbs_per_row
-    y = idx / thumbs_per_row
-    sz = thumb_size
-    @mutex.synchronize do
-      #t = Time.now.to_f
-      image.crop(x*sz,y*sz,sz,sz).data
-      #@total += Time.now.to_f - t
-      #@count += 1
-    end
-  end
-
-  def save
-    @mutex.synchronize do
-      if @changed
-        @image.save @filename
-        @changed = false
-      end
-    end
-  end
-  
-  def delete!(*a)
-    @mutex.synchronize do
-      self.class.release(key)
-    end
-  end
-  
 end
 
 
