@@ -144,6 +144,7 @@ extend self
     tile['quality'] = quality
     tile.save(tmp.to_s)
     tile.delete!(true) if delete
+    GC.enable
     d = tmp.read
     tmp.unlink
     d
@@ -255,6 +256,7 @@ class TileDrawer
     data = draw_query(indexes, cpalette, x, y, z,
       @image_cache.thumb_size_at_zoom(z), bgcolor.pack("CCC").reverse! << 255)
     puts "#{Time.now.to_f-@draw_start}: draw done"
+    GC.disable
     img = Imlib2::Image.create_using_data(256, 256, data)
     puts "#{Time.now.to_f-@draw_start}: created imlib image"
     img
@@ -282,6 +284,7 @@ class TileDrawer
   end
 
   @@sw_init = false
+
   def init_sw
     @@init_mutex.synchronize do
       return if @@sw_init
@@ -559,7 +562,7 @@ class TileDrawer
         uint_64 first_column_in_view, last_column_in_view, columns_in_view, rows_in_view;
         uint_64 i,r,j,c;
         uint_64 index;
-        uint_64 *indexes;
+        uint_64 *indexes = NULL;
         float row_offset, bigrow_height, ix, iy, first_row_y,
               first_bigrow_offset, last_bigrow_offset;
         uint_32 tile_image_count, l;
@@ -720,11 +723,11 @@ class TileDrawer
       {
         VALUE image_cache, thumb_data;
         VALUE read_imgs;
-        char *pixels, *data, *thumb_ptr;
+        char *pixels=NULL, *data=NULL, *thumb_ptr=NULL;
         uint_32 i, j, sz24, len;
         uint_64 index;
         int need_to_read = 0;
-        VALUE *ptr;
+        VALUE *ptr=NULL;
         
         sz24 = sz*sz*4;
         pixels = (char*)malloc(sz24*indexes_length);
@@ -785,17 +788,17 @@ class TileDrawer
 
       void draw_gl(VALUE self, VALUE riindexes, VALUE palette, uint_64 x, uint_64 y, uint_32 z, uint_32 sz)
       {
-        uint_64* indexes;
-        GLfloat* vertex_array;
-        GLfloat* texcoords;
-        GLuint* colors;
-        char *thumbs;
+        uint_64* indexes = NULL;
+        GLfloat* vertex_array = NULL;
+        GLfloat* texcoords = NULL;
+        GLuint* colors = NULL;
+        char *thumbs = NULL;
         uint_32 indexes_length;
-        uint_64* iindexes;
-        uint_32* iindex_colors;
+        uint_64* iindexes = NULL;
+        uint_32* iindex_colors = NULL;
         uint_32 iindexes_length;
-        GLuint* gl_palette;
-        VALUE *qptr;
+        GLuint* gl_palette = NULL;
+        VALUE *qptr = NULL;
         uint_32 i, plen;
         qptr = RARRAY(riindexes)->ptr;
         iindexes_length = RARRAY(riindexes)->len;
@@ -894,16 +897,16 @@ class TileDrawer
         uint_64 x, uint_64 y, uint_32 z, uint_32 sz
       )
       {
-        uint_64 *indexes;
-        char *thumbs, *bordered_render, *final_render;
+        uint_64 *indexes = NULL;
+        char *thumbs = NULL, *bordered_render = NULL, *final_render = NULL;
         uint_32 indexes_length;
-        uint_64 *iindexes;
-        uint_32 *iindex_colors, *colors = NULL;
+        uint_64 *iindexes = NULL;
+        uint_32 *iindex_colors = NULL, *colors = NULL;
         uint_32 iindexes_length;
-        int *coords;
+        int *coords = NULL;
         int tx, ty;
-        uint_32 *gl_palette;
-        VALUE *qptr;
+        uint_32 *gl_palette = NULL;
+        VALUE *qptr = NULL;
         uint_32 i, j, plen, sz24, sz4;
         
         sz24 = sz*sz*4;
@@ -1010,6 +1013,7 @@ class TileDrawer
           memcpy(final_render+1024*i, bordered_render+2048*(i+128)+512, 1024);
           
         exit:
+        free(thumbs);
         free(bordered_render);
         free(coords);
         free(indexes);
