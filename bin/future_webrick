@@ -81,7 +81,7 @@ end
 include WEBrick
 include Future
 
-s = HTTPServer.new( :Port => 2000 )
+s = HTTPServer.new( :Port => (ARGV[0] || 2000).to_i )
 
 RootServlet.new(s).mount_servlets
 s.mount("/", WEBrick::HTTPServlet::FileHandler, "./html")

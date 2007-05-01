@@ -1,6 +1,20 @@
+Installation:
 
-database setup:
+sudo ruby setup.rb
+
+
+Database setup:
 
 dropdb $USER; 
 createdb $USER; 
 future_database_generate database/ | sudo -u postgres psql $USER
+
+
+Image cache regen:
+
+future_image_cache_regenerate
+
+
+Running:
+
+future_webrick 2000

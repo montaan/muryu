@@ -13,8 +13,8 @@ require 'builder'
 require 'json'
 require 'memcache'
 
-$PRINT_QUERY_PROFILE = true
-$CACHE_TILES = false
+$PRINT_QUERY_PROFILE = false
+$CACHE_TILES = true
 
 class StandardDateTime < DateTime
   def to_json(*a)
@@ -45,27 +45,55 @@ class MemCachePool
   def initialize(servers, size=16)
     @queue = Queue.new
     size.times{ @queue.push(MemCache.new(servers)) }
+    @local_cache = {}
+    @timeouts = {}
+    start_timeout_monitor
   end
 
-  def get(*a)
+  def get(a)
+    lc = @local_cache[a]
+    return lc if lc
     s = @queue.shift
-    r = s.get(*a)
+    r = s.get(a)
+    if r
+      local_cache_set(a,r,60)
+    end
     @queue.push(s)
     r
   end
 
   def set(*a)
+    local_cache_set(*a)
     s = @queue.shift
     r = s.set(*a)
     @queue.push(s)
     r
   end
 
-  def delete(*a)
+  def delete(a)
+    @local_cache.delete(a)
     s = @queue.shift
-    r = s.delete(*a)
+    r = s.delete(a)
     @queue.push(s)
     r
+  end
+
+  private
+  def local_cache_set(k, v, timeout=60)
+    @timeouts[k] = timeout
+    @local_cache[k] = v
+  end
+
+  def start_timeout_monitor
+    @timeout_monitor = Thread.new{
+      loop do
+        sleep(1)
+        @timeouts.each{|k,v|
+          @timeouts[k] = v-1
+        }
+        @local_cache.delete_if{|k,v| @timeouts[k] < 0 }
+      end
+    } 
   end
   
 end
@@ -194,6 +222,7 @@ module FutureServlet
     self.request_time = rt
     Thread.current.last_time = rt
     DB::Conn.reserve do |conn|
+      puts "#{telapsed} for DB::Conn.reserve" if $PRINT_QUERY_PROFILE
       Thread.current.conn = conn
       user_auth(req, res)
       puts "#{telapsed} for user auth" if $PRINT_QUERY_PROFILE
@@ -243,7 +272,7 @@ module FutureServlet
           user = Users.new(user_id)
         else
           user = Users.continue_session(session_id)
-          $memcache.set("session-#{session_id}", user.id, 300)
+          $memcache.set("session-#{session_id}", user.id, 300) if user
         end
         user
       }
@@ -252,7 +281,7 @@ module FutureServlet
         cookie.max_age = 3600 * 24 * 7
         if !user or req.query['logout']
           user.logout if user
-          $memcache.delete(cookie.value) if user
+          $memcache.delete("session-#{cookie.value}")
           cookie.instance_variable_set(:@discard, true)
           user = nil
         end
@@ -540,6 +569,7 @@ module FutureServlet
       objs = servlet_list_rows(req)
       cols = req.query['columns'].to_s.split(",") & columns.keys
       cols = columns.keys if cols.empty?
+      p columns, cols
       cols.delete_if{|c| servlet_invisible_column?(c) }
       res.body = objs.map{|o|
         cols.map{|c| [c, o[c]] }.to_hash
@@ -610,7 +640,7 @@ extend FutureServlet
         tile = Tiles.read(servlet_user, search_query, :rows, x, y, z, w, h,
                           color, bgcolor)
         puts "#{Thread.current.telapsed} for creating a JPEG" if $PRINT_QUERY_PROFILE
-        Thread.new { $memcache.set(key, tile, 300) if tile } if $CACHE_TILES
+        Thread.new { $memcache.set(key, tile, 300) } if tile and $CACHE_TILES
       end
       if tile
         res.body = tile
@@ -1018,7 +1048,8 @@ extend FutureServlet
     end
     
     ### FIXME implement compressed and remote_compressed uploads.
-    def do_upload(req, res)
+    def do_create(req, res)
+    p req.query
       if servlet_user != Users.anonymous
         common_fields = {
           :groups => req.query['groups'],
@@ -1069,17 +1100,21 @@ extend FutureServlet
       end
       if req.query.has_key?('close_when_done')
         res.body = <<-EOF
-          <html><head><script>window.close()</script></head></html>
+          <html><head><script>setTimeout(window.close,3000)</script></head>
+          <body>Got item A-OK! Keep up the good work!</body></html>
         EOF
+      elsif req.query.has_key?('json')
+        res['Content-type'] = "text/plain"
+        res.body = "Got it, thanks!"
       else
         res.status = 302
-        res['location'] = '/items/create'
+        res['location'] = '/items'
       end
     end
 
-    def do_create(req, res)
+    def do_list(req, res)
       res.body = <<-EOF
-        <FORM METHOD="post" ENCTYPE="multipart/form-data" ACTION="/items/upload">
+        <FORM METHOD="post" ENCTYPE="multipart/form-data" ACTION="/items/create">
         <P><A href="http://textism.com/tools/textile/" target="_new">TEXTILE</A><BR>
           <TEXTAREA NAME="text" ROWS="1" COLS="30"></TEXTAREA>
         </P>

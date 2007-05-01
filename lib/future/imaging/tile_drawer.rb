@@ -18,7 +18,7 @@ class Thread
 end
 
 $imlib_mutex ||= Mutex.new
-$PRINT_QUERY_PROFILE = true if $PRINT_QUERY_PROFILE.nil?
+$PRINT_QUERY_PROFILE = false if $PRINT_QUERY_PROFILE.nil?
 
 module Future
 
@@ -113,7 +113,11 @@ extend self
       @@mutex.synchronize do
         key = user.id.to_s + "::" + sanitize_query(query)
         puts "#{Thread.current.telapsed} for generating key" if $PRINT_QUERY_PROFILE
-        t = @@indexes[key]
+        if $memcache
+          t = $memcache.get(key)
+        else
+          t = @@indexes[key]
+        end
         unless t
           idxs = Items.rfind_all(user, query.merge(:columns => [:image_index, :mimetype_id, :deleted], :as_array => true))
           tr = 't'
@@ -121,7 +125,12 @@ extend self
             i[0]=i[0].to_i
             i[1]=(i.pop == tr ? MIMETYPE_DELETED : i[1].to_i)
           }
-          t = @@indexes[key] = [idxs, idxs.transpose.map!{|ix| ix.pack("I*") }]
+          t = [idxs, idxs.transpose.map!{|ix| ix.pack("I*") }]
+          if $memcache
+            $memcache.set(key, t, 300)
+          else
+            @@indexes[key] = t
+          end
         end
         indexes = t
       end
@@ -151,6 +160,7 @@ extend self
         imlib_to_jpeg(tile, quality)
       end
     else
+      img = nil
       $imlib_mutex.synchronize do
         img = Imlib2::Image.new(w,h)
         img.fill_rectangle(0,0, img.width, img.height, Imlib2::Color::RgbaColor.new(vbgcolor))
@@ -188,12 +198,21 @@ extend self
     indexes = iindexes = nil
     @@mutex.synchronize do
         key = user.id.to_s + "::" + sanitize_query(query)
-        t = @@infos[key]
+        if $memcache
+          t = $memcache.get(key)
+        else
+          t = @@infos[key]
+        end
         unless t
           result = Items.rfind_all(user, q)
           idxs = result.map{|i| i.image_index }
           iidxs = result.map{|r| [r.image_index, (q[:columns] - [:image_index]).map{|c| [c, r[c]]}.to_hash ] }.to_hash
-          t = @@infos[key] = [idxs, iidxs]
+          t = [idxs, iidxs]
+          if $memcache
+            $memcache.set(key, t, 300)
+          else
+            @@indexes[key] = t
+          end
         end
         indexes, iindexes = t
     end
@@ -331,7 +350,9 @@ class TileDrawer
 
   inline do |builder|
     builder.include "\"#{File.expand_path(File.dirname(__FILE__))}/stb_image.c\""
-    builder.add_compile_flags "-Wall"
+    builder.include "<liboil/liboil.h>"
+    builder.add_compile_flags "-Wall #{`pkg-config --cflags liboil-0.3`.strip}"
+    builder.add_link_flags `pkg-config --libs liboil-0.3`.strip
     builder.c_raw <<-EOF
       void do_nothing(){}
 #define uint_32 int
@@ -439,9 +460,9 @@ class TileDrawer
         uint_32 sz
       )
       {
-        uint_32 i,j,sz24,isz;
-        unsigned short sa, da;
-        uint_32 sr,sg,sb;
+        unsigned int i,j,sz24,isz;
+        unsigned char sa,da;
+        unsigned short sr,sg,sb;
         unsigned char *color;
 
         sz24 = sz*sz*4;
@@ -451,14 +472,14 @@ class TileDrawer
           color = (unsigned char*)(colors + i);
           isz = i*sz24+sz24;
           sa = color[3];
-          da = 256 - sa;
-          sr = (color[0]<<8)*sa;
-          sg = (color[1]<<8)*sa;
-          sb = (color[2]<<8)*sa;
+          da = (255 - sa);
+          sr = color[0]*sa;
+          sg = color[1]*sa;
+          sb = color[2]*sa;
           for (j=i*sz24; j<isz; j+=4) {
-            thumbs[j] = ((thumbs[j]<<8)*da + sr)>>16;
-            thumbs[j+1] = ((thumbs[j+1]<<8)*da + sg)>>16;
-            thumbs[j+2] = ((thumbs[j+2]<<8)*da + sb)>>16;
+            thumbs[j]   = (thumbs[j]*da   + (sr))>>8;
+            thumbs[j+1] = (thumbs[j+1]*da + (sg))>>8;
+            thumbs[j+2] = (thumbs[j+2]*da + (sb))>>8;
             thumbs[j+3] = 255;
           }
         }
@@ -585,7 +606,7 @@ class TileDrawer
                 data[j+2] = c;
               }
               for (j=0;j<h;j++)
-                memcpy(pixels+(sz24*i)+sz4*j, data+w*4*j, w*4);
+                oil_memcpy(pixels+(sz24*i)+sz4*j, data+w*4*j, w*4);
               stbi_image_free(data);
             }
           }
@@ -698,7 +719,7 @@ class TileDrawer
           ty = 512 * (coords[i*2+1] + 128);
 
           for (j=0; j<sz; j++) {
-            memcpy(bordered_render + ty*4 + j*2048 + tx*4,
+            oil_memcpy(bordered_render + ty*4 + j*2048 + tx*4,
                    thumbs + i*sz24 + j*sz4,
                    sz4);
           }
@@ -839,6 +860,7 @@ class TileDrawer
       {
         int i,j;
         char **c;
+        oil_init();
         if (icache != NULL) destroy_image_cache();
         icache_size = (uint_32)cache_size;
         icache_levels = (uint_32)cache_levels + 1;

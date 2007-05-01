@@ -1,0 +1,4 @@
+content muryu	jar:chrome/muryu.jar!/content/muryu/
+
+overlay	chrome://browser/content/browser.xul	chrome://muryu/content/muryu.xul
+overlay	chrome://browser/content/web-panels.xul	chrome://muryu/content/muryu.xul
