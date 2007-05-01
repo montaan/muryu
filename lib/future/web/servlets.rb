@@ -1,5 +1,7 @@
 #!/usr/bin/env ruby
 
+MEMCACHE_SERVERS = ['127.0.0.1:11211']
+
 require 'jcode'
 require 'kconv'
 $KCODE = 'u'
@@ -9,7 +11,10 @@ require 'future'
 load 'future/search/search_query_parser.rb'
 require 'builder'
 require 'json'
+require 'memcache'
 
+$PRINT_QUERY_PROFILE = true
+$CACHE_TILES = false
 
 class StandardDateTime < DateTime
   def to_json(*a)
@@ -24,16 +29,52 @@ class Time
 end
 
 class Thread
-  attr_accessor :servlet_target, :servlet_path, :servlet_root,
+  attr_accessor :servlet_target, :servlet_path, :servlet_root, :last_time,
     :servlet_target_path, :search_query, :session_id, :servlet_user, :request_time
+    
+  def telapsed
+    t = self.last_time
+    self.last_time = Time.now.to_f
+    ms = (self.last_time - t) * 1000
+    "[#{("#"*((ms*2).round)).rjust(16)[0,16]}] %.3fms" % [ms]
+  end
+  
 end
+
+class MemCachePool
+  def initialize(servers, size=16)
+    @queue = Queue.new
+    size.times{ @queue.push(MemCache.new(servers)) }
+  end
+
+  def get(*a)
+    s = @queue.shift
+    r = s.get(*a)
+    @queue.push(s)
+    r
+  end
+
+  def set(*a)
+    s = @queue.shift
+    r = s.set(*a)
+    @queue.push(s)
+    r
+  end
+
+  def delete(*a)
+    s = @queue.shift
+    r = s.delete(*a)
+    @queue.push(s)
+    r
+  end
+  
+end
+
+$memcache = MemCachePool.new(MEMCACHE_SERVERS)
+
 
 module Future
   
-  module Tiles
-    @@indexes.clear
-    @@infos.clear
-  end
 # API:
 # 
 # Non-namespaced / default-namespaced access:
@@ -67,6 +108,13 @@ module Future
 # 
 # 
 # 
+
+class Object
+  def telapsed(t=Thread.current.last_time)
+    Thread.current.last_time = Time.now.to_f
+    (Thread.current.last_time - t)
+  end
+end
 
 # do_add, etc primarily for Users, Groups, Sets, Items
 module FutureServlet
@@ -125,7 +173,7 @@ module FutureServlet
 
   @@reqs = []
   @@log_mutex = Mutex.new
-
+  
   def log_req val
     @@log_mutex.synchronize do
       @@reqs << val
@@ -137,12 +185,18 @@ module FutureServlet
     end
   end
 
+  def telapsed
+    Thread.current.telapsed
+  end
+  
   def handle_request(req, res)
     rt = Time.now.to_f
-    self.request_time = Time.now.to_f
+    self.request_time = rt
+    Thread.current.last_time = rt
     DB::Conn.reserve do |conn|
       Thread.current.conn = conn
       user_auth(req, res)
+      puts "#{telapsed} for user auth" if $PRINT_QUERY_PROFILE
       self.servlet_root = req.script_name
       self.servlet_path, mode = File.split(req.path_info)
       unless servlet_modes.include? mode
@@ -175,7 +229,6 @@ module FutureServlet
     self.search_query = SearchQueryParser.tokens_and_words_to_query_hash(h, words)
   end
   
-  ### FIXME how do these cookies work :(
   def user_auth(req, res)
     un = req.query['username']
     pw = req.query['password']
@@ -185,13 +238,21 @@ module FutureServlet
       cookies.each{|c| c.instance_variable_set(:@discard, true) }
       cookie = cookies.find{|cookie|
         self.session_id = cookie.value
-        user = Users.continue_session(session_id)
+        user = nil
+        if user_id = $memcache.get("session-#{session_id}")
+          user = Users.new(user_id)
+        else
+          user = Users.continue_session(session_id)
+          $memcache.set("session-#{session_id}", user.id, 300)
+        end
+        user
       }
       if cookie
         cookie.instance_variable_set(:@discard, false)
         cookie.max_age = 3600 * 24 * 7
         if !user or req.query['logout']
           user.logout if user
+          $memcache.delete(cookie.value) if user
           cookie.instance_variable_set(:@discard, true)
           user = nil
         end
@@ -527,7 +588,7 @@ extend FutureServlet
       []
     end
 
-    delegate "Items", :rfind, :rfind_all, :columns
+    delegate "Items", :columns
 
     def parse_search_query(req)
       self.search_query = SearchQueryParser.parse_query(req.query['q'].to_s, Items.columns)
@@ -535,25 +596,31 @@ extend FutureServlet
     
     def do_view(req,res)
       tile_start = Time.now.to_f
-      puts "#{self.request_time}: got HTTP request"
-      puts "#{tile_start}: starting tile"
+      puts "#{telapsed} for rest of handle_request" if $PRINT_QUERY_PROFILE
       res['Content-type'] = 'image/jpeg'
       x,y,z,w,h = parse_tile_geometry(servlet_path)
       color = (req.query['color'].to_s != 'false')
       bgcolor = (req.query.has_key?('bgcolor') ?
                   req.query['bgcolor'].to_s[0,6] : false)
-      tile = Tiles.read(servlet_user, search_query, :rows, x, y, z, w, h,
-                        color, bgcolor)
+      key = [servlet_user.id, servlet_path, color, bgcolor, search_query].join("::")
+      puts "#{Thread.current.telapsed} for tile arg parsing" if $PRINT_QUERY_PROFILE
+      tile = $memcache.get(key) if $CACHE_TILES
+      puts "#{Thread.current.telapsed} for memcache get" if $PRINT_QUERY_PROFILE
+      unless tile
+        tile = Tiles.read(servlet_user, search_query, :rows, x, y, z, w, h,
+                          color, bgcolor)
+        puts "#{Thread.current.telapsed} for creating a JPEG" if $PRINT_QUERY_PROFILE
+        Thread.new { $memcache.set(key, tile, 300) if tile } if $CACHE_TILES
+      end
       if tile
         res.body = tile
       else
         res.status = 302
         res['location'] = '/empty.jpg'
       end
-      puts "#{Time.now.to_f}: jpeg sent out"
-      puts "Tile time: #{Time.now.to_f - tile_start}"
-      puts "Total time: #{Time.now.to_f - self.request_time}"
-      puts 
+      puts "Tile time: #{"%.3fms" % [1000 * (Time.now.to_f - tile_start)]}" if $PRINT_QUERY_PROFILE
+      puts "Total time: #{"%.3fms" % [1000 * (Time.now.to_f - request_time)]}" if $PRINT_QUERY_PROFILE
+      puts
     end
   
     def do_list(req,res)
@@ -584,7 +651,7 @@ extend FutureServlet
       []
     end
 
-    delegate "Items", :rfind, :rfind_all, :columns
+    delegate "Items", :columns
 
     def parse_search_query(req)
       self.search_query = SearchQueryParser.parse_query(req.query['q'].to_s, Items.columns)
@@ -598,22 +665,33 @@ extend FutureServlet
         res.body = [].to_json
         return
       end
-      if z >= 4
-        sq[:columns] ||= []
-        sq[:columns] << 'path'
+      key = [servlet_user.id, servlet_path, search_query].join("::")
+      jinfo = $memcache.get(key)
+      unless jinfo
+        if z >= 4
+          sq[:columns] ||= []
+          sq[:columns] << 'path'
+        end
+        if z >= 7
+  #         sq['columns'].push(*['metadata.width', 'metadata.height'])
+        end
+        if z >= 8
+  #         sq['columns'].push(*['owner.name', 'metadata'])
+        end
+        puts "#{telapsed} for tile_info init" if $PRINT_QUERY_PROFILE
+        info = Tiles.info(
+          servlet_user, sq,
+          :rows, x, y, z, w, h
+        ).to_a.map do |iind,((x,y,sz), info)|
+          {:image_index => iind, :x => x, :y => y, :sz => sz, :info => info}
+        end
+        puts "#{telapsed} for fetching tile info" if $PRINT_QUERY_PROFILE
+        jinfo = info.to_json
+        puts "#{telapsed} for tile info jsonification" if $PRINT_QUERY_PROFILE
+        $memcache.set(key, jinfo, 300)
       end
-      if z >= 7
-#         sq['columns'].push(*['metadata.width', 'metadata.height'])
-      end
-      if z >= 8
-#         sq['columns'].push(*['owner.name', 'metadata'])
-      end
-      res.body = Tiles.info(
-        servlet_user, sq,
-        :rows, x, y, z, w, h
-      ).to_a.map do |iind,((x,y,sz), info)|
-        {:image_index => iind, :x => x, :y => y, :sz => sz, :info => info}
-      end.to_json
+      res.body = jinfo
+      puts "Total tile_info time: #{"%.3fms" % [1000 * (Time.now.to_f - request_time)]}" if $PRINT_QUERY_PROFILE
     end
   
     def do_list(req,res)
@@ -885,10 +963,6 @@ extend FutureServlet
           servlet_target[:modified_at] = Time.now.to_s if column?('modified_at')
         end
       end
-      Tiles.module_eval do
-        @@indexes.clear
-        @@infos.clear
-      end
     end
     
     def do_list(req,res)
@@ -929,18 +1003,10 @@ extend FutureServlet
 
     def do_purge(req, res)
       servlet_target.rpurge(servlet_user)
-      Tiles.module_eval do
-        @@indexes.clear
-        @@infos.clear
-      end
     end
 
     def do_delete(req, res)
       servlet_target.rdelete(servlet_user)
-      Tiles.module_eval do
-        @@indexes.clear
-        @@infos.clear
-      end
     end
     
     def do_undelete(req, res)
@@ -1008,10 +1074,6 @@ extend FutureServlet
       else
         res.status = 302
         res['location'] = '/items/create'
-      end
-      Tiles.module_eval do
-        @@indexes.clear
-        @@infos.clear
       end
     end
 

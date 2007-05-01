@@ -2,6 +2,7 @@ require 'future/base'
 require 'thread'
 require 'imlib2'
 
+$imlib_mutex ||= Mutex.new
 
 module Future
 
@@ -21,6 +22,10 @@ class ImageCache
     @max_zoom = (Math.log(max_thumbnail_size) / Math.log(2)).to_i
     @raw_pyramid = RawPyramid.new(@cache_dir, 2**27, @max_zoom)
     @batch_ops = nil
+  end
+
+  def max_index
+    @raw_pyramid.max_index
   end
 
   def thumb_size_at_zoom(zoom)
@@ -73,7 +78,7 @@ class ImageCache
   end
   
   def mipmap(item)
-    @@cache_draw_mutex.synchronize do
+    $imlib_mutex.synchronize do
       if item.deleted and not item.thumbnail
         thumb = Imlib2::Image.new(2**@max_zoom, 2**@max_zoom)
         thumb.has_alpha = true
@@ -123,7 +128,7 @@ class ImageCache
       item = Items.find(:image_index => index)
       return unless item.thumbnail
       if zoom == 8
-        @@cache_draw_mutex.synchronize do
+        $imlib_mutex.synchronize do
           t = Imlib2::Image.load(item.thumbnail.to_s)
           image.blend!(t, 0,0,t.width,t.height, x,y,t.width,t.height)
           t.delete!
@@ -135,7 +140,7 @@ class ImageCache
         pn = Pathname.new(item.internal_path)
         tn = Future.cache_dir + "tmpthumb-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.tga"
         w = 2**zoom
-        @@cache_draw_mutex.synchronize do
+        $imlib_mutex.synchronize do
           pn.thumbnail(tn, w, 0, "#{image.width}x#{image.height}+#{-[0, x].min}+#{-[0, y].min}")
           return unless tn.exist?
           x = 0 if x < 0
@@ -169,6 +174,64 @@ class ImageCache
 
   def read_span_as_string(z, start, length)
     @raw_pyramid.read_span_as_string(z, start, length)
+  end
+  
+  def read_images_as_jpeg(lvl,indexes)
+    d = @raw_pyramid.read_images(lvl,indexes)
+    d.inject(""){|s,i|
+      j = crop_and_jpeg(i, lvl)
+      s << ([j.size].pack("I")) << j
+      s
+    }
+  end
+  
+  def read_span_as_jpeg(lvl,s,l)
+    d = read_span_as_string(lvl,s,l)
+    sz24 = 2**(lvl*2)*4
+    str = ""
+    0.step(d.size-1, sz24){|i|
+      bgra = d[i,sz24]
+      j = crop_and_jpeg(bgra, lvl)
+      str << ([j.size].pack("I")) << j
+    }
+    str
+  end
+
+  def crop_and_jpeg(bgra, lvl)
+    sz = 2**lvl
+    i = 0
+    w = 0
+    while i < sz && w < sz
+      nw = (bgra[i*sz*4,sz*4].index(/(\000\000\000\000)+\Z/) || (sz * 4)) / 4
+      w = nw if nw > w
+      i+=1
+    end
+    raise "BUG in width, #{w} > #{sz}" if w > sz
+    if w == 0
+      ""
+    else
+      h = ((bgra.index(/(\000\000\000\000)+\Z/) || sz*sz*4.0) / (sz*4.0)).ceil
+      raise "BUG in height, #{h} > #{sz}" if h > sz
+      img = nil
+      $imlib_mutex.synchronize do
+        img = Imlib2::Image.create_using_data(sz, sz, bgra)
+        img.crop!(0,0,w,h)
+      end
+      imlib_to_jpeg(img, 70)
+    end
+  end
+  
+  def imlib_to_jpeg(tile, quality=50, delete=true)
+    Future.cache_dir.+('ramdisk').mkdir_p
+    tmp = Future.cache_dir + 'ramdisk' + "tmptile-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.jpg"
+    $imlib_mutex.synchronize do
+      tile['quality'] = quality
+      tile.save(tmp.to_s)
+      tile.delete!(true) if delete
+    end
+    d = tmp.read
+    tmp.unlink
+    d
   end
 
   # Executes editing ops in batch, saving edited images only after
@@ -221,6 +284,15 @@ class RawPyramid
     @levels = (0..top_level)
     @parallel_reads = 8
     @indexes_per_level = @levels.map{|lvl| @cachefile_size / (2**(2*lvl) * 4) }
+  end
+
+  def max_index
+    dirname = File.join(@cache_dir, @levels.end.to_s)
+    maxdir = Dir[dirname + "/*"].map{|n| File.split(n).last.to_i }.max
+    maxfile = Dir[File.join(dirname, maxdir.to_s, "*")].map{|n| File.split(n).last.to_i }.max
+    maxfile ||= 0
+    ipl = @indexes_per_level.last
+    ipl * (maxfile+1) - 1
   end
 
   def update_cache_at(index, data_levels)

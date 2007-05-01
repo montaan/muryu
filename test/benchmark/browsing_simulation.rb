@@ -1,4 +1,4 @@
-$cookie = "future_session_id=04f65d64041ff8334ed02d10a1d46e61"
+$cookie = "future_session_id=b59b85385faa89c349754c23397d486e"
 
 def url(x,y,z,i)
   rx = (z*x + i%5)*256

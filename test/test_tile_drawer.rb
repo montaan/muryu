@@ -31,7 +31,8 @@ include Future
       end
     end
     td = TileDrawer.new(@image_cache)
-    indexes = (0...photos.size).to_a.map{|i| [i,0]}
+    rindexes = (0...photos.size).to_a.map{|i| [i,0]}
+    indexes = [rindexes, rindexes.transpose.map{|ix| ix.pack("I*") }]
     palette = {0=>[0,0,0,0]}
     x,y,w,h = 0, 0, 256, 256
     pn = Pathname.new(File.dirname(__FILE__)).join("data", "tile_drawer_output")
