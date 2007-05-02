@@ -324,7 +324,15 @@ class TileDrawer
 
   @@init_mutex = Mutex.new
 
-  def print_time_thumbs
+  def print_time_thumbs_blend
+    puts "#{Thread.current.telapsed} for blending thumbs" if $PRINT_QUERY_PROFILE
+  end
+
+  def print_time_thumbs_zero
+    puts "#{Thread.current.telapsed} for zeroing texture" if $PRINT_QUERY_PROFILE
+  end
+
+  def print_time_thumbs_read
     puts "#{Thread.current.telapsed} for reading thumbs" if $PRINT_QUERY_PROFILE
   end
 
@@ -344,46 +352,50 @@ class TileDrawer
     puts "#{Thread.current.telapsed} for drawing" if $PRINT_QUERY_PROFILE
   end
 
+  def print_time_draw_zero
+    puts "#{Thread.current.telapsed} for zeroing bordered_render" if $PRINT_QUERY_PROFILE
+  end
+
+  def print_time_crop
+    puts "#{Thread.current.telapsed} for cropping" if $PRINT_QUERY_PROFILE
+  end
+
   def print_time_init
     puts "#{Thread.current.telapsed} for draw init" if $PRINT_QUERY_PROFILE
   end
 
   inline do |builder|
     builder.include "\"#{File.expand_path(File.dirname(__FILE__))}/stb_image.c\""
-    builder.include "<liboil/liboil.h>"
-    builder.add_compile_flags "-Wall #{`pkg-config --cflags liboil-0.3`.strip}"
-    builder.add_link_flags `pkg-config --libs liboil-0.3`.strip
+#     builder.include "<liboil/liboil.h>"
+#     builder.add_compile_flags "-Wall #{`pkg-config --cflags liboil-0.3`.strip}"
+#     builder.add_link_flags `pkg-config --libs liboil-0.3`.strip
     builder.c_raw <<-EOF
       void do_nothing(){}
-#define uint_32 int
-/* unsigned long */
-#define uint_64 int
-/* unsigned long long */
 
       void sw_row_layout
       (
-        uint_32* rtile_image_count,
-        uint_64** rindexes,
+        int* rtile_image_count,
+        int** rindexes,
         int** coords,
-        uint_32 iindexes_length,
-        uint_64 x,
-        uint_64 y,
-        uint_32 sz,
-        uint_32 w,
-        uint_32 h
+        int iindexes_length,
+        int x,
+        int y,
+        int sz,
+        int w,
+        int h
       )
       {
-        uint_32 columns, rows, bigrow_img_count;
-        uint_32 y_offset, tpt;
-        uint_64 bigrow, first_bigrow_in_view, last_bigrow_in_view;
-        uint_64 first_row_in_view, last_row_in_view;
-        uint_64 first_column_in_view, last_column_in_view, columns_in_view, rows_in_view;
-        uint_64 i,r,j,c;
-        uint_64 index;
-        uint_64 *indexes = NULL;
+        int columns, rows, bigrow_img_count;
+        int y_offset, tpt;
+        int bigrow, first_bigrow_in_view, last_bigrow_in_view;
+        int first_row_in_view, last_row_in_view;
+        int first_column_in_view, last_column_in_view, columns_in_view, rows_in_view;
+        int i,r,j,c;
+        int index;
+        int *indexes = NULL;
         float row_offset, bigrow_height, ix, iy, first_row_y,
               first_bigrow_offset, last_bigrow_offset;
-        uint_32 tile_image_count, l;
+        int tile_image_count, l;
         int* cs = NULL;
 
         tpt = 512 / sz;
@@ -410,7 +422,7 @@ class TileDrawer
         columns_in_view = last_column_in_view - first_column_in_view + 1;
         rows_in_view = last_row_in_view - first_row_in_view + 1;
 
-        indexes = (uint_64*)malloc((columns_in_view * rows_in_view) * sizeof(uint_64));
+        indexes = (int*)malloc((columns_in_view * rows_in_view) * sizeof(int));
         if (indexes == NULL) goto fail;
         
         /* 1 2D point */
@@ -456,11 +468,11 @@ class TileDrawer
       void colorize
       (
         VALUE self, unsigned char *thumbs,
-        uint_32 *colors, uint_32 colors_length,
-        uint_32 sz
+        int *colors, int colors_length,
+        int sz
       )
       {
-        unsigned int i,j,sz24,isz;
+        int i,j,sz24,isz;
         unsigned char sa,da;
         unsigned short sr,sg,sb;
         unsigned char *color;
@@ -470,17 +482,17 @@ class TileDrawer
         for (i=0; i<colors_length; i++) {
           if (colors[i] == 0) continue;
           color = (unsigned char*)(colors + i);
-          isz = i*sz24+sz24;
           sa = color[3];
           da = (255 - sa);
           sr = color[0]*sa;
           sg = color[1]*sa;
           sb = color[2]*sa;
-          for (j=i*sz24; j<isz; j+=4) {
-            thumbs[j]   = (thumbs[j]*da   + (sr))>>8;
-            thumbs[j+1] = (thumbs[j+1]*da + (sg))>>8;
-            thumbs[j+2] = (thumbs[j+2]*da + (sb))>>8;
+          isz = i*sz24+sz24;
+          for (j=isz-sz24; j<isz; j+=4) {
             thumbs[j+3] = 255;
+            thumbs[j+2] = (thumbs[j+2]*da + (sb))>>8;
+            thumbs[j+1] = (thumbs[j+1]*da + (sg))>>8;
+            thumbs[j]   = (thumbs[j]*da   + (sr))>>8;
           }
         }
       }
@@ -497,34 +509,36 @@ class TileDrawer
       }
       
       char*** icache = NULL;
-      uint_32 icache_levels = 0;
-      uint_32 icache_size = 0;
-      uint_32 icache_jpeg_levels = 0;
+      int icache_levels = 0;
+      int icache_size = 0;
+      int icache_jpeg_levels = 0;
 
       char* setup_texture
       (
-        VALUE self, uint_64* iindexes, uint_32 iindexes_length,
-        uint_32 z, uint_32 sz, uint_64 *indexes, uint_32 indexes_length
+        VALUE self, int* iindexes, int iindexes_length,
+        int z, int sz, int *indexes, int indexes_length
       )
       {
         VALUE image_cache, thumb_data;
         VALUE read_imgs;
-        char *pixels=NULL, *data=NULL, *thumb_ptr=NULL;
-        uint_32 i, j, sz24, sz4, len, tsz, k;
-        uint_64 index;
+        unsigned char *pixels=NULL, *data=NULL, *thumb_ptr=NULL;
+        int i, j, sz24, sz4, len, tsz, k;
+        int index;
         int need_to_read = 0;
         char c;
-        unsigned int w, h, n;
+        int w, h, n;
         VALUE *ptr=NULL;
         
         sz24 = sz*sz*4;
         sz4 = sz*4;
-        pixels = (char*)malloc(sz24*indexes_length);
+        pixels = (unsigned char*)malloc(sz24*indexes_length);
         if (pixels == NULL) {
           rb_raise(rb_eRuntimeError, "Failed to allocate pixels");
           return NULL;
         }
-        for(i=0;i<sz24*indexes_length;i++) pixels[i] = 0;
+        for(i=3; i<sz24*indexes_length;i+=4)
+          pixels[i] = 0;
+        rb_funcall(self, rb_intern("print_time_thumbs_zero"), 0);
         image_cache = rb_ivar_get(self, rb_intern("@image_cache"));
         read_imgs = rb_ary_new();
         for (i=0; i<indexes_length; i++) {
@@ -543,17 +557,17 @@ class TileDrawer
                                     INT2FIX(z), read_imgs);
             len = RARRAY(read_imgs)->len;
             ptr = RARRAY(read_imgs)->ptr;
-            thumb_ptr = StringValuePtr(thumb_data);
+            thumb_ptr = (unsigned char*)StringValuePtr(thumb_data);
             for(i=0,k=0; i<len; i++) {
               tsz = *(int*)(thumb_ptr+k);
-              data = malloc(tsz+4);
+              data = (unsigned char*)malloc(tsz+4);
               if (data == NULL) {
                 rb_raise(rb_eRuntimeError, "Failed to allocate new cache leaf");
                 free(pixels);
                 return NULL;
               }
               memcpy(data, thumb_ptr+k, tsz+4);
-              icache[z][FIX2INT(ptr[i])] = data;
+              icache[z][FIX2INT(ptr[i])] = (char*)data;
               k += tsz+4;
             }
           } else {
@@ -562,17 +576,17 @@ class TileDrawer
                                     INT2FIX(z), read_imgs);
             len = RARRAY(read_imgs)->len;
             ptr = RARRAY(read_imgs)->ptr;
-            thumb_ptr = StringValuePtr(thumb_data);
+            thumb_ptr = (unsigned char*)StringValuePtr(thumb_data);
             if (z < icache_levels) {
               for(i=0; i<len; i++) {
-                data = (char*)malloc(sz24);
+                data = (unsigned char*)malloc(sz24);
                 if (data == NULL) {
                   rb_raise(rb_eRuntimeError, "Failed to allocate new cache leaf");
                   free(pixels);
                   return NULL;
                 }
                 memcpy(data, thumb_ptr+(i*sz24), sz24);
-                icache[z][FIX2INT(ptr[i])] = data;
+                icache[z][FIX2INT(ptr[i])] = (char*)data;
               }
             } else {
               for(i=0,j=0; i<indexes_length; i++) {
@@ -595,7 +609,7 @@ class TileDrawer
           for(i=0; i<indexes_length; i++) {
             index = indexes[i];
             if (index < iindexes_length) {
-              thumb_ptr = icache[z][iindexes[index]];
+              thumb_ptr = (unsigned char*)icache[z][iindexes[index]];
               tsz = *(int*)thumb_ptr;
               if (tsz == 0) continue;
               data = stbi_jpeg_load_from_memory(thumb_ptr+4, tsz,
@@ -606,12 +620,12 @@ class TileDrawer
                 data[j+2] = c;
               }
               for (j=0;j<h;j++)
-                oil_memcpy(pixels+(sz24*i)+sz4*j, data+w*4*j, w*4);
+                memcpy(pixels+(sz24*i)+sz4*j, data+w*4*j, w*4);
               stbi_image_free(data);
             }
           }
         }
-        return pixels;
+        return (char*)pixels;
       }
 
       char* draw_software
@@ -620,21 +634,21 @@ class TileDrawer
         VALUE riindexes,
         VALUE riindex_colors,
         VALUE palette,
-        uint_32 bgcolor,
-        uint_64 x, uint_64 y, uint_32 z, uint_32 sz
+        int bgcolor,
+        int x, int y, int z, int sz
       )
       {
-        uint_64 *indexes = NULL;
+        int *indexes = NULL;
         char *thumbs = NULL, *bordered_render = NULL, *final_render = NULL;
-        uint_32 indexes_length;
-        uint_64 *iindexes = NULL;
-        uint_32 *iindex_colors = NULL, *colors = NULL;
-        uint_32 iindexes_length;
+        int indexes_length;
+        int *iindexes = NULL;
+        int *iindex_colors = NULL, *colors = NULL;
+        int iindexes_length;
         int *coords = NULL;
         int tx, ty;
-        uint_32 *gl_palette = NULL;
+        int *gl_palette = NULL;
         VALUE *qptr = NULL;
-        uint_32 i, j, plen, sz24, sz4;
+        int i, j, plen, sz24, sz4;
         
         sz24 = sz*sz*4;
         sz4 = sz*4;
@@ -649,22 +663,22 @@ class TileDrawer
           goto exit;
         }
 
-        iindexes_length = RSTRING(riindexes)->len / sizeof(uint_64);
-        iindexes = (uint_64*)StringValuePtr(riindexes);
-        iindex_colors = (uint_32*)StringValuePtr(riindex_colors);
+        iindexes_length = RSTRING(riindexes)->len / sizeof(int);
+        iindexes = (int*)StringValuePtr(riindexes);
+        iindex_colors = (int*)StringValuePtr(riindex_colors);
         
         plen = RARRAY(palette)->len;
         qptr = RARRAY(palette)->ptr;
         if (plen == 0) {
           gl_palette = NULL;
         } else {
-          gl_palette = (uint_32*)malloc(plen * sizeof(uint_32));
+          gl_palette = (int*)malloc(plen * sizeof(int));
           if (gl_palette == NULL) {
             rb_raise(rb_eRuntimeError, "Failed to allocate gl_palette");
             goto exit;
           }
           for(i=0; i<plen; i++) {
-            gl_palette[i] = *((uint_32*)StringValuePtr(qptr[i]));
+            gl_palette[i] = *((int*)StringValuePtr(qptr[i]));
           }
         }
 
@@ -684,16 +698,17 @@ class TileDrawer
         if (thumbs == NULL) {
           goto exit;
         }
+        rb_funcall(self, rb_intern("print_time_thumbs_read"), 0);
         for (i=0; i<indexes_length*sz24; i+=4) {
           if (((unsigned char*)thumbs)[i+3] == 255) continue;
           if (((unsigned char*)thumbs)[i+3] == 0) {
-            *((uint_32*)(thumbs+i)) = bgcolor;
+            *((int*)(thumbs+i)) = bgcolor;
           } else {
             blend_over((unsigned char*)(&bgcolor), (unsigned char*)(thumbs+i));
           }
         }
-        rb_funcall(self, rb_intern("print_time_thumbs"), 0);
-        colors = (uint_32*)malloc(sizeof(uint_32) * indexes_length);
+        rb_funcall(self, rb_intern("print_time_thumbs_blend"), 0);
+        colors = (int*)malloc(sizeof(int) * indexes_length);
         if (colors == NULL) {
           rb_raise(rb_eRuntimeError, "Failed to allocate colors");
           goto exit;
@@ -710,8 +725,9 @@ class TileDrawer
         rb_funcall(self, rb_intern("print_time_colors"), 0);
 
         for(i=0; i<262144; i++) {
-          ((uint_32*)bordered_render)[i] = bgcolor;
+          ((int*)bordered_render)[i] = bgcolor;
         }
+        rb_funcall(self, rb_intern("print_time_draw_zero"), 0);
         
         for(i=0; i<indexes_length; i++) {
           if (indexes[i] >= iindexes_length) continue;
@@ -719,14 +735,16 @@ class TileDrawer
           ty = 512 * (coords[i*2+1] + 128);
 
           for (j=0; j<sz; j++) {
-            oil_memcpy(bordered_render + ty*4 + j*2048 + tx*4,
+            memcpy(bordered_render + ty*4 + j*2048 + tx*4,
                    thumbs + i*sz24 + j*sz4,
                    sz4);
           }
         }
+        rb_funcall(self, rb_intern("print_time_draw"), 0);
 
         for(i=0; i<256; i++)
           memcpy(final_render+1024*i, bordered_render+2048*(i+128)+512, 1024);
+        rb_funcall(self, rb_intern("print_time_crop"), 0);
           
         exit:
         free(thumbs);
@@ -763,10 +781,10 @@ class TileDrawer
         icache_size = 0;
       }
 
-      int cache_fill(VALUE self, uint_64 first_idx, uint_64 last_idx)
+      int cache_fill(VALUE self, int first_idx, int last_idx)
       {
-        uint_64 j, k, span_end;
-        uint_32 span_sz, i, tsz, l;
+        int j, k, span_end;
+        int span_sz, i, tsz, l;
         VALUE image_cache, thumb_str;
         char *span = NULL, *thumb = NULL;
         
@@ -840,7 +858,7 @@ class TileDrawer
         }
         image = draw_software(self,
           argv[0], argv[1], argv[2],
-          *((uint_32*)StringValuePtr(argv[7])),
+          *((int*)StringValuePtr(argv[7])),
           FIX2INT(argv[3]),FIX2INT(argv[4]),FIX2INT(argv[5]),FIX2INT(argv[6]));
         if (image == NULL) {
           return Qnil;
@@ -860,11 +878,11 @@ class TileDrawer
       {
         int i,j;
         char **c;
-        oil_init();
+        /* oil_init(); */
         if (icache != NULL) destroy_image_cache();
-        icache_size = (uint_32)cache_size;
-        icache_levels = (uint_32)cache_levels + 1;
-        icache_jpeg_levels = (uint_32)cache_jpeg_levels + 1;
+        icache_size = (int)cache_size;
+        icache_levels = (int)cache_levels + 1;
+        icache_jpeg_levels = (int)cache_jpeg_levels + 1;
         icache = (char***)malloc(sizeof(char**) * icache_jpeg_levels);
         if (icache == NULL) {
           rb_raise(rb_eRuntimeError, "Failed to allocate icache");

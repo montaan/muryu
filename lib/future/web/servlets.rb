@@ -13,8 +13,8 @@ require 'builder'
 require 'json'
 require 'memcache'
 
-$PRINT_QUERY_PROFILE = false
-$CACHE_TILES = true
+$PRINT_QUERY_PROFILE = true
+$CACHE_TILES = false
 
 class StandardDateTime < DateTime
   def to_json(*a)
