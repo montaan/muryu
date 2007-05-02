@@ -260,17 +260,21 @@ class TileDrawer
     end
     return false if empty_tile
     return draw_tile_sw(bgcolor, indexes[1], palette, x, y, zoom) if zoom <= 7
+    tile = nil
     $imlib_mutex.synchronize do
       tile = Imlib2::Image.new(w,h)
       tile.fill_rectangle(0,0, w, h, Imlib2::Color::RgbaColor.new(bgcolor))
-      layouter.each(indexes[0], x, y, sz, w, h, *layouter_args) do |i, ix, iy|
-        @image_cache.draw_image_at(i[0], zoom, tile, ix, iy)
-        if palette and palette[i[1]][3] != 0
+    end
+    layouter.each(indexes[0], x, y, sz, w, h, *layouter_args) do |i, ix, iy|
+      @image_cache.draw_image_at(i[0], zoom, tile, ix, iy)
+      if palette and palette[i[1]][3] != 0
+        $imlib_mutex.synchronize do
           tile.fill_rectangle(ix, iy, sz, sz,
             Imlib2::Color::RgbaColor.new(palette[i[1]]))
         end
       end
     end
+    print_time_draw
     tile
   end
 
@@ -353,11 +357,7 @@ class TileDrawer
   end
 
   def print_time_draw_zero
-    puts "#{Thread.current.telapsed} for zeroing bordered_render" if $PRINT_QUERY_PROFILE
-  end
-
-  def print_time_crop
-    puts "#{Thread.current.telapsed} for cropping" if $PRINT_QUERY_PROFILE
+    puts "#{Thread.current.telapsed} for zeroing render" if $PRINT_QUERY_PROFILE
   end
 
   def print_time_init
@@ -366,9 +366,9 @@ class TileDrawer
 
   inline do |builder|
     builder.include "\"#{File.expand_path(File.dirname(__FILE__))}/stb_image.c\""
-#     builder.include "<liboil/liboil.h>"
-#     builder.add_compile_flags "-Wall #{`pkg-config --cflags liboil-0.3`.strip}"
-#     builder.add_link_flags `pkg-config --libs liboil-0.3`.strip
+    builder.include "<liboil/liboil.h>"
+    builder.add_compile_flags "-Wall #{`pkg-config --cflags liboil-0.3`.strip}"
+    builder.add_link_flags `pkg-config --libs liboil-0.3`.strip
     builder.c_raw <<-EOF
       void do_nothing(){}
 
@@ -536,8 +536,7 @@ class TileDrawer
           rb_raise(rb_eRuntimeError, "Failed to allocate pixels");
           return NULL;
         }
-        for(i=3; i<sz24*indexes_length;i+=4)
-          pixels[i] = 0;
+        oil_splat_u32_ns((uint32_t*)pixels, (uint32_t*)&need_to_read, sz*sz*indexes_length);
         rb_funcall(self, rb_intern("print_time_thumbs_zero"), 0);
         image_cache = rb_ivar_get(self, rb_intern("@image_cache"));
         read_imgs = rb_ary_new();
@@ -645,7 +644,7 @@ class TileDrawer
         int *iindex_colors = NULL, *colors = NULL;
         int iindexes_length;
         int *coords = NULL;
-        int tx, ty;
+        int tx, ty, tsz, tsz4, offset_y, offset_x;
         int *gl_palette = NULL;
         VALUE *qptr = NULL;
         int i, j, plen, sz24, sz4;
@@ -724,27 +723,39 @@ class TileDrawer
         colorize(self, (unsigned char*)thumbs, colors, indexes_length, sz);
         rb_funcall(self, rb_intern("print_time_colors"), 0);
 
-        for(i=0; i<262144; i++) {
-          ((int*)bordered_render)[i] = bgcolor;
-        }
+        ((int*)final_render)[0] = bgcolor;
+        for(i=4; i<256*256*4; i*=2)
+          memcpy(final_render+i, final_render, i);
         rb_funcall(self, rb_intern("print_time_draw_zero"), 0);
         
         for(i=0; i<indexes_length; i++) {
           if (indexes[i] >= iindexes_length) continue;
-          tx = coords[i*2] + 128;
-          ty = 512 * (coords[i*2+1] + 128);
+          tx = coords[i*2];
+          ty = coords[i*2+1];
+          tsz = sz;
+          tsz4 = sz4;
+          offset_y = offset_x = 0;
+          if (tx < 0) {
+            tsz4 += tx*4;
+            offset_x = -tx*4;
+            tx = 0;
+          } else if (tx > 256-sz) {
+            tsz4 += (256-sz - tx)*4;
+          }
+          if (ty < 0) {
+            offset_y = -ty;
+          } else if (ty > 256-sz) {
+            tsz += (256-sz - ty);
+          }
 
-          for (j=0; j<sz; j++) {
-            memcpy(bordered_render + ty*4 + j*2048 + tx*4,
-                   thumbs + i*sz24 + j*sz4,
-                   sz4);
+          for (j=offset_y; j<tsz; j++) {
+            memcpy(final_render + (ty+j)*1024 + tx*4,
+                   thumbs + i*sz24 + j*sz4 + offset_x,
+                   tsz4);
           }
         }
         rb_funcall(self, rb_intern("print_time_draw"), 0);
 
-        for(i=0; i<256; i++)
-          memcpy(final_render+1024*i, bordered_render+2048*(i+128)+512, 1024);
-        rb_funcall(self, rb_intern("print_time_crop"), 0);
           
         exit:
         free(thumbs);
@@ -753,8 +764,6 @@ class TileDrawer
         free(indexes);
         free(gl_palette);
         free(colors);
-        
-        rb_funcall(self, rb_intern("print_time_draw"), 0);
         
         return final_render;
       }
@@ -878,7 +887,7 @@ class TileDrawer
       {
         int i,j;
         char **c;
-        /* oil_init(); */
+        oil_init();
         if (icache != NULL) destroy_image_cache();
         icache_size = (int)cache_size;
         icache_levels = (int)cache_levels + 1;

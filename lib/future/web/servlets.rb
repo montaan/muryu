@@ -14,7 +14,7 @@ require 'json'
 require 'memcache'
 
 $PRINT_QUERY_PROFILE = true
-$CACHE_TILES = false
+$CACHE_TILES = true
 
 class StandardDateTime < DateTime
   def to_json(*a)
@@ -36,7 +36,7 @@ class Thread
     t = self.last_time
     self.last_time = Time.now.to_f
     ms = (self.last_time - t) * 1000
-    "[#{("#"*((ms*2).round)).rjust(16)[0,16]}] %.3fms" % [ms]
+    "[#{("#"*((ms*10).round)).rjust(60)[0,60]}] %.3fms" % [ms]
   end
   
 end
