@@ -153,7 +153,7 @@ extend self
       quality += 20 if colors
       quality = 90 if quality > 90
       if tile.is_a? String
-        string_to_jpeg(tile, quality)
+        tile_drawer.string_to_jpeg(tile, quality)
       else
         imlib_to_jpeg(tile, quality)
       end
@@ -179,13 +179,6 @@ extend self
     d = tmp.read
     tmp.unlink
     d
-  end
-
-  def string_to_jpeg(tile)
-    IO.popen('rawtoppm 256 256 | ppmtojpeg', 'rb+'){|f|
-      Thread.new{ f.write(tile) }
-      f.read
-    }
   end
 
   def info(user, query, *tile_args)
@@ -298,13 +291,13 @@ class TileDrawer
       cpalette = []
     end
     puts "#{Thread.current.telapsed} for palette generation" if $PRINT_QUERY_PROFILE
-    data = draw_query(indexes[0], indexes[1], cpalette, x, y, z,
+    return draw_query(indexes[0], indexes[1], cpalette, x, y, z,
         @image_cache.thumb_size_at_zoom(z), bgcolor.pack("CCC").reverse! << 255)
-    GC.disable
-    img = $imlib_mutex.synchronize do
-      Imlib2::Image.create_using_data(256, 256, data)
-    end
-    img
+#     GC.disable
+#     img = $imlib_mutex.synchronize do
+#       Imlib2::Image.create_using_data(256, 256, data)
+#     end
+#     img
   end
 
   @@sw_init = false
@@ -357,14 +350,117 @@ class TileDrawer
   end
 
   inline do |builder|
-    builder.include "\"#{File.expand_path(File.dirname(__FILE__))}/stb_image.c\""
+    builder.include "<stb_image.c>"
     builder.include "<liboil/liboil.h>"
     builder.include "<errno.h>"
     builder.include "<stdlib.h>"
-    builder.add_compile_flags "-Wall #{`pkg-config --cflags liboil-0.3`.strip}"
+    builder.include "<jpeglib.h>"
+    builder.include "<jerror.h>"
+    builder.add_compile_flags "-I#{File.expand_path(File.dirname(__FILE__))}"
+    builder.add_compile_flags "-ljpeg"
+    builder.add_compile_flags "-Wall"
+    builder.add_compile_flags `pkg-config --cflags liboil-0.3`.strip
     builder.add_link_flags `pkg-config --libs liboil-0.3`.strip
     builder.c_raw <<-EOF
       void do_nothing(){}
+
+      #define OUTPUT_BUF_SIZE 32768 /* should fit all tile jpegs */
+
+      typedef struct {
+        struct jpeg_destination_mgr pub; /* public fields */
+
+        VALUE * rb_str;               /* target stream */
+        JOCTET * buffer;              /* start of buffer */
+      } rb_str_destination_mgr;
+
+      typedef rb_str_destination_mgr * rb_str_dest_ptr;
+
+      METHODDEF(void)
+      rb_str_init_destination (j_compress_ptr cinfo)
+      {
+        rb_str_dest_ptr dest = (rb_str_dest_ptr) cinfo->dest;
+
+        /* Allocate the output buffer --- it will be released when done with image */
+        dest->buffer = (JOCTET *)
+            (*cinfo->mem->alloc_large) ((j_common_ptr) cinfo, JPOOL_IMAGE,
+                                        OUTPUT_BUF_SIZE * sizeof(JOCTET));
+        *dest->rb_str = rb_str_new(0, 0);
+        dest->pub.next_output_byte = dest->buffer;
+        dest->pub.free_in_buffer = OUTPUT_BUF_SIZE;
+      }
+
+      METHODDEF(boolean)
+      rb_str_empty_output_buffer (j_compress_ptr cinfo)
+      {
+        rb_str_dest_ptr dest = (rb_str_dest_ptr) cinfo->dest;
+
+        rb_str_cat(*dest->rb_str, (char*)dest->buffer, OUTPUT_BUF_SIZE);
+
+        dest->pub.next_output_byte = dest->buffer;
+        dest->pub.free_in_buffer = OUTPUT_BUF_SIZE;
+
+        return TRUE;
+      }
+
+      METHODDEF(void)
+      rb_str_term_destination (j_compress_ptr cinfo)
+      {
+        rb_str_dest_ptr dest = (rb_str_dest_ptr) cinfo->dest;
+        size_t datacount = OUTPUT_BUF_SIZE - dest->pub.free_in_buffer;
+
+        /* Write any data remaining in the buffer */
+        if (datacount > 0)
+          rb_str_cat(*dest->rb_str, (char*)dest->buffer, datacount);
+      }
+      
+      GLOBAL(void)
+      rb_str_dest(j_compress_ptr cinfo, VALUE *dst)
+      {
+        rb_str_dest_ptr dest;
+
+        cinfo->dest = (struct jpeg_destination_mgr *)
+            (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_PERMANENT,
+                                        sizeof(rb_str_destination_mgr));
+        dest = (rb_str_dest_ptr) cinfo->dest;
+        dest->pub.init_destination = rb_str_init_destination;
+        dest->pub.empty_output_buffer = rb_str_empty_output_buffer;
+        dest->pub.term_destination = rb_str_term_destination;
+        dest->rb_str = dst;
+      }
+
+      VALUE compress_jpeg(JSAMPLE *rgb_pixels, int quality)
+      {
+        struct jpeg_error_mgr jerr;
+        struct jpeg_compress_struct cinfo;
+        JSAMPROW rows[256];
+        int i;
+        VALUE jdst = rb_str_new("bats", 4);
+
+        for (i=0; i<256; i++)
+          rows[i] = &rgb_pixels[i * 256*3];
+
+        cinfo.err = jpeg_std_error(&jerr);
+        jpeg_create_compress(&cinfo);
+
+        rb_str_dest(&cinfo, &jdst);
+        
+        cinfo.image_width = 256;
+        cinfo.image_height = 256;
+        cinfo.input_components = 3;
+        cinfo.in_color_space = JCS_RGB;
+
+        jpeg_set_defaults(&cinfo);
+        jpeg_set_quality(&cinfo, quality, TRUE);
+        cinfo.dct_method = JDCT_IFAST;
+        
+        jpeg_start_compress(&cinfo, TRUE);
+        jpeg_write_scanlines(&cinfo, rows, 256);
+        jpeg_finish_compress(&cinfo);
+
+        jpeg_destroy_compress(&cinfo);
+        
+        return jdst;
+      }
 
       void sw_row_layout
       (
@@ -926,6 +1022,24 @@ class TileDrawer
           argv[0], argv[1], argv[2],
           *((int*)StringValuePtr(argv[7])),
           FIX2INT(argv[3]),FIX2INT(argv[4]),FIX2INT(argv[5]),FIX2INT(argv[6]));
+      }
+    EOF
+
+    builder.c <<-EOF
+      VALUE string_to_jpeg(VALUE str, int quality)
+      {
+        int i,j;
+        VALUE retval;
+        JSAMPLE *data = (JSAMPLE*)StringValuePtr(str);
+        JSAMPLE *rgb_data = malloc(256*256*3);
+        for(i=0,j=0; i<256*256*4; i+=4,j+=3) {
+          rgb_data[j+0] = data[i+2];
+          rgb_data[j+1] = data[i+1];
+          rgb_data[j+2] = data[i+0];
+        }
+        retval = compress_jpeg(rgb_data, quality);
+        free(rgb_data);
+        return retval;
       }
     EOF
 

@@ -42,8 +42,12 @@ include Future
       (0..20).each{|x|
         tilefile = pn + "#{zoom}_#{x}_#{y}.jpg"
         tile = td.draw_tile([0,0,0,255],indexes, palette, :rows, x*w, y*h, zoom, w, h)
-        if tile
-          tile.save(tilefile.to_s)
+        if tile 
+          if tile.is_a?(String)
+            tilefile.open("wb"){|f| f.write tile }
+          else
+            tile.save(tilefile.to_s)
+          end
         else
           break
         end
