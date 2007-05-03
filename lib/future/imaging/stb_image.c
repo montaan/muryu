@@ -121,7 +121,7 @@ extern int      stbi_jpeg_test_memory     (stbi_uc *buffer, int len);
 
 extern stbi_uc *stbi_jpeg_load            (char *filename,           int *x, int *y, int *comp, int req_comp);
 extern stbi_uc *stbi_jpeg_load_from_file  (FILE *f,                  int *x, int *y, int *comp, int req_comp);
-extern stbi_uc *stbi_jpeg_load_from_memory(stbi_uc *buffer, int len, int *x, int *y, int *comp, int req_comp);
+extern stbi_uc *stbi_jpeg_load_from_memory(const stbi_uc *buffer, int len, int *x, int *y, int *comp, int req_comp);
 extern int      stbi_jpeg_info            (char *filename,           int *x, int *y, int *comp);
 extern int      stbi_jpeg_info_from_file  (char *filename,           int *x, int *y, int *comp);
 extern int      stbi_jpeg_info_from_memory(stbi_uc *buffer, int len, int *x, int *y, int *comp);
@@ -1217,7 +1217,7 @@ unsigned char *stbi_jpeg_load(char *filename, int *x, int *y, int *comp, int req
    return data;
 }
 
-unsigned char *stbi_jpeg_load_from_memory(stbi_uc *buffer, int len, int *x, int *y, int *comp, int req_comp)
+unsigned char *stbi_jpeg_load_from_memory(const stbi_uc *buffer, int len, int *x, int *y, int *comp, int req_comp)
 {
    start_mem(buffer,len);
    return load_jpeg_image(x,y,comp,req_comp);

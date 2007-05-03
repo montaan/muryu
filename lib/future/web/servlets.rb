@@ -14,7 +14,7 @@ require 'json'
 require 'memcache'
 
 $PRINT_QUERY_PROFILE = true
-$CACHE_TILES = true
+$CACHE_TILES = false
 
 class StandardDateTime < DateTime
   def to_json(*a)
