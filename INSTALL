@@ -1,20 +1,29 @@
-Installation:
+Dependencies:
+-------------
+sudo apt-get install libjpeg62-dev liboil0.3-dev libimlib2-ruby \
+                     libpgsql-ruby1.8 racc libjson-ruby1.8 memcached \
+                     postgresql-8.1
+sudo gem install fastthread RubyInline memcache-client
 
+
+Installation:
+-------------
 sudo ruby setup.rb
 
 
 Database setup:
-
+---------------
+(sudo -u postgres createuser -s $USER)
 dropdb $USER; 
 createdb $USER; 
 future_database_generate database/ | sudo -u postgres psql $USER
 
 
 Image cache regen:
-
+------------------
 future_image_cache_regenerate
 
 
 Running:
-
-future_webrick 2000
+--------
+future_webrick [port] # default 2000
