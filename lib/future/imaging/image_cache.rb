@@ -221,11 +221,11 @@ class ImageCache
       img = nil
       $imlib_mutex.synchronize do
         img = Imlib2::Image.create_using_data(sz, sz, bgra)
-        img.has_alpha = true
+        img.has_alpha = (bgra[3,1] == "\000")
         img.crop!(0,0,w,h)
       end
       a = ""
-      a << Tiles.imlib_to_gray_jpeg(img, 50) if img.has_alpha?
+      a << Tiles.imlib_to_gray_jpeg(img, 75) if img.has_alpha?
       rgb = Tiles.imlib_to_jpeg(img, 75)
       [rgb.size].pack("I") << rgb << [a.size].pack("I") << a
     end

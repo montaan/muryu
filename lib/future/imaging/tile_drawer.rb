@@ -688,7 +688,7 @@ class TileDrawer
               c = data[j];
               data[j] = data[j+2];
               data[j+2] = c;
-              data[j+3] = a_data[j/4];
+              data[j+3] = (a_data[j/4]>>4)<<4; /* toss out noise */
             }
             stbi_image_free(a_data);
           } else {
