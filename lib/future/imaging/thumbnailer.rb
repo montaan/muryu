@@ -84,7 +84,7 @@ module Mimetype
 
   def icon(thumb_size)
     ancestors.map do |klass|
-      Future.icon_dir + (klass.to_s.gsub(/\//, '_')+".png")
+      Future.icon_dir + (klass.to_s.downcase.gsub(/\//, '-')+".png")
     end.find{|pn| pn.exist? }
   end
 

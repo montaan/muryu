@@ -46,7 +46,7 @@ extend self
   def audio_mpeg(fn)
     Mp3Info.open(fn) do |m|
       t = m.tag
-      {
+      md = {
         :bitrate => m.bitrate.to_i*1000,
         :length => m.length.to_f,
         :samplerate => m.samplerate.to_i,
@@ -213,7 +213,7 @@ extend self
   def enc_utf8(s)
     return nil if s.nil? or s.empty?
     us = nil
-    ['utf-8','iso8859-1','shift-jis','cp1252','big-5'].find{|c|
+    ['utf-8','shift-jis','euc-jp','iso8859-1','cp1252','big-5'].find{|c|
       ((us = Iconv.iconv('utf-8', c, s)[0]) rescue false)
     }
     us ||= s.gsub(/[^0-9a-z._ '"\*\+\-]/,'?')

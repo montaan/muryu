@@ -79,9 +79,13 @@ class Uploader
   end
 
   # finds user/YYYY/MM-DD/preferred_filename[.n].ext that doesn't exist yet
-  def create_unique_filename(preferred_filename, user, ext)
+  def create_unique_filename(preferred_filename, user, exts)
     dir = today(user)
-    preferred_filename = preferred_filename.sub(/#{Regexp.escape(ext)}\Z/i, '')
+    unless ext = exts.find{|e| e == File.extname(preferred_filename).downcase }
+      ext = exts.first
+    end
+    # strip out extname if any
+    preferred_filename = preferred_filename.sub(/(#{exts.map{|e| Regexp.escape(e) }.join("|")})\Z/i,'')
     base = File.join(dir, sanitize(preferred_filename))
     latest_numbered = Items.find(:path => /^#{base}\.[0-9]+?#{Regexp.escape(ext)}/, 
                                  :order_by => [[:path, :desc]])
@@ -163,7 +167,20 @@ class Uploader
   # store item to db and file store
   def store_item(io, preferred_filename, owner, groups, can_modify, metadata_info)
     handle = @store.store(preferred_filename, io)
-    mimetype = metadata_info[:mime_type] || MimeInfo.get(handle.full_path)
+    mimetype = metadata_info[:mime_type]
+    unless mimetype
+      tmp = File.join(
+              File.dirname(handle.full_path.to_s),
+              Time.now.to_f.to_s + File.basename(preferred_filename).reverse[0,64].reverse)
+      begin
+        FileUtils.ln_s(handle.full_path, tmp)
+        mimetype = MimeInfo.get(tmp)
+      rescue
+        mimetype = MimeInfo.get(handle.full_path)
+      ensure
+        File.unlink(tmp)
+      end
+    end
     major, minor = mimetype.to_s.split("/")
     metadata = MetadataExtractor[ handle.full_path, mimetype.to_s ] || {}
     item = nil
@@ -173,7 +190,7 @@ class Uploader
         mimetype_id = Mimetypes.find_or_create(:major => major, :minor => minor)
         # create new metadata to avoid nasty surprises with metadata edits
         metadata_id = Metadata.create(metadata)
-        path = create_unique_filename(preferred_filename, owner, mimetype.extname)
+        path = create_unique_filename(preferred_filename, owner, mimetype.extnames)
         item = Items.create(
                             :path => path, :size => handle.size,
                             :internal_path => handle.full_path,

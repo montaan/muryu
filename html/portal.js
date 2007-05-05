@@ -1620,10 +1620,18 @@ Portal.FileMap.prototype.mergeD({
       } else {
         infoFloater.maximized = true
       }
-    } else if (info.mimetype.match(/^video\//)) {
+    } else if (info.mimetype.split("/")[0] == 'video') {
       var i = Elem('embed')
       i.width = info.metadata.width
       i.height = info.metadata.height
+      i.src = this.filePrefix + info.path + this.fileSuffix
+      infoFloater.content.appendChild(i)
+      infoFloater.content.appendChild(this.parseItemMetadata(info))
+      infoFloater.show()
+    } else if (info.mimetype.split("/")[0] == 'audio') {
+      var i = Elem('embed')
+      i.width = 400
+      i.height = 16
       i.src = this.filePrefix + info.path + this.fileSuffix
       infoFloater.content.appendChild(i)
       infoFloater.content.appendChild(this.parseItemMetadata(info))

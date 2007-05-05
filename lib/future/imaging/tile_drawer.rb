@@ -88,14 +88,9 @@ extend self
   end
 
   def read(user, query, *tile_args)
-    ### FIXME query optimization problematic (need to layout to get wanted spans,
-    ###       then do a query for each (semi-)continuous span, e.g. layout says
-    ###       that 4-10, 16-22, 28-34, 4182-4188, 4194-4200 needed
-    ###       -> get 4-34, 4182-4200)
-    ###
     bad_tile = (tile_args[1] < 0 or tile_args[2] < 0)
     indexes = nil
-    r,x,y,z,w,h,colors,bgcolor = *tile_args
+    r,x,y,z,w,h,colors,bgcolor,bgimage = *tile_args
     if bgcolor
       if bgcolor.size == 3
         abgcolor = bgcolor.scan(/./).map{|s| (s*2).hex }
@@ -109,6 +104,8 @@ extend self
     end
     if not bad_tile
       @@mutex.synchronize do
+        ### FIXME do a quick C layout, get key and indexes based on that
+        ###
         key = user.id.to_s + "::" + sanitize_query(query)
         puts "#{Thread.current.telapsed} for generating key" if $PRINT_QUERY_PROFILE
         if $memcache
@@ -134,26 +131,26 @@ extend self
       end
       puts "#{Thread.current.telapsed} for fetching indexes" if $PRINT_QUERY_PROFILE
       pal = palette(colors, vbgcolor)
-      tile = tile_drawer.draw_tile(vbgcolor, indexes, pal, r,x,y,z,w,h)
+      tile = tile_drawer.draw_tile(vbgcolor, indexes, pal, r,x,y,z,w,h, bgimage)
     end
     if tile
       qtext = sanitize_query(query)
       quality = case z
-                when 0: 70
+                when 0: 65
                 when 1: 40
                 when 2: 40
                 when 3: 50
                 when 4: 50
-                when 5: 70
-                when 6: 80
-                when 7: 80
+                when 5: 65
+                when 6: 75
+                when 7: 75
                 else
                   90
                 end
-      quality += 20 if colors
+      quality += 10 if colors
       quality = 90 if quality > 90
       if tile.is_a? String
-        tile_drawer.string_to_jpeg(tile, quality)
+        string_to_jpeg(tile, 256, 256, quality)
       else
         imlib_to_jpeg(tile, quality)
       end
@@ -162,23 +159,34 @@ extend self
       $imlib_mutex.synchronize do
         img = Imlib2::Image.new(w,h)
         img.fill_rectangle(0,0, img.width, img.height, Imlib2::Color::RgbaColor.new(vbgcolor))
+        if bgimage
+          bg = Imlib2::Image.create_using_data(256, 256, bgimage)
+          img.blend!(bg,0,0,256,256,0,0,256,256)
+          bg.delete!(true)
+        end
       end
       imlib_to_jpeg(img)
     end
   end
 
   def imlib_to_jpeg(tile, quality=50, delete=true)
-    Future.cache_dir.+('ramdisk').mkdir_p
-    tmp = Future.cache_dir + 'ramdisk' + "tmptile-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.jpg"
-    tile['quality'] = quality
-    $imlib_mutex.synchronize do
-      tile.save(tmp.to_s)
-      tile.delete!(true) if delete
-    end
-    GC.enable
-    d = tmp.read
-    tmp.unlink
+    d = string_to_jpeg(tile.data_for_reading_only, tile.width, tile.height, quality)
+    $imlib_mutex.synchronize { tile.delete!(true) } if delete
     d
+  end
+
+  def imlib_to_gray_jpeg(tile, quality=50, delete=false)
+    d = string_to_gray_jpeg(tile.data_for_reading_only, tile.width, tile.height, quality)
+    $imlib_mutex.synchronize { tile.delete!(true) } if delete
+    d
+  end
+
+  def string_to_jpeg(tile, w, h, quality=50)
+    tile_drawer.string_to_jpeg(tile, w, h, quality)
+  end
+
+  def string_to_gray_jpeg(tile, w, h, quality=50)
+    tile_drawer.string_to_gray_jpeg(tile, w, h, quality)
   end
 
   def info(user, query, *tile_args)
@@ -240,24 +248,29 @@ class TileDrawer
     init_sw
   end
 
-  def draw_tile(bgcolor, indexes, palette, layouter_name, x, y, zoom, w, h, *layouter_args)
+  def draw_tile(bgcolor, indexes, palette, layouter_name, x, y, zoom, w, h, bgimage=nil)
     layouter = LAYOUTERS[layouter_name.to_s]
     raise ArgumentError, "Bad layouter_name: #{layouter_name.inspect}" unless layouter
     sz = @image_cache.thumb_size_at_zoom(zoom)
     empty_tile = true
-    layouter.each(indexes[0], x, y, sz, w, h, *layouter_args) do |i, ix, iy|
+    layouter.each(indexes[0], x, y, sz, w, h) do |i, ix, iy|
       empty_tile = false
       break
     end
     return false if empty_tile
     puts "#{Thread.current.telapsed} for tile init" if $PRINT_QUERY_PROFILE
-    return draw_tile_sw(bgcolor, indexes[1], palette, x, y, zoom) if zoom <= 7
+    return draw_tile_sw(bgcolor, indexes[1], palette, x, y, zoom, bgimage) if zoom <= 7
     tile = nil
     $imlib_mutex.synchronize do
       tile = Imlib2::Image.new(w,h)
       tile.fill_rectangle(0,0, w, h, Imlib2::Color::RgbaColor.new(bgcolor))
+      if bgimage
+        bg = Imlib2::Image.create_using_data(256, 256, bgimage)
+        tile.blend!(bg,0,0,256,256,0,0,256,256)
+        bg.delete!
+      end
     end
-    layouter.each(indexes[0], x, y, sz, w, h, *layouter_args) do |i, ix, iy|
+    layouter.each(indexes[0], x, y, sz, w, h) do |i, ix, iy|
       @image_cache.draw_image_at(i[0], zoom, tile, ix, iy)
       if palette and palette[i[1]][3] != 0
         $imlib_mutex.synchronize do
@@ -279,7 +292,7 @@ class TileDrawer
     end
   end
 
-  def draw_tile_sw(bgcolor, indexes, palette, x, y, z)
+  def draw_tile_sw(bgcolor, indexes, palette, x, y, z, bgimage=nil)
     if palette
       pmax = palette.keys.max
       s = [0,0,0,0].pack("C*")
@@ -291,16 +304,15 @@ class TileDrawer
       cpalette = []
     end
     puts "#{Thread.current.telapsed} for palette generation" if $PRINT_QUERY_PROFILE
-    return draw_query(indexes[0], indexes[1], cpalette, x, y, z,
-        @image_cache.thumb_size_at_zoom(z), bgcolor.pack("CCC").reverse! << 255)
-#     GC.disable
-#     img = $imlib_mutex.synchronize do
-#       Imlib2::Image.create_using_data(256, 256, data)
-#     end
-#     img
+    @@draw_mutex.synchronize do
+      draw_query(indexes[0], indexes[1], cpalette, x, y, z,
+        @image_cache.thumb_size_at_zoom(z), bgcolor.pack("CCC").reverse! << 255,
+        bgimage)
+    end
   end
 
   @@sw_init = false
+  @@draw_mutex = Mutex.new
 
   def init_sw
     @@init_mutex.synchronize do
@@ -349,8 +361,16 @@ class TileDrawer
     puts "#{Thread.current.telapsed} for zeroing render" if $PRINT_QUERY_PROFILE
   end
 
+  def print_time_draw_bg
+    puts "#{Thread.current.telapsed} for drawing bg" if $PRINT_QUERY_PROFILE
+  end
+  
+  def print_time_shuffle
+    puts "#{Thread.current.telapsed} for shuffling bytes" if $PRINT_QUERY_PROFILE
+  end
+  
   inline do |builder|
-    builder.include "<stb_image.c>"
+    builder.include "<stb_image.c.rb>"
     builder.include "<liboil/liboil.h>"
     builder.include "<errno.h>"
     builder.include "<stdlib.h>"
@@ -358,11 +378,16 @@ class TileDrawer
     builder.include "<jerror.h>"
     builder.add_compile_flags "-I#{File.expand_path(File.dirname(__FILE__))}"
     builder.add_compile_flags "-ljpeg"
-    builder.add_compile_flags "-Wall"
+    builder.add_compile_flags "-Wall -Os"
     builder.add_compile_flags `pkg-config --cflags liboil-0.3`.strip
     builder.add_link_flags `pkg-config --libs liboil-0.3`.strip
     builder.c_raw <<-EOF
       void do_nothing(){}
+
+      char*** icache = NULL;
+      int icache_levels = 0;
+      int icache_size = 0;
+      int icache_jpeg_levels = 0;
 
       #define OUTPUT_BUF_SIZE 32768 /* should fit all tile jpegs */
 
@@ -428,24 +453,26 @@ class TileDrawer
         dest->rb_str = dst;
       }
 
-      VALUE compress_jpeg(JSAMPLE *rgb_pixels, int quality)
+      VALUE compress_jpeg(JSAMPLE *rgb_pixels, int w, int h, int quality)
       {
         struct jpeg_error_mgr jerr;
         struct jpeg_compress_struct cinfo;
-        JSAMPROW rows[256];
+        JSAMPROW *rows;
         int i;
-        VALUE jdst = rb_str_new("bats", 4);
+        VALUE jdst;
 
-        for (i=0; i<256; i++)
-          rows[i] = &rgb_pixels[i * 256*3];
+        rows = (JSAMPROW*)malloc(h*sizeof(JSAMPROW));
+
+        for (i=0; i<h; i++)
+          rows[i] = &rgb_pixels[i*w*3];
 
         cinfo.err = jpeg_std_error(&jerr);
         jpeg_create_compress(&cinfo);
 
         rb_str_dest(&cinfo, &jdst);
         
-        cinfo.image_width = 256;
-        cinfo.image_height = 256;
+        cinfo.image_width = w;
+        cinfo.image_height = h;
         cinfo.input_components = 3;
         cinfo.in_color_space = JCS_RGB;
 
@@ -454,14 +481,52 @@ class TileDrawer
         cinfo.dct_method = JDCT_IFAST;
         
         jpeg_start_compress(&cinfo, TRUE);
-        jpeg_write_scanlines(&cinfo, rows, 256);
+        jpeg_write_scanlines(&cinfo, rows, h);
         jpeg_finish_compress(&cinfo);
 
         jpeg_destroy_compress(&cinfo);
+        free(rows);
         
         return jdst;
       }
 
+      VALUE compress_gray_jpeg(JSAMPLE *rgb_pixels, int w, int h, int quality)
+      {
+        struct jpeg_error_mgr jerr;
+        struct jpeg_compress_struct cinfo;
+        JSAMPROW *rows;
+        int i;
+        VALUE jdst;
+
+        rows = (JSAMPROW*)malloc(h*sizeof(JSAMPROW));
+
+        for (i=0; i<h; i++)
+          rows[i] = &rgb_pixels[i*w];
+
+        cinfo.err = jpeg_std_error(&jerr);
+        jpeg_create_compress(&cinfo);
+
+        rb_str_dest(&cinfo, &jdst);
+        
+        cinfo.image_width = w;
+        cinfo.image_height = h;
+        cinfo.input_components = 1;
+        cinfo.in_color_space = JCS_GRAYSCALE;
+
+        jpeg_set_defaults(&cinfo);
+        jpeg_set_quality(&cinfo, quality, TRUE);
+        cinfo.dct_method = JDCT_IFAST;
+        
+        jpeg_start_compress(&cinfo, TRUE);
+        jpeg_write_scanlines(&cinfo, rows, h);
+        jpeg_finish_compress(&cinfo);
+
+        jpeg_destroy_compress(&cinfo);
+        free(rows);
+        
+        return jdst;
+      }
+      
       void sw_row_layout
       (
         int* rtile_image_count,
@@ -562,105 +627,79 @@ class TileDrawer
         int sz
       )
       {
-        int i,j,sz24,isz;
-        unsigned char sa,da;
-        unsigned short sr,sg,sb;
+        int i,sz24;
+        unsigned char sa;
         unsigned char *color;
 
         sz24 = sz*sz*4;
 
-        if (sz > 1) {
-          for (i=0; i<colors_length; i++) {
-            if (colors[i] == 0) continue;
-            color = (unsigned char*)&colors[i];
-            sa = color[3];
-            da = (255 - sa);
-            sr = color[0]*sa;
-            sg = color[1]*sa;
-            sb = color[2]*sa;
-            isz = i*sz24+sz24;
-            for (j=isz-sz24; j<isz; j+=16) {
-              thumbs[j+15] = 255;
-              thumbs[j+14] = (thumbs[j+14]*da + (sb))>>8;
-              thumbs[j+13] = (thumbs[j+13]*da + (sg))>>8;
-              thumbs[j+12] = (thumbs[j+12]*da + (sr))>>8;
-              thumbs[j+11] = 255;
-              thumbs[j+10] = (thumbs[j+10]*da + (sb))>>8;
-              thumbs[j+9] = (thumbs[j+9]*da + (sg))>>8;
-              thumbs[j+8] = (thumbs[j+8]*da + (sr))>>8;
-              thumbs[j+7] = 255;
-              thumbs[j+6] = (thumbs[j+6]*da + (sb))>>8;
-              thumbs[j+5] = (thumbs[j+5]*da + (sg))>>8;
-              thumbs[j+4] = (thumbs[j+4]*da + (sr))>>8;
-              thumbs[j+3] = 255;
-              thumbs[j+2] = (thumbs[j+2]*da + (sb))>>8;
-              thumbs[j+1] = (thumbs[j+1]*da + (sg))>>8;
-              thumbs[j]   = (thumbs[j]*da   + (sr))>>8;
-            }
-          }
-        } else if (sz == 1) {
-          for (i=0; i<colors_length; i++) {
-            color = (unsigned char*)&colors[i];
-            sa = color[3];
-            da = (255 - sa);
-            isz = i*4;
-            thumbs[isz+3] = 255;
-            thumbs[isz+2] = (thumbs[isz+2]*da + (color[2]*sa))>>8;
-            thumbs[isz+1] = (thumbs[isz+1]*da + (color[1]*sa))>>8;
-            thumbs[isz]   = (thumbs[isz]*da   + (color[0]*sa))>>8;
+        for (i=0; i<colors_length*sz24-16; i+=16) {
+          thumbs[i+14] = (thumbs[i+14]*thumbs[i+15]) >> 8;
+          thumbs[i  ] = (thumbs[i  ]*thumbs[i+3]) >> 8;
+          thumbs[i+1] = (thumbs[i+1]*thumbs[i+3]) >> 8;
+          thumbs[i+2] = (thumbs[i+2]*thumbs[i+3]) >> 8;
+          thumbs[i+4] = (thumbs[i+4]*thumbs[i+7]) >> 8;
+          thumbs[i+5] = (thumbs[i+5]*thumbs[i+7]) >> 8;
+          thumbs[i+6] = (thumbs[i+6]*thumbs[i+7]) >> 8;
+          thumbs[i+8] = (thumbs[i+8]*thumbs[i+11]) >> 8;
+          thumbs[i+9] = (thumbs[i+9]*thumbs[i+11]) >> 8;
+          thumbs[i+10] = (thumbs[i+10]*thumbs[i+11]) >> 8;
+          thumbs[i+12] = (thumbs[i+12]*thumbs[i+15]) >> 8;
+          thumbs[i+13] = (thumbs[i+13]*thumbs[i+15]) >> 8;
+        }
+        for (i=colors_length*sz24-16; i<colors_length*sz24; i+=4) {
+          thumbs[i  ] = (thumbs[i  ]*thumbs[i+3]) >> 8;
+          thumbs[i+1] = (thumbs[i+1]*thumbs[i+3]) >> 8;
+          thumbs[i+2] = (thumbs[i+2]*thumbs[i+3]) >> 8;
+        }
+        for (i=0; i<colors_length; i++) {
+          if (colors[i] == 0) continue;
+          color = (unsigned char*)&colors[i];
+          sa = color[3];
+          if (sa == 255) {
+            oil_splat_u32_ns((uint32_t*)&thumbs[i*sz24], (uint32_t*)&colors[i], sz*sz);
+          } else {
+            color[0] = (color[0]*sa) >> 8;
+            color[1] = (color[1]*sa) >> 8;
+            color[2] = (color[2]*sa) >> 8;
+            oil_composite_over_argb_const_src((uint32_t*)&thumbs[i*sz24], (uint32_t*)&colors[i], sz*sz);
           }
         }
-      }
-
-      inline void blend_over(unsigned char* dst, unsigned char* src)
-      {
-        unsigned short sa, da;
-        sa = src[3];
-        da = 256 - sa;
-        src[0] = ((dst[0]<<8)*da + (src[0]<<8)*sa)>>16;
-        src[1] = ((dst[1]<<8)*da + (src[1]<<8)*sa)>>16;
-        src[2] = ((dst[2]<<8)*da + (src[2]<<8)*sa)>>16;
-        src[3] = 255;
-      }
-      
-      char*** icache = NULL;
-      int icache_levels = 0;
-      int icache_size = 0;
-      int icache_jpeg_levels = 0;
-
-      unsigned char* pixels = NULL;
-
-      unsigned char* init_pixels() {
-        if (0 != posix_memalign((void **)&pixels, 16, 512*512*4)) {
-          rb_raise(rb_eRuntimeError, "Failed to allocate pixels");
-          return NULL;
-        }
-        return pixels;
-      }
-
-      void zero_pixels(int len) {
-        uint32_t zero = 0;
-        oil_splat_u32_ns((uint32_t*)pixels, &zero, len);
       }
 
       int load_cache_jpeg
       (unsigned char *dst, const unsigned char *jpeg, int stride)
       {
-        int w,h,j;
-        unsigned char *data = NULL;
-        int tsz = *(int*)jpeg;
+        int w,h,aw,ah,j;
+        unsigned char *data = NULL, *a_data=NULL;
+        int tsz = *(int*)jpeg, csz, asz;
         char c;
         if (tsz > 0) {
-          data = stbi_jpeg_load_from_memory(&(jpeg[4]), tsz,
+          csz = *(int*)&jpeg[4];
+          data = stbi_jpeg_load_from_memory(&jpeg[8], csz,
                                             &w, &h, 0, 4);
           if (data == NULL) return -1;
-          for (j=0;j<w*h*4;j+=4) {
-            c = data[j];
-            data[j] = data[j+2];
-            data[j+2] = c;
+          asz = *(int*)&jpeg[8+csz];
+          if (asz > 0) {
+            a_data = stbi_jpeg_load_from_memory(&jpeg[12+csz], asz,
+                                                &aw, &ah, 0, 1);
+            if (a_data == NULL || aw != w || ah != h) return -1;
+            for (j=0;j<w*h*4;j+=4) {
+              c = data[j];
+              data[j] = data[j+2];
+              data[j+2] = c;
+              data[j+3] = a_data[j/4];
+            }
+            stbi_image_free(a_data);
+          } else {
+            for (j=0;j<w*h*4;j+=4) {
+              c = data[j];
+              data[j] = data[j+2];
+              data[j+2] = c;
+            }
           }
           for (j=0;j<h;j++)
-            memcpy(dst+stride*j, data+w*4*j, w*4);
+            oil_memcpy(&dst[stride*j], &data[w*4*j], w*4);
           stbi_image_free(data);
         }
         return 0;
@@ -677,18 +716,22 @@ class TileDrawer
         VALUE image_cache, thumb_data;
         VALUE read_imgs;
         char *thumb_ptr=NULL;
+        unsigned char *pixels=NULL;
         int i, j, sz24, sz4, len, k;
-        int index;
+        int index=0;
         VALUE *ptr=NULL;
         
         sz24 = sz*sz*4;
         sz4 = sz*4;
         image_cache = rb_ivar_get(self, rb_intern("@image_cache"));
-        if (pixels == NULL && init_pixels() == NULL) return NULL;
+        if (0 != posix_memalign((void **)&pixels, 16, sz24*indexes_length)) {
+          rb_raise(rb_eRuntimeError, "Failed to allocate pixels");
+          return NULL;
+        }
         
         /* raw textures don't need zeroing, jpeg textures do */
         if (z >= icache_levels) {
-          zero_pixels(sz*sz*indexes_length);
+          oil_splat_u32_ns((uint32_t*)pixels, (uint32_t*)&index, sz*sz*indexes_length);
           rb_funcall(self, rb_intern("print_time_thumbs_zero"), 0);
         }
 
@@ -742,10 +785,18 @@ class TileDrawer
         }
         
         if (z < icache_levels) { /* raws are easy, just memcpy to pixels */
-          for(i=0; i<indexes_length; i++) {
-            index = indexes[i];
-            if (index < iindexes_length)
-              oil_memcpy(pixels+(sz24*i), icache[z][iindexes[index]], sz24);
+          if (z == 0) { /* int[i] = blaat */
+            for(i=0; i<indexes_length; i++) {
+              index = indexes[i];
+              if (index < iindexes_length)
+                ((int*)pixels)[i] = *((int*)icache[z][iindexes[index]]);
+            }
+          } else {
+            for(i=0; i<indexes_length; i++) {
+              index = indexes[i];
+              if (index < iindexes_length)
+                oil_memcpy(pixels+(sz24*i), icache[z][iindexes[index]], sz24);
+            }
           }
           rb_funcall(self, rb_intern("print_time_thumbs_read"), 0);
           
@@ -754,7 +805,7 @@ class TileDrawer
             index = indexes[i];
             if (index < iindexes_length) {
               thumb_ptr = icache[z][iindexes[index]];
-              load_cache_jpeg(pixels+(sz24*i), (unsigned char*)thumb_ptr, sz4);
+              load_cache_jpeg(&pixels[sz24*i], (unsigned char*)thumb_ptr, sz4);
             }
           }
           rb_funcall(self, rb_intern("print_time_jpeg_thumbs_read"), 0);
@@ -771,6 +822,7 @@ class TileDrawer
         VALUE riindex_colors,
         VALUE palette,
         int bgcolor,
+        VALUE bgimage,
         int x, int y, int z, int sz
       )
       {
@@ -839,6 +891,7 @@ class TileDrawer
             colors[i] = 0;
           }
         }
+        
         colorize(self, (unsigned char*)thumbs, colors, indexes_length, sz);
         rb_funcall(self, rb_intern("print_time_colors"), 0);
 
@@ -847,7 +900,14 @@ class TileDrawer
           memcpy(final_render+i, final_render, i);
         rb_funcall(self, rb_intern("print_time_draw_zero"), 0);
 
-        sz24 = z*2;
+        if (bgimage != Qnil) {
+          oil_composite_over_argb(
+            (uint32_t*)final_render,
+            (uint32_t*)StringValuePtr(bgimage),
+            256*256);
+          rb_funcall(self, rb_intern("print_time_draw_bg"), 0);
+        }
+
         for(i=0; i<indexes_length; i++) {
           if (indexes[i] >= iindexes_length) continue;
           tx = coords[i<<1];
@@ -871,7 +931,7 @@ class TileDrawer
           for (j=offset_y; j<tsz; j++) {
             oil_composite_over_argb(
                    &((uint32_t*)final_render)[((ty+j)<<8) + tx],
-                   &((uint32_t*)thumbs)[(i<<sz24) + (j<<z) + offset_x],
+                   &((uint32_t*)thumbs)[(i<<(z<<1)) + (j<<z) + offset_x],
                    tsz4);
           }
         }
@@ -880,6 +940,7 @@ class TileDrawer
           
         exit:
         free(coords);
+        free(thumbs);
         free(indexes);
         free(gl_palette);
         free(colors);
@@ -1014,31 +1075,48 @@ class TileDrawer
     builder.c_raw <<-EOF
       VALUE draw_query(int argc, VALUE *argv, VALUE self)
       {
-        if (argc != 8) {
+        if (argc != 9) {
           rb_raise(rb_eArgError, "Wrong number of args");
           return Qundef;
         }
         return draw_software(self,
           argv[0], argv[1], argv[2],
-          *((int*)StringValuePtr(argv[7])),
+          *((int*)StringValuePtr(argv[7])), argv[8],
           FIX2INT(argv[3]),FIX2INT(argv[4]),FIX2INT(argv[5]),FIX2INT(argv[6]));
       }
     EOF
 
     builder.c <<-EOF
-      VALUE string_to_jpeg(VALUE str, int quality)
+      VALUE string_to_jpeg(VALUE str, int w, int h, int quality)
       {
-        int i,j;
+        int i,j,sz24=w*h*4;
         VALUE retval;
         JSAMPLE *data = (JSAMPLE*)StringValuePtr(str);
-        JSAMPLE *rgb_data = malloc(256*256*3);
-        for(i=0,j=0; i<256*256*4; i+=4,j+=3) {
+        JSAMPLE *rgb_data = malloc(w*h*3);
+        for(i=0,j=0; i<sz24; i+=4,j+=3) {
           rgb_data[j+0] = data[i+2];
           rgb_data[j+1] = data[i+1];
           rgb_data[j+2] = data[i+0];
         }
-        retval = compress_jpeg(rgb_data, quality);
+        rb_funcall(self, rb_intern("print_time_shuffle"), 0);
+        retval = compress_jpeg(rgb_data, w, h, quality);
         free(rgb_data);
+        return retval;
+      }
+    EOF
+
+    builder.c <<-EOF
+      VALUE string_to_gray_jpeg(VALUE str, int w, int h, int quality)
+      {
+        int i,j,sz24=w*h*4;
+        VALUE retval;
+        JSAMPLE *data = (JSAMPLE*)StringValuePtr(str);
+        JSAMPLE *gray_data = malloc(w*h);
+        for(i=0,j=0; i<sz24; i+=4,j++) {
+          gray_data[j] = data[i+3];
+        }
+        retval = compress_gray_jpeg(gray_data, w, h, quality);
+        free(gray_data);
         return retval;
       }
     EOF

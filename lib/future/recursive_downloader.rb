@@ -135,7 +135,12 @@ class RecursiveDownloader
     REWRITE_ATTRIBUTE_DATA.each_pair do |resource, attr|
       doc.search(resource).each do |res|
         if (src = res.attributes[attr])
-          src = URI.parse(src)
+          begin
+            src = URI.parse(src.strip)
+          rescue => e
+            puts "Error in rewriting HTML: #{e.class}: #{e.message}"
+            next
+          end
           # skip <a href="#f"> or <a href="" title="...">
           next if "#{src.path}#{src.path}".empty?
           resolved_uri = URI.parse(uri).merge(src).normalize

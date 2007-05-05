@@ -333,6 +333,8 @@ module DB
         case n
         when DB::Table
           DBconn.quote n.id
+        when nil
+          "NULL"
         else
           DBconn.quote n.to_s
         end
@@ -489,7 +491,7 @@ module DB
         sql = %Q[INSERT INTO #{escape table_name}
           (#{h.keys.map{|k| escape ground_column_name(k)}.join(",")})
           VALUES
-          (#{h.values.map{|v| quote v}.join(",")})]
+          (#{h.values.map{|v| quote(v)}.join(",")})]
         conn.exec(sql)
         #id(i)[0]
         new(i)

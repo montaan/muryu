@@ -36,7 +36,7 @@ class Thread
     t = self.last_time
     self.last_time = Time.now.to_f
     ms = (self.last_time - t) * 1000
-    "[#{("#"*((ms*10).round)).rjust(60)[0,60]}] %.3fms" % [ms]
+    "[#{("#"*((ms*16).round)).rjust(60)[0,60]}] %.3fms" % [ms]
   end
   
 end
@@ -632,13 +632,22 @@ extend FutureServlet
       color = (req.query['color'].to_s != 'false')
       bgcolor = (req.query.has_key?('bgcolor') ?
                   req.query['bgcolor'].to_s[0,6] : false)
+      bgimage_src = (req.query.has_key?('bgimage') ? req.query['bgimage'].to_s : false)
+      if bgimage_src and bgitem = Items.rfind(servlet_user, :path => bgimage_src)
+        image = Imlib2::Image.load(bgitem.thumbnail)
+        image.crop!(0,0,256,256)
+        bgimage = image.data
+        image.delete!
+      else
+        bgimage = nil
+      end
       key = [servlet_user.id, servlet_path, color, bgcolor, search_query].join("::")
       puts "#{Thread.current.telapsed} for tile arg parsing" if $PRINT_QUERY_PROFILE
       tile = $memcache.get(key) if $CACHE_TILES
       puts "#{Thread.current.telapsed} for memcache get" if $PRINT_QUERY_PROFILE
       unless tile
         tile = Tiles.read(servlet_user, search_query, :rows, x, y, z, w, h,
-                          color, bgcolor)
+                          color, bgcolor, bgimage)
         puts "#{Thread.current.telapsed} for creating a JPEG" if $PRINT_QUERY_PROFILE
         Thread.new { $memcache.set(key, tile, 300) } if tile and $CACHE_TILES
       end
@@ -1055,7 +1064,8 @@ extend FutureServlet
           :groups => req.query['groups'],
           :public => req.query['public'],
           :sets => req.query['sets'],
-          :tags => req.query['tags']
+          :tags => req.query['tags'],
+          :referrer => req.header['referer']
         }
         common_fields.delete_if{|k,v| v.nil? or v.empty? }
         common_fields[:user] = servlet_user

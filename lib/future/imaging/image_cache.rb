@@ -25,7 +25,13 @@ class ImageCache
   end
 
   def max_index
-    @raw_pyramid.max_index
+    if Future.constants.include?("Items")
+      item = Items.find(:order_by => [[:image_index, :desc]])
+      return 0 unless item
+      item.image_index
+    else # eh, where's the database?
+      @raw_pyramid.max_index
+    end
   end
 
   def thumb_size_at_zoom(zoom)
@@ -215,23 +221,14 @@ class ImageCache
       img = nil
       $imlib_mutex.synchronize do
         img = Imlib2::Image.create_using_data(sz, sz, bgra)
+        img.has_alpha = true
         img.crop!(0,0,w,h)
       end
-      imlib_to_jpeg(img, 70)
+      a = ""
+      a << Tiles.imlib_to_gray_jpeg(img, 50) if img.has_alpha?
+      rgb = Tiles.imlib_to_jpeg(img, 75)
+      [rgb.size].pack("I") << rgb << [a.size].pack("I") << a
     end
-  end
-  
-  def imlib_to_jpeg(tile, quality=50, delete=true)
-    Future.cache_dir.+('ramdisk').mkdir_p
-    tmp = Future.cache_dir + 'ramdisk' + "tmptile-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.jpg"
-    $imlib_mutex.synchronize do
-      tile['quality'] = quality
-      tile.save(tmp.to_s)
-      tile.delete!(true) if delete
-    end
-    d = tmp.read
-    tmp.unlink
-    d
   end
 
   # Executes editing ops in batch, saving edited images only after
