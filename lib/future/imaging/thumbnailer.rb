@@ -156,7 +156,10 @@ module Mimetype
   def video_thumbnail(filename, thumb_filename, thumb_size, page, crop)
     video_cache_dir = Future.cache_dir + "videotemp-#{Process.pid}-#{Thread.object_id}"
     video_cache_dir.mkdir_p
-    system("mplayer", "-nosound", "-ss", page.to_s, "-vf", "scale",
+    mplayer = `which mplayer32`.strip
+    mplayer = `which mplayer`.strip if mplayer.empty?
+    mplayer = "mplayer" if mplayer.empty?
+    system(mplayer, "-nosound", "-ss", page.to_s, "-vf", "scale",
            "-vo", "jpeg:outdir=#{video_cache_dir}", "-frames", "10", filename)
     j = video_cache_dir.glob("*.jpg").sort.last
     image_thumbnail(j, thumb_filename, thumb_size, 0, crop) if j

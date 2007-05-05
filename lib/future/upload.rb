@@ -173,7 +173,8 @@ class Uploader
               File.dirname(handle.full_path.to_s),
               Time.now.to_f.to_s + File.basename(preferred_filename).reverse[0,64].reverse)
       begin
-        FileUtils.ln_s(handle.full_path, tmp)
+        p tmp
+        FileUtils.ln(handle.full_path, tmp)
         mimetype = MimeInfo.get(tmp)
       rescue
         mimetype = MimeInfo.get(handle.full_path)

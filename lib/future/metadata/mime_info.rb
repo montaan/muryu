@@ -48,13 +48,6 @@ class MimeInfo
     @globs_ext = {}
     @type_exts = {}
     @globs = {}
-    @checks = [
-      :special_node_type,
-      :default_magic_type,
-      :type_for_name,
-      :lesser_magic_type,
-      :text_or_binary
-    ].map{|mn| method(mn)}
 
     dirs = get_mime_dirs
 
@@ -74,16 +67,30 @@ class MimeInfo
   def self.get(filename)
     instance.type(filename)
   end
-        class << self
-          alias_method :[], :get
-        end
+  
+  class << self
+    alias_method :[], :get
+  end
 
 public
   # Runs @checks against the given filename.
   def type(filename)
-    rv = nil
-    # see #initialize
-    @checks.find{|check| rv = check.call(filename) }
+    rv = special_node_type(filename)
+    return Mimetype[rv] if rv
+    mrv = default_magic_type(filename)
+    return Mimetype[mrv] if mrv
+    # okay, let's guess.
+    lmrv = lesser_magic_type(filename)
+    nrv = type_for_name(filename)
+    brv = text_or_binary(filename)
+    rv = (nrv || lmrv || brv)
+    if File.exist?(filename)
+      ft = `file -ib #{filename.dump}`.strip
+      # if ft and nrv disagree, use lmrv || nrv || ft
+      if nrv and ft != nrv
+        rv = lmrv || nrv || ft
+      end
+    end
     return nil unless rv
     Mimetype[ rv ]
   end
