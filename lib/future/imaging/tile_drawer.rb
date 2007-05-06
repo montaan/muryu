@@ -109,26 +109,30 @@ extend self
       @@mutex.synchronize do
         ### FIXME do a quick C layout, get key and indexes based on that
         ###
-        key = user.id.to_s + "::" + sanitize_query(query)
+        key = "indexes::" + user.id.to_s + "::" + sanitize_query(query)
         puts "#{Thread.current.telapsed} for generating key" if $PRINT_QUERY_PROFILE
-        if $memcache
-          t = $memcache.get(key)
-        else
-          t = @@indexes[key]
+        unless $indexes_changed
+          if $memcache
+            t = $memcache.get(key)
+          else
+            t = @@indexes[key]
+          end
         end
         unless t
           idxs = Items.rfind_all(user, query.merge(:columns => [:image_index, :mimetype_id, :deleted], :as_array => true))
           tr = 't'
-          idxs.each{|i|
-            i[0]=i[0].to_i
-            i[1]=(i.pop == tr ? MIMETYPE_DELETED : i[1].to_i + 1)
+          nidxs = idxs.map{|i|
+            ii = Integer(i[0])
+            mi = (i[2] == tr ? MIMETYPE_DELETED : Integer(i[1]) + 1)
+            [ii, mi]
           }
-          t = [idxs, idxs.transpose.map!{|ix| ix.pack("I*") }]
+          t = [nidxs, nidxs.transpose.map{|ix| ix.map.pack("I*") }]
           if $memcache
             $memcache.set(key, t, 300)
           else
             @@indexes[key] = t
           end
+          $indexes_changed = false
         end
         indexes = t
       end
@@ -199,22 +203,27 @@ extend self
     q[:columns] |= [:image_index]
     indexes = iindexes = nil
     @@mutex.synchronize do
-        key = user.id.to_s + "::" + sanitize_query(query)
-        if $memcache
-          t = $memcache.get(key)
-        else
-          t = @@infos[key]
+        key = "info::" + user.id.to_s + "::" + sanitize_query(query)
+        unless $info_changed
+          if $memcache
+            t = $memcache.get(key)
+          else
+            t = @@infos[key]
+          end
         end
         unless t
-          result = Items.rfind_all(user, q)
-          idxs = result.map{|i| i.image_index }
-          iidxs = result.map{|r| [r.image_index, (q[:columns] - [:image_index]).map{|c| [c, r[c]]}.to_hash ] }.to_hash
+          result = Items.rfind_all(user, q.merge(:as_array => true))
+          cidxs = q[:columns].zip((0...q[:columns].size).to_a).to_hash
+          ii_c = cidxs[:image_index]
+          idxs = result.map{|r| r[ii_c].to_i }
+          iidxs = result.map{|r| [r[ii_c].to_i, cidxs.map{|c,i| [c, r[i]] }.to_hash] }.to_hash
           t = [idxs, iidxs]
           if $memcache
             $memcache.set(key, t, 300)
           else
-            @@indexes[key] = t
+            @@infos[key] = t
           end
+          $info_changed = false
         end
         indexes, iindexes = t
     end
@@ -391,6 +400,8 @@ class TileDrawer
       int icache_levels = 0;
       int icache_size = 0;
       int icache_jpeg_levels = 0;
+
+      #define MEMORY_ALIGN 64 /* no measurable impact what so ever */
 
       #define OUTPUT_BUF_SIZE 32768 /* should fit all tile jpegs */
 
@@ -727,7 +738,7 @@ class TileDrawer
         sz24 = sz*sz*4;
         sz4 = sz*4;
         image_cache = rb_ivar_get(self, rb_intern("@image_cache"));
-        if (0 != posix_memalign((void **)&pixels, 16, sz24*indexes_length)) {
+        if (0 != posix_memalign((void **)&pixels, MEMORY_ALIGN, sz24*indexes_length)) {
           rb_raise(rb_eRuntimeError, "Failed to allocate pixels");
           return NULL;
         }
@@ -1157,7 +1168,7 @@ class TileDrawer
                aligned to 16-byte boundary*/
             sz24 = (1<<(i*2)) * 4;
             if (0 != (e = posix_memalign((void **)&c[icache_size],
-                                16,
+                                MEMORY_ALIGN,
                                 (max_index+1) * sz24)))
             {
               printf("%d: %d, %d\\n", e, EINVAL, ENOMEM);

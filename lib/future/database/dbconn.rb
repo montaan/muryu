@@ -951,7 +951,7 @@ module DB
     def __assign_vars(res,idx=0)
       cols = columns
       res.fields.zip(res[idx]){|k,v|
-        instance_variable_set( "@"+k, v.cast(cols[k.to_s]) )
+        instance_variable_set( "@#{k}", v.cast(cols[k]) )
       }
     end
 

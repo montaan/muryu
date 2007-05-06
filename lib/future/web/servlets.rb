@@ -14,7 +14,7 @@ require 'json'
 require 'memcache'
 
 $PRINT_QUERY_PROFILE = true
-$CACHE_TILES = true
+$CACHE_TILES = false
 
 class StandardDateTime < DateTime
   def to_json(*a)
@@ -641,9 +641,9 @@ extend FutureServlet
       else
         bgimage = nil
       end
-      key = [servlet_user.id, servlet_path, color, bgcolor, search_query].join("::")
+      key = [servlet_user.id, servlet_path, color, bgcolor, search_query, req.query['time']].join("::")
       puts "#{Thread.current.telapsed} for tile arg parsing" if $PRINT_QUERY_PROFILE
-      tile = $memcache.get(key) if $CACHE_TILES
+      tile = $memcache.get(key) if $CACHE_TILES and not $indexes_changed
       puts "#{Thread.current.telapsed} for memcache get" if $PRINT_QUERY_PROFILE
       unless tile
         tile = Tiles.read(servlet_user, search_query, :rows, x, y, z, w, h,
@@ -704,8 +704,8 @@ extend FutureServlet
         res.body = [].to_json
         return
       end
-      key = [servlet_user.id, servlet_path, search_query].join("::")
-      jinfo = $memcache.get(key)
+      key = [servlet_user.id, servlet_path, search_query, req.query['time']].join("::")
+      jinfo = $memcache.get(key) unless $info_changed
       unless jinfo
         if z >= 4
           sq[:columns] ||= []
@@ -1006,6 +1006,7 @@ extend FutureServlet
           }
           servlet_target[:modified_at] = Time.now.to_s if column?('modified_at')
         end
+        changed
       end
     end
     
@@ -1045,22 +1046,37 @@ extend FutureServlet
       end
     end
 
+    def changed
+      $indexes_changed = true
+      $info_changed = true
+    end
+
     def do_purge(req, res)
       log_debug("purge: #{servlet_target.path} by #{servlet_user.name}")
       servlet_target.rpurge(servlet_user)
+      changed
     end
 
     def do_delete(req, res)
       log_debug("delete: #{servlet_target.path} by #{servlet_user.name}")
       servlet_target.rdelete(servlet_user)
+      changed
+      idxs = Items.rfind_all(servlet_user, {:columns => [:image_index, :mimetype_id, :deleted], :as_array => true})
+      tr = 't'
+      nidxs = idxs.map{|i|
+        ii = Integer(i[0])
+        mi = (i[2] == tr ? Tiles::MIMETYPE_DELETED : Integer(i[1]) + 1)
+        [ii, mi]
+      }
+      t = [nidxs, nidxs.transpose.map{|ix| ix.pack("I*") }]
     end
     
     def do_undelete(req, res)
       log_debug("undelete: #{servlet_target.path} by #{servlet_user.name}")
       servlet_target.rundelete(servlet_user)
+      changed
     end
     
-    ### FIXME implement compressed and remote_compressed uploads.
     def do_create(req, res)
       if servlet_user != Users.anonymous
         common_fields = {
@@ -1128,6 +1144,7 @@ extend FutureServlet
             f[:referrer] = req.query[referrer] if referrer
             Uploader.upload_archive(common_fields.merge(f))
           }
+          changed
         end
       end
       if req.query.has_key?('close_when_done')

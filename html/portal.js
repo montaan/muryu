@@ -772,7 +772,7 @@ Portal.TileMap.prototype = {
           }
         tile.width = t.tileSize
         tile.height = t.tileSize
-        tile.src = t.tilePrefix + tileQuery + t.tileInfoSuffix + '?' + t.query + '&color=' + t.color + ((t.bgcolor != null) ? '&bgcolor='+t.bgcolor : '')
+        tile.src = t.tilePrefix + tileQuery + t.tileInfoSuffix + '?' + t.query + '&color=' + t.color + ((t.bgcolor != null) ? '&bgcolor='+t.bgcolor : '') + (t.updateTime ? '&time='+t.updateTime : '')
         t.view.appendChild(tile)
         tile.timeout = false
       }
@@ -1814,6 +1814,7 @@ Portal.FileMap.prototype.mergeD({
     var url = this.itemPrefix + info.path + this.itemSuffix + this.deleteSuffix
     postQuery(url, '',
       this.bind(function(res){
+        this.updateTime = new Date().getTime()
         this.updateTiles(true)
       }),
       this.bind(function(res){

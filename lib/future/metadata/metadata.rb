@@ -152,8 +152,26 @@ extend self
     end
   end
 
+  def extract_text(filename, mimetype=MimeInfo.get(filename.to_s))
+    return nil
+    filename = filename.to_s
+    major,minor = mimetype.to_s.gsub("-","_").split("/")
+    mn = [major,minor,"_gettext"].join("_")
+    new_methods = public_methods(false)
+    if new_methods.include?( mn )
+      __send__ mn, filename
+    elsif new_methods.include?( major )
+      __send__ major, filename
+    else
+      nil
+    end
+  end
+
   alias_method :[], :extract
 
+  def text_plain__gettext(filename)
+    enc_utf8(File.read(filename))
+  end
   
   private
 
