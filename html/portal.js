@@ -1620,52 +1620,45 @@ Portal.FileMap.prototype.mergeD({
       } else {
         infoFloater.maximized = true
       }
-    } else if (info.mimetype.split("/")[0] == 'video') {
-      var i = Elem('embed')
-      i.width = info.metadata.width
-      i.height = info.metadata.height
-      i.src = this.filePrefix + info.path + this.fileSuffix
-      infoFloater.content.appendChild(i)
-      infoFloater.content.appendChild(this.parseItemMetadata(info))
-      infoFloater.show()
-    } else if (info.mimetype.split("/")[0] == 'audio') {
-      var i = Elem('embed')
-      i.width = 400
-      i.height = 16
-      i.src = this.filePrefix + info.path + this.fileSuffix
-      infoFloater.content.appendChild(i)
-      infoFloater.content.appendChild(this.parseItemMetadata(info))
-      infoFloater.show()
-    } else if (info.mimetype == 'text/html') {
-      var i = Elem('iframe')
-      i.width = 600
-      i.height = 400
-      i.src = this.filePrefix + info.path + this.fileSuffix
-      infoFloater.content.appendChild(i)
-      infoFloater.content.appendChild(this.parseItemMetadata(info))
-      infoFloater.show()
-    } else if (info.mimetype.split("/")[0] == 'text') {
-      var i = Elem('iframe')
-      i.style.backgroundColor = "white"
-      i.width = 600
-      i.height = 400
-      i.src = this.filePrefix + info.path + this.fileSuffix
-      infoFloater.content.appendChild(i)
-      infoFloater.content.appendChild(this.parseItemMetadata(info))
-      infoFloater.show()
     } else {
-      var i = Elem('img')
-      i.onmousedown = function(e){
-        this.downX = e.clientX
-        this.downY = e.clientY
+      if (info.mimetype.match(/\bvideo\b/)) {
+        var i = Elem('embed')
+        i.width = info.metadata.width
+        i.height = info.metadata.height
+        i.src = this.filePrefix + info.path + this.fileSuffix
+        i.setAttribute("type", "application/x-mplayer2")
+      } else if (info.mimetype.split("/")[0] == 'audio') {
+        var i = Elem('embed')
+        i.width = 400
+        i.height = 16
+        i.src = this.filePrefix + info.path + this.fileSuffix
+        i.setAttribute("type", info.mimetype)
+      } else if (info.mimetype == 'text/html') {
+        var i = Elem('iframe')
+        i.style.backgroundColor = "white"
+        i.width = 600
+        i.height = 400
+        i.src = this.filePrefix + info.path + this.fileSuffix + "/"
+      } else if (info.mimetype.split("/")[0] == 'text') {
+        var i = Elem('iframe')
+        i.style.backgroundColor = "white"
+        i.width = 600
+        i.height = 400
+        i.src = this.filePrefix + info.path + this.fileSuffix
+      } else {
+        var i = Elem('img')
+        i.onmousedown = function(e){
+          this.downX = e.clientX
+          this.downY = e.clientY
+        }
+        var h = (click_image_to_close ? '' : 'dbl')
+        i['on'+h+'click'] = function(e){
+          if (Mouse.normal(e) &&
+              Math.abs(this.downX - e.clientX) < 3 &&
+              Math.abs(this.downY - e.clientY) < 3) infoFloater.close()
+        }
+        i.src = this.thumbnailPrefix + info.path + this.thumbnailSuffix
       }
-      var h = (click_image_to_close ? '' : 'dbl')
-      i['on'+h+'click'] = function(e){
-        if (Mouse.normal(e) &&
-            Math.abs(this.downX - e.clientX) < 3 &&
-            Math.abs(this.downY - e.clientY) < 3) infoFloater.close()
-      }
-      i.src = this.thumbnailPrefix + info.path + this.thumbnailSuffix
       infoFloater.content.appendChild(i)
       infoFloater.content.appendChild(this.parseItemMetadata(info))
       infoFloater.show()

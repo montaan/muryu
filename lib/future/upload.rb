@@ -6,6 +6,8 @@ require 'future/storage'
 require 'future/models/groups'
 require 'future/models/metadata'
 require 'future/recursive_downloader'
+require 'iconv'
+require 'mechanize'
 require 'uri'
 
 module Future
@@ -13,9 +15,144 @@ module Future
 
 class Uploader
 
+  SITE_HANDLERS = [
+
+    # Youtube video page
+    #
+    lambda{|u|
+      if u.to_s =~ /\Ahttp:\/\/([a-z]+\.)?youtube\.com\/watch/
+        yu = "http://www.youtube.com/watch?v=#{CGI.parse(u.query)['v'].to_s}"
+        nu,title,thumb,*tags = `future-youtube-dl -q -s #{u.to_s.dump}`.strip.split("\n")
+        nu = URI.parse nu
+        thumb_uri = URI.parse thumb if thumb.size > 0
+        cmd = "wget -q -k --no-check-certificate -U 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.0.4) Gecko/20060508 Firefox/1.5.0.4' -i - -O %output_filename"
+        ext = '.flv'
+        [cmd, title.to_s + ext, nu, title, thumb_uri, tags]
+      end
+    },
+
+    # Wikipedia image page
+    #
+    lambda do |u|
+      if u.to_s =~ /\Ahttp:\/\/[a-z]+\.?(wikipedia|wikipedia)\.org\/wiki\/(Imagen?|Bild|Kuva|Fil|Grafika|%E7%94%BB%E5%83%8F):/
+        page = Hpricot.parse(open(u){|f| f.read })
+        f = page / "#file"
+        if f.at(:a)
+          url = f.at(:a)[:href]
+        else
+          url = f.at(:img)[:src]
+        end
+        cmd = "wget -q -k --no-check-certificate -U " +
+              "'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.0.4) Gecko/20060508 Firefox/1.5.0.4' " +
+              "-i - -O %output_filename"
+        [cmd, nil, URI.parse(url), false]
+      end
+    end,
+
+    # Flickr image page
+    #
+    lambda do |u|
+      if pid = u.to_s.scan(/\Ahttp:\/\/[^\.]*\.?flickr\.com\/photos\/[^\/]+\/([^\/]+)/).flatten.first
+        page = Hpricot.parse(open(u){|f| f.read })
+        title = page / "#title_div#{pid}"
+        f = page / "#photoImgDiv#{pid}"
+        unless (page/"#photo_gne_button_zoom").empty?
+          zoom_url = URI.parse("http://flickr.com/photo_zoom.gne?id=#{pid}&size=o")
+          zoom_page = Hpricot.parse(open(zoom_url){|f| f.read })
+          url = (zoom_page.at("div.DownloadThis")/"img")[1][:src]
+        else
+          url = f.at(:img)[:src]
+        end
+        tags =  (page/"#thetags"/"a.Plain").map{|t| t.innerHTML }
+        cmd = "wget -q -k --no-check-certificate -U " +
+              "'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.0.4) Gecko/20060508 Firefox/1.5.0.4' " +
+              "-i - -O %output_filename"
+        [cmd, title.text.to_s + ".jpg", URI.parse(url), title.text, nil, tags]
+      end
+    end,
+
+    # Google image search page
+    #
+    lambda do |u|
+      if u.to_s =~ /\Ahttp:\/\/images\.google\...\.?.?.?\//
+        q = CGI.parse u.query
+        if q.has_key? "imgurl"
+          url = q["imgurl"].first
+          cmd = "wget -q -k --no-check-certificate -U " +
+                "'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.0.4) Gecko/20060508 Firefox/1.5.0.4' " +
+                "-i - -O %output_filename"
+          query = nil
+          if q.has_key? "prev"
+            v = URI.parse(q["prev"][0])
+            query = CGI.parse(v.query)["q"][0]
+          elsif $referrer and $referrer =~ /\Ahttp:\/\/images\.google\...\.?.?.?\//
+            v = URI.parse($referrer)
+            q = CGI.parse(v.query)
+            query = q["q"][0] if q.has_key? 'q'
+          end
+          [cmd, nil, URI.parse(url), false, nil, query]
+        else
+          nil
+        end
+      end
+    end
+  ]
+
+  PROTO_HANDLERS = [
+    lambda{|u|
+      if ['http','https','ftp'].include? u.scheme.downcase
+        title = is_html = nil
+        unless u.to_s =~ /\.(jpg|gif|png|mov|wmv|avi|qt|3gp)$/i
+          headers = IO.popen(
+              "curl --head -A "+
+              "'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.0.4) Gecko/20060508 Firefox/1.5.0.4' " +
+              "--url #{u.to_s.dump}",
+              'r'
+          ){|f|
+            f.read.split(/\r?\n/)
+          }
+          is_html = (headers.grep(/^Content-type: text\/x?html/i).size > 0)
+        end
+        if is_html
+#           cmd = "wget --restrict-file-names=windows -E -H -p -nd -nH -q -k --no-check-certificate -U " +
+#                 "'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.0.4) Gecko/20060508 Firefox/1.5.0.4' " +
+#                 "-i - -P %output_filename "
+#           begin
+#             page = WWW::Mechanize.new.get(u.to_s)
+#             etitle = page.title
+#             charset = page.content_type.split(';').grep(/charset=/).first.to_s.split("=",2).last.to_s.strip
+#             if charset.size > 0 and not charset =~ /^utf-?8$/i
+#               title = Iconv.iconv('utf-8', charset, etitle)
+#             else
+#               title = Iconv.iconv('utf-8', 'utf-8', etitle)
+#             end
+#           rescue
+#           end
+          false
+        else
+          cmd = "wget -q -k --no-check-certificate -U " +
+                "'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.0.4) Gecko/20060508 Firefox/1.5.0.4' " +
+                "-i - -O %output_filename"
+          [cmd, nil, u, title]
+        end
+      end
+    },
+    lambda{|u|
+      if ['mms','rtsp'].include? u.scheme.downcase
+        cmd = "mplayer32 -dumpstream -dumpfile %output_filename -playlist - 2 >>mplayer.log"
+        [cmd,nil,u]
+      end
+    }
+  ]
+
   def self.upload(options)
     up = new BasicStore.new
     up.handle options
+  end
+
+  def self.upload_archive(options)
+    up = new BasicStore.new
+    up.handle_compressed options
   end
 
   def initialize(store, option = {})
@@ -78,6 +215,81 @@ class Uploader
     item
   end
 
+  def handle_compressed(options)
+    is_remote = false
+    unless options[:io]
+      if options[:source]
+        is_remote = true
+      else
+        raise ArgumentError, "Either :io or :source required."
+      end
+    end
+    if is_remote
+      remote = URI.parse(options[:source])
+      if ["http","https","ftp"].include?(u.scheme.downcase)
+        open(remote){|io|
+          uncompress(io, remote){|uncompressed_file|
+            handle(options.merge(:io => uncompressed_file,
+                                :filename => File.basename(uncompressed_file.path)))
+          }
+        }
+      else
+        raise "Unsupported scheme (only http, https and ftp allowed): #{u.scheme} in #{u}"
+      end
+    else
+      uncompress(options[:io]){|uncompressed_file|
+        handle(options.merge(:io => uncompressed_file,
+                             :filename => File.basename(uncompressed_file.path)))
+      }
+    end
+  end
+
+  def uncompress(compressed, path=compressed.filename)
+    if compressed.is_a? StringIO
+      data = compressed.read
+      return if data.empty?
+      tf = Tempfile.new('cgi')
+      tf.write data
+      tf.close
+      filename = tf.path
+    elsif compressed.is_a? String
+      data = compressed.to_s
+      return if data.empty?
+      tf = Tempfile.new('cgi')
+      tf.write data
+      tf.close
+      filename = tf.path
+    else
+      filename = compressed.path
+    end
+    ext = File.extname(path)
+    ziptemp = tempdir
+    case ext
+    when ".zip"
+      `unzip -qq -d #{ziptemp.dump} #{filename.dump}`
+    when ".tar"
+      `tar -C #{ziptemp.dump} -x -f #{filename.dump}`
+    when ".bz2"
+      return unless path =~ /\.tar\.bz2\Z/
+      `tar -C #{ziptemp.dump} -x -j -f #{filename.dump}`
+    when ".gz"
+      return unless path =~ /\.tar\.gz\Z/
+      `tar -C #{ziptemp.dump} -x -z -f #{filename.dump}`
+    when ".rar"
+      Dir.chdir(ziptemp) {
+        `unrar x -p- -y #{filename.dump}`
+      }
+    when ".7z"
+      `7z x -y -o#{ziptemp.dump} -- #{filename.dump}`
+    end
+    files = `find #{ziptemp.dump} -type f`.split("\n")
+    files.sort.each{|fn|
+      File.open(fn, "rb"){|f| yield f }
+    }
+    FileUtils.rm_rf(ziptemp)
+    tf.close! if tf
+  end
+
   # finds user/YYYY/MM-DD/preferred_filename[.n].ext that doesn't exist yet
   def create_unique_filename(preferred_filename, user, exts)
     dir = today(user)
@@ -117,50 +329,79 @@ class Uploader
   # unused path seems impossible
   MAX_ATTEMPS = 10
 
+  def tempdir
+    tmp_dir = "/tmp/#{Process.pid}-#{Thread.current.object_id}"
+    FileUtils.mkdir_p(tmp_dir)
+    tmp_dir
+  end
+
   # Recursively stores the webpage and all images, stylesheets, scripts it
   # refers to. Assumes that URL is OK (untainted).
   def store_remote_item(url, owner, groups, can_modify, metadata_info)
-    downloader = RecursiveDownloader.new(URI.parse(url))
-    num_files = downloader.download
-    fname_map = {} # uri => fname
-    filenames = {} 
-    uris = downloader.downloaded_files - [downloader.toplevel]
-    toplevel = downloader.toplevel 
-    log_debug("Page #{toplevel}, children #{uris.join(" ")}", "upload.rb")
-    pending = []
+    uri = URI.parse(url.strip)
+    handler = (SITE_HANDLERS + PROTO_HANDLERS).find{|h| h[uri] }
+    if handler
+      cmd, preferred_filename, uri, title, thumb_uri, tags = handler[uri]
+      tmp_dir = tempdir
+      df = File.join(tmp_dir, "data")
+      fcmd = cmd.gsub("%output_filename", df)
+      IO.popen(fcmd, 'wb+'){|f|
+        f.puts uri.to_s
+        f.close_write
+        f.each_line{|l| }
+      }
+      preferred_filename ||= CGI.unescape(File.basename(uri.to_s.strip))
+      item = File.open(df,'rb') { |io|
+        store_item(io, preferred_filename, owner, groups, can_modify, metadata_info)
+      }
+      FileUtils.rm_rf(tmp_dir)
+      item.metadata.title = title if title
+      tags.each{|tag| item.add_tag(tag) } if tags
+    else
+      # why is this so complex?
+      downloader = RecursiveDownloader.new(URI.parse(url))
+      num_files = downloader.download
+      fname_map = {} # uri => fname
+      filenames = {} 
+      uris = downloader.downloaded_files - [downloader.toplevel]
+      toplevel = downloader.toplevel 
+      log_debug("Page #{toplevel}, children #{uris.join(" ")}", "upload.rb")
+      pending = []
 
-    topname = File.basename(toplevel)
-    topname = "index.html" if topname.empty?
-    topname.gsub(/(\.[^.]+)?$/, ".html")
-    fname_map[toplevel] = topname
-    log_debug("Top-level page is #{toplevel.to_s} (#{topname}).", "upload.rb")
+      topname = CGI.unescape(File.basename(toplevel))
+      topname = "index.html" if topname.empty?
+      topname.gsub(/(\.[^.]+)?$/, ".html")
+      fname_map[toplevel] = topname
+      log_debug("Top-level page is #{toplevel.to_s} (#{topname}).", "upload.rb")
 
-    find_unique_name = lambda do |dest|
-      if fn = fname_map[dest.to_s]
-        fn
-      else
-        fname = File.basename(URI.parse(dest.to_s).path)
-        fname = "_" + fname while filenames[fname]
-        filenames[fname] = true
-        fname_map[dest.to_s]  = fname
+      find_unique_name = lambda do |dest|
+        if fn = fname_map[dest.to_s]
+          fn
+        else
+          fname = File.basename(URI.parse(dest.to_s).path)
+          fname = "_" + fname while filenames[fname]
+          filenames[fname] = true
+          fname_map[dest.to_s]  = fname
+        end
+      end
+      uris.each do |uri|
+        io    = downloader.processed_file(uri){|src, dest, io| find_unique_name.call(dest) }
+        fname = find_unique_name.call(uri)
+        pending << [fname, io]
+      end
+      # FIXME: raise exception?
+      top_io = downloader.processed_file(toplevel){|src, dest, io| fname_map[dest.to_s] || "store_remote_item_error" }
+      
+      item = store_item(top_io, topname, owner, groups, can_modify, metadata_info)
+
+      pending.each do |fname, io|
+        log_debug("Storing subitem #{fname} under #{item.path}.", "upload.rb")
+        @store.store(fname, io, :sha1digest => item.sha1_hash,
+                    :preserve_name => true)
+        io.close # don't wait until it's GCed
       end
     end
-    uris.each do |uri|
-      io    = downloader.processed_file(uri){|src, dest, io| find_unique_name.call(dest) }
-      fname = find_unique_name.call(uri)
-      pending << [fname, io]
-    end
-    # FIXME: raise exception?
-    top_io = downloader.processed_file(toplevel){|src, dest, io| fname_map[dest.to_s] || "store_remote_item_error" }
 
-    item = store_item(top_io, topname, owner, groups, can_modify, metadata_info)
-
-    pending.each do |fname, io|
-      log_debug("Storing subitem #{fname} under #{item.path}.", "upload.rb")
-      @store.store(fname, io, :sha1digest => item.sha1_hash,
-                   :preserve_name => true)
-      io.close # don't wait until it's GCed
-    end
     item
   end
 
@@ -173,7 +414,6 @@ class Uploader
               File.dirname(handle.full_path.to_s),
               Time.now.to_f.to_s + File.basename(preferred_filename).reverse[0,64].reverse)
       begin
-        p tmp
         FileUtils.ln(handle.full_path, tmp)
         mimetype = MimeInfo.get(tmp)
       rescue

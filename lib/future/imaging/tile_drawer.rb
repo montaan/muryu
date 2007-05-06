@@ -51,7 +51,8 @@ extend self
     'application' => RED,
     'audio' => GREEN,
     'text' => YELLOW,
-    'video' => MAGENTA
+    'video' => MAGENTA,
+    'application/x-flash-video' => MAGENTA
   }
 
   @@default_color = BLACK
@@ -71,16 +72,18 @@ extend self
   end
 
   def create_palette
-    mts = Mimetypes.find_all(:columns => [:major])
+    mts = Mimetypes.find_all(:columns => [:major, :minor])
     h = {}
     mts.each{|mt|
-      h[mt.id+1] = color_for_type(mt.major)
+      h[mt.id+1] = color_for_type(mt)
     }
     h
   end
 
-  def color_for_type(major)
-    @@type_colors[major] || @@default_color
+  def color_for_type(mt)
+    @@type_colors[mt.major + "/" + mt.minor] ||
+    @@type_colors[mt.major] ||
+    @@default_color
   end
 
   def tile_drawer

@@ -14,7 +14,7 @@ require 'json'
 require 'memcache'
 
 $PRINT_QUERY_PROFILE = true
-$CACHE_TILES = false
+$CACHE_TILES = true
 
 class StandardDateTime < DateTime
   def to_json(*a)
@@ -780,8 +780,13 @@ extend FutureServlet
       item = Items.rfind(servlet_user, :path => servlet_path)
     end
     if item
-      res['Content-type'] = item.major + "/" + item.minor
-      res.body = item.read
+      if item.mimetype == "text/html"
+        res.status = 302
+        res['location'] = "/subfiles/" + servlet_path + "/data"
+      else
+        res['Content-type'] = item.major + "/" + item.minor
+        res.body = item.read
+      end
     else
       res['Content-type'] = 'text/html'
       res.body = "<html><body> File not found </body></html>"
@@ -1041,24 +1046,22 @@ extend FutureServlet
     end
 
     def do_purge(req, res)
+      log_debug("purge: #{servlet_target.path} by #{servlet_user.name}")
       servlet_target.rpurge(servlet_user)
     end
 
     def do_delete(req, res)
+      log_debug("delete: #{servlet_target.path} by #{servlet_user.name}")
       servlet_target.rdelete(servlet_user)
     end
     
     def do_undelete(req, res)
+      log_debug("undelete: #{servlet_target.path} by #{servlet_user.name}")
       servlet_target.rundelete(servlet_user)
-      Tiles.module_eval do
-        @@indexes.clear
-        @@infos.clear
-      end
     end
     
     ### FIXME implement compressed and remote_compressed uploads.
     def do_create(req, res)
-    p req.query
       if servlet_user != Users.anonymous
         common_fields = {
           :groups => req.query['groups'],
@@ -1085,6 +1088,14 @@ extend FutureServlet
             f[:referrer] = req.query[referrer] if referrer
             Uploader.upload(common_fields.merge(f))
           }
+          compressed_urls.each{|u|
+            num = u.scan(/[0-9]+/)[0]
+            referrer = referrers.find{|r| r.scan(/[0-9]+/)[0] == num }
+            f = {}
+            f[:source] = req.query[u]
+            f[:referrer] = req.query[referrer] if referrer
+            Uploader.upload_archive(common_fields.merge(f))
+          }
           texts.each{|u|
             num = u.scan(/[0-9]+/)[0]
             source = sources.find{|r| r.scan(/[0-9]+/)[0] == num }
@@ -1100,11 +1111,22 @@ extend FutureServlet
             source = sources.find{|r| r.scan(/[0-9]+/)[0] == num }
             referrer = referrers.find{|r| r.scan(/[0-9]+/)[0] == num }
             f = {}
-            f[:filename] = 'unnamed'
+            f[:filename] = File.basename(req.query[u].original_filename)
             f[:io] = req.query[u]
             f[:source] = req.query[source] if source
             f[:referrer] = req.query[referrer] if referrer
             Uploader.upload(common_fields.merge(f))
+          }
+          compressed.each{|u|
+            num = u.scan(/[0-9]+/)[0]
+            source = sources.find{|r| r.scan(/[0-9]+/)[0] == num }
+            referrer = referrers.find{|r| r.scan(/[0-9]+/)[0] == num }
+            f = {}
+            f[:filename] = 'unnamed'
+            f[:io] = req.query[u]
+            f[:source] = req.query[source] if source
+            f[:referrer] = req.query[referrer] if referrer
+            Uploader.upload_archive(common_fields.merge(f))
           }
         end
       end
