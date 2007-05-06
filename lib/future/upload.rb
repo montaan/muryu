@@ -359,6 +359,14 @@ class Uploader
       tags.each{|tag| item.add_tag(tag) } if tags
     else
       # why is this so complex?
+      page = WWW::Mechanize.new.get(uri.to_s)
+      etitle = page.title
+      charset = page.content_type.split(';').grep(/charset=/).first.to_s.split("=",2).last.to_s.strip
+      if charset.size > 0 and not charset =~ /^utf-?8$/i
+        title = Iconv.iconv('utf-8', charset, etitle)
+      else
+        title = Iconv.iconv('utf-8', 'utf-8', etitle)
+      end
       downloader = RecursiveDownloader.new(URI.parse(url))
       num_files = downloader.download
       fname_map = {} # uri => fname
@@ -393,6 +401,7 @@ class Uploader
       top_io = downloader.processed_file(toplevel){|src, dest, io| fname_map[dest.to_s] || "store_remote_item_error" }
       
       item = store_item(top_io, topname, owner, groups, can_modify, metadata_info)
+      item.metadata.title = title if title
 
       pending.each do |fname, io|
         log_debug("Storing subitem #{fname} under #{item.path}.", "upload.rb")
