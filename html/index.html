@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="style.css"/>
     <script src="rototype.js"></script>
     <script src="portal.js"></script>
-<!--      <script src="http://maps.google.com/maps?file=api&amp;v=2&amp;key=ABQIAAAAWpSYHNXxjMT-MLolMNpBmRTCNcOO4yOkKgt0L38AwHqhnHpSGBTZh68sFfaoxmfyFFzGWAMa5KUFOQ" type="text/javascript"></script> -->
+      <script src="http://maps.google.com/maps?file=api&amp;v=2&amp;key=ABQIAAAAWpSYHNXxjMT-MLolMNpBmRS2fNlMtol7He-Jym4WpRf8M4n2NBTj9mfCSuHnIDtWQFsggjMA8zq-UA" type="text/javascript"></script>
     <script>
       function toggleColor() {
         focusedPortal.toggleColor()
@@ -48,7 +48,7 @@
           }
         }, false)
         postQuery('/users/json', '', function(res){
-          var obj = res.responseText.parseRawJSON()[0]
+          var obj = res.responseText.parseRawJSON()
           if (obj.name != 'anonymous') {
             $('greet').innerHTML = z.translate('welcome', '<a class="username" href="/users/'+obj.name+'">'+obj.name+'</a>')
             $('sign_out').innerHTML = z.translate('sign_out')

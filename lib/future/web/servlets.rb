@@ -1230,7 +1230,7 @@ extend FutureServlet
             source = sources.find{|r| r.scan(/[0-9]+/)[0] == num }
             referrer = referrers.find{|r| r.scan(/[0-9]+/)[0] == num }
             f = {}
-            f[:filename] = File.basename(req.query[u].original_filename)
+            f[:filename] = File.basename(req.query[u].filename)
             f[:io] = req.query[u]
             f[:source] = req.query[source] if source
             f[:referrer] = req.query[referrer] if referrer
@@ -1349,7 +1349,10 @@ extend FutureServlet
     end
   
     def sub_modes
-      ['files','items','groups','tags','sets', 'login', 'logout']
+      ['files','items','groups','tags','sets',
+       'set_preferences', 'clear_preferences', 'delete_preferences',
+       'create_workspace', 'set_workspace', 'delete_workspace',
+       'login', 'logout']
     end
 
     def servlet_path_key
@@ -1357,7 +1360,90 @@ extend FutureServlet
     end
 
     def servlet_invisible_columns
-      super + [:password]
+      super + [:password, :workspace_id]
+    end
+
+    def do_json(req,res)
+      if servlet_user != Users.anonymous
+        res['Content-type'] = 'text/plain'
+        name = servlet_user.name
+        workspace = servlet_user.workspace.name
+        workspaces = servlet_user.workspaces.map{|w| w.name }
+        preferences = servlet_user.workspace.preferences.map{|pr|
+          [pr.key, pr.value]
+        }.to_hash
+        res.body = {
+          'name' => name,
+          'workspace' => workspace,
+          'workspaces' => workspaces,
+          'preferences' => preferences
+        }.to_json
+      else
+        res.body = "{'name':'anonymous'}"
+      end
+    end
+
+    def do_set_preferences(req, res)
+      if servlet_user != Users.anonymous
+        ws = servlet_user.workspace
+        req.query.each{|k,v|
+          pr = DB::Tables::Preferences.find_or_create(:workspace => ws, :key => k)
+          pr.value = v
+        }
+      end
+      res.status = 302
+      res['location'] = 'json'
+    end
+
+    def do_delete_preferences(req, res)
+      if servlet_user != Users.anonymous
+        ws = servlet_user.workspace
+        DB::Tables::Preferences.delete_all(:workspace => ws, :key => req.query.keys)
+      end
+      res.status = 302
+      res['location'] = 'json'
+    end
+    
+    def do_clear_preferences(req, res)
+      if servlet_user != Users.anonymous
+        DB::Tables::Preferences.delete_all(:workspace => servlet_user.workspace)
+      end
+      res.status = 302
+      res['location'] = 'json'
+    end
+
+    def do_create_workspace(req,res)
+      if servlet_user != Users.anonymous
+        name = req.query['name'].to_s
+        DB::Tables::Workspaces.find_or_create(:user=>servlet_user, :name=>name)
+      end
+      res.status = 302
+      res['location'] = 'json'
+    end
+
+    def do_set_workspace(req,res)
+      if servlet_user != Users.anonymous
+        name = req.query['name'].to_s
+        ws = DB::Tables::Workspaces.find(:user=>servlet_user, :name=>name)
+        servlet_user.workspace_id = ws.id if ws
+      end
+      res.status = 302
+      res['location'] = 'json'
+    end
+    
+    def do_delete_workspace(req,res)
+      if servlet_user != Users.anonymous
+        name = req.query['name'].to_s
+        if name != 'default'
+          if servlet_user.workspace.name == name
+            servlet_user.workspace_id = DB::Tables::Workspaces.find(
+              :user=>servlet_user, :name=>'default').id
+          end
+          DB::Tables::Workspaces.delete(:user=>servlet_user, :name=>name)
+        end
+      end
+      res.status = 302
+      res['location'] = 'json'
     end
 
     def do_login(req,res)
