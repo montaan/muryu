@@ -2,8 +2,10 @@
 ### (grammar to be reworked, bogus AST)
 class QueryStringParser
   prechigh
-    nonassoc STRING_LITERAL WORD NOT_OP RANGE_OP
-    left     BI_AND BI_OR
+    nonassoc STRING_LITERAL 
+    left     BI_AND BI_OR 
+    left     SEPARATOR
+    nonassoc WORD NOT_OP RANGE_OP 
     nonassoc SET TAG USER GROUP TYPE AUTHOR
     nonassoc SIZE DATE LENGTH WIDTH HEIGHT PAGES WORDS BITRATE RATING
   preclow
@@ -15,13 +17,15 @@ start: query { result = val[0] }
 ;
 
 query: 
-    NOT_OP query             { result = Negation.new(val[1])         }
-  | '(' query ')'           { result = val[1]                            }
-  | query BI_AND query       { result = BinaryAnd.new(val[0], val[2]) }
+    NOT_OP query            { result = Negation.new(val[1]) }
+  | '(' query ')'           { result = val[1] }
+  | keyval_expression       { result = val[0] }
+  | sort_expression         { result = val[0] }
+  | query BI_AND query      { result = BinaryAnd.new(val[0], val[2]) }
   | query BI_OR query       { result = BinaryOr.new(val[0], val[2]) }
   | STRING_LITERAL          { result = val[0] }
-  | keyval_expression       { result = val[0] }
   | WORD                    { result = val[0] }
+  | query query             { result = BinaryAnd.new(val[0], val[1]) }
   ;
 
 string
@@ -29,8 +33,12 @@ string
   ;
 
 keyval_expression
-  : discrete_key ':' discrete_values  { result = KeyValExpr.new(val[0], val[2]) }
-  | range_key ':' range_values        { result = RangeKeyValExpr.new(val[0], val[2]) }
+  : discrete_key SEPARATOR discrete_values  { result = KeyValExpr.new(val[0], val[2]) }
+  | range_key SEPARATOR range_values        { result = RangeKeyValExpr.new(val[0], val[2]) }
+  ;
+
+sort_expression
+  : SORT SEPARATOR sort_values { result = val[2] }
   ;
 
 discrete_key
@@ -40,6 +48,9 @@ discrete_key
   | GROUP  { result = val[0] }
   | TYPE   { result = val[0] }
   | AUTHOR { result = val[0] }
+  | NAME   { result = val[0] }
+  | SOURCE { result = val[0] }
+  | REFERRER { result = val[0] }
   ;
 
 range_key
@@ -62,6 +73,31 @@ discrete_values
   | discrete_values BI_AND discrete_values { result = BinaryAnd.new(val[0], val[2]) }
   | discrete_values BI_OR discrete_values { result = BinaryOr.new(val[0], val[2]) }
   | string                                { result = val[0] }
+  ;
+
+sort_values
+  : '(' sort_values ')' { result = val[1] }
+  | sort_key sort_order { result = SortExpr.new(val[0], val[1]) }
+  | sort_key            { result = SortExpr.new(val[0], 'asc') }
+  ;
+
+sort_key
+  : NEW   { result = val[0] }
+  | OLD   { result = val[0] }
+  | DATE  { result = val[0] }
+  | BIG   { result = val[0] }
+  | SMALL { result = val[0] }
+  | SIZE  { result = val[0] }
+  | USER  { result = val[0] }
+  | TYPE  { result = val[0] }
+  | SOURCE { result = val[0] }
+  | REFERRER { result = val[0] }
+  | NAME  { result = val[0] }
+  ;
+
+sort_order
+  : DESC { result = val[0] }
+  | ASC  { result = val[0] }
   ;
 
 # size:!((>4000 & <8000) | !> 2000)
@@ -97,6 +133,7 @@ BinaryAnd = Struct.new(:left, :right)
 BinaryOr = Struct.new(:left, :right)
 KeyValExpr = Struct.new(:key, :values)
 RangeKeyValExpr = Struct.new(:key, :values)
+SortExpr = Struct.new(:key, :direction)
 
 require 'strscan'
 def parse(str)
@@ -156,18 +193,18 @@ class Lexer
 
 # lexer def
   def_state(:normal) do
+    on(/\s+/){ nil } # ignore
     on(/!|~/){|op| [:NOT_OP, op]}
-    on(/\(|\)/)
+    on(/(\(|\))/)
     on(/"[^"]+"/){|str| [:STRING_LITERAL, str[1..-2]] }
+    on(/:/) { [:SEPARATOR, ':'] }
     on(/&|and\b/){ [:BI_AND, '&'] }
     on(/\||or\b/){ [:BI_OR, '|'] }
-    %w[set tag user group type author size date length width height pages words bitrate rating].each do |qualifier|
-      on(/#{qualifier}\b/){ [qualifier.upcase.to_sym, qualifier] }
+    %w[set tag user group type author sort new old big small source referrer asc desc name  size date length width height pages words bitrate rating].each do |qualifier|
+      on(/#{qualifier}\b/i){ [qualifier.upcase.to_sym, qualifier] }
     end
-    on(/:/)
-    on(/<|>|<=|>=|=|==/){|op| [:RANGE_OP, op] }
-    on(/[^ \t|&~()]+/){|str| [:WORD, str.chomp]}
-    on(/\s+/){ nil } # ignore
+    on(/(<|>|<=|>=|=|==)/){|op| [:RANGE_OP, op] }
+    on(/[^ \t|&~()]+/){|str| [:WORD, str.strip]}
   end
 end
 

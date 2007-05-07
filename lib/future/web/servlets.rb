@@ -8,7 +8,7 @@ $KCODE = 'u'
 
 require 'webrick'
 require 'future'
-load 'future/search/search_query_parser.rb'
+require 'future/search/search_query'
 require 'builder'
 require 'json'
 require 'memcache'
@@ -252,10 +252,8 @@ module FutureServlet
   end
 
   def parse_search_query(req)
-    qkeys = (req.query.keys & (columns.keys + ["sort"]))
-    h = qkeys.map{|k| [k, [req.query[k].to_s]]}.to_hash
-    words = req.query["text"].to_s.split(" ").map{|t| t.gsub(/\+/, ' ') }
-    self.search_query = SearchQueryParser.tokens_and_words_to_query_hash(h, words)
+    qkeys = (req.query.keys & (columns.keys + ["order_by", "limit", "offset"]))
+    self.search_query = qkeys.map{|k| [k, [req.query[k].to_s]]}.to_hash
   end
   
   def user_auth(req, res)
@@ -618,12 +616,8 @@ extend FutureServlet
       []
     end
 
-    delegate "Items", :columns
+    delegate "Items", :columns, :parse_search_query
 
-    def parse_search_query(req)
-      self.search_query = SearchQueryParser.parse_query(req.query['q'].to_s, Items.columns)
-    end
-    
     def do_view(req,res)
       tile_start = Time.now.to_f
       puts "#{telapsed} for rest of handle_request" if $PRINT_QUERY_PROFILE
@@ -690,12 +684,8 @@ extend FutureServlet
       []
     end
 
-    delegate "Items", :columns
+    delegate "Items", :columns, :parse_search_query
 
-    def parse_search_query(req)
-      self.search_query = SearchQueryParser.parse_query(req.query['q'].to_s, Items.columns)
-    end
-    
     def do_view(req,res)
       res['Content-type'] = 'text/plain'
       x,y,z,w,h = Tile.parse_tile_geometry(servlet_path)
@@ -899,7 +889,117 @@ extend FutureServlet
     end
 
     def parse_search_query(req)
-      self.search_query = SearchQueryParser.parse(req.query['q'].to_s)
+      parser = QueryStringParser.new
+      query = parser.parse(req.query['q'] || "user:#{servlet_user.name} sort:old")
+      self.search_query = make_query_hash(query)
+    end
+
+    def make_query_hash(query)
+      h = {}
+      collect_query(query, h)
+      pp h
+      h
+    end
+
+    def collect_query(query, h=nil)
+      case query
+      when QueryStringParser::BinaryAnd
+        +[collect_query(query.left,h),
+          collect_query(query.right,h)]
+      when QueryStringParser::BinaryOr
+        a = [collect_query(query.left,h),
+             collect_query(query.right,h)]
+        a.predicate = 'ANY'
+        a
+      when QueryStringParser::SortExpr
+        return unless h
+        h[:order_by] ||= []
+        h[:order_by] << sort_key(query.key, query.direction)
+        nil
+      when QueryStringParser::KeyValExpr
+        return unless h
+        h[column_key(query.key)] = collect_query(query.values)
+      when String
+        if h
+          h[:words] ||= []
+          h[:words] << query
+        elsif query =~ /\A\/.+\/\Z/
+          query = /#{query[1..-2]}/i
+        end
+        query
+      end
+    end
+
+    def sort_key(key, dir)
+      dir_f = dir == 'asc' ? -1 : 1
+      case key
+      when 'new'
+        column = 'created_at'
+        dir_f *= -1
+      when 'old'
+        column = 'created_at'
+      when 'date'
+        column = 'created_at'
+      when 'big'
+        column = 'size'
+        dir_f *= -1
+      when 'small'
+        column = 'size'
+      when 'size'
+        column = 'size'
+      when 'user'
+        column = 'owner.name'
+      when 'source'
+        column = 'source'
+      when 'referrer'
+        column = 'referrer'
+      when 'type'
+        column = 'mimetype_id'
+      when 'name'
+        column = 'path'
+      end
+      [column, dir_f == -1 ? :asc : :desc]
+    end
+
+    def column_key(key)
+      case key
+      when 'user'
+        'owner.name'
+      when 'set'
+        'sets.name'
+      when 'tag'
+        'tags.name'
+      when 'group'
+        'groups.name'
+      when 'type'
+        'mimetype_id'
+      when 'author'
+        'metadata.author'
+      when 'name'
+        'path'
+      when 'source'
+        'source'
+      when 'referrer'
+        'referrer'
+      when 'size'
+        'size'
+      when 'date'
+        'created_at'
+      when 'length'
+        'metadata.length'
+      when 'width'
+        'metadata.width'
+      when 'height'
+        'metadata.height'
+      when 'pages'
+        'metadata.pages'
+      when 'words'
+        'metadata.words'
+      when 'bitrate'
+        'metadata.bitrate'
+      when 'rating'
+        'metadata.rating'
+      end
     end
     
     def servlet_uneditable_columns
@@ -1293,7 +1393,10 @@ extend FutureServlet
     end
 
     def do_logout(req,res)
-      servlet_user.logout if servlet_user
+      if servlet_user
+        servlet_user.logout
+        $memcache.delete("session-#{session_id}")
+      end
       user_auth(req, res)
       do_login(req,res)
       res.status = 302
