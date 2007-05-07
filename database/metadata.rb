@@ -28,6 +28,7 @@ tables["metadata"] = {
   :page_size       => [:text],
   :words           => [:integer],
   :dimensions_unit => [:text],
+  :charset         => [:text]
 }
 
 tables["mimetypes"] = {

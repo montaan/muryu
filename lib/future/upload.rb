@@ -101,7 +101,7 @@ class Uploader
   PROTO_HANDLERS = [
     lambda{|u|
       if ['http','https','ftp'].include? u.scheme.downcase
-        title = is_html = nil
+        title = is_html = charset = content_type = nil
         unless u.to_s =~ /\.(jpg|gif|png|mov|wmv|avi|qt|3gp)$/i
           headers = IO.popen(
               "curl --head -A "+
@@ -114,27 +114,27 @@ class Uploader
           is_html = (headers.grep(/^Content-type: text\/x?html/i).size > 0)
         end
         if is_html
-#           cmd = "wget --restrict-file-names=windows -E -H -p -nd -nH -q -k --no-check-certificate -U " +
-#                 "'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.0.4) Gecko/20060508 Firefox/1.5.0.4' " +
-#                 "-i - -P %output_filename "
-#           begin
-#             page = WWW::Mechanize.new.get(u.to_s)
-#             etitle = page.title
-#             charset = page.content_type.split(';').grep(/charset=/).first.to_s.split("=",2).last.to_s.strip
-#             if charset.size > 0 and not charset =~ /^utf-?8$/i
-#               title = Iconv.iconv('utf-8', charset, etitle)
-#             else
-#               title = Iconv.iconv('utf-8', 'utf-8', etitle)
-#             end
-#           rescue
-#           end
-          false
+          content_type = "text/html"
+          cmd = "wget --restrict-file-names=windows -nd -nH -q -p -k -K -E -H --no-check-certificate -U " +
+                "'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.0.4) Gecko/20060508 Firefox/1.5.0.4' " +
+                "-i - -P %output_filename"
+          begin
+            page = WWW::Mechanize.new.get(u.to_s)
+            etitle = page.title
+            charset = page.content_type.split(';').grep(/charset=/).first.to_s.split("=",2).last.to_s.strip
+            if charset.size > 0 and not charset =~ /^utf-?8$/i
+              title = Iconv.iconv('utf-8', charset, etitle)
+            else
+              title = Iconv.iconv('utf-8', 'utf-8', etitle)
+            end
+          rescue
+          end
         else
           cmd = "wget -q -k --no-check-certificate -U " +
                 "'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.0.4) Gecko/20060508 Firefox/1.5.0.4' " +
                 "-i - -O %output_filename"
-          [cmd, nil, u, title]
         end
+        [cmd, nil, u, title, nil, nil, content_type, charset]
       end
     },
     lambda{|u|
@@ -330,7 +330,7 @@ class Uploader
   MAX_ATTEMPS = 10
 
   def tempdir
-    tmp_dir = "/tmp/#{Process.pid}-#{Thread.current.object_id}"
+    tmp_dir = "/tmp/muryu_uploads/#{Process.pid}-#{Thread.current.object_id}"
     FileUtils.mkdir_p(tmp_dir)
     tmp_dir
   end
@@ -341,7 +341,9 @@ class Uploader
     uri = URI.parse(url.strip)
     handler = (SITE_HANDLERS + PROTO_HANDLERS).find{|h| h[uri] }
     if handler
-      cmd, preferred_filename, uri, title, thumb_uri, tags = handler[uri]
+      cmd, preferred_filename, uri, title, thumb_uri, tags, content_type, charset = handler[uri]
+      metadata_info[:mime_type] ||= Mimetype[content_type] if content_type
+      metadata_info[:charset] ||= charset if charset
       tmp_dir = tempdir
       df = File.join(tmp_dir, "data")
       fcmd = cmd.gsub("%output_filename", df)
@@ -351,14 +353,31 @@ class Uploader
         f.each_line{|l| }
       }
       preferred_filename ||= CGI.unescape(File.basename(uri.to_s.strip))
-      item = File.open(df,'rb') { |io|
-        store_item(io, preferred_filename, owner, groups, can_modify, metadata_info)
-      }
+      if File.directory?(df)
+        origs = Dir[File.join(df, "*.orig")]
+        topname = origs[0].gsub(/\.orig\Z/,'')
+        log_debug("Top-level page is #{topname}.", "upload.rb")
+        item = File.open(topname, 'rb') { |io|
+          store_item(io, preferred_filename, owner, groups, can_modify, metadata_info)
+        }
+        (Dir.entries(df)-['data','.','..',File.basename(topname)]).each do |fname|
+          fname = File.join(df, fname)
+          log_debug("Storing subitem #{fname} under #{item.path}.", "upload.rb")
+          File.open(fname, 'rb') { |io|
+            @store.store(File.basename(fname), io, :sha1digest => item.sha1_hash,
+                        :preserve_name => true)
+          }
+        end
+      else
+        item = File.open(df,'rb') { |io|
+          store_item(io, preferred_filename, owner, groups, can_modify, metadata_info)
+        }
+      end
       FileUtils.rm_rf(tmp_dir)
       item.metadata.title = title if title
       tags.each{|tag| item.add_tag(tag) } if tags
     else
-      # why is this so complex?
+      # this branch is probably never hit anymore, thx to wget stuff above :<
       page = WWW::Mechanize.new.get(uri.to_s)
       etitle = page.title
       charset = page.content_type.split(';').grep(/charset=/).first.to_s.split("=",2).last.to_s.strip
@@ -418,6 +437,7 @@ class Uploader
   def store_item(io, preferred_filename, owner, groups, can_modify, metadata_info)
     handle = @store.store(preferred_filename, io)
     mimetype = metadata_info[:mime_type]
+    charset = metadata_info[:charset]
     unless mimetype
       tmp = File.join(
               File.dirname(handle.full_path.to_s),
@@ -432,7 +452,7 @@ class Uploader
       end
     end
     major, minor = mimetype.to_s.split("/")
-    metadata = MetadataExtractor[ handle.full_path, mimetype.to_s ] || {}
+    metadata = MetadataExtractor[ handle.full_path, mimetype.to_s, charset ] || {}
     item = nil
     attemps = MAX_ATTEMPS
     begin
@@ -448,7 +468,7 @@ class Uploader
                             :sha1_hash => handle.sha1digest, :deleted => false,
                             :mimetype_id => mimetype_id, :metadata_id => metadata_id,
                             :owner_id => owner.id, :created_at => Time.now.to_s)
-        text = MetadataExtractor.extract_text(handle.full_path, mimetype.to_s)
+        text = MetadataExtractor.extract_text(handle.full_path, mimetype, charset)
         if text
           Itemtexts.find_or_create(:sha1_hash => handle.sha1digest, :text => text)
         end

@@ -2,5 +2,12 @@
 require 'future/database/creator'
 require 'pathname'
 
-puts DB::Creator.new(Dir[File.join(ARGV[0] || '.', "*.rb")])
+db = ARGV[0] || '.'
+if File.directory?(db)
+  files = Dir[File.join(db, '*.rb')]
+else
+  files = [db]
+end
+
+puts DB::Creator.new(db)
 

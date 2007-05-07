@@ -803,15 +803,18 @@ extend FutureServlet
       path = spl[0,5].join("/")[1..-1]
       rest = spl[5..-1].join("/")
       item = Items.rfind(servlet_user, :path => path)
-      p [path, rest]
       if item
         ip = File.split(item.internal_path).first
         sp = rest.gsub(/\A\.*\/|(\/\.\.\/)|(\/\.\.\Z)/, '')
         fn = File.join(ip, sp)
+        fn = File.join(ip,'data') if fn == ip
         if fn.index(File.dirname(ip)) == 0
           if File.directory?(fn)
             res.status = 403
             res.body = "<html><body> No directory listings </body></html>"
+          elsif fn == File.join(ip, 'data')
+            res['Content-type'] = item.major + "/" + item.minor + "; charset=" + item.charset.to_s
+            res.body = File.read(fn)
           else
             res.body = File.read(fn)
           end
@@ -956,7 +959,7 @@ extend FutureServlet
       when 'type'
         column = 'mimetype_id'
       when 'name'
-        column = 'path'
+        column = 'metadata.title'
       end
       [column, dir_f == -1 ? :asc : :desc]
     end
@@ -976,7 +979,7 @@ extend FutureServlet
       when 'author'
         'metadata.author'
       when 'name'
-        'path'
+        'metadata.title'
       when 'source'
         'source'
       when 'referrer'

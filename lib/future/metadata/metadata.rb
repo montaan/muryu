@@ -43,7 +43,7 @@ module Future
 module MetadataExtractor
 extend self
 
-  def audio_mpeg(fn)
+  def audio_mpeg(fn, charset)
     Mp3Info.open(fn) do |m|
       t = m.tag
       md = {
@@ -51,22 +51,22 @@ extend self
         :length => m.length.to_f,
         :samplerate => m.samplerate.to_i,
         :vbr => m.vbr,
-        :author => enc_utf8(t['artist']),
-        :genre => enc_utf8(t['genre_s']),
-        :publish_time => parse_time(t['year']),
-        :album => enc_utf8(t['album']),
-        :title => enc_utf8(t['title']),
-        :tracknum => parse_num(t['tracknum'])
+        :author => enc_utf8(t['artist'], charset),
+        :genre => enc_utf8(t['genre_s'], charset),
+        :publish_time => parse_time(t['year'], charset),
+        :album => enc_utf8(t['album'], charset),
+        :title => enc_utf8(t['title'], charset),
+        :tracknum => parse_num(t['tracknum'], charset)
       }
     end
   end
 
-  def application_pdf(fname)
+  def application_pdf(fname, charset)
     h = pdfinfo_extract_info(fname)
     h['words'] = `pdftotext #{fname.dump} - | wc -w 2>/dev/null`.strip.to_i
     {
-      :title, enc_utf8(h['title']),
-      :author, enc_utf8(h['author']),
+      :title, enc_utf8(h['title'], charset),
+      :author, enc_utf8(h['author'], charset),
       :publish_time, parse_time(h['moddate'] || h['creationdate']),
       :pages, h['pages'],
       :width, h['width'],
@@ -77,7 +77,7 @@ extend self
     }
   end
 
-  def application_ps(fname)
+  def application_ps(fname, charset)
     i = image(fname)
     i[:'width'] = (i[:'width'] * 0.3528).round.to_i
     i[:'height'] = (i[:'height'] * 0.3528).round.to_i
@@ -88,21 +88,21 @@ extend self
     i
   end
 
-  def text_html(fname)
+  def text_html(fname, charset)
     words = `html2text #{fname.dump} | wc -w 2>/dev/null`.strip.to_i
     {
       :words => words
     }
   end
 
-  def text(fname)
+  def text(fname, charset)
     words = `wc -w #{fname.dump} 2>/dev/null`.strip.to_i
     {
       :words => words
     }
   end
 
-  def video(fname)
+  def video(fname, charset)
     h = mplayer_extract_info(fname)
     info = {
       :length, (h['length'].to_i > 0) ? h['length'] : nil,
@@ -120,17 +120,17 @@ extend self
 
   alias_method(:application_x_flash_video, :video)
 
-  def image(fname)
+  def image(fname, charset)
     id_out = `identify #{fname.dump}`
     w,h = id_out.scan(/[0-9]+x[0-9]+/)[0].split("x",2)
     exif = extract_exif(fname)
     info = {
       :width => parse_val(w),
-      :description => enc_utf8(exif["Image Description"]),
-      :author => enc_utf8(exif["Artist"]),
+      :description => enc_utf8(exif["Image Description"], charset),
+      :author => enc_utf8(exif["Artist"], charset),
       :height => parse_val(h),
       :frames => id_out.split("\n").size,
-      :exif => enc_utf8(exif.map{|r| r.join("\t")}.join("\n"))
+      :exif => enc_utf8(exif.map{|r| r.join("\t")}.join("\n"), charset)
     }
     if t = exif["Date and Time"]
       info[:publish_time] = parse_time(t.split(":",3).join("-"))
@@ -138,30 +138,30 @@ extend self
     info
   end
 
-  def extract(filename, mimetype=MimeInfo.get(filename.to_s))
+  def extract(filename, mimetype=MimeInfo.get(filename.to_s), charset=nil)
     filename = filename.to_s
     major,minor = mimetype.to_s.gsub("-","_").split("/")
     mn = [major,minor].join("_")
     new_methods = public_methods(false)
     if new_methods.include?( mn )
-      __send__ mn, filename
+      __send__ mn, filename, charset
     elsif new_methods.include?( major )
-      __send__ major, filename
+      __send__ major, filename, charset
     else
       {}
     end
   end
 
-  def extract_text(filename, mimetype=MimeInfo.get(filename.to_s))
+  def extract_text(filename, mimetype=MimeInfo.get(filename.to_s), charset=nil)
     return nil
     filename = filename.to_s
     major,minor = mimetype.to_s.gsub("-","_").split("/")
     mn = [major,minor,"_gettext"].join("_")
     new_methods = public_methods(false)
     if new_methods.include?( mn )
-      __send__ mn, filename
+      __send__ mn, filename, charset
     elsif new_methods.include?( major )
-      __send__ major, filename
+      __send__ major, filename, charset
     else
       nil
     end
@@ -169,8 +169,8 @@ extend self
 
   alias_method :[], :extract
 
-  def text_plain__gettext(filename)
-    enc_utf8(File.read(filename))
+  def text_plain__gettext(filename, charset)
+    enc_utf8(File.read(filename), charset)
   end
   
   private
@@ -228,10 +228,12 @@ extend self
     end
   end
 
-  def enc_utf8(s)
+  def enc_utf8(s, charset)
     return nil if s.nil? or s.empty?
     us = nil
-    ['utf-8','shift-jis','euc-jp','iso8859-1','cp1252','big-5'].find{|c|
+    charsets = ['utf-8','shift-jis','euc-jp','iso8859-1','cp1252','big-5']
+    charsets.unshift(charset) if charset
+    charsets.find{|c|
       ((us = Iconv.iconv('utf-8', c, s)[0]) rescue false)
     }
     us ||= s.gsub(/[^0-9a-z._ '"\*\+\-]/,'?')
