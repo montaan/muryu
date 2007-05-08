@@ -7,51 +7,96 @@
     <link rel="stylesheet" href="style.css"/>
     <script src="rototype.js"></script>
     <script src="portal.js"></script>
-      <script src="http://maps.google.com/maps?file=api&amp;v=2&amp;key=ABQIAAAAWpSYHNXxjMT-MLolMNpBmRS2fNlMtol7He-Jym4WpRf8M4n2NBTj9mfCSuHnIDtWQFsggjMA8zq-UA" type="text/javascript"></script>
+<!--      <script src="http://maps.google.com/maps?file=api&amp;v=2.x&amp;key=ABQIAAAAWpSYHNXxjMT-MLolMNpBmRS2fNlMtol7He-Jym4WpRf8M4n2NBTj9mfCSuHnIDtWQFsggjMA8zq-UA" type="text/javascript"></script>-->
     <script>
       function toggleColor() {
         focusedPortal.toggleColor()
       }
       window.addEventListener("load",function(){
-        var zs = $S("#zogen").style
-        var x = parseInt(zs.left || 0)
-        var y = parseInt(zs.top || 0)
-        var z = parseInt(zs.zIndex || 0)
-        var w = window.innerWidth - x
-        var h = window.innerHeight - y
-        var config = {
-          currentLocation : $('currentLocationLink'),
-          hash : document.location.hash
-        }
-        var z = window.focusedPortal = createNewPortal(x, y, z, w, h, document.body, config)
-        window.onkeypress = function(e){ window.focusedPortal.keyHandler(e) }
-        window.onresize = function() {
-          z.container.style.width = window.innerWidth - z.container.absoluteLeft() + 'px'
-          z.container.style.height = window.innerHeight - z.container.absoluteTop() + 'px'
-        }
-        var lf = $('login_form')
-        lf.style.position = 'absolute'
-        lf.style.display = 'none'
-        lf.style.top = '18px'
-        lf.style.paddingTop = '1px'
-        lf.style.width = '100%'
-        lf.style.left = '0px'
-        lf.style.textAlign = 'right'
-        lf.style.background = 'url(50_opacity_black.png)'
-        var si = $('sign_in')
-        si.style.display = 'inline'
-        si.addEventListener("click", function(e){
-          if (Mouse.normal(e)) {
-            lf.style.display = (lf.style.display == 'none' ? 'block' : 'none')
-            if (lf.style.display == 'block') lf.username.focus()
-            e.preventDefault()
-          }
-        }, false)
         postQuery('/users/json', '', function(res){
           var obj = res.responseText.parseRawJSON()
+          var zs = $S("#zogen").style
+          var x = parseInt(zs.left || 0)
+          var y = parseInt(zs.top || 0)
+          var z = parseInt(zs.zIndex || 0)
+          var w = window.innerWidth - x
+          var h = window.innerHeight - y
+          var qvars = document.location.search.slice(1).split("&")
+          var query = {}
+          qvars.each(function(q){ var p = q.split("="); query[p[0]] = p[1] })
+          var config = {
+            currentLocation : $('currentLocationLink'),
+            hash : document.location.hash
+          }
+          var prefs = obj.preferences || {}
+          if (query.q)
+            config.query = 'q=' + query.q
+          if (!config.query && prefs.location && !config.hash || config.hash.isEmpty())
+            config.hash = prefs.location
+          if (prefs.color)
+            config.color = (prefs.color == "true")
+          if (prefs.bgcolor)
+            config.bgcolor = prefs.bgcolor
+          if (prefs.bgimage)
+            config.bgimage = prefs.bgimage
+          if (query.color)
+            config.color = query.color
+          if (query.bgcolor)
+            config.color = query.bgcolor
+          if (query.bgimage)
+            config.bgimage = query.bgimage
+          var z = window.focusedPortal = createNewPortal(x, y, z, w, h, document.body, config)
+          window.addEventListener("keypress", function(e){ window.focusedPortal.keyHandler(e) }, false)
+          window.addEventListener("resize", function() {
+            z.container.style.width = window.innerWidth - z.container.absoluteLeft() + 'px'
+            z.container.style.height = window.innerHeight - z.container.absoluteTop() + 'px'
+          }, false)
+          var updatePrefs = function() {
+            if (obj.name == 'anonymous') return
+            var q = {}
+            q.location = config.currentLocation.href.slice(1)
+            if (z.color != undefined)
+              q.color = z.color
+            if (z.bgcolor)
+              q.bgcolor = z.bgcolor
+            if (z.bgimage)
+              q.bgimage = z.bgimage
+            postQuery('/users/' + obj.name + '/set_preferences', q, null, null, true)
+          }
+//           z.prefUpdater = setInterval(updatePrefs, 30000)
+          window.addEventListener("unload", updatePrefs, false)
+          window.addEventListener("focus", function(){
+            window.eatClick = true
+          }, true)
+          window.addEventListener("click", function(ev){
+            if (window.eatClick) {
+              window.eatClick = false
+              ev.preventDefault()
+              ev.stopPropagation()
+            }
+          }, true)
+          var lf = $('login_form')
+          lf.style.position = 'absolute'
+          lf.style.display = 'none'
+          lf.style.top = '18px'
+          lf.style.paddingTop = '1px'
+          lf.style.width = '100%'
+          lf.style.left = '0px'
+          lf.style.textAlign = 'right'
+          lf.style.background = 'url(50_opacity_black.png)'
+          var si = $('sign_in')
+          si.style.display = 'inline'
+          si.addEventListener("click", function(e){
+            if (Mouse.normal(e)) {
+              lf.style.display = (lf.style.display == 'none' ? 'block' : 'none')
+              if (lf.style.display == 'block') lf.username.focus()
+              e.preventDefault()
+            }
+          }, false)
           if (obj.name != 'anonymous') {
             $('greet').innerHTML = z.translate('welcome', '<a class="username" href="/users/'+obj.name+'">'+obj.name+'</a>')
             $('sign_out').innerHTML = z.translate('sign_out')
+            $('sign_out').addEventListener('click', updatePrefs, false)
             $S('.logout').style.display = 'inline'
           } else {
             $('register').innerHTML = z.translate('register')
@@ -72,22 +117,31 @@
     <div id="currentLocation" style="font-family: Trebuchet MS, Arial; font-size: 12px;">
       <table width="100%" border="0" cellspacing="0" cellpadding="0">
       <tr valign="top"><td align="left">
+        |
+        <form id="search_form" action="/" method="GET">
+          <input name="q" type="text"/>
+          <input value="Search" type="submit"/>
+        </form>
+        |
         <a id="currentLocationLink" href="zogen.html#x0y0z2">Link here</a>
-        | Create [
+        |
+<!--        Create [
           <a href="javascript:void(createNewPortalWindow(100, 100, 640, 480, document.body))">portal</a>
-        | <a href="javascript:void(createNewSubPortal())">subportal</a>
-        ] Toggle [
-          <a href="javascript:toggleColor()">coloring</a> ]
+        | <a href="javascript:void(createNewSubPortal())">subportal</a> ]-->
+        Toggle [
+          <a href="javascript:toggleColor()">colors</a> ]
         Background [
           <a href="javascript:focusedPortal.setBgColor('ffffff')">white</a>
         | <a href="javascript:focusedPortal.setBgColor('032338')">blue</a>
         | <a href="javascript:focusedPortal.setBgColor('231323')">purple</a>
-        | <a href="javascript:focusedPortal.setBgColor('13191c')">flint</a>
-        ] <a href="muryu_uploader.xpi">extension</a>
+        | <a href="javascript:focusedPortal.setBgColor('13191c')">flint</a> ]
+        
+        Items [ <a href="items/">upload</a>
+        | <a href="muryu_uploader.xpi">firefox extension</a> ]
       </td>
       <td align="right">
         <span class="login">
-          <a id="sign_in" href="/users/login">Sign in</a>
+          <a id="sign_in" href="/users/login">Log in</a>
           <form id="login_form" action="/users/login" method="POST">
             <span id="form_username">Username</span>
             <input name="username" type="text"/>
@@ -99,7 +153,7 @@
         </span>
         <span class="logout">
           <span id="greet">Welcome!</span> | 
-          <a id="sign_out" href="/users/logout">Sign out</a>
+          <a id="sign_out" href="/users/logout">Log out</a>
         </span>
       </td></tr></table>
     </div>

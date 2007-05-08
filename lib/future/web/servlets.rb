@@ -242,7 +242,7 @@ module FutureServlet
       else
         self.servlet_target = nil
       end
-      parse_search_query(req) if respond_to?(:columns)
+      parse_search_query(req) if respond_to?(:columns) and mode != 'create'
       mode = 'list' if ["/", ""].include?(req.path_info)
       __send__("do_#{mode}", req, res)
       Thread.current.conn = nil
@@ -893,7 +893,7 @@ extend FutureServlet
 
     def parse_search_query(req)
       parser = QueryStringParser.new
-      query = parser.parse(req.query['q'] || "user:#{servlet_user.name} sort:old")
+      query = parser.parse(req.query['q'] || "user:#{servlet_user.name} sort:date")
       self.search_query = make_query_hash(query)
     end
 
@@ -942,7 +942,7 @@ extend FutureServlet
       when 'old'
         column = 'created_at'
       when 'date'
-        column = 'created_at'
+        column = 'image_index'
       when 'big'
         column = 'size'
         dir_f *= -1

@@ -37,8 +37,27 @@ h3 {
   background-color: #CCCCCC;
 }
 
+
 .logout {
   display: none;
+}
+
+#search_form {
+  display: inline;
+}
+
+#search_form input {
+  font-family: Trebuchet MS, Arial;
+  vertical-align: middle;
+  font-size: 12px;
+  border-width: 1px;
+}
+
+#search_form input[type=text]{
+  width: 200px;
+  padding: 1px;
+  border-width: 0px;
+  background-color: #CCCCCC;
 }
 
 #currentLocation {

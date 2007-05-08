@@ -552,7 +552,7 @@ function postForm(form, onSuccess, onFailure){
   postQuery(form.action, query, onSuccess, onFailure)
 }
 
-function postQuery(url,queryObj,onSuccess,onFailure){
+function postQuery(url,queryObj,onSuccess,onFailure,sync){
   var query = queryObj
   if ((typeof queryObj) == 'object') {
     query = queryObj.map(function(kv){
@@ -570,7 +570,7 @@ function postQuery(url,queryObj,onSuccess,onFailure){
         }
       }
     }
-    req.open("POST", url, true)
+    req.open("POST", url, !sync)
     req.send(query)
   } else {
     window.open(url+"?"+query, '_blank')
@@ -767,6 +767,8 @@ Editors = {
         map.addOverlay(marker)
         map.addControl(new GSmallZoomControl())
         map.addControl(new GMapTypeControl())
+        map.enableContinuousZoom()
+        map.enableScrollWheelZoom()
         var updateVal = function(pt) {
           hid.value = pt.toUrlValue()
           txt.innerHTML = '(' + pt.toUrlValue() + ')'
@@ -778,14 +780,9 @@ Editors = {
         GEvent.addListener(marker, 'dragend', function(){
           updateVal(marker.getPoint())
         })
-        map_cont.addEventListener("DOMMouseScroll", function(e){
-          if (e.detail > 0 ) {
-            map.zoomOut()
-          } else {
-            map.zoomIn()
-          }
-          e.stopPropagation()
-          e.preventDefault()
+        map_cont.addEventListener("DOMMouseScroll", function(ev){
+          ev.stopPropagation()
+          ev.preventDefault()
         }, false)
         map_outer_cont.unloadMonitor = setInterval(function(){
           var o = loc

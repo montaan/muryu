@@ -557,6 +557,11 @@ Portal.TileMap.prototype = {
     this.view = v
   },
 
+  setQuery : function(q) {
+    this.query = q
+    this.updateTiles(true)
+  },
+
   viewScrollHandler : function(e) {
     if (e.target == this.view && e.attrName == 'style')
       this.viewMonitors.each(function(vm){ vm[1](e) })
@@ -2005,9 +2010,9 @@ Portal.FileMap.prototype.mergeD({
       welcome : function(name){
         return 'Welcome, '+name
       },
-      sign_in : 'Sign in',
+      sign_in : 'Log in',
       register : 'Create account',
-      sign_out : 'Sign out',
+      sign_out : 'Log out',
       username : 'Account name',
       password : 'Password',
       by : 'by',
