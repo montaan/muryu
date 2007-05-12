@@ -836,6 +836,8 @@ class Lexer
     send("scan_#{@state}")
   end
 
+
+  QUALIFIERS = %w[set tag user group type author sort new old big small source referrer asc desc name size date length width height pages words bitrate rating]
 # lexer def
   def_state(:normal) do
     on(/\s+/){ nil } # ignore
@@ -845,9 +847,9 @@ class Lexer
     on(/:/) { [:SEPARATOR, ':'] }
     on(/&|and\b/){ [:BI_AND, '&'] }
     on(/\||or\b/){ [:BI_OR, '|'] }
-    %w[set tag user group type author sort new old big small source referrer asc desc name  size date length width height pages words bitrate rating].each do |qualifier|
-      on(/#{qualifier}\b/i){ [qualifier.upcase.to_sym, qualifier] }
-    end
+    QUALIFIERS.each{|ql|
+      on(/#{ql}\b/i){|q| [q.upcase.to_sym, q.downcase] }
+    }
     on(/(<|>|<=|>=|=|==)/){|op| [:RANGE_OP, op] }
     on(/[^ \t|&~()]+/){|str| [:WORD, str.strip]}
   end

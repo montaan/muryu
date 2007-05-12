@@ -1582,8 +1582,7 @@ Portal.FileMap.prototype.mergeD({
         this.downX = e.clientX
         this.downY = e.clientY
       }
-      var h = (click_image_to_close ? '' : 'dbl')
-      i['on'+h+'click'] = function(e){
+      i['ondblclick'] = function(e){
         if (Mouse.normal(e) &&
             Math.abs(this.downX - e.clientX) < 3 &&
             Math.abs(this.downY - e.clientY) < 3) infoFloater.close()
@@ -1709,7 +1708,7 @@ Portal.FileMap.prototype.mergeD({
         metadata.appendChild(author)
       }
       if (info.metadata.length)
-        metadata.appendChild(Text(" " + info.metadata.length))
+        metadata.appendChild(Text(" " + formatTime(info.metadata.length*1000)))
       if (info.metadata.width && info.metadata.height)
         metadata.appendChild(Text(" (" + info.metadata.width+"x"+info.metadata.height +
                       (info.metadata.dimensions_unit || "") + ")"))

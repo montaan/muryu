@@ -17,6 +17,12 @@ class Thread
   
 end
 
+class Struct
+  def to_json
+    "{#{ members.map{|m| m.dump << ":" << self[m].to_json}.join(",") }}"
+  end
+end
+
 $imlib_mutex ||= Mutex.new
 $PRINT_QUERY_PROFILE = false if $PRINT_QUERY_PROFILE.nil?
 
@@ -144,7 +150,7 @@ extend self
       qtext = sanitize_query(query)
       quality = case z
                 when 0: 65
-                when 1: 40
+                when 1: 65
                 when 2: 40
                 when 3: 50
                 when 4: 50
@@ -196,6 +202,8 @@ extend self
     tile_drawer.string_to_gray_jpeg(tile, w, h, quality)
   end
 
+  @@column_structs = {}
+
   def info(user, query, *tile_args)
     return {} if tile_args[1] < 0 or tile_args[2] < 0
     q = query.clone
@@ -203,8 +211,10 @@ extend self
     q[:columns] |= [:image_index]
     indexes = iindexes = nil
     @@mutex.synchronize do
+        puts "#{Thread.current.telapsed} for info init" if $PRINT_QUERY_PROFILE
+        t = nil
         key = "info::" + user.id.to_s + "::" + sanitize_query(query)
-        unless $info_changed
+        if $CACHE_INFO and not $info_changed
           if $memcache
             t = $memcache.get(key)
           else
@@ -213,22 +223,40 @@ extend self
         end
         unless t
           result = Items.rfind_all(user, q.merge(:as_array => true))
+          puts "#{Thread.current.telapsed} for info db query" if $PRINT_QUERY_PROFILE
           cidxs = q[:columns].zip((0...q[:columns].size).to_a).to_hash
-          ii_c = cidxs[:image_index]
-          idxs = result.map{|r| r[ii_c].to_i }
-          iidxs = result.map{|r| [r[ii_c].to_i, cidxs.map{|c,i| [c, r[i]] }.to_hash] }.to_hash
-          t = [idxs, iidxs]
-          if $memcache
-            $memcache.set(key, t, 300)
-          else
-            @@infos[key] = t
+          rkey = q[:columns].join("_").capitalize
+          unless TileDrawer.constants.include?(rkey)
+            eval("TileDrawer::#{rkey} = Struct.new(#{q[:columns].map{|c|":#{c}"}.join(",")})")
           end
-          $info_changed = false
+          rstr = TileDrawer.const_get(rkey)
+          ii_c = cidxs[:image_index]
+          idxs = []
+          iidxs = {}
+          GC.disable
+          result.each{|r|
+            h = rstr.new(*r)
+            ii = h.image_index.to_i
+            iidxs[ii] = h
+            idxs << ii
+          }
+          GC.enable
+          puts "#{Thread.current.telapsed} for mangling info" if $PRINT_QUERY_PROFILE
+          t = [idxs, iidxs]
+          if $CACHE_INFO
+            if $memcache
+              $memcache.set(key, t, 300)
+            else
+              @@infos[key] = t
+            end
+            $info_changed = false
+          end
         end
         indexes, iindexes = t
     end
     infos = {}
     tile_drawer.tile_info(indexes, *tile_args){|i, *a| infos[i] = [a, iindexes[i]]}
+    puts "#{Thread.current.telapsed} for info layout" if $PRINT_QUERY_PROFILE
     infos
   end
 
@@ -284,7 +312,7 @@ class TileDrawer
     end
     layouter.each(indexes[0], x, y, sz, w, h) do |i, ix, iy|
       @image_cache.draw_image_at(i[0], zoom, tile, ix, iy)
-      if palette and palette[i[1]][3] != 0
+      if palette and palette[i[1]][3] == 255
         $imlib_mutex.synchronize do
           tile.fill_rectangle(ix, iy, sz, sz,
             Imlib2::Color::RgbaColor.new(palette[i[1]]))
@@ -641,12 +669,13 @@ class TileDrawer
         int sz
       )
       {
-        int i,sz24;
+        int i,j,sz24;
         unsigned char sa;
         unsigned char *color;
 
         sz24 = sz*sz*4;
 
+        /* premultiply the thumbs */
         for (i=0; i<colors_length*sz24-16; i+=16) {
           thumbs[i+14] = (thumbs[i+14]*thumbs[i+15]) >> 8;
           thumbs[i  ] = (thumbs[i  ]*thumbs[i+3]) >> 8;
@@ -666,6 +695,7 @@ class TileDrawer
           thumbs[i+1] = (thumbs[i+1]*thumbs[i+3]) >> 8;
           thumbs[i+2] = (thumbs[i+2]*thumbs[i+3]) >> 8;
         }
+        /* color the thumbs */
         for (i=0; i<colors_length; i++) {
           if (colors[i] == 0) continue;
           color = (unsigned char*)&colors[i];
@@ -676,7 +706,17 @@ class TileDrawer
             color[0] = (color[0]*sa) >> 8;
             color[1] = (color[1]*sa) >> 8;
             color[2] = (color[2]*sa) >> 8;
-            oil_composite_over_argb_const_src((uint32_t*)&thumbs[i*sz24], (uint32_t*)&colors[i], sz*sz);
+            if (sz >= 32) {
+              for(j=0; j<16; j++) {
+                oil_composite_over_argb_const_src(
+                  (uint32_t*)&thumbs[i*sz24+j*sz*4],
+                  (uint32_t*)&colors[i],
+                  15-j);
+                *(uint32_t*)&thumbs[i*sz24+j*sz*4+(15-j)*4] = 0;
+              }
+            } else {
+              oil_composite_over_argb_const_src((uint32_t*)&thumbs[i*sz24], (uint32_t*)&colors[i], sz*sz);
+            }
           }
         }
       }

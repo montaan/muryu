@@ -146,7 +146,16 @@ class Items < DB::Tables::Items
     tn = thumbnail(256)
     unless tn.exist?
       tn.dirname.mkdir_p
-      Mimetype[mimetype.to_s].thumbnail(internal_path, tn.to_s, 256)
+      if mimetype == "text/html" and source and not source.empty?
+        src = URI.parse(source)
+        if ['http','https'].include?( src.scheme.downcase )
+          Mimetype["text/html"].web_thumbnail(src, tn.to_s, 256) rescue false
+        else
+          false
+        end
+      else
+        false
+      end or Mimetype[mimetype.to_s].thumbnail(internal_path, tn.to_s, 256)
     end
     update_image_cache
   end

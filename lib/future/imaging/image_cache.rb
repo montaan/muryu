@@ -134,6 +134,7 @@ class ImageCache
       item = Items.find(:image_index => index)
       return unless item.thumbnail
       if zoom == 8
+        return unless item.thumbnail and item.thumbnail.exist?
         $imlib_mutex.synchronize do
           t = Imlib2::Image.load(item.thumbnail.to_s)
           image.blend!(t, 0,0,t.width,t.height, x,y,t.width,t.height)
@@ -144,6 +145,10 @@ class ImageCache
         ###       that there's no need to rescale every time. Do scaling on GPU.
         ###       Cache created tiles.
         pn = Pathname.new(item.internal_path)
+        if item.major != 'image'
+          pn = item.thumbnail
+        end
+        return unless pn.exist?
         tn = Future.cache_dir + "tmpthumb-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}.tga"
         w = 2**zoom
         $imlib_mutex.synchronize do

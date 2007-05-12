@@ -15,6 +15,7 @@ require 'memcache'
 
 $PRINT_QUERY_PROFILE = true
 $CACHE_TILES = false
+$CACHE_INFO = true
 
 class StandardDateTime < DateTime
   def to_json(*a)
@@ -266,11 +267,13 @@ module FutureServlet
       cookie = cookies.find{|cookie|
         self.session_id = cookie.value
         user = nil
-        if user_id = $memcache.get("session-#{session_id}")
+        user_id, user_name = $memcache.get("session-#{session_id}")
+        if user_id
           user = Users.new(user_id)
+          user.instance_variable_set(:@name, user_name) if user_name
         else
           user = Users.continue_session(session_id)
-          $memcache.set("session-#{session_id}", user.id, 300) if user
+          $memcache.set("session-#{session_id}", [user.id, user.name], 300) if user
         end
         user
       }
@@ -620,9 +623,9 @@ extend FutureServlet
 
     def do_view(req,res)
       tile_start = Time.now.to_f
-      puts "#{telapsed} for rest of handle_request" if $PRINT_QUERY_PROFILE
       res['Content-type'] = 'image/jpeg'
       x,y,z,w,h = parse_tile_geometry(servlet_path)
+      return if z.to_i > 15 || z.to_i < 0
       color = (req.query['color'].to_s != 'false')
       bgcolor = (req.query.has_key?('bgcolor') ?
                   req.query['bgcolor'].to_s[0,6] : false)
@@ -695,7 +698,7 @@ extend FutureServlet
         return
       end
       key = [servlet_user.id, servlet_path, search_query, req.query['time']].join("::")
-      jinfo = $memcache.get(key) unless $info_changed
+      jinfo = $memcache.get(key) if $CACHE_INFO and not $info_changed
       unless jinfo
         if z >= 4
           sq[:columns] ||= []
@@ -717,7 +720,7 @@ extend FutureServlet
         puts "#{telapsed} for fetching tile info" if $PRINT_QUERY_PROFILE
         jinfo = info.to_json
         puts "#{telapsed} for tile info jsonification" if $PRINT_QUERY_PROFILE
-        $memcache.set(key, jinfo, 300)
+        $memcache.set(key, jinfo, 300) if $CACHE_INFO
       end
       res.body = jinfo
       puts "Total tile_info time: #{"%.3fms" % [1000 * (Time.now.to_f - request_time)]}" if $PRINT_QUERY_PROFILE
@@ -891,16 +894,19 @@ extend FutureServlet
       :path
     end
 
+
     def parse_search_query(req)
+      puts "#{telapsed} for rest of handle_request" if $PRINT_QUERY_PROFILE
       parser = QueryStringParser.new
       query = parser.parse(req.query['q'] || "user:#{servlet_user.name} sort:date")
+      puts "#{telapsed} for search query parsing" if $PRINT_QUERY_PROFILE
       self.search_query = make_query_hash(query)
+      puts "#{telapsed} for making a dbconn hash out of the AST" if $PRINT_QUERY_PROFILE
     end
 
     def make_query_hash(query)
       h = {}
       collect_query(query, h)
-      pp h
       h
     end
 
@@ -923,11 +929,10 @@ extend FutureServlet
         return unless h
         h[column_key(query.key)] = collect_query(query.values)
       when String
+        query = /#{query[1..-2]}/i if query =~ /\A\/.+\/\Z/
         if h
-          h[:words] ||= []
-          h[:words] << query
-        elsif query =~ /\A\/.+\/\Z/
-          query = /#{query[1..-2]}/i
+          h[:path] ||= []
+          h[:path] << query
         end
         query
       end
@@ -1249,18 +1254,23 @@ extend FutureServlet
           }
           changed
         end
-      end
-      if req.query.has_key?('close_when_done')
-        res.body = <<-EOF
-          <html><head><script>setTimeout(window.close,3000)</script></head>
-          <body>Got item A-OK! Keep up the good work!</body></html>
-        EOF
-      elsif req.query.has_key?('json')
-        res['Content-type'] = "text/plain"
-        res.body = "Got it, thanks!"
+        if req.query.has_key?('close_when_done')
+          res.body = <<-EOF
+            <html><head><script>setTimeout(window.close,3000)</script></head>
+            <body>Got item A-OK! Keep up the good work!</body></html>
+          EOF
+        elsif req.query.has_key?('json')
+          res['Content-type'] = "text/plain"
+          res.body = "Got it, thanks!"
+        else
+          res.status = 302
+          res['location'] = '/items'
+        end
       else
-        res.status = 302
-        res['location'] = '/items'
+        res.body = <<-EOF
+          <html><body>Please log in first.</body></html>
+        EOF
+        res.status = 401
       end
     end
 

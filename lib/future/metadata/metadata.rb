@@ -8,6 +8,8 @@ require 'future/models/items'
 
 class Pathname
 
+  attr_accessor :mimetype
+
   def mimetype
     @mimetype ||= MimeInfo.get(to_s)
   end

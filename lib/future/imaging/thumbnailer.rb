@@ -69,10 +69,14 @@ module Mimetype
   #   pdf.create_tiles    # (256, 1024, [3,4]){|pg,x,y| "#{pg}_#{y}_#{x}.png" }
   #
   def thumbnail(filename, thumb_filename, thumb_size=128, page=nil, crop='0x0+0+0')
+    puts "called thumbnail for #{filename} (#{to_s})"
     if to_s =~ /video/
       page ||= 5.7
       video_thumbnail(filename, thumb_filename, thumb_size, page, crop)
-    elsif to_s =~ /image|pdf|postscript|html/
+    elsif to_s =~ /html/
+      page ||= 0
+      html_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+    elsif to_s =~ /image|pdf|postscript/
       page ||= 0
       image_thumbnail(filename, thumb_filename, thumb_size, page, crop)
     end or icon_thumbnail(filename, thumb_filename, thumb_size, crop)
@@ -92,7 +96,7 @@ module Mimetype
     tfn = thumb_filename.to_pn
     tmp_filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.object_id}#{tfn.extname}"
     if to_s =~ /^image/
-      img = Imlib2::Image.load(filename)
+      img = Imlib2::Image.load(filename.to_s)
       begin
         ow, oh = img.width, img.height
         larger = [ow, oh].max
@@ -129,7 +133,12 @@ module Mimetype
         nimg.delete!(true)
       end
     else
-      dims = filename.to_pn.dimensions
+      puts "going to non-image fork"
+      original_filename = filename
+      filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.object_id}-src#{tfn.extname}"
+      FileUtils.ln_s(original_filename.to_s, filename.to_s)
+      filename.mimetype = self
+      dims = filename.dimensions
       return false unless dims[0] and dims[1]
       scale_fac = 1
       if dims.min < thumb_size
@@ -144,6 +153,7 @@ module Mimetype
               "-crop", crop.to_s,
               tmp_filename.to_s]
       system("convert", *args)
+      filename.unlink if filename.exist?
     end
     if tmp_filename.exist?
       tmp_filename.rename(tfn)
@@ -151,6 +161,24 @@ module Mimetype
     else
       false
     end
+  end
+
+  def html_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+    tfn = thumb_filename.to_pn
+    tmp_filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.object_id}-moz.png"
+    system('ruby', File.join(File.dirname(__FILE__), 'moz-snapshooter.rb'), "file://" + File.expand_path(filename), tmp_filename.expand_path)
+    rv = Mimetype['image/png'].image_thumbnail(tmp_filename, thumb_filename, thumb_size, page, crop)
+    tmp_filename.unlink if tmp_filename.exist?
+    rv
+  end
+
+  def web_thumbnail(url, thumb_filename, thumb_size, page=0, crop='0x0+0+0')
+    tfn = thumb_filename.to_pn
+    tmp_filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.object_id}-moz.png"
+    system('ruby', File.join(File.dirname(__FILE__), 'moz-snapshooter.rb'), url.to_s, tmp_filename.expand_path)
+    rv = Mimetype['image/png'].image_thumbnail(tmp_filename, thumb_filename, thumb_size, page, crop)
+    tmp_filename.unlink if tmp_filename.exist?
+    rv
   end
 
   def video_thumbnail(filename, thumb_filename, thumb_size, page, crop)
@@ -162,7 +190,7 @@ module Mimetype
     system(mplayer, "-nosound", "-ss", page.to_s, "-vf", "scale",
            "-vo", "jpeg:outdir=#{video_cache_dir}", "-frames", "10", filename)
     j = video_cache_dir.glob("*.jpg").sort.last
-    image_thumbnail(j, thumb_filename, thumb_size, 0, crop) if j
+    Mimetype['image/jpeg'].image_thumbnail(j, thumb_filename, thumb_size, 0, crop) if j
     video_cache_dir.rmtree
     File.exist?(thumb_filename)
   end

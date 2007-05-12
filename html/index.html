@@ -45,6 +45,12 @@
             config.color = query.bgcolor
           if (query.bgimage)
             config.bgimage = query.bgimage
+          if (prefs.addons && prefs.addons.length > 0 && (query.disable_addons == undefined)) {
+            var addons = prefs.addons.split(";")
+            for(var i=0; i<addons.length; i++) {
+              require(addons[i])
+            }
+          }
           var z = window.focusedPortal = createNewPortal(x, y, z, w, h, document.body, config)
           window.addEventListener("keypress", function(e){ window.focusedPortal.keyHandler(e) }, false)
           window.addEventListener("resize", function() {
@@ -53,28 +59,18 @@
           }, false)
           var updatePrefs = function() {
             if (obj.name == 'anonymous') return
-            var q = {}
-            q.location = config.currentLocation.href.slice(1)
+            var q = ""
+            q += 'location=x' + z.x + 'y' + z.y + 'z' + z.zoom
             if (z.color != undefined)
-              q.color = z.color
+              q += '&color=' + z.color
             if (z.bgcolor)
-              q.bgcolor = z.bgcolor
+              q += '&bgcolor=' + z.bgcolor
             if (z.bgimage)
-              q.bgimage = z.bgimage
-            postQuery('/users/' + obj.name + '/set_preferences', q, null, null, true)
+              q += '&bgimage=' + z.bgimage
+            postQuery('/users/' + obj.name + '/set_preferences', q, function(){}, null)
           }
 //           z.prefUpdater = setInterval(updatePrefs, 30000)
           window.addEventListener("unload", updatePrefs, false)
-          window.addEventListener("focus", function(){
-            window.eatClick = true
-          }, true)
-          window.addEventListener("click", function(ev){
-            if (window.eatClick) {
-              window.eatClick = false
-              ev.preventDefault()
-              ev.stopPropagation()
-            }
-          }, true)
           var lf = $('login_form')
           lf.style.position = 'absolute'
           lf.style.display = 'none'

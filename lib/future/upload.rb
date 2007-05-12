@@ -226,15 +226,15 @@ class Uploader
     end
     if is_remote
       remote = URI.parse(options[:source])
-      if ["http","https","ftp"].include?(u.scheme.downcase)
+      if ["http","https","ftp"].include?(remote.scheme.downcase)
         open(remote){|io|
-          uncompress(io, remote){|uncompressed_file|
+          uncompress(io, remote.to_s){|uncompressed_file|
             handle(options.merge(:io => uncompressed_file,
                                 :filename => File.basename(uncompressed_file.path)))
           }
         }
       else
-        raise "Unsupported scheme (only http, https and ftp allowed): #{u.scheme} in #{u}"
+        raise "Unsupported scheme (only http, https and ftp allowed): #{remote.scheme} in #{remote}"
       end
     else
       uncompress(options[:io]){|uncompressed_file|
