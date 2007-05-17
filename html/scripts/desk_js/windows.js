@@ -38,7 +38,7 @@ Desk.Window.prototype = {
   clickRadius : 3,
   movable : true,
   resizable : true,
-  defaultButtons : ['Close', 'Maximize', 'Minimize', 'Duplicate'],
+  defaultButtons : ['Duplicate', 'Minimize', 'Close'],
   group : 'default',
   showInTaskbar : true,
   avoid: false,
@@ -311,7 +311,7 @@ Desk.Window.prototype = {
     var validTargets = [
       this.element, this.backgroundElement,
       this.borders, this.titlebarElement,
-      this.titleElement
+      this.titleElement, this.buttonsElement
     ]
     return validTargets.include(e.target)
   },

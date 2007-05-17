@@ -61,6 +61,8 @@ Mimetype = {
 
     makeImageViewer : function(info,win) {
       this.easyMove = true
+      var d = E('div')
+      d.style.lineHeight = '0px'
       var i = E('img')
       var mw = win.container.offsetWidth
       var mh = win.container.offsetHeight
@@ -110,7 +112,9 @@ Mimetype = {
           }
         }
       }
-      return i
+      win.content.removeChild(i)
+      d.appendChild(i)
+      return d
     },
     
     makeVideoViewer : function(info) {
