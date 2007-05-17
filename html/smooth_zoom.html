@@ -1,343 +1,183 @@
-<html><head>
-<style>
-  #map {
-    width: 1024px;
-    height: 512px;
-    overflow: hidden;
-    position: absolute;
-    top: 0px;
-    left : 0px;
-    background-color: gray;
-  }
-  .mapLayer {
-    position: absolute; 
-    top: 0px; 
-    left: 0px;
-  }
-  .tile {
-    position: absolute; 
-    background-color: white;
-  }
-</style>
-<script>
-
-  function makeTile (map, x, y, z) {
-    var tile = map.pool.get()
-    tile.className = "tile"
-    tile.X = x
-    tile.Y = y
-    tile.Z = z
-    tile.Width = 256
-    tile.Height = 256
-    tile.load = function(server){
-      this.loading = true
-      this.src = server+
-                 "x"+(this.X*256)+
-                 "y"+(this.Y*256)+
-                 "z"+(this.Z)+
-                 "?color=false"
-    }
-    tile.style.visibility = 'hidden'
-    tile.onload = function(){
-      if (this.loading) {
-        this.style.visibility = 'inherit'
-        this.loaded = false
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>muryu</title>
+    <style type="text/css">
+      body {
+        margin : 0px;
+        padding : 0px;
       }
-    }
-    tile.zoom = function(outer_z) {
-      var fac = Math.pow(2, outer_z - this.Z)
-      this.rWidth = this.rHeight = this.Width * fac
-      //this.rHeight = this.Height * fac
-      this.style.left = Math.floor(this.X * this.rWidth) + 'px'
-      this.style.top = Math.floor(this.Y * this.rHeight) + 'px'
-      this.style.width = Math.ceil(this.rWidth) + 'px'
-      this.style.height = Math.ceil(this.rHeight) + 'px'
-    }
-    return tile
-  }
-  
-  function zoomMap(map, z, x, y, final) {
-    for (var i=0; i<map.layers.length; i++) {
-      var layer = map.layers[i]
-      layer.zoom(z, x, y, final)
-    }
-  }
-  
-  function animatedZoom(map, z, x, y) {
-    if (map.zoomIval) {
-      map.targetZ = z
-      return
-    }
-    var i = 0
-    clearInterval(map.zoomIval)
-    map.targetZ = z
-    var dir = (map.z < z ? 1 : -1)
-    resolveVisibility(map, x, y, dir) // discard tiles outside zoom and
-                                      // request tiles needed for new zoom
-    var t0 = new Date().getTime()
-    var duration = 200
-    map.zoomIval = setInterval(function(){
-      var elapsed = new Date().getTime() - t0
-      if (elapsed >= duration){
-        zoomMap(map, map.targetZ, x, y, true)
-        clearInterval(map.zoomIval)
-        map.zoomIval = false
-        map.z = map.targetZ
-        resolveVisibility(map, x, y, dir) // discard tiles outside zoom
-      } else {
-        var f = (elapsed / duration)
-        var zi = map.z*(1-f) + map.targetZ*f
-        zoomMap(map, zi, x, y, false)
+      #map {
+        width: 1024px;
+        height: 512px;
+        position: absolute;
+        top: 0px;
+        left: 0px;
+        background-color: gray;
       }
-    }, 20)
-  }
-  
-  function resolveVisibility(map, cx, cy, dir) {
-    if (dir == undefined) dir = 1
-    if (map.z < 0 || map.targetZ < 0) return
-    for(var z=0; z<map.layers.length; z++) {
-      var layer = map.layers[z]
-      for(var i=0; i<layer.tiles.length; i++) {
-        var tile = layer.tiles[i]
-        if (
-          (z >= map.z && z != map.z && z != map.targetZ) ||
-          
-          // hide all tiles outside screen area
-          (tile.X+1) * tile.rWidth < -layer.x ||
-          (tile.Y+1) * tile.rHeight < -layer.y ||
-          tile.X * tile.rWidth > -layer.x + map.width ||
-          tile.Y * tile.rHeight > -layer.y + map.height ||
-          
-          // hide all tiles with z > map.targetZ
-          // that are covered by tiles with z' >= targetZ
-          //
-          // hide all tiles with z < map.targetZ
-          // that are covered by tiles with z' > z
-          isOccluded(map, z, i)
-        ) {
-          layer.discardTile(i)
-          i--
-        }
+      #loadStats {
+        margin: 0px;
+        padding: 5px;
+        width: 250px;
+        background-color: black;
+        color: white;
       }
-      if (z == map.targetZ)
-      // request tiles within screen area
-      // that have wanted zoom
-       layer.requestVisibleTiles(cx, cy, dir)
-    }
-  }
-  
-  function isOccluded(map, z, i) {
-   return false
-  }
-  
-  ImagePool = function(){
-    this.pool = []
-  }
-  ImagePool.prototype = {
-  
-    get : function() {
-      if (this.pool.length == 0) {
-        this.pool.push(document.createElement("img"))
+      #help {
+        margin: 0px;
+        padding: 5px;
+        width: 500px;
+        background-color: #e3e6ec;
+        color: black;
       }
-      return this.pool.shift()
-    },
-    
-    put : function(img) {
-      img.loading = false
-      img.onload = null
-      if (img.loaded) img.loaded()
-      this.pool.push(img)
-    }
-  
-  }
-  
-  PriorityQueue = function(){
-    this.queue = []
-  }
-  PriorityQueue.prototype = {
-  
-    insert : function(item, priority) {
-      for (var i=0; i<this.queue.length; i++) {
-        if (this.queue[i].priority[0] > priority[0] ||
-            (this.queue[i].priority[0] == priority[0] &&
-             this.queue[i].priority[1] > priority[1])
-        ) {
-          this.queue.splice(i,0, {priority: priority, value: item})
-          return
-        }
+      h3 {
+        margin-top: 0px;
+        margin-bottom: 5px;
       }
-      this.queue.push({priority: priority, value: item})
-    },
-    
-    remove : function(item) {
-      for (var i=0; i<this.queue.length; i++) {
-        if (this.queue[i].value == item) {
-          this.queue.splice(i,1)
-          return
-        }
+      h4 {
+        margin-top: 15px;
+        margin-bottom: 2px;
       }
-    },
-    
-    shift : function() {
-      if (this.queue.length == 0) return false
-      return this.queue.shift().value
-    },
-    
-    isEmpty : function() {
-      return this.queue.length == 0
-    }
-    
-  }
-  
-  Loader = function() {
-    this.queue = new PriorityQueue()
-    var t = this
-    this.loaded = function(){
-      delete this.loaded
-      this.removeEventListener("load", t.loaded, true)
-      this.removeEventListener("abort", t.loaded, true)
-      this.removeEventListener("error", t.loaded, true)
-      t.loads--
-      t.process()
-    }
-  }
-  Loader.prototype = {
-    loads : 0,
-    maxLoads : 4,
-    servers : ['http://manifold.fhtr.org:8080/tile/'],
-  
-    load : function(dZ, dP, layer, tile) {
-      var lt = {layer: layer, tile: tile}
-      this[layer.z+':'+tile.X+':'+tile.Y] = lt
-      this.queue.insert(lt, [dZ, dP])
-      this.process()
-    },
-    
-    process : function() {
-      while ((this.loads < this.maxLoads) && !this.queue.isEmpty()) {
-        var lt = this.queue.shift()
-        lt.tile.loaded = this.loaded
-        lt.tile.addEventListener("load", this.loaded, true)
-        lt.tile.addEventListener("abort", this.loaded, true)
-        lt.tile.addEventListener("error", this.loaded, true)
-        this.loads++
-        delete this[lt.layer.z + ':' + lt.tile.X + ':' + lt.tile.Y]
-        var t = this
-        //setTimeout(function(){ 
-        lt.tile.load(t.rotateServers())
-        //}, 100)
+      p {
+        margin-top: 1px;
+        margin-bottom: 4px;
       }
-    },
-    
-    rotateServers : function() {
-      this.servers.push(this.servers.shift())
-      return this.servers[0]
-    },
-    
-    cancel : function(layer, tile) {
-      var lt = this[layer.z+':'+tile.X+':'+tile.Y]
-      if (lt) this.queue.remove(lt)
-      this.process()
-    }
-  
-  }
-  
-  function initMap(map) {
-    map.layers = []
-    map.loader = new Loader()
-    map.pool = new ImagePool()
-    map.z = map.targetZ = 0
-    for (var i=0; i<16; i++) {
-      var layer = document.createElement("div")
-      layer.className = "mapLayer"
-      layer.style.zIndex = i
-      layer.tiles = []
-      layer.x = 0
-      layer.y = 0
-      layer.z = i
-      layer.cZ = 0
-      layer.fac = 1
-      layer.rfac = 1
-      layer.requestVisibleTiles = function(cx, cy, dir) {
-        var x0 = Math.floor((-this.x / 256))
-        var y0 = Math.floor((-this.y / 256))
-        var w = Math.ceil(map.width / 256) + 1
-        var h = Math.ceil(map.height / 256) + 1
-        for (var x=x0; x<x0+w; x++) {
-          for (var y=y0; y<y0+h; y++) {
-            if (!this.tiles[x + ":" + y]) {
-              var tile = makeTile(map, x, y, this.z)
-              this.tiles.push(tile)
-              this.tiles[x + ":" + y] = tile
-              layer.appendChild(tile)
-              tile.zoom(layer.cZ)
-              var tx = this.x + ((tile.X+0.5) * tile.rWidth)
-              var ty = this.y + ((tile.Y+0.5) * tile.rHeight)
-              var dx = (cx-tx)
-              var dy = (cy-ty)
-              map.loader.load(-this.z*dir, dir*dx*dx+dy*dy, this, tile)
-            }
+      .tile {
+        border: 0px;
+      }
+    </style>
+    <link rel="stylesheet" href="scripts/desk_js/style.css"></link>
+    <script type="text/javascript" src="scripts/zogen/TileMap.js"></script>
+    <script type="text/javascript" src="scripts/desk_js/prototype.js"></script>
+    <script type="text/javascript" src="scripts/desk_js/soundmanager2.js"></script>
+    <script type="text/javascript" src="scripts/desk_js/desk.js"></script>
+    <script>
+      // <![CDATA[
+      window.addEventListener("load", function(ev){
+        var map = document.getElementById("map")
+        Desk.Windows.setContainer(map)
+        map.style.width = window.innerWidth + 'px'
+        map.style.height = window.innerHeight + 'px'
+        setInterval(function(){
+          if (window.innerWidth != Desk.Windows.previousInnerWidth ||
+              window.innerHeight != Desk.Windows.previousInnerHeight) {
+            map.style.width = window.innerWidth + 'px'
+            map.style.height = window.innerHeight + 'px'
+            Desk.Windows.previousInnerWidth = window.innerWidth
+            Desk.Windows.previousInnerHeight = window.innerHeight
           }
-        }
-      }
-      layer.discardTile = function(i) {
-        var tile = this.tiles[i]
-        delete this.tiles[tile.X + ":" + tile.Y]
-        this.tiles.splice(i,1)
-        if (tile.parentNode)
-          tile.parentNode.removeChild(tile)
-        map.loader.cancel(this, tile)
-        map.pool.put(tile)
-      }
-      layer.zoom = function(outer_z, x, y, final) {
-        this.rx = (-this.x + x) * this.rfac
-        this.ry = (-this.y + y) * this.rfac
-        var fac = Math.pow(2, outer_z)
-        this.x += -this.rx * (fac-this.fac)
-        this.y += -this.ry * (fac-this.fac)
-        this.fac = fac
-        this.rfac = 1 / fac
-        this.cZ = outer_z
-        this.style.left = this.x + 'px'
-        this.style.top = this.y + 'px'
-        for (var j=0; j<this.tiles.length; j++) {
-          this.tiles[j].zoom(outer_z)
-        }
-      }
-      map.layers.push(layer)
-      map.appendChild(layer)
-    }
-    zoomMap(map, 0, 0, 0, true)
-    resolveVisibility(map)
-    return map
-  }
-
-  window.addEventListener("load", function(ev){
-    window.Map = document.getElementById("map")
-    window.Map.width = window.innerWidth
-    window.Map.height = window.innerHeight
-    window.Map.style.width = window.Map.width + 'px'
-    window.Map.style.height = window.Map.height + 'px'
-    window.addEventListener("resize", function(){
-      window.Map.width = window.innerWidth
-      window.Map.height = window.innerHeight
-      window.Map.style.width = window.Map.width + 'px'
-      window.Map.style.height = window.Map.height + 'px'
-    }, false)
-    initMap(window.Map)
-    window.Map.addEventListener("DOMMouseScroll",
-      function(ev) {
-        if (ev.detail < 0) {
-          animatedZoom(window.Map, window.Map.z+1, ev.screenX, ev.screenY)
-        } else {
-          animatedZoom(window.Map, window.Map.z-1, ev.screenX, ev.screenY)
-        }
-        ev.preventDefault()
-        ev.stopPropagation()
+        }, 100)
+        window.Map = new TileMap(Desk.Windows.windowContainer)
+        window.Map.panBy(100, 100)
+        window.Map.setWidth(window.innerWidth)
+        window.Map.setHeight(window.innerHeight)
+        Desk.Windows.addListener('resize', function(v){
+          window.Map.setWidth(v.width)
+          window.Map.setHeight(v.height)
+        })
+        var panel = new Desk.Panel('top')
+        panel.addApplet(Applets.Session())
+        panel.addApplet(Applets.Taskbar())
+        var help_window = new Desk.Window($('help'), {title: 'help', x:200, y:10})
+        if (true) { // start instrumentation block
+          var load_buf = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+          var req_buf = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+          var last_reqs = 0
+          var last_loads = 0
+          var max_rps = 0
+          var max_lps = 0
+          var ls = E('pre', null, 'loadStats')
+          ls.style.display = 'block'
+          new Desk.Window(ls, {title:"stats", x: 750, y: 10})
+          var updatesPerSec = 5
+          var start_time = new Date().getTime()
+          setInterval(function(){
+            req_buf.shift()
+            load_buf.shift()
+            req_buf.push(Map.loader.totalCompletes - last_reqs)
+            load_buf.push(Map.loader.totalLoads - last_loads)
+            last_reqs = Map.loader.totalCompletes
+            last_loads = Map.loader.totalLoads
+            var reqs = 0
+            var loads = 0
+            for (var i=0; i<req_buf.length; i++) reqs += req_buf[i]
+            for (var i=0; i<load_buf.length; i++) loads += load_buf[i]
+            var rps = updatesPerSec * reqs / req_buf.length
+            var lps = updatesPerSec * loads / load_buf.length
+            if (rps > max_rps) max_rps = rps
+            if (lps > max_lps) max_lps = lps
+            var bw = rps * 0.125 + ' Mbps'
+            var max_bw = max_rps * 0.125 + ' Mbps'
+            var total_bw = Map.loader.totalLoads * 0.125
+            var avg_bw = total_bw / ((new Date().getTime() - start_time) * 0.001)
+            ls.innerHTML = [
+              "         requests: " + Map.loader.totalRequests,
+              "          cancels: " + Map.loader.totalCancels,
+              "            loads: " + Map.loader.totalLoads,
+              "        completed: " + Map.loader.totalCompletes,
+              "       load ratio: " + parseInt(100*(Map.loader.totalLoads / Map.loader.totalRequests)) / 100,
+              " completion ratio: " + parseInt(100*(Map.loader.totalCompletes / Map.loader.totalLoads)) / 100,
+              " pending requests: " + Map.loader.queue.queue.length,
+              "        loads/sec: " + lps,
+              "    completes/sec: " + rps,
+              "    bandwidth use: " + bw,
+              "    max loads/sec: " + max_lps,
+              "max completes/sec: " + max_rps,
+              "    bandwidth max: " + max_bw,
+              "average bandwidth: " + parseInt(100*avg_bw) / 100 + 'Mbps',
+              "  total bandwidth: " + parseInt(100*total_bw) / 100 + 'Mb',
+              "              fps: " + parseInt(100*Map.fps) / 100,
+              "      average fps: " + parseInt(100*Map.avgFps) / 100
+            ].join("\n")
+          }, 1000/updatesPerSec)
+        } // end instrumentation block
       }, false)
-  }, false)
-
-</script>
-</head><body>
-<div id="map"></div>
-</body></html>
+      // ]]>
+    </script>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="help">
+      <h3>Hello there!</h3>
+      <p>
+        Welcome, welcome! What you're looking at is a zoomable file manager.
+        Think zoomable map, but replace cities with directories and buildings
+        with files.
+      </p>
+      <h4>Navigation</h4>
+      <p>
+        Use the mouse wheel to zoom the camera towards and away from the pointer.
+        You can also use the <b>t</b> and <b>g</b> keys to zoom.
+        To pan the map, grab and drag the map with the pointer.
+      </p>
+      <h4>Contacts</h4>
+      <p>
+        Add new contacts by clicking on the "Contacts"-button
+        at the top of the screen. The contacts window also lets you create new groups,
+        invite people to your groups and join public groups.
+      </p>
+      <h4>Uploading</h4>
+      <p>
+        Upload files and archives from your computer by clicking the
+        "Upload"-button at the top of the screen.
+        When you discover something good on your browsing escapades,
+        use the Muryu Firefox add-on to send it your map with a single click.
+      </p>
+      <h4>Sharing</h4>
+      <p>
+        To share your discoveries, select the things you wish to share and
+        click on "Share with a group" or "Share with the world." If you're
+        using the Muryu Firefox add-on, select "Share with a group" or "Share
+        with the world" from the pop-up menu.
+      </p>
+      <h4>Tutorial</h4>
+      <p>
+        The crow might help you get started, why not try clicking him?
+      </p>
+      <h4>Conclusion</h4>
+      <p>
+        Have a nice day! Happiness is mandatory!
+      </p>
+    </div>
+  </body>
+</html>

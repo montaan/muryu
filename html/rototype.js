@@ -31,7 +31,8 @@ function require(url) {
   head.appendChild(s)
   return true
 }
-require('json.js')
+require('/scripts/json.js')
+
 String.prototype.parseRawJSON = function(){
   if (this.length == 0) return undefined
   return eval('('+this+')')

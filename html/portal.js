@@ -1370,7 +1370,7 @@ Portal.FileMap.prototype.mergeD({
     ti.style.width = i.w + 'px'
     ti.style.height = i.h + 'px'
     // ti.style.border = '1px solid yellow'
-    ti.href = this.filePrefix + i.info.path + this.fileSuffix
+    ti.href = this.filePrefix + i.path + this.fileSuffix
     ti.infoObj = i
   },
 
@@ -1393,7 +1393,7 @@ Portal.FileMap.prototype.mergeD({
       if (!t.infoLayerVisible() || t.infoTargetChanged()) {
         var c = t.viewCoords(e.clientX, e.clientY)
         t.infoTarget = this.itemLink.infoObj
-        postQuery(t.itemPrefix+this.itemLink.infoObj.info.path+t.itemJSONSuffix, '',
+        postQuery(t.itemPrefix+this.itemLink.infoObj.path+t.itemJSONSuffix, '',
           function(res) {
             var fullInfo = res.responseText.parseRawJSON()
             t.showInfoLayer(0, 0, fullInfo)
@@ -2112,7 +2112,7 @@ Portal.FileMap.prototype.mergeD({
       delete_failed : 'Poisto epäonnistui',
       loading_tile_info : 'Tiilen tietojen lataaminen epäonnistui',
       loading_item_info : 'Kohteen tietojen lataaminen epäonnistui',
-      byte_abbr : 'T',
+      byte_abbr : 't',
       click_to_edit_title : 'Napsauta muokataksesi nimekettä',
       click_to_edit_author : 'Napsauta muokataksesi tekijän nimeä',
       item : 'kohde',

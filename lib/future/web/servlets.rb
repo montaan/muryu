@@ -13,8 +13,8 @@ require 'builder'
 require 'json'
 require 'memcache'
 
-$PRINT_QUERY_PROFILE = true
-$CACHE_TILES = false
+$PRINT_QUERY_PROFILE = false
+$CACHE_TILES = true
 $CACHE_INFO = true
 
 class StandardDateTime < DateTime
@@ -692,12 +692,16 @@ extend FutureServlet
     def do_view(req,res)
       res['Content-type'] = 'text/plain'
       x,y,z,w,h = Tile.parse_tile_geometry(servlet_path)
+      res.body = get_tile_info(x,y,z,w,h,req.query['time'])
+      puts "Total tile_info time: #{"%.3fms" % [1000 * (Time.now.to_f - request_time)]}" if $PRINT_QUERY_PROFILE
+    end
+
+    def get_tile_info(x,y,z,w,h,time)
       sq = self.search_query.clone
       if z < 4
-        res.body = [].to_json
-        return
+        return '[]'
       end
-      key = [servlet_user.id, servlet_path, search_query, req.query['time']].join("::")
+      key = [servlet_user.id, "x#{x}y#{y}z#{z}w#{w}h#{h}", search_query, time].join("::")
       jinfo = $memcache.get(key) if $CACHE_INFO and not $info_changed
       unless jinfo
         if z >= 4
@@ -715,23 +719,37 @@ extend FutureServlet
           servlet_user, sq,
           :rows, x, y, z, w, h
         ).to_a.map do |iind,((x,y,sz), info)|
-          {:image_index => iind, :x => x, :y => y, :sz => sz, :info => info}
+          {:x => x, :y => y, :sz => sz, :path => info[:path]}
         end
         puts "#{telapsed} for fetching tile info" if $PRINT_QUERY_PROFILE
         jinfo = info.to_json
         puts "#{telapsed} for tile info jsonification" if $PRINT_QUERY_PROFILE
         $memcache.set(key, jinfo, 300) if $CACHE_INFO
       end
-      res.body = jinfo
-      puts "Total tile_info time: #{"%.3fms" % [1000 * (Time.now.to_f - request_time)]}" if $PRINT_QUERY_PROFILE
+      jinfo
     end
   
     def do_list(req,res)
-      res['Content-type'] = 'text/plain'
-      res.body = {
-        "maxZoom" => 15,
-        "title" => servlet_user.name + ' ' + req.query['q'].to_s
-      }.to_json
+      if req.query.has_key?('tiles')
+        res['Content-type'] = 'text/plain'
+        tiles = JSON.parse(req.query['tiles'].to_s)
+        time = req.query['time']
+        tile_array = '[' + tiles.map{|x,y,z| get_tile_info(x, y, z, 256, 256, time) }.join(",") + ']'
+        if req['Accept-Encoding'] and req['Accept-Encoding'] =~ /\bdeflate\b/
+          res['Content-Encoding'] = 'deflate'
+          compressed_array = Zlib::Deflate.deflate(tile_array, 9)[2..-5] # strip header
+          puts "Sending #{compressed_array.size} bytes of deflated data, original was #{tile_array.size} bytes"
+          res.body = compressed_array
+        else
+          res.body = tile_array
+        end
+      else
+        res['Content-type'] = 'text/plain'
+        res.body = {
+          "maxZoom" => 15,
+          "title" => servlet_user.name + ' ' + req.query['q'].to_s
+        }.to_json
+      end
     end
   end
 

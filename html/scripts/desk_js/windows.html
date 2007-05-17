@@ -1,0 +1,76 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>Desk - JavaScript Window Manager</title>
+    <link rel="stylesheet" href="style.css"></link>
+    <script type="text/javascript" src="prototype.js"></script>
+    <script type="text/javascript" src="soundmanager2.js"></script>
+    <script type="text/javascript" src="json.js"></script>
+    <script type="text/javascript" src="desk.js"></script>
+    <script type="text/javascript">
+    // <![CDATA[
+      window.addEventListener('load', function(){
+        $('desktop').style.width = window.innerWidth + 'px'
+        $('desktop').style.height = window.innerHeight + 'px'
+        Desk.Windows.setContainer($('desktop'))
+        setInterval(function(){
+          if (window.innerWidth != Desk.Windows.previousInnerWidth ||
+              window.innerHeight != Desk.Windows.previousInnerHeight) {
+            $('desktop').style.width = window.innerWidth + 'px'
+            $('desktop').style.height = window.innerHeight + 'px'
+            Desk.Windows.previousInnerWidth = window.innerWidth
+            Desk.Windows.previousInnerHeight = window.innerHeight
+          }
+        }, 100)
+        menu = new Desk.Menu()
+        menu.addTitle('Windows')
+        menu.addItem('Open URL', null, 'icons/OpenURL.png')
+        menu.addItem('Collapse all groups', null, 'icons/CollapseAllGroups.png')
+        menu.addItem('Expand all groups', null, 'icons/ExpandAllGroups.png')
+        menu.addSeparator()
+        menu.addItem('Add Panel', function(){ new Desk.Panel() })
+        menu.addTitle('Session')
+        menu.addItem('Save Session', function(){ Session.save() })
+        menu.addItem('Clear Session', function(){ Session.clear() })
+        window.addEventListener('click', function(e){
+          if (Event.isLeftClick(e) && e.ctrlKey) {
+            menu.show(e)
+          }
+        }, false)
+        if (Session.exists()) {
+          Session.load()
+        } else {
+          w1 = new Desk.Window('othello.jpg', {title:'Othello', x:5, y:5})
+          w2 = new Desk.Window('canvas_fireworks.png')
+          w2.setX(120)
+          w2.setY(60)
+          w2.setTitle('Fireworks!')
+          w3 = new Desk.Window()
+          w3.setSrc('sprite.png')
+          w3.setGroup("Animations")
+          p1 = new Desk.Panel('top')
+          p2 = new Desk.Panel('left')
+          p2.addApplet(Applets.Taskbar())
+          w1.setGroup("Screenies")
+          w2.setGroup("Screenies")
+          p1.addApplet(Applets.OpenURL())
+          soundManager.onload = function(){
+            mp = Applets.MusicPlayer()
+            p1.addApplet(mp)
+            mp.loadPlaylist('world.m3u')
+          }
+          w_magna = new Desk.Window('http://magnatune.com/genres/world/',
+            {title: 'Magnatune World Music', minimized: true,
+            group: 'Web Pages'})
+          p1.addApplet(Applets.Session())
+        }
+      }, false)
+    // ]]>
+    </script>
+  </head>
+  <body>
+    <div id="desktop"></div>
+  </body>
+</html>

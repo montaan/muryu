@@ -138,7 +138,7 @@ module DB
   def self.establish_connection(options)
     remove_const(:Conn) if defined? Conn
     log_info("Establishing DB connection #{options.inspect}", "dbconn")
-    const_set(:Conn, Pool.new(DBconn, 16, options[:host], options[:port],
+    const_set(:Conn, Pool.new(DBconn, 6, options[:host], options[:port],
                                 options[:options], nil, 
                                 options[:database], options[:login],
                                 options[:password]))

@@ -137,6 +137,7 @@ class ImageCache
         return unless item.thumbnail and item.thumbnail.exist?
         $imlib_mutex.synchronize do
           t = Imlib2::Image.load(item.thumbnail.to_s)
+          Imlib2::Context.get.blend = true
           image.blend!(t, 0,0,t.width,t.height, x,y,t.width,t.height)
           t.delete!
         end
@@ -158,6 +159,7 @@ class ImageCache
           y = 0 if y < 0
           begin
             t = Imlib2::Image.load(tn.to_s)
+            Imlib2::Context.get.blend = true
             image.blend!(t, 0,0,t.width,t.height, x,y,t.width,t.height)
           rescue Exception => e
             STDERR.puts e
