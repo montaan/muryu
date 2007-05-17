@@ -9,8 +9,8 @@
         padding : 0px;
       }
       #map {
-        width: 1024px;
-        height: 512px;
+        width: 0px;
+        height: 0px;
         position: absolute;
         top: 0px;
         left: 0px;
@@ -47,13 +47,56 @@
       }
     </style>
     <link rel="stylesheet" href="scripts/desk_js/style.css"></link>
-    <script type="text/javascript" src="scripts/zogen/TileMap.js"></script>
     <script type="text/javascript" src="scripts/desk_js/prototype.js"></script>
     <script type="text/javascript" src="scripts/desk_js/soundmanager2.js"></script>
     <script type="text/javascript" src="scripts/desk_js/desk.js"></script>
+    <script type="text/javascript" src="scripts/zogen/TileMap.js"></script>
+    <script type="text/javascript" src="scripts/zogen/Editors.js"></script>
     <script>
       // <![CDATA[
       window.addEventListener("load", function(ev){
+        Session.storage = {
+          load : function() {
+            var t = this
+            new Ajax.Request('/users/json', {
+              method : 'get',
+              asynchronous : false,
+              onSuccess : function(res) {
+                t.info = res.responseText.evalJSON()
+              }
+            })
+          },
+          
+          getItem : function(name) {
+            var item = this.info.preferences[name]
+            return (item ? {key: name, value: item} : undefined)
+          },
+          
+          setItem : function(name, value) {
+            var params = {}
+            params[name] = value
+            new Ajax.Request('/users/set_preferences', { parameters : params })
+          },
+
+          removeItem : function(name) {
+            var params = {}
+            params[name] = true
+            new Ajax.Request('/users/delete_preferences', { parameters : params })
+          }
+        }
+        Session.storage.load()
+        
+        var qvars = document.location.search.slice(1).split("&")
+        var query = {}
+        qvars.each(function(q){ var p = q.split("="); query[p[0]] = p[1] })
+        var prefs = Session.storage.info.preferences
+        if (prefs.addons && prefs.addons.length > 0 && (query.disable_addons == undefined)) {
+          var addons = prefs.addons.split(";")
+          for(var i=0; i<addons.length; i++) {
+            Object.require(addons[i])
+          }
+        }
+
         var map = document.getElementById("map")
         Desk.Windows.setContainer(map)
         map.style.width = window.innerWidth + 'px'
@@ -67,19 +110,38 @@
             Desk.Windows.previousInnerHeight = window.innerHeight
           }
         }, 100)
-        window.Map = new TileMap(Desk.Windows.windowContainer)
-        window.Map.panBy(100, 100)
-        window.Map.setWidth(window.innerWidth)
-        window.Map.setHeight(window.innerHeight)
-        Desk.Windows.addListener('resize', function(v){
-          window.Map.setWidth(v.width)
-          window.Map.setHeight(v.height)
-        })
-        var panel = new Desk.Panel('top')
-        panel.addApplet(Applets.Session())
-        panel.addApplet(Applets.Taskbar())
-        var help_window = new Desk.Window($('help'), {title: 'help', x:200, y:10})
-        if (true) { // start instrumentation block
+        menu = new Desk.Menu()
+        menu.addTitle('Windows')
+        menu.addItem('Collapse all groups', function() {
+          Desk.Windows.taskbar.setCollapsedForAll(true)
+        }, 'icons/CollapseAllGroups.png')
+        menu.addItem('Expand all groups', function() {
+          Desk.Windows.taskbar.setCollapsedForAll(false)
+        }, 'icons/ExpandAllGroups.png')
+        menu.addSeparator()
+        menu.addItem('Add Panel', function(){ new Desk.Panel() })
+        menu.addTitle('Session')
+        menu.addItem('Save Session', function(){ Session.save() })
+        menu.addItem('Clear Session', function(){ Session.clear() })
+        Desk.Windows.windowContainer.addEventListener('click', function(e){
+          if (Event.isLeftClick(e) && e.ctrlKey) {
+            menu.show(e)
+            Event.stop(e)
+          }
+        }, false)
+        if (!Session.load()) {
+          var panel = new Desk.Panel('left')
+          panel.addApplet(Applets.Taskbar())
+          Map = new TileMap({
+            x:50, y: 50,
+            width: window.innerWidth,
+            height: window.innerHeight
+          })
+          var topPanel = new Desk.Panel('top')
+          topPanel.addApplet(Applets.Session())
+          new Desk.Window('/help.html', {x:200, y:10})
+        }
+        if (false) { // start instrumentation block
           var load_buf = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
           var req_buf = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
           var last_reqs = 0
@@ -88,7 +150,19 @@
           var max_lps = 0
           var ls = E('pre', null, 'loadStats')
           ls.style.display = 'block'
-          new Desk.Window(ls, {title:"stats", x: 750, y: 10})
+          var statWindow = false
+          var windows = Desk.Windows.windows
+          for (var i=0; i<windows.length; i++) {
+            var w = windows[i]
+            if (w.title == 'stats') {
+              statWindow = w
+              break
+            }
+          }
+          if (statWindow)
+            statWindow.setContent(ls)
+          else
+            new Desk.Window(ls, {title:"stats", x: 750, y: 10})
           var updatesPerSec = 5
           var start_time = new Date().getTime()
           setInterval(function(){
@@ -137,47 +211,5 @@
   </head>
   <body>
     <div id="map"></div>
-    <div id="help">
-      <h3>Hello there!</h3>
-      <p>
-        Welcome, welcome! What you're looking at is a zoomable file manager.
-        Think zoomable map, but replace cities with directories and buildings
-        with files.
-      </p>
-      <h4>Navigation</h4>
-      <p>
-        Use the mouse wheel to zoom the camera towards and away from the pointer.
-        You can also use the <b>t</b> and <b>g</b> keys to zoom.
-        To pan the map, grab and drag the map with the pointer.
-      </p>
-      <h4>Contacts</h4>
-      <p>
-        Add new contacts by clicking on the "Contacts"-button
-        at the top of the screen. The contacts window also lets you create new groups,
-        invite people to your groups and join public groups.
-      </p>
-      <h4>Uploading</h4>
-      <p>
-        Upload files and archives from your computer by clicking the
-        "Upload"-button at the top of the screen.
-        When you discover something good on your browsing escapades,
-        use the Muryu Firefox add-on to send it your map with a single click.
-      </p>
-      <h4>Sharing</h4>
-      <p>
-        To share your discoveries, select the things you wish to share and
-        click on "Share with a group" or "Share with the world." If you're
-        using the Muryu Firefox add-on, select "Share with a group" or "Share
-        with the world" from the pop-up menu.
-      </p>
-      <h4>Tutorial</h4>
-      <p>
-        The crow might help you get started, why not try clicking him?
-      </p>
-      <h4>Conclusion</h4>
-      <p>
-        Have a nice day! Happiness is mandatory!
-      </p>
-    </div>
   </body>
 </html>

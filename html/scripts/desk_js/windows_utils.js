@@ -60,6 +60,103 @@ Array.prototype.isEmpty = function() {
 }
 
 
+Object.formatTime = function(msec) {
+  var sec = msec / 1000
+  var hour = parseInt(sec/3600)
+  var min = parseInt(sec/60)
+  sec = parseInt(sec) % 60
+  if (sec < 10) sec = "0"+sec
+  min = min % 60
+  if (hour > 0 && min < 10) min = "0"+min
+  return (hour>0 ? hour+":" : '') + min + ":" + sec
+}
+
+Object.guessLanguage = function() {
+  return ( parseSession().lang || navigator.language ||
+           navigator.browserLanguage || navigator.userLanguage ||
+           'en-US' )
+}
+
+Desk.ElementUtils = {
+  getComputedStyle : function(elem) {
+    return document.defaultView.getComputedStyle(elem, '')
+  },
+
+  insertAfter : function(elem, obj, ref) {
+    return elem.insertBefore(obj, ref.nextSibling)
+  },
+
+  insertChild : function(elem, obj) {
+    if (elem.firstChild)
+      return elem.insertBefore(obj, elem.firstChild)
+    else
+      return elem.appendChild(elem, obj)
+  },
+
+  detachSelf : function(elem, obj) {
+    if (elem.parentNode)
+      return elem.parentNode.removeChild(elem)
+  }
+}
+
+Element.addMethods(Desk.ElementUtils)
+  
+Element.makeEditable = function(elem, path, key, validator, title) {
+  elem.className = elem.className + " editable"
+  elem.title = (title || "Click to edit")
+  elem.addEventListener("click", function(e){
+    Element.replaceWithEditor(elem, function(new_value) {
+      var sendval = new_value
+      if (validator)
+        sendval = validator(sendval)
+      if (sendval && new_value != elem.oldValue) {
+        var oldval = elem.textContent
+        var old_color = elem.style.color
+        elem.innerHTML = new_value
+        elem.style.color = 'red'
+        postQuery(path, [[key, sendval]],
+          function(res) {
+            elem.style.color = old_color
+          },
+          function(res) {
+            elem.innerHTML = oldval + " (edit failed: "+res.statusText+")"
+            elem.style.color = old_color
+          }
+        )
+      }
+    })
+  }, false)
+}
+Element.replaceWithEditor = function(elem, callback) {
+  var input = E('input', null, null, null, null, {type:"text", value:" "})
+  var cs = $(elem).getComputedStyle()
+  Object.forceExtend(input.style, cs)
+  input.style.minWidth = elem.offsetWidth + 'px'
+  input.addEventListener("keypress", function(e){
+    if ((e.charCode || e.keyCode) == 27) this.cancel()
+  }, false)
+  input.cancel = function(){
+    this.parentNode.insertBefore(elem, this)
+    $(this).detachSelf()
+  }
+  var sf = function(ev){
+    if (this.iv) clearTimeout(this.iv)
+    if (!this.parentNode) return // already detached
+    callback(this.value)
+    this.cancel()
+  }
+  $(elem.parentNode).insertAfter(input, elem)
+  $(elem).detachSelf()
+  elem.oldValue = elem.textContent
+  input.value = elem.textContent + " :) "
+  input.value = elem.textContent
+  input.addEventListener("blur", sf, false)
+  input.addEventListener("change", sf, false)
+  input.focus()
+}
+
+
+
 function Empty() {
   var obj = {}
   for (i in obj) delete obj[i]
@@ -130,6 +227,7 @@ Draggable = {
           Object.forceExtend(this.dragElement.style, {
             display: 'block',
             position: 'fixed',
+            zIndex: 1000,
             marginLeft: (this.currentlyDragged.offsetLeft - this.dragStart.x) + 'px',
             marginTop: (this.currentlyDragged.offsetTop - this.dragStart.y) + 'px',
             left: this.dragElement.x + 'px',
@@ -259,9 +357,11 @@ Desk.Menu.prototype = {
     li.appendChild(iconImg)
     li.appendChild(T(name))
     li.enabled = true
-    li.checked = false
+    li.checked = null
     if (callback)
+      var t = this
       li.addEventListener('click', function(e){
+        if (this.checked == null) t.hide()
         if (this.enabled) return callback(e)
       }, false)
     li.enable = function(){
@@ -321,6 +421,7 @@ Desk.Menu.prototype = {
   },
   
   show : function(x,y) {
+    if (this.element.parentNode) this.hide()
     if (typeof x == 'object') {
       y = Event.pointerY(x)
       x = Event.pointerX(x)
@@ -346,7 +447,8 @@ Desk.Menu.prototype = {
     if (this.skipHide) {
       this.skipHide = false
     } else {
-      this.element.parentNode.removeChild(this.element)
+      if (this.element.parentNode)
+        this.element.parentNode.removeChild(this.element)
       window.removeEventListener('mouseup', this.hideHandler, false)
     }
   },

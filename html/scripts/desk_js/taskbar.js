@@ -17,13 +17,15 @@ Desk.Taskbar.prototype = {
       return { loader: 'Desk.Taskbar', data: '' }
     }
     this.formElement = E('form', null, null, 'taskbarForm')
+    this.formTitleElement = E('h5', 'Create window group', null, 'taskbarFormTitle')
+    this.formElement.appendChild(this.formTitleElement)
     this.textInput = E('input', null, null, 'taskbarTextInput',
       null, {type:'text'})
     this.submitInput = E('input', null, null, 'taskbarSubmitInput',
       null, {type:'submit', value:'+'})
     this.formElement.appendChild(this.textInput)
     this.formElement.appendChild(this.submitInput)
-//     this.element.appendChild(this.formElement)
+     this.element.appendChild(this.formElement)
     this.textInput.addEventListener('focus', function(e){
       this.select()
     }, false)
@@ -41,6 +43,12 @@ Desk.Taskbar.prototype = {
     this.onWindowGroupChanged = this.onWindowGroupChangeHandler.bind(this)
   },
 
+  setCollapsedForAll : function(new_value) {
+    this.windowGroups.each(function(kv, i){
+      kv[1].setCollapsed(new_value) // prototype.js ... some days
+    })
+  },
+
   createUniqueGroupName : function(name) {
     var new_name = name.toString()
     var i = 2
@@ -55,11 +63,13 @@ Desk.Taskbar.prototype = {
     if (this.windowManager) {
       this.windowManager.removeListener('add', this.onWindowAdded)
       this.windowManager.removeListener('remove', this.onWindowRemoved)
+      this.windowManager.taskbar = null
     }
     this.windowManager = wm
     if (this.windowManager) {
       this.windowManager.addListener('add', this.onWindowAdded)
       this.windowManager.addListener('remove', this.onWindowRemoved)
+      this.windowManager.taskbar = this
     }
     this.updateWindowList()
   },
@@ -174,8 +184,13 @@ Object.extend(Desk.Taskbar.WindowGroup.prototype, {
     this.titleElement.drop = this.dropTitle.bind(this)
     this.appletListElement.drop = this.dropList.bind(this)
     this.listElement.drop = this.dropList.bind(this)
-    this.titleElement.addEventListener('dblclick',
-      this.collapse.bind(this), false)
+    this.titleElement.addEventListener('dblclick', function(ev) {
+      this.collapse()
+      Event.stop(ev)
+    }.bind(this), false)
+    this.titleElement.addEventListener('mousedown', function(ev) {
+      Event.stop(ev)
+    }.bind(this), false)
     this.menu = new Desk.Menu()
     this.menu.addTitle('Window group')
     this.menu.addItem('Collapsed', this.collapse.bind(this))
@@ -187,12 +202,12 @@ Object.extend(Desk.Taskbar.WindowGroup.prototype, {
         this.menu.uncheckItem('Collapsed')
     }.bind(this))
     this.menu.addSeparator()
-    this.menu.addItem('Rename')
+    this.menu.addItem('Rename', this.makeEditable.bind(this))
     this.menu.addSeparator()
     this.menu.addItem('Duplicate', this.duplicate.bind(this), 'icons/Duplicate.png')
     this.menu.addItem('Close all', this.close.bind(this), 'icons/Close.png')
     this.titleElement.addEventListener('click', function(e){
-      if (Event.isLeftClick(e)) {
+      if (Event.isLeftClick(e) && e.ctrlKey) {
         this.menu.show(e)
         Event.stop(e)
       }
@@ -213,6 +228,10 @@ Object.extend(Desk.Taskbar.WindowGroup.prototype, {
     var new_wg = this.taskbar.createWindowGroup(new_name)
     this.each(function(w){ w.duplicate().setGroup(new_name) })
     return new_wg
+  },
+
+  makeEditable : function() {
+    Element.replaceWithEditor(this.titleElement, this.setTitle.bind(this))
   },
 
   isEmpty : function() {

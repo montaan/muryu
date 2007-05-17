@@ -225,13 +225,13 @@ Desk.Window.prototype = {
       }
     }.bind(this), false)
 
-    this.titlebarElement.addEventListener('mousedown', function(e){
+    this.titlebarElement.addEventListener('click', function(e){
       if (Event.isLeftClick(e) && e.ctrlKey) {
         this.menu.show(e)
         Event.stop(e)
       }
     }.bind(this), false)
-    
+
     var makeCheckButton = function(name) {
       this.addListener(name.toLowerCase().slice(0,-1) + 'Change', function(e){
         this.menu[(e.value ? '' : 'un') + 'checkItem'](name)

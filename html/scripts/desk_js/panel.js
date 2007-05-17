@@ -68,9 +68,7 @@ Object.extend(Desk.Panel.prototype, {
       }
     }.bind(this), false)
     this.element.addEventListener('click', function(e){
-      if (Event.isLeftClick(e) &&
-          new Vector(Event.pointerX(e), Event.pointerY(e)).distance(
-            this.dragStart) < 3) {
+      if (Event.isLeftClick(e) && e.ctrlKey) {
         this.menu.show(e)
         Event.stop(e)
       }

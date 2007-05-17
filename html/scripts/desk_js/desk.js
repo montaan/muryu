@@ -21,16 +21,19 @@
 
 
 Desk = {}
+Object.require = function(url) {
+  var head = document.getElementsByTagName('head')[0]
+  var el = document.createElement('script')
+  el.src = url
+  head.appendChild(el)
+}
 
 var libs = [
   'session', 'windows_utils', 'metadata', 'button',
   'windowmanager', 'windows', 'panel', 'applets',
   'taskbar'
 ]
-var head = document.getElementsByTagName('head')[0]
 libs.each(function(lib){
-  var el = document.createElement('script')
-  el.src = 'scripts/desk_js/' + lib + '.js'
-  head.appendChild(el)
+  Object.require('scripts/desk_js/' + lib + '.js')
 })
 

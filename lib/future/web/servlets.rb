@@ -698,7 +698,7 @@ extend FutureServlet
 
     def get_tile_info(x,y,z,w,h,time)
       sq = self.search_query.clone
-      if z < 4
+      if z < 5
         return '[]'
       end
       key = [servlet_user.id, "x#{x}y#{y}z#{z}w#{w}h#{h}", search_query, time].join("::")

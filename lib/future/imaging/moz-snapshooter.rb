@@ -63,5 +63,9 @@ class MozSnapshooter < Gtk::Window
   
 end
 
-MozSnapshooter.new ARGV[0], ARGV[1]
-Gtk.main
+File.open('/tmp/.moz-snapshooter.lock','w') {|f|
+  f.flock(File::LOCK_EX)
+  MozSnapshooter.new ARGV[0], ARGV[1]
+  Gtk.main
+  f.flock(File::LOCK_UN)
+}

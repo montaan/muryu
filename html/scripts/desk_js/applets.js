@@ -4,8 +4,8 @@ Applets = {
     applet.menu.addItem('Remove Applet', function(){
       applet.panel.removeApplet(applet)
     }, 'icons/Remove.png')
-    applet.addEventListener('mousedown', function(e){
-      if (Event.isLeftClick(e)) {
+    applet.addEventListener('click', function(e){
+      if (Event.isLeftClick(e) && e.ctrlKey) {
         applet.menu.show(e)
         Event.stop(e)
       }
@@ -63,11 +63,13 @@ Applets.Session = function(wm) {
   window.addEventListener('unload', c.saveSession, false)
   c.menu = new Desk.Menu()
   c.menu.addTitle('Session')
-  c.menu.addItem('Save Session', c.saveSession)
+  c.menu.addItem('Save session now', c.saveSession)
   c.menu.addItem('Autosave', function(){
     c.toggleAutosave()
   })
   c.menu.checkItem('Autosave')
+  c.menu.addSeparator()
+  c.menu.addItem('Clear session', c.clearSession)
   Applets.bakeAppletMenu(c)
 
   return c

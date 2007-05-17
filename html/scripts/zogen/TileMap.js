@@ -23,8 +23,10 @@
 /*
 * Creates a new TileMap inside the passed element.
 */
-TileMap = function(element) {
-  this.container = element
+TileMap = function(config) {
+  if (config)
+    Object.extend(this, config)
+  this.container = Desk.Windows.windowContainer
   this.element = document.createElement('div')
   this.element.style.position = 'absolute'
   this.element.style.left = '0px'
@@ -35,8 +37,36 @@ TileMap = function(element) {
   this.loader = new Loader(this.tileServers, this.tileInfoServers)
   this.pool = new ImagePool()
   this.init()
+  Desk.Windows.addListener('resize', function(v){
+    this.setWidth(v.width)
+    this.setHeight(v.height)
+  }.bind(this))
+  Session.add(this)
+}
+TileMap.loadSession = function(data){
+  Map = new TileMap(data)
+  return Map
 }
 TileMap.prototype = {
+
+  dumpLoader : 'TileMap',
+
+  dumpSession : function() {
+    var dump = {
+      x: this.x,
+      y: this.y,
+      z: this.targetZ,
+      targetZ : this.targetZ,
+      query: this.query,
+      color: this.color,
+      bgcolor : this.bgcolor,
+      bgimage : this.bgimage
+    }
+    return {
+      loader: this.dumpLoader,
+      data: dump
+    }
+  },
 
   tileServers : ['http://manifold.fhtr.org:8080/tile/'],
   tileInfoServers : ['http://manifold.fhtr.org:8080/tile_info/'],
@@ -48,7 +78,11 @@ TileMap.prototype = {
 
   __tileQuery : '',
   __filePrefix : '/files/',
+  __itemPrefix : '/items/',
+  __itemSuffix : '/json',
 
+  x : 0,
+  y : 0,
   z : 0,
   targetZ : 0,
 
@@ -96,8 +130,11 @@ TileMap.prototype = {
       this.layers.push(layer)
       this.element.appendChild(layer.element)
     }
-    this.zoom(0, 0, 0)
-    this.updateTiles(this.pointerX, this.pointerY, 1)
+    this.updateTileQuery(false)
+    var x = this.x
+    var y = this.y
+    this.zoom(this.z, 0, 0)
+    this.panBy(x, y)
     this.setupEventListeners()
   },
 
@@ -110,6 +147,8 @@ TileMap.prototype = {
     this.removeEventListeners()
     clearInterval(this.zoomIval)
     delete this.zoomer
+    this.x = this.layers[0].x
+    this.y = this.layers[0].y
     while(this.layers.length > 0) {
       var layer = this.layers.pop()
       layer.unload()
@@ -127,7 +166,7 @@ TileMap.prototype = {
         t.panning = true
         t.panX = ev.clientX
         t.panY = ev.clientY
-        ev.preventDefault()
+        Event.stop(ev)
       }
     }
     this.onmouseup = function(ev) {
@@ -143,7 +182,7 @@ TileMap.prototype = {
         t.panBy(dx, dy)
         t.panX = ev.clientX
         t.panY = ev.clientY
-        ev.preventDefault()
+        Event.stop(ev)
       }
     }
     this.onmouseover = function(ev) { t.focused = true }
@@ -154,8 +193,7 @@ TileMap.prototype = {
       } else {
         t.animatedZoom(t.z-1)
       }
-      ev.preventDefault()
-      ev.stopPropagation()
+      Event.stop(ev)
     }
     this.onkeypress = function(ev) {
       if (t.focused && !ev.ctrlKey) {
@@ -164,8 +202,7 @@ TileMap.prototype = {
         } else if (String.fromCharCode(ev.keyCode | ev.charCode | ev.which).toUpperCase() == 'G') {
           t.animatedZoom(t.z-1)
         }
-        ev.preventDefault()
-        ev.stopPropagation()
+        Event.stop(ev)
       }
     }
     this.onunload = function(ev) {
@@ -269,9 +306,9 @@ TileMap.prototype = {
   },
 
   /*
-  * Updates the GET query for the tiles and reloads all tiles.
+  * Updates the GET query for the tiles and reloads all tiles unless reload_tiles is false.
   */
-  updateTileQuery : function() {
+  updateTileQuery : function(reload_tiles) {
     var nq = []
     if (this.query)
       nq.push('q='+encodeURIComponent(this.query))
@@ -285,10 +322,12 @@ TileMap.prototype = {
       this.__tileQuery = ''
     else
       this.__tileQuery = '?'+nq.join('&')
-    for (var i=0; i<this.layers.length; i++) {
-      this.layers[i].discardAllTiles()
+    if (reload_tiles != false) {
+      for (var i=0; i<this.layers.length; i++) {
+        this.layers[i].discardAllTiles()
+      }
+      this.updateTiles(this.pointerX, this.pointerY, 0)
     }
-    this.updateTiles(this.pointerX, this.pointerY, 0)
   },
 
   /*
@@ -302,6 +341,8 @@ TileMap.prototype = {
     }
     if (need_update)
       this.updateTiles(this.pointerX, this.pointerY, 0)
+    this.x = this.layers[0].x
+    this.y = this.layers[0].y
     return need_update
   },
 
@@ -313,6 +354,8 @@ TileMap.prototype = {
       var layer = this.layers[i]
       layer.zoom(z, pointer_x, pointer_y)
     }
+    this.x = this.layers[0].x
+    this.y = this.layers[0].y
   },
 
   /*
@@ -570,6 +613,8 @@ MapLayer.prototype = {
     tile.loading = false
     tile.style.visibility = 'hidden'
     tile.filePrefix = this.map.__filePrefix
+    tile.itemPrefix = this.map.__itemPrefix
+    tile.itemSuffix = this.map.__itemSuffix
     tile.query = this.map.__tileQuery
     tile.load = this.__tileLoad
     tile.addEventListener('load', this.__tileOnload, false)
@@ -583,9 +628,23 @@ MapLayer.prototype = {
           (Math.abs(this.Xdown - ev.clientX) < 3 &&
            Math.abs(this.Ydown - ev.clientY) < 3)
       ) {
-        new Desk.Window(this.href)
+        if (ev.ctrlKey) {
+          if (this.menu) {
+            this.menu.hide()
+            delete this.menu
+          } else {
+            // show menu
+            this.menu = new Desk.Menu()
+            this.menu.addTitle(this.href.split("/").last())
+            this.menu.addItem('Edit metadata')
+            this.menu.addItem('Delete')
+            this.menu.show(ev)
+          }
+        } else {
+          new Desk.Window(this.itemHREF)
+        }
       }
-      ev.preventDefault()
+      Event.stop(ev)
     }
   },
 
@@ -612,6 +671,7 @@ MapLayer.prototype = {
         area.onclick = this.clickListener
         area.coords = [info.x, info.y, info.x + info.sz, info.y + info.sz].join(",")
         area.href = this.filePrefix + info.path
+        area.itemHREF = this.itemPrefix + info.path + this.itemSuffix
         this.ImageMap.appendChild(area)
       }
       this.useMap = '#'+this.src
@@ -858,6 +918,3 @@ PriorityQueue.prototype = {
   }
 
 }
-
-
-
