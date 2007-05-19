@@ -1,5 +1,33 @@
+Tr.addTranslations('en-US', {
+  'Window' : 'Window',
+  'Window.Shaded' : 'Shaded',
+  'Window.Minimized' : 'Minimized',
+  'Window.Maximized' : 'Maximized',
+  'Window.Close' : 'Close',
+  'Window.Duplicate' : 'Duplicate',
+  'Button.Duplicate' : 'Duplicate',
+  'Button.Close' : 'Close',
+  'Button.Minimize' : 'Minimize',
+  'Button.Maximize' : 'Maximize',
+  'WindowGroup.default' : 'default'
+})
+Tr.addTranslations('fi-FI', {
+  'Window' : 'Ikkuna',
+  'Window.Shaded' : 'Kutistettu',
+  'Window.Minimized' : 'Pienennetty',
+  'Window.Maximized' : 'Suurennettu',
+  'Window.Close' : 'Sulje',
+  'Window.Duplicate' : 'Monista',
+  'Button.Duplicate' : 'Monista',
+  'Button.Close' : 'Sulje',
+  'Button.Minimize' : 'Pienennä',
+  'Button.Maximize' : 'Suurenna',
+  'WindowGroup.default' : 'oletus'
+})
+
 
 Desk.Window = function(content, config){
+  this.group = Tr('WindowGroup.default')
   if (config) Object.extend(this, config)
   if (!this.buttons)
     this.buttons = this.defaultButtons.map()
@@ -209,34 +237,42 @@ Desk.Window.prototype = {
       if (Event.isLeftClick(e)) {
         this.focus()
         this.bringToFront()
+        Event.stop(e)
+      }
+    }.bind(this), false)
+    this.taskbarTitleElement.addEventListener('click', function(e){
+      if (Event.isLeftClick(e)) {
+        this.focus()
+        this.bringToFront()
         this.minimize()
         Event.stop(e)
       }
     }.bind(this), false)
 
-    var makeCheckButton = function(name) {
+    var makeCheckButton = function(item, name) {
       this.addListener(name.toLowerCase().slice(0,-1) + 'Change', function(e){
-        this.menu[(e.value ? '' : 'un') + 'checkItem'](name)
+        this.menu[(e.value ? '' : 'un') + 'checkItem'](item)
       }.bind(this))
       if (this[name.toLowerCase()])
-        this.menu.checkItem(name)
+        this.menu.checkItem(item)
       else
-        this.menu.uncheckItem(name)
+        this.menu.uncheckItem(item)
     }.bind(this)
     this.menu = new Desk.Menu()
-    this.menu.addTitle('Window')
-    this.menu.addItem('Shaded', this.shade.bind(this))
-    this.menu.addItem('Minimized', this.minimize.bind(this))
-    this.menu.addItem('Maximized', this.maximize.bind(this))
-    makeCheckButton('Shaded')
-    makeCheckButton('Minimized')
-    makeCheckButton('Maximized')
+    this.menu.addTitle(Tr('Window'))
+    this.menu.addItem(Tr('Window.Shaded'), this.shade.bind(this))
+    this.menu.addItem(Tr('Window.Minimized'), this.minimize.bind(this))
+    this.menu.addItem(Tr('Window.Maximized'), this.maximize.bind(this))
+    makeCheckButton(Tr('Window.Shaded'), 'Shaded')
+    makeCheckButton(Tr('Window.Minimized'), 'Minimized')
+    makeCheckButton(Tr('Window.Maximized'), 'Maximized')
     this.menu.addSeparator()
-    this.menu.addItem('Duplicate', this.duplicate.bind(this), 'icons/Duplicate.png')
+    this.menu.addItem(Tr('Window.Duplicate'), this.duplicate.bind(this), 'icons/Duplicate.png')
     this.menu.addSeparator()
-    this.menu.addItem('Close', this.close.bind(this), 'icons/Close.png')
+    this.menu.addItem(Tr('Window.Close'), this.close.bind(this), 'icons/Close.png')
     this.menu.bind(this.taskbarTitleElement)
-    this.menu.bind(this.element)
+    this.menu.bind(this.titlebarElement)
+    this.menu.stop(this.element)
   },
 
   initButtons : function() {
@@ -275,6 +311,7 @@ Desk.Window.prototype = {
       this.originalPosition = new Vector(this.x, this.y)
       this.resizing = true
       Event.stop(e)
+      this.newEvent('dragStart', { value: [this.x, this.y] })
     } else if (this.validMoveTarget(e) && Event.isLeftClick(e)) {
       this.dragStart = new Vector(Event.pointerX(e), Event.pointerY(e))
       this.dragCur = this.dragStart
@@ -286,6 +323,7 @@ Desk.Window.prototype = {
         this.sendToBack()
       }
       Event.stop(e)
+      this.newEvent('dragStart', { value: [this.x, this.y] })
     }
   },
 
@@ -311,6 +349,7 @@ Desk.Window.prototype = {
       this.setY(this.originalPosition.y - dy)
       this.setSize(Math.abs(wantedSize.x), Math.abs(wantedSize.y))
       this.dragCur = p
+      Event.stop(e)
     } else if (this.dragging) {
       var p = new Vector(Event.pointerX(e), Event.pointerY(e))
       if (this.movable && this.dragCur) {
@@ -319,6 +358,7 @@ Desk.Window.prototype = {
         this.setY(this.y + d.y)
       }
       this.dragCur = p
+      Event.stop(e)
     }
   },
 
@@ -337,6 +377,7 @@ Desk.Window.prototype = {
     this.dragEnd = new Vector(Event.pointerX(e), Event.pointerY(e))
     this.dragging = false
     this.resizing = false
+    this.newEvent('dragEnd', { value: [this.x, this.y] })
   },
 
   setTitle : function(new_value) {
@@ -390,7 +431,7 @@ Desk.Window.prototype = {
         element.innerHTML = new_value
       } else {
         if (clone) {
-          element.appendChild(new_value.cloneNode(true))
+          element.appendChild(T(new_value.textContent))
         } else {
           element.appendChild(new_value)
         }

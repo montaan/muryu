@@ -28,8 +28,9 @@ iframe {
   padding: 4px;
 }
 .windowBackground {
-  background-color: #000;
+  background-color: black;
   opacity: 0.8;
+  border-bottom: 1px solid black;
 }
 .windowTitlebar {
   margin: 0px;
@@ -41,10 +42,10 @@ iframe {
   font-family: URW Gothic L, Arial, Sans-serif;
   font-size: 13px;
   font-weight: bold;
-  margin: 0px;
   margin-left: 1px;
-  margin-top: -3px;
+  margin-top: -2px;
   margin-bottom: 0px;
+  margin-right: 4px;
   float: left;
 }
 .windowTaskbarTitle {
@@ -58,7 +59,6 @@ iframe {
 .windowButtons {
   text-align: right;
   position: relative;
-  top: -2px;
   left: -1px;
   z-index: -1;
 }
@@ -70,7 +70,7 @@ iframe {
 }
 .windowContent {
   clear: both;
-  margin-top: 1px;
+  margin-top: 5px;
   padding-top: 2px;
   padding-bottom: 0px;
   margin-bottom: 0px;
@@ -144,7 +144,7 @@ iframe {
 }
 .windowListEntry {
 }
-.windowListEntry + .windowListEntry {
+.windowListEntry {
   border-top: 1px solid #555;
 }
 
@@ -162,8 +162,9 @@ iframe {
 .topPanel .windowGroupTitle {
   display: inline;
   color: #ffc840;
-  padding-right: 8px;
+  padding-right: 6px;
   padding-left: 8px;
+  margin-left: 4px;
   border-left: 1px dotted;
   border-bottom: none;
 }
@@ -181,7 +182,7 @@ iframe {
   display: inline;
   margin-right: 6px;
 }
-.topPanel .windowListEntry + .windowListEntry {
+.topPanel .windowListEntry {
   padding-left: 6px;
   border-top: none;
   border-left: 1px solid #555;
@@ -209,8 +210,9 @@ iframe {
 .bottomPanel .windowGroupTitle {
   display: inline;
   color: #ffc840;
-  padding-right: 8px;
+  padding-right: 6px;
   padding-left: 8px;
+  margin-left: 4px;
   border-left: 1px dotted;
   border-bottom: none;
 }
@@ -228,7 +230,7 @@ iframe {
   display: inline;
   margin-right: 6px;
 }
-.bottomPanel .windowListEntry + .windowListEntry {
+.bottomPanel .windowListEntry {
   padding-left: 6px;
   border-top: none;
   border-left: 1px solid #555;

@@ -1,7 +1,27 @@
+Tr.addTranslations('en-US', {
+  'Applet' : 'Applet',
+  'Applet.Remove' : 'Remove applet',
+  'Applet.Session' : 'Session',
+  'Applet.Session.save' : 'Save session now',
+  'Applet.Session.autosave' : 'Autosave',
+  'Applet.Session.clear' : 'Clear session'
+})
+Tr.addTranslations('fi-FI', {
+  'Applet' : 'Sovelma',
+  'Applet.Remove' : 'Poista sovelma',
+  'Applet.Session' : 'Istunto',
+  'Applet.Session.save' : 'Tallenna istunto',
+  'Applet.Session.autosave' : 'Automaattinen tallennus',
+  'Applet.Session.clear' : 'Pyyhi istunto'
+  
+})
+
+
+
 Applets = {
   bakeAppletMenu: function(applet) {
-    applet.menu.addTitle('Applet')
-    applet.menu.addItem('Remove Applet', function(){
+    applet.menu.addTitle(Tr('Applet'))
+    applet.menu.addItem(Tr('Applet.Remove'), function(){
       applet.panel.removeApplet(applet)
     }, 'icons/Remove.png')
     applet.menu.bind(applet)
@@ -12,7 +32,7 @@ Applets = {
 Applets.Session = function(wm) {
   if (!wm) wm = Desk.Windows
   var c = E('span', null, null, 'taskbarApplet Session')
-  var title = E('h4', 'Session', null, 'windowGroupTitle')
+  var title = E('h4', Tr('Applet.Session'), null, 'windowGroupTitle')
   c.appendChild(title)
   c.session = null
   c.autosave = true
@@ -22,9 +42,9 @@ Applets.Session = function(wm) {
   c.setAutosave = function(d){
     this.autosave = d
     if (this.autosave) {
-      this.menu.checkItem('Autosave')
+      this.menu.checkItem(Tr('Applet.Session.autosave'))
     } else {
-      this.menu.uncheckItem('Autosave')
+      this.menu.uncheckItem(Tr('Applet.Session.autosave'))
     }
   }
   c.autosaveSession = function(){
@@ -57,14 +77,14 @@ Applets.Session = function(wm) {
   })
   window.addEventListener('unload', c.saveSession, false)
   c.menu = new Desk.Menu()
-  c.menu.addTitle('Session')
-  c.menu.addItem('Save session now', c.saveSession)
-  c.menu.addItem('Autosave', function(){
+  c.menu.addTitle(Tr('Applet.Session'))
+  c.menu.addItem(Tr('Applet.Session.save'), c.saveSession)
+  c.menu.addItem(Tr('Applet.Session.autosave'), function(){
     c.toggleAutosave()
   })
-  c.menu.checkItem('Autosave')
+  c.menu.checkItem(Tr('Applet.Session.autosave'))
   c.menu.addSeparator()
-  c.menu.addItem('Clear session', c.clearSession)
+  c.menu.addItem(Tr('Applet.Session.clear'), c.clearSession)
   Applets.bakeAppletMenu(c)
 
   return c

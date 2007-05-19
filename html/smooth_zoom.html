@@ -53,12 +53,13 @@
         border: 0px;
       }
 
-      .editors .windowBackground {
+      .editors .windowBackground, .muokkaimet .windowBackground {
         background-color: #444444;
         opacity: 1.0;
-        border-bottom: 1px solid black;
+        border-bottom: 1px solid #222222;
+        border-top: 1px solid #505050;
       }
-      
+
       .editDiv img {
         margin-right: 4px;
       }
@@ -404,7 +405,9 @@
           'Add Panel' : 'Lisää paneeli',
           'Session' : 'Istunto',
           'Save Session' : 'Tallenna istunto',
-          'Clear Session' : 'Pyyhi istunto'
+          'Clear Session' : 'Pyyhi istunto',
+          'help.html' : 'help.html',
+          'help' : 'apua'
         })
         Tr.translations['fi'] = Tr.translations['fi-FI']
         menu = new Desk.Menu()
@@ -430,7 +433,7 @@
           var topPanel = new Desk.Panel('top')
           topPanel.addApplet(Applets.Session())
           topPanel.addApplet(Applets.Taskbar())
-          new Desk.Window('/help.html', {x:200, y:10, group:'Help'})
+          new Desk.Window(Tr('help.html'), {x: 200, y: 10, group: Tr('help')})
         }
         if (false) { // start instrumentation block
           var load_buf = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]

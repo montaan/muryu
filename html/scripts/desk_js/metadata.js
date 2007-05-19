@@ -12,7 +12,7 @@ Tr.addTranslations('en-US', {
   'Item.DateObject' : function(d){
     weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    return (weekdays[d.getDay()] + ', ' + months[d.getMonth()-1] + ' ' +
+    return (weekdays[d.getDay()] + ', ' + months[d.getMonth()] + ' ' +
             d.getDate() + ', ' + (d.getYear() + 1900) + ' ' +
             (d.getHours()%13).toString().rjust(2, '0') + ':' +
             d.getMinutes().toString().rjust(2, '0') + ':' +
@@ -33,8 +33,8 @@ Tr.addTranslations('en-US', {
   'Item.camera' : 'camera',
   'Item.manufacturer' : 'manufacturer',
   'Item.software' : 'software',
-  'Item.edit' : 'Edit metadata',
-  'Item.delete_item' : 'Delete',
+  'Button.Item.edit' : 'Edit metadata',
+  'Button.Item.delete_item' : 'Delete',
   'Item.filename' : 'filename',
   'Item.source' : 'source',
   'Item.referrer' : 'referrer',
@@ -62,14 +62,24 @@ Tr.addTranslations('en-US', {
   'Item.click_to_edit_title' : 'Click to edit item title',
   'Item.click_to_edit_author' : 'Click to edit item author',
   'Item.item' : 'item',
-  'Item.metadata' : 'metadata'
+  'Item.metadata' : 'metadata',
+  
+  'Item.Editing' : 'Editing',
+  'Item.Deleting' : 'Deleting',
+  'WindowGroup.editors' : 'editors',
+  'WindowGroup.deletions' : 'deletions',
+  'WindowGroup.images' : 'images',
+  'WindowGroup.music' : 'music',
+  'WindowGroup.videos' : 'videos',
+  'WindowGroup.text' : 'text',
+  'WindowGroup.HTML' : 'HTML',
 })
 Tr.addTranslations('en-GB', {
   'Item.DateObject' : function(d){
     weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     return (weekdays[d.getDay()] + ', ' + d.getDate() + ' ' +
-            months[d.getMonth()-1] + ' ' + (d.getYear() + 1900) + ' ' +
+            months[d.getMonth()] + ' ' + (d.getYear() + 1900) + ' ' +
             (d.getHours()%13).toString().rjust(2, '0') + ':' +
             d.getMinutes().toString().rjust(2, '0') + ':' +
             d.getSeconds().toString().rjust(2, '0') + ' ' +
@@ -81,7 +91,7 @@ Tr.addTranslations('fi-FI', {
     weekdays = ['su', 'ma', 'ti', 'ke', 'to', 'pe', 'la']
     months = ['tammi', 'helmi', 'maalis', 'huhti', 'touko', 'kesä', 'heinä', 'elo', 'syys', 'loka', 'marras', 'joulu']
     return (weekdays[d.getDay()] + ' ' + d.getDate() + '. ' +
-            months[d.getMonth()-1] + 'kuuta ' + (d.getYear() + 1900) + ' ' +
+            months[d.getMonth()] + 'kuuta ' + (d.getYear() + 1900) + ' ' +
             d.getHours().toString().rjust(2, '0') + ':' +
             d.getMinutes().toString().rjust(2, '0') + ':' +
             d.getSeconds().toString().rjust(2, '0'))
@@ -100,8 +110,8 @@ Tr.addTranslations('fi-FI', {
   'Item.camera' : 'kamera',
   'Item.manufacturer' : 'valmistaja',
   'Item.software' : 'ohjelmisto',
-  'Item.edit' : 'Muokkaa tietoja',
-  'Item.delete_item' : 'Poista',
+  'Button.Item.edit' : 'Muokkaa tietoja',
+  'Button.Item.delete_item' : 'Poista',
   'Item.filename' : 'tiedostonimi',
   'Item.source' : 'lähde',
   'Item.referrer' : 'viittaaja',
@@ -129,7 +139,21 @@ Tr.addTranslations('fi-FI', {
   'Item.click_to_edit_title' : 'Napsauta muokataksesi nimekettä',
   'Item.click_to_edit_author' : 'Napsauta muokataksesi tekijän nimeä',
   'Item.item' : 'kohde',
-  'Item.metadata' : 'sisältö'
+  'Item.metadata' : 'sisältö',
+  
+  'Item.Editing' : function(name) {
+    return 'Muokkain ' + name + ':lle'
+  },
+  'Item.Deleting' : function(name) {
+    return 'Poistan kohteen ' + name
+  },
+  'WindowGroup.editors' : 'muokkaimet',
+  'WindowGroup.deletions' : 'poistot',
+  'WindowGroup.images' : 'kuvat',
+  'WindowGroup.music' : 'musiikki',
+  'WindowGroup.videos' : 'videot',
+  'WindowGroup.text' : 'tekstit',
+  'WindowGroup.HTML' : 'HTML',
 })
 Tr.addTranslations('de-DE', {
   'Item.by' : '-',
@@ -138,7 +162,7 @@ Tr.addTranslations('de-DE', {
   'Item.camera' : 'Kameramodell',
   'Item.manufacturer' : 'Hersteller',
   'Item.software' : 'Software',
-  'Item.edit' : 'Metadaten bearbeiten',
+  'Button.Item.edit' : 'Metadaten bearbeiten',
   'Item.filename' : 'Dateiname',
   'Item.source' : 'Quelle',
   'Item.referrer' : 'Referrer',
@@ -269,7 +293,7 @@ Mimetype = {
       if (info.writable && !hide_edit_link) {
         var t = this
         var editButton = Desk.Button(
-          Tr("Item.edit"),
+          "Item.edit",
           function(){
             if (t.editor && t.editor.windowManager != null) {
               t.editor.close()
@@ -286,7 +310,7 @@ Mimetype = {
           textSide: 'right'
         })
         var deleteButton = Desk.Button(
-          Tr("Item.delete_item"),
+          "Item.delete_item",
           function(){ t.deleteItem(win, info) }, {
           className: 'editButton',
           normal_image: 'images/delete_grey.png',
@@ -393,7 +417,7 @@ Mimetype = {
       } catch(e) {
         console.log('hälärm', e)
       }
-      win.setGroup(group)
+      win.setGroup(Tr('WindowGroup.'+group))
       return viewer
     },
 
@@ -483,22 +507,15 @@ Mimetype = {
       return i
     },
 
-    makeHTMLViewer : function(info) {
-      var i = E('iframe')
-      i.style.backgroundColor = "white"
-      i.width = 600
-      i.height = 400
-      i.src = Map.__filePrefix + info.path
-      return i
+    makeHTMLViewer : function(info, win) {
+      this.html = Object.extend({}, Mimetype['html'])
+      this.embed = this.html.makeEmbed(Map.__filePrefix + info.path)
+      this.html.init(Map.__filePrefix + info.path, win)
+      return this.embed
     },
 
-    makeTextViewer : function(info) {
-      var i = E('iframe')
-      i.style.backgroundColor = "white"
-      i.width = 600
-      i.height = 400
-      i.src = Map.__filePrefix + info.path
-      return i
+    makeTextViewer : function(info, win) {
+      return this.makeHTMLViewer(info, win)
     },
 
     makeThumbViewer : function(info, win) {
@@ -529,8 +546,8 @@ Mimetype = {
         onSuccess : function(res) {
           try {
             var info = res.responseText.evalJSON()
-            win.setGroup('editors')
-            win.setTitle('Editing ' + info.path.split("/").last())
+            win.setGroup(Tr('WindowGroup.editors'))
+            win.setTitle(Tr('Item.Editing', info.path.split("/").last()))
             win.content.appendChild(this.itemEditForm(info, win))
           } catch(e) { console.log(e) }
         }.bind(this)
@@ -719,8 +736,8 @@ Mimetype = {
         onSuccess : function(res) {
           try {
             var info = res.responseText.evalJSON()
-            win.setGroup('deletions')
-            win.setTitle('Deleting ' + info.path)
+            win.setGroup(Tr('WindowGroup.deletions'))
+            win.setTitle(Tr('Item.Deleting', info.path))
             this.deleteItem(win, info)
           } catch(e) { console.log(e) }
         }.bind(this)
@@ -815,17 +832,34 @@ Mimetype = {
   html : {
     mimetype : 'html',
     makeEmbed : function(src) {
+      var container = E('div')
+      var cover = E('div')
       var e = E('iframe')
+      e.style.backgroundColor = 'white'
       e.src = src
-      e.style.width = '800px'
-      e.style.height = '600px'
+      cover.style.width = e.style.width = '600px'
+      cover.style.height = e.style.height = '400px'
+      e.style.zIndex = 0
+      cover.style.position = 'absolute'
+      cover.style.display = 'block'
+      cover.style.zIndex = -1
+      this.cover = cover
       this.embed = e
-      return e
+      container.style.lineHeight = '0px'
+      container.appendChild(cover)
+      container.appendChild(e)
+      return container
     },
     init : function(src, win) {
       win.addListener('resize', function(e){
-        this.embed.style.width = e.target.contentElement.style.width
-        this.embed.style.height = e.target.contentElement.style.height
+        this.cover.style.width = this.embed.style.width = win.contentElement.style.width
+        this.cover.style.height = this.embed.style.height = (parseInt(win.contentElement.style.height) - 21) + 'px'
+      }.bind(this))
+      win.addListener('dragStart', function() {
+        this.cover.style.zIndex = 1
+      }.bind(this))
+      win.addListener('dragEnd', function() {
+        this.cover.style.zIndex = -1
       }.bind(this))
     }
   }

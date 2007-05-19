@@ -1,7 +1,7 @@
 Desk.Button = function(name, onclickHandler, config){
   // The button is a regular link.
   var button = E('a', null, null, 'button '+name)
-  button.title = name
+  button.title = Tr('Button.'+name)
 
   // A link that goes nowhere.
   button.href = 'javascript:void(null)'
@@ -18,15 +18,15 @@ Desk.Button = function(name, onclickHandler, config){
   if (config) Object.extend(button, config)
 
   if (button.showText)
-    button.textElem = T(name)
+    button.textElem = T(Tr('Button.'+name))
     
   if (button.textElem && button.textSide != 'right')
     button.appendChild(button.textElem)
 
   // Set up the button image.
   button.image = E('img')
-  button.image.alt = name
-  button.image.title = name
+  button.image.alt = Tr('Button.'+name)
+  button.image.title = Tr('Button.'+name)
   button.image.style.border = '0px'
   button.image.src = button.normal_image
   button.appendChild(button.image)

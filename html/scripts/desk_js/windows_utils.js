@@ -79,7 +79,7 @@ Number.mag = function(num, last, acc) {
   if (num < 1000)
     return num + last
   var mag_index = parseInt(Math.log(num) / Math.log(1000))
-  return (num / Math.pow(1000, mag_index)).toFixed(acc) + this.magnitudes[mag_index-1] + last
+  return Tr.formatNumber((num / Math.pow(1000, mag_index)).toFixed(acc) + this.magnitudes[mag_index-1] + last)
 }
 
 Object.formatTime = function(msec) {
@@ -130,6 +130,9 @@ function Tr(key) {
     return translation.apply(lang, $A(arguments).slice(1))
   return translation + $A(arguments).slice(1).join(" ")
 }
+Tr.formatNumber = function(num) {
+  return num.replace(/\./, Tr('Number.decimalSeparator'))
+}
 Tr.getLanguage = function(lang) {
   if (!Tr.translations[lang]) Tr.translations[lang] = {}
   return Tr.translations[lang]
@@ -147,7 +150,12 @@ Tr.defaultLanguage = 'en-US'
 Tr.language = Tr.guessLanguage()
 Tr.translations = new Hash()
 Tr.translations[Tr.defaultLanguage] = new Hash()
-
+Tr.addTranslations('en-US', {
+  'Number.decimalSeparator' : '.'
+})
+Tr.addTranslations('fi-FI', {
+  'Number.decimalSeparator' : ','
+})
 
 
 
@@ -435,10 +443,18 @@ Desk.Menu.prototype = {
 
   bind : function(element) {
     element.addEventListener('contextmenu', function(ev) {
-      if (!Event.isLeftClick(ev) && !ev.ctrlKey ) {
+      if (!ev.useDefaultAction && !Event.isLeftClick(ev) && !ev.ctrlKey) {
         this.show(ev)
         this.skipHide = true
         Event.stop(ev)
+      }
+    }.bind(this), false)
+  },
+
+  stop : function(element) {
+    element.addEventListener('contextmenu', function(ev) {
+      if (!Event.isLeftClick(ev) && !ev.ctrlKey ) {
+        ev.useDefaultAction = true
       }
     }.bind(this), false)
   },
