@@ -60,17 +60,12 @@ Object.extend(Desk.Panel.prototype, {
       })
     })
     this.menu.addItem('Remove Panel', this.close.bind(this), 'icons/Remove.png')
+    this.menu.bind(this.element)
     this.element.addEventListener("DOMAttrModified", function(e){
       if (e.attrName == 'style') {
         this.updatePlanes()
         if (this.updateTimeout) clearTimeout(this.updateTimeout)
         this.updateTimeout = setTimeout(this.updateOffsets.bind(this), 20)
-      }
-    }.bind(this), false)
-    this.element.addEventListener('click', function(e){
-      if (Event.isLeftClick(e) && e.ctrlKey) {
-        this.menu.show(e)
-        Event.stop(e)
       }
     }.bind(this), false)
     window.addEventListener("mousemove", function(e){

@@ -3,10 +3,17 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <title>muryu</title>
+    <link rel="stylesheet" href="/scripts/desk_js/style.css"></link>
     <style type="text/css">
       body {
         margin : 0px;
         padding : 0px;
+        font-size: 12px;
+        font-family: Trebuchet MS, Arial, Sans-Serif;
+        overflow: hidden;
+      }
+      h1, h2, h3, h4, h5, h6 {
+        font-family: URW Gothic L, Arial, Sans-Serif;
       }
       #map {
         width: 0px;
@@ -45,13 +52,293 @@
       .tile {
         border: 0px;
       }
+
+      .editors .windowBackground {
+        background-color: #444444;
+        opacity: 1.0;
+        border-bottom: 1px solid black;
+      }
+      
+      .editDiv img {
+        margin-right: 4px;
+      }
+
+      .infoLink {
+        color: white;
+        margin-left: 4px;
+      }
+
+      .infoDiv {
+        padding-left: 0px;
+        padding-right: 0px;
+        font-family: URW Gothic L, Arial;
+        font-weight: bold;
+      }
+
+      .infoDiv p {
+        padding-top: 0px;
+        padding-bottom: 2px;
+        margin-top: 0px;
+        margin-bottom: 0px;
+      }
+
+      .infoDiv p+p {
+        padding-top: 0px;
+      }
+
+      .infoDivLink {
+        color: white;
+        text-decoration: none;
+      }
+
+      .info {
+        position: absolute;
+        z-index: 3;
+      }
+      
+      .editable:hover {
+        color: #ffdd66;
+      }
+      .windowTaskbarTitle .editable:hover {
+        color: default;
+      }
+
+      .infoLayer {
+        display: none;
+        background: url(80_opacity_black.png);
+        position: absolute;
+        z-index: 8;
+        padding: 4px;
+        margin-left: 5px;
+        margin-top: 10px;
+        color: #CCCCCC;
+        font-family: URW Gothic L, Arial;
+        font-weight: bold;
+      }
+
+      .infoText {
+        background: url(80_opacity_black.png);
+        position: absolute;
+        z-index: 3;
+        color: white;
+        font-family: URW Gothic L, Arial;
+        font-weight: bold;
+        overflow: hidden;
+      }
+
+      .infoLayer img {
+        vertical-align: middle;
+      }
+
+      .emblemImage16 {
+        z-index: 2;
+      }
+      .emblemImage32 {
+        z-index: 2;
+      }
+
+      a.emblemText16 {
+        color: white;
+        text-decoration: none;
+      }
+      a.emblemText32 {
+        color: white;
+        text-decoration: none;
+      }
+      a.emblemText16:visited {
+        color: #DDDDDD;
+      }
+      a.emblemText32:visited {
+        color: #DDDDDD;
+      }
+
+      .emblemText16 {
+        position: absolute;
+        left: 8px;
+        top: 0px;
+        height: 16px;
+        font-family: URW Gothic L, Arial;
+        font-weight: bold;
+        margin: 0px;
+        padding: 0px;
+        padding-left:12px;
+        padding-right:4px;
+        background: url(80_opacity_black.png);
+        z-index: 1;
+      }
+      .emblemText32 {
+        position: absolute;
+        left: 16px;
+        top: 8px;
+        height: 16px;
+        font-family: URW Gothic L, Arial;
+        font-weight: bold;
+        margin: 0px;
+        padding: 0px;
+        padding-left:20px;
+        padding-right:4px;
+        background: url(80_opacity_black.png);
+        z-index: 1;
+      }
+
+      a {
+        color: white;
+      }
+
+      a:visited {
+        color: #AAAAAA;
+      }
+
+      .editor {
+        min-width: 450px;
+/*         min-height: 490px; */
+        width: 450px;
+/*         height: 490px; */
+      }
+
+      .editor h3 {
+        font-size: 14px;
+        text-align: center;
+        margin-top: 8px;
+        margin-left: 5%;
+        margin-right: 5%;
+        border-bottom: 1px solid #CCCCCC;
+        margin-bottom: 6px;
+      }
+      .editor h4 {
+        font-size: 13px;
+        text-align: center;
+        color: white;
+        margin-left: 5%;
+        margin-right: 5%;
+        border-bottom: 1px solid #CCCCCC;
+        margin-top: 2px;
+        margin-bottom: 2px;
+      }
+      .editor h5 {
+        font-size: 11px;
+        margin-bottom: 0px;
+        margin-top: 4px;
+      }
+
+      .editor div {
+        margin-left: 5%;
+        margin-right: 5%;
+        background: none;
+      }
+
+      .editor input[type=text] {
+        width: 100%;
+        background-color: #222222;
+        border: 0px;
+        border-bottom: 1px solid #666666;
+        color: white;
+        padding-left: 2px;
+        font-family: Trebuchet MS, Arial;
+        font-weight: normal;
+      }
+      .editor textarea {
+        width: 100%;
+        background-color: #DDDDDD;
+        border: 0px;
+        height: 76px;
+        padding: 2px;
+        font-size: 11px;
+        border-bottom: 1px solid #222222;
+        font-family: Trebuchet MS, Arial;
+        font-weight: normal;
+      }
+      div.editorSubmit {
+        margin: 10px 12px 12px 0px;
+        text-align: right;
+      }
+      .editor input[type=submit] {
+        font-family: Trebuchet MS, Arial;
+        font-size: 11px;
+        font-weight: bold;
+        background-color: #AAFFAA;
+        border-color: #AAFFAA;
+      }
+      .editor input[type=reset] {
+        font-family: Trebuchet MS, Arial;
+        font-size: 11px;
+        font-weight: bold;
+        background-color: #FFAAAA;
+        border-color: #FFAAAA;
+        margin-right: 40px;
+      }
+      div.timeEditor {
+        margin-left : 0px;
+        margin-right : 0px;
+        padding : 0px;
+      }
+      .timeEditor input {
+        text-align: center;
+        margin-right: 1px;
+      }
+      div.listEditor {
+        margin-left : 0px;
+        margin-right : 0px;
+        padding : 0px;
+      }
+      .listEditor select {
+        width: 100%;
+        background-color: #DDDDDD;
+        font-family: Trebuchet MS, Arial;
+        font-weight: normal;
+        border: 0px;
+      }
+      .listEditor input[type=text] {
+        margin-bottom: 2px;
+      }
+      .listEditor ul {
+        margin: 0px;
+        padding: 0px;
+        height: 80px;
+        background-color: #222222;
+        border-bottom: 1px solid #666666;
+        overflow: auto;
+        list-style: none;
+      }
+      .listEditor li {
+        margin: 0px;
+        padding: 0px;
+        list-style: none;
+      }
+      .listOrNewSeparator {
+        margin: 0px;
+        text-align: center;
+      }
+      div.locationEditor {
+        margin-left : 0px;
+        margin-right : 0px;
+        padding : 0px;
+      }
+      .locationEditor div {
+        margin-left : 0px;
+        margin-right : 0px;
+        padding : 0px;
+      }
+      span.google_map {
+        padding: 8px;
+        height: 524px;
+        width: 400px;
+        padding-left: 0px;
+        background: url(80_opacity_black.png);
+      }
+      .google_map div {
+        margin-left : 0px;
+        margin-right : 0px;
+        padding : 0px;
+      }
+
     </style>
-    <link rel="stylesheet" href="scripts/desk_js/style.css"></link>
-    <script type="text/javascript" src="scripts/desk_js/prototype.js"></script>
-    <script type="text/javascript" src="scripts/desk_js/soundmanager2.js"></script>
-    <script type="text/javascript" src="scripts/desk_js/desk.js"></script>
-    <script type="text/javascript" src="scripts/zogen/TileMap.js"></script>
-    <script type="text/javascript" src="scripts/zogen/Editors.js"></script>
+<!--     <script src="http://maps.google.com/maps?file=api&amp;v=2.x&amp;key=ABQIAAAAWpSYHNXxjMT-MLolMNpBmRS2fNlMtol7He-Jym4WpRf8M4n2NBTj9mfCSuHnIDtWQFsggjMA8zq-UA" type="text/javascript"></script> -->
+    <script type="text/javascript" src="/scripts/desk_js/prototype.js"></script>
+    <script type="text/javascript" src="/scripts/desk_js/soundmanager2.js"></script>
+    <script type="text/javascript" src="/scripts/desk_js/desk.js"></script>
+    <script type="text/javascript" src="/scripts/zogen/TileMap.js"></script>
+    <script type="text/javascript" src="/scripts/zogen/Editors.js"></script>
     <script>
       // <![CDATA[
       window.addEventListener("load", function(ev){
@@ -81,7 +368,7 @@
           removeItem : function(name) {
             var params = {}
             params[name] = true
-            new Ajax.Request('/users/delete_preferences', { parameters : params })
+            new Ajax.Request('/users/delete_preferences', { asynchronous : false, parameters : params })
           }
         }
         Session.storage.load()
@@ -110,28 +397,31 @@
             Desk.Windows.previousInnerHeight = window.innerHeight
           }
         }, 100)
+        Tr.addTranslations('fi-FI', {
+          'Windows' : 'Ikkunat',
+          'Collapse all groups' : 'Piilota kaikki ryhmät',
+          'Expand all groups' : 'Laajenna kaikki ryhmät',
+          'Add Panel' : 'Lisää paneeli',
+          'Session' : 'Istunto',
+          'Save Session' : 'Tallenna istunto',
+          'Clear Session' : 'Pyyhi istunto'
+        })
+        Tr.translations['fi'] = Tr.translations['fi-FI']
         menu = new Desk.Menu()
-        menu.addTitle('Windows')
-        menu.addItem('Collapse all groups', function() {
+        menu.addTitle(Tr('Windows'))
+        menu.addItem(Tr('Collapse all groups'), function() {
           Desk.Windows.taskbar.setCollapsedForAll(true)
         }, 'icons/CollapseAllGroups.png')
-        menu.addItem('Expand all groups', function() {
+        menu.addItem(Tr('Expand all groups'), function() {
           Desk.Windows.taskbar.setCollapsedForAll(false)
         }, 'icons/ExpandAllGroups.png')
         menu.addSeparator()
-        menu.addItem('Add Panel', function(){ new Desk.Panel() })
-        menu.addTitle('Session')
-        menu.addItem('Save Session', function(){ Session.save() })
-        menu.addItem('Clear Session', function(){ Session.clear() })
-        Desk.Windows.windowContainer.addEventListener('click', function(e){
-          if (Event.isLeftClick(e) && e.ctrlKey) {
-            menu.show(e)
-            Event.stop(e)
-          }
-        }, false)
+        menu.addItem(Tr('Add Panel'), function(){ new Desk.Panel() })
+        menu.addTitle(Tr('Session'))
+        menu.addItem(Tr('Save Session'), function(){ Session.save() })
+        menu.addItem(Tr('Clear Session'), function(){ Session.clear() })
+        menu.bind(Desk.Windows.windowContainer)
         if (!Session.load()) {
-          var panel = new Desk.Panel('left')
-          panel.addApplet(Applets.Taskbar())
           Map = new TileMap({
             x:50, y: 50,
             width: window.innerWidth,
@@ -139,7 +429,8 @@
           })
           var topPanel = new Desk.Panel('top')
           topPanel.addApplet(Applets.Session())
-          new Desk.Window('/help.html', {x:200, y:10})
+          topPanel.addApplet(Applets.Taskbar())
+          new Desk.Window('/help.html', {x:200, y:10, group:'Help'})
         }
         if (false) { // start instrumentation block
           var load_buf = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]

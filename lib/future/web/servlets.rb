@@ -629,7 +629,7 @@ extend FutureServlet
       color = (req.query['color'].to_s != 'false')
       bgcolor = (req.query.has_key?('bgcolor') ?
                   req.query['bgcolor'].to_s[0,6] : false)
-      bgimage_src = (req.query.has_key?('bgimage') ? req.query['bgimage'].to_s : false)
+      bgimage_src = (req.query.has_key?('bgimage') ? URI.unescape(req.query['bgimage'].to_s) : false)
       if bgimage_src and bgitem = Items.rfind(servlet_user, :path => bgimage_src)
         image = Imlib2::Image.load(bgitem.thumbnail)
         image.crop!(0,0,256,256)
@@ -638,7 +638,7 @@ extend FutureServlet
       else
         bgimage = nil
       end
-      key = [servlet_user.id, servlet_path, color, bgcolor, search_query, req.query['time']].join("::")
+      key = [servlet_user.id, servlet_path, color, bgcolor, bgimage_src, search_query, req.query['time']].join("::")
       puts "#{Thread.current.telapsed} for tile arg parsing" if $PRINT_QUERY_PROFILE
       tile = $memcache.get(key) if $CACHE_TILES and not $indexes_changed
       puts "#{Thread.current.telapsed} for memcache get" if $PRINT_QUERY_PROFILE
@@ -1073,7 +1073,7 @@ extend FutureServlet
           basename = parts.last
           baseparts = basename.split(".")
           if baseparts[0..-2].join(".") != fn
-            newname = fn.gsub(/[^a-z0-9_.,-]/, "_") + "." + baseparts.last
+            newname = fn.gsub(/[^a-z0-9_., -]/i, "_") + "." + baseparts.last
 #             p ['new_path', parts[0..-2].join("/") + "/" + newname]
             servlet_target.path = parts[0..-2].join("/") + "/" + newname
           end
@@ -1132,6 +1132,7 @@ extend FutureServlet
           }
           servlet_target[:modified_at] = Time.now.to_s if column?('modified_at')
         end
+        self.servlet_target_path = File.join(servlet_root, URI.escape(servlet_target.path))
         changed
       end
     end

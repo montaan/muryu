@@ -3,7 +3,7 @@ Editors = {
 
   // Time picker
   time : function(name, value, args) {
-    var cont = Elem('div', null, null, 'timeEditor')
+    var cont = E('div', null, null, 'timeEditor')
     var nullVal = true
     if (!value) {
       value = new Date()
@@ -45,7 +45,7 @@ Editors = {
   },
 
   intInput : function(name, value) {
-    var inp = Elem('input', null, null, 'intInput',
+    var inp = E('input', null, null, 'intInput',
       {width: Math.max(value.toString().length, 2) * 8 + 'px'},
       {type:"text", size: value.toString().length, "name": name, "value": value})
     inp.addEventListener('change', function(e){
@@ -65,7 +65,7 @@ Editors = {
     var low = args[0]
     var high = args[1]
     var padding = args[2] || 0
-    var inp = Elem('input', null, null, 'limitedIntInput',
+    var inp = E('input', null, null, 'limitedIntInput',
       {width: Math.max(value.toString().length, 2) * 8 + 'px'},
       { type:"text", size: value.toString().length,
         "name": name, "value": value.toString().rjust(padding, '0'),
@@ -86,21 +86,21 @@ Editors = {
   },
 
   hiddenInput : function(name, value) {
-    var inp = Elem('input', null, null, null, null,
+    var inp = E('input', null, null, null, null,
       {type:"hidden", "name": name, "value": value})
     return inp
   },
 
   // Expanding textarea
   text : function(name, value) {
-    var inp = Elem('textarea', value, null, 'textEditor', null,
+    var inp = E('textarea', value, null, 'textEditor', null,
       {name: name})
     return inp
   },
 
   // String
   string : function(name, value) {
-    var inp = Elem('input', null, null, 'stringEditor', null,
+    var inp = E('input', null, null, 'stringEditor', null,
       {type:"text", "name": name, "value": value})
     return inp
   },
@@ -109,28 +109,28 @@ Editors = {
   list : function(name, value, args){
     var list_values = args[0]
     var pick_multiple = args[1]
-    var list = Elem('div', null, null, 'listEditor')
+    var list = E('div', null, null, 'listEditor')
     if (typeof value != 'object') value = [value]
     if (pick_multiple) {
-      var ul = Elem('ul')
+      var ul = E('ul')
       list_values.each(function(lv){
-        var d = Elem('li')
-        var opt = Elem('input')
+        var d = E('li')
+        var opt = E('input')
         opt.type = 'checkbox'
         opt.name = name
         opt.value = lv
-        if (value) opt.checked = value.includes(lv)
+        if (value) opt.checked = value.include(lv)
         d.appendChild(opt)
-        d.appendChild(Text(lv))
+        d.appendChild(T(lv))
         ul.appendChild(d)
       })
       list.appendChild(ul)
     } else {
-      var inp = Elem('select', null, null, null, null, {name: name})
+      var inp = E('select', null, null, null, null, {name: name})
       list_values.each(function(lv){
-        var opt = Elem('option', lv)
+        var opt = E('option', lv)
         opt.value = lv
-        if (value) opt.selected = value.includes(lv)
+        if (value) opt.selected = value.include(lv)
         inp.appendChild(opt)
       })
       list.appendChild(inp)
@@ -141,26 +141,26 @@ Editors = {
   // One or several from a list of values or a new value
   listOrNew : function(name, value, args) {
     var ls = Editors.list(name, value, args)
-    ls.appendChild(Elem('p','+ ',null,'listOrNewSeparator'))
+    ls.appendChild(E('p','+ ',null,'listOrNewSeparator'))
     ls.appendChild(Editors.string(name+'.new', ''))
     return ls
   },
 
   // Autocompleting text field
   autoComplete : function(name, value, complete_values) {
-    var inp = Elem('input', null, null, 'autoCompleteEditor', null,
+    var inp = E('input', null, null, 'autoCompleteEditor', null,
       {type:"text", "name": name, "value": value})
     return inp
   },
 
   // Map coordinates
   location : function(name, value) {
-    var loc = Elem('div', null, null, 'locationEditor')
-    var hid = Elem('input', null, null, null, null,
+    var loc = E('div', null, null, 'locationEditor')
+    var hid = E('input', null, null, null, null,
       {type:"hidden", "name": name, "value": value})
     loc.appendChild(hid)
     if (typeof GBrowserIsCompatible != 'undefined' && GBrowserIsCompatible()) {
-      var txt = Elem('span', value)
+      var txt = E('span', value)
       loc.appendChild(txt)
       var latlng = [ NaN ]
       if (value) {
@@ -169,12 +169,12 @@ Editors = {
       if (isNaN(latlng[0]) || isNaN(latlng[1])) latlng = [0.0, 0.0]
       loc.mapAttachNode = document.body
       var loaded = function() {
-        var map_outer_cont = Elem('span', null, null, 'google_map',
+        var map_outer_cont = E('span', null, null, 'google_map',
           {display: 'block', position: 'absolute'})
         if (loc.mapLeft) map_outer_cont.style.left = loc.mapLeft
         if (loc.mapTop) map_outer_cont.style.top = loc.mapTop
         loc.mapAttachNode.appendChild(map_outer_cont)
-        var map_cont = Elem('span', null, null, null,
+        var map_cont = E('span', null, null, null,
           {width: '100%', height: '100%', display: 'block'})
         map_outer_cont.appendChild(map_cont)
         var map = new GMap2(map_cont)
@@ -207,7 +207,7 @@ Editors = {
             o = o.parentNode
           }
           clearInterval(map_outer_cont.unloadMonitor)
-          map_outer_cont.detachSelf()
+          $(map_outer_cont).detachSelf()
           GUnload()
         },100)
       }
@@ -230,7 +230,7 @@ Editors = {
 
   // Valid URL
   url : function(name, value) {
-    var inp = Elem('input', null, null, 'urlEditor', null,
+    var inp = E('input', null, null, 'urlEditor', null,
       {type:"text", "name": name, "value": value})
     return inp
   }

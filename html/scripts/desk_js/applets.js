@@ -4,12 +4,7 @@ Applets = {
     applet.menu.addItem('Remove Applet', function(){
       applet.panel.removeApplet(applet)
     }, 'icons/Remove.png')
-    applet.addEventListener('click', function(e){
-      if (Event.isLeftClick(e) && e.ctrlKey) {
-        applet.menu.show(e)
-        Event.stop(e)
-      }
-    },false)
+    applet.menu.bind(applet)
   }
 }
 
@@ -130,25 +125,9 @@ Applets.OpenURL.loadSession = function(dump) {
 Applets.MusicPlayer = function() {
   var c = E('span', null,null, 'taskbarApplet MusicPlayer')
   var title = E('h4', 'Music player', null, 'windowGroupTitle')
-  c.addWindowHandler = function(e){
-    if (e.window.src && e.window.src.split(".").last().match(/mp3|m3u/i)) {
-      this.playlist.push(e.window)
-    }
-  }.bind(c)
-  c.removeWindowHandler = function(e){
-    c.playlist.deleteFirst(e.window)
-  }.bind(c)
-  Desk.Windows.addListener('add', c.addWindowHandler)
-  Desk.Windows.addListener('remove', c.removeWindowHandler)
-  c.addEventListener('DOMNodeRemoved', function(){
-    if (e.target == c) {
-      Desk.Windows.removeListener('add', c.addWindowHandler)
-      Desk.Windows.removeListener('remove', c.removeWindowHandler)
-    }
-  }, false)
   c.appendChild(title)
 
-  c.mergeD(EventListener)
+  Object.extend(c, EventListener)
   c.playlist = []
   c.playlistGroup = null
   c.playlistIndex = 0
@@ -159,15 +138,6 @@ Applets.MusicPlayer = function() {
   c.shuffling = false
   c.soundID = 'currentMPSound'
   c.firstPlay = true
-  c.loadPlaylist = function(src){
-    new Desk.Window(src, {
-      minimized: true,
-      group: 'Playlists'
-    })
-  }
-  c.extractSrc = function(win) {
-    return (c.metadata && c.metadata.urls) || c.src
-  }
 
   c.getPlaylistLength = function(playlist, i) {
     if (this.playlistStack.isEmpty())
@@ -180,8 +150,8 @@ Applets.MusicPlayer = function() {
   }
   c.computePlaylistLength = function(playlist, i) {
     return playlist.slice(0,i).inject(0, function(s, e){
-      if (this.isPlaylist(e)) {
-        return s + this.computePlaylistLength(e.metadata.urls, e.metadata.urls.length)
+      if (e.isPlaylist) {
+        return s + this.computePlaylistLength(e.items, e.items.length)
       } else {
         return s + 1
       }
@@ -191,9 +161,9 @@ Applets.MusicPlayer = function() {
     if (!count) count = [[], 0]
     for (var j=0; j<playlist.length; j++) {
       var e = playlist[j]
-      if (this.isPlaylist(e)) {
+      if (e.isPlaylist) {
         count[0].push([playlist, j])
-        this.collectPlaylistUpto(e.metadata.urls, i, count)
+        this.collectPlaylistUpto(e.items, i, count)
         if (count[1] > i) return count
         count[0].pop()
       } else {

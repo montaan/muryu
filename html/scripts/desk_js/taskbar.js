@@ -1,46 +1,49 @@
-Desk.Taskbar = function(windowManager){
-  this.windowGroups = new Hash()
-  this.init()
-  this.setWindowManager(windowManager || Desk.Windows)
-}
 Applets.Taskbar = function(wm) {
-  return new Desk.Taskbar(wm).element
+  var el = E('div', null, null, 'taskbar')
+  Object.extend(el, Applets.Taskbar.prototype)
+  el.windowGroups = new Hash()
+  el.init()
+  el.setWindowManager(wm || Desk.Windows)
+  return el
 }
-Desk.Taskbar.loadSession = function(data) {
-  return new Desk.Taskbar().element
+Applets.Taskbar.loadSession = function(data) {
+  return Applets.Taskbar()
 }
-Desk.Taskbar.prototype = {
+Applets.Taskbar.prototype = {
   init : function() {
-    this.element = E('div', null, null, 'taskbar')
-    this.element.taskbar = this
-    this.element.dumpSession = function() {
-      return { loader: 'Desk.Taskbar', data: '' }
+    this.element = this
+    this.taskbar = this
+    this.dumpSession = function() {
+      return { loader: 'Applets.Taskbar', data: '' }
     }
-    this.formElement = E('form', null, null, 'taskbarForm')
-    this.formTitleElement = E('h5', 'Create window group', null, 'taskbarFormTitle')
-    this.formElement.appendChild(this.formTitleElement)
-    this.textInput = E('input', null, null, 'taskbarTextInput',
-      null, {type:'text'})
-    this.submitInput = E('input', null, null, 'taskbarSubmitInput',
-      null, {type:'submit', value:'+'})
-    this.formElement.appendChild(this.textInput)
-    this.formElement.appendChild(this.submitInput)
-     this.element.appendChild(this.formElement)
-    this.textInput.addEventListener('focus', function(e){
-      this.select()
-    }, false)
-    this.formElement.addEventListener('submit', function(e){
-      var name = this.textInput.value
-      if (name.toString().length > 0) {
-        var unique_name = this.createUniqueGroupName(name)
-        this.createWindowGroup(unique_name)
-      }
-      this.formElement.blur()
-      Event.stop(e)
-    }.bind(this), false)
+//     this.formElement = E('form', null, null, 'taskbarForm')
+//     this.formTitleElement = E('h5', 'Create window group', null, 'taskbarFormTitle')
+//     this.formElement.appendChild(this.formTitleElement)
+//     this.textInput = E('input', null, null, 'taskbarTextInput',
+//       null, {type:'text'})
+//     this.submitInput = E('input', null, null, 'taskbarSubmitInput',
+//       null, {type:'submit', value:'+'})
+//     this.formElement.appendChild(this.textInput)
+//     this.formElement.appendChild(this.submitInput)
+//     this.element.appendChild(this.formElement)
+//     this.textInput.addEventListener('focus', function(e){
+//       this.select()
+//     }, false)
+//     this.formElement.addEventListener('submit', function(e){
+//       var name = this.textInput.value
+//       if (name.toString().length > 0) {
+//         var unique_name = this.createUniqueGroupName(name)
+//         this.createWindowGroup(unique_name)
+//       }
+//       this.formElement.blur()
+//       Event.stop(e)
+//     }.bind(this), false)
     this.onWindowAdded = this.onWindowAddHandler.bind(this)
     this.onWindowRemoved = this.onWindowRemoveHandler.bind(this)
     this.onWindowGroupChanged = this.onWindowGroupChangeHandler.bind(this)
+    this.menu = new Desk.Menu()
+    this.menu.addTitle('Taskbar')
+    Applets.bakeAppletMenu(this)
   },
 
   setCollapsedForAll : function(new_value) {
@@ -126,7 +129,7 @@ Desk.Taskbar.prototype = {
 
   createWindowGroup : function(name) {
     if (this.windowGroups[name]) return false
-    var wg = new Desk.Taskbar.WindowGroup(name, this)
+    var wg = new Applets.Taskbar.WindowGroup(name, this)
     wg.addListener('titleChange', function(e){
       delete this.windowGroups[e.old_value]
       if (!this.windowGroups[e.value])
@@ -148,15 +151,15 @@ Desk.Taskbar.prototype = {
 }
 
 
-Desk.Taskbar.WindowGroup = function(name, taskbar) {
+Applets.Taskbar.WindowGroup = function(name, taskbar) {
   this.taskbar = taskbar
   this.init()
   this.setTitle(name)
 }
-Desk.Taskbar.WindowGroup.prototype = {}
-Object.extend(Desk.Taskbar.WindowGroup.prototype, Enumerable)
-Object.extend(Desk.Taskbar.WindowGroup.prototype, EventListener)
-Object.extend(Desk.Taskbar.WindowGroup.prototype, {
+Applets.Taskbar.WindowGroup.prototype = {}
+Object.extend(Applets.Taskbar.WindowGroup.prototype, Enumerable)
+Object.extend(Applets.Taskbar.WindowGroup.prototype, EventListener)
+Object.extend(Applets.Taskbar.WindowGroup.prototype, {
   collapsed : false,
   
   init : function() {
@@ -206,12 +209,7 @@ Object.extend(Desk.Taskbar.WindowGroup.prototype, {
     this.menu.addSeparator()
     this.menu.addItem('Duplicate', this.duplicate.bind(this), 'icons/Duplicate.png')
     this.menu.addItem('Close all', this.close.bind(this), 'icons/Close.png')
-    this.titleElement.addEventListener('click', function(e){
-      if (Event.isLeftClick(e) && e.ctrlKey) {
-        this.menu.show(e)
-        Event.stop(e)
-      }
-    }.bind(this), false)
+    this.menu.bind(this.titleElement)
   },
 
   close : function() {

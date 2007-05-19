@@ -81,6 +81,8 @@ TileMap.prototype = {
   __itemPrefix : '/items/',
   __itemSuffix : '/json',
 
+  time : false,
+
   x : 0,
   y : 0,
   z : 0,
@@ -104,11 +106,11 @@ TileMap.prototype = {
 
   tileSize : 256,
 
-  /*
-  * Returns the relative tile path for the tile that is:
-  *   - xth from the left, zero being leftmost
-  *   - yth from the top, zero being topmost
-  *   - on zoom level z, zero being most zoomed out
+  /**
+   Returns the relative tile path for the tile that is:
+     - xth from the left, zero being leftmost
+     - yth from the top, zero being topmost
+     - on zoom level z, zero being most zoomed out
   */
   coordinateMapper : function(x, y, z) {
     if (x < 0 || y < 0 || x >= (1 << z) || y >= (1 << z))
@@ -117,10 +119,10 @@ TileMap.prototype = {
       return 'x'+(x*256)+'y'+(y*256)+'z'+z
   },
 
-  /*
-  * Called by the constructor to set up the TileMap.
-  *
-  * Sets up the map layers, loads the initial view and sets up event listeners.
+  /**
+   Called by the constructor to set up the TileMap.
+  
+   Sets up the map layers, loads the initial view and sets up event listeners.
   */
   init : function() {
     var t = this
@@ -138,10 +140,10 @@ TileMap.prototype = {
     this.setupEventListeners()
   },
 
-  /*
-  * When removing a TileMap from the document, call this.
-  *
-  * Removes event listeners, unloads layers.
+  /**
+   When removing a TileMap from the document, call this.
+  
+   Removes event listeners, unloads layers.
   */
   unload : function() {
     this.removeEventListeners()
@@ -156,8 +158,8 @@ TileMap.prototype = {
     }
   },
 
-  /*
-  * Creates event listener functions and adds them to element and document.
+  /**
+   Creates event listener functions and adds them to element and document.
   */
   setupEventListeners : function() {
     var t = this
@@ -218,9 +220,9 @@ TileMap.prototype = {
     document.addEventListener("unload", this.onunload, false)
   },
 
-  /*
-  * Removes event listeners from element and document,
-  * then deletes the event listener functions.
+  /**
+   Removes event listeners from element and document,
+   then deletes the event listener functions.
   */
   removeEventListeners : function() {
     this.element.removeEventListener("mousedown", this.onmousedown, false)
@@ -239,8 +241,8 @@ TileMap.prototype = {
     delete this.onunload
   },
 
-  /*
-  * Sets map width to w, updates element width and visible tiles as well.
+  /**
+   Sets map width to w, updates element width and visible tiles as well.
   */
   setWidth : function(w) {
     this.width = w
@@ -248,8 +250,8 @@ TileMap.prototype = {
     this.updateTiles(this.pointerX, this.pointerY, 1)
   },
 
-  /*
-  * Sets map height to w, updates element height and visible tiles as well.
+  /**
+   Sets map height to w, updates element height and visible tiles as well.
   */
   setHeight : function(h) {
     this.height = h
@@ -257,56 +259,64 @@ TileMap.prototype = {
     this.updateTiles(this.pointerX, this.pointerY, 1)
   },
 
-  /*
-  * Set the list of tile servers to use.
+  /**
+   Set the list of tile servers to use.
   */
   setTileServers : function(ts) {
     this.tileServers = ts
     this.loader.setServers(this.tileServers)
   },
 
-  /*
-  * Set the list of tileinfo servers to use.
+  /**
+   Set the list of tileinfo servers to use.
   */
   setTileInfoServers : function(ts) {
     this.tileInfoServers = ts
     this.loader.setInfoServers(this.tileInfoServers)
   },
 
-  /*
-  * Sets search query and reloads all tiles.
+  /**
+   Sets search query and reloads all tiles.
   */
   setQuery : function(q) {
     this.query = q
     this.updateTileQuery()
   },
 
-  /*
-  * Sets tile coloring and reloads all tiles.
+  /**
+   Sets tile coloring and reloads all tiles.
   */
   setColor : function(q) {
     this.color = q
     this.updateTileQuery()
   },
 
-  /*
-  * Sets bgcolor and reloads all tiles.
+  /**
+   Sets bgcolor and reloads all tiles.
   */
   setBgcolor : function(q) {
     this.bgcolor = q
     this.updateTileQuery()
   },
 
-  /*
-  * Sets bgimage and reloads all tiles.
+  /**
+   Sets bgimage and reloads all tiles.
   */
   setBgimage : function(q) {
     this.bgimage = q
     this.updateTileQuery()
   },
 
-  /*
-  * Updates the GET query for the tiles and reloads all tiles unless reload_tiles is false.
+  /**
+   Forces tile update.
+  */
+  forceUpdate : function() {
+    this.time = new Date().getTime()
+    this.updateTileQuery()
+  },
+
+  /**
+   Updates the GET query for the tiles and reloads all tiles unless reload_tiles is false.
   */
   updateTileQuery : function(reload_tiles) {
     var nq = []
@@ -318,6 +328,8 @@ TileMap.prototype = {
       nq.push('bgcolor='+encodeURIComponent(this.bgcolor))
     if (this.bgimage)
       nq.push('bgimage='+encodeURIComponent(this.bgimage))
+    if (this.time)
+      nq.push('time='+this.time)
     if (nq.length == 0)
       this.__tileQuery = ''
     else
@@ -331,7 +343,7 @@ TileMap.prototype = {
   },
 
   /*
-  * Pans map by (dx, dy) pixels.
+   Pans map by (dx, dy) pixels.
   */
   panBy : function(dx, dy) {
     var need_update = false
@@ -346,8 +358,8 @@ TileMap.prototype = {
     return need_update
   },
 
-  /*
-  * Zooms each layer to zoom z, with (pointer_x, pointer_y) as the origin.
+  /**
+   Zooms each layer to zoom z, with (pointer_x, pointer_y) as the origin.
   */
   zoom : function(z, pointer_x, pointer_y) {
     for (var i=0; i<this.layers.length; i++) {
@@ -358,10 +370,10 @@ TileMap.prototype = {
     this.y = this.layers[0].y
   },
 
-  /*
-  * Does an animated zoom to level z, with (this.pointerX, this.pointerY) as the origin.
-  * The zoom duration is this.zoomDuration, and each frame will take a minimum of
-  * this.frameTime.
+  /**
+   Does an animated zoom to level z, with (this.pointerX, this.pointerY) as the origin.
+   The zoom duration is this.zoomDuration, and each frame will take a minimum of
+   this.frameTime.
   */
   animatedZoom : function(z) {
     if (this.zoomIval) {
@@ -377,9 +389,9 @@ TileMap.prototype = {
     this.zoomIval = setInterval(this.zoomer, this.frameTime)
   },
 
-  /*
-  * Does a single zoom animation step, calling this.zoom with the
-  * current zoom level, and updateTiles at the end of the zoom.
+  /**
+   Does a single zoom animation step, calling this.zoom with the
+   current zoom level, and updateTiles at the end of the zoom.
   */
   zoomStep : function() {
     this.currentTime = new Date().getTime()
@@ -403,9 +415,9 @@ TileMap.prototype = {
     }
   },
 
-  /*
-  * Updates the visible tileset. Discards tiles that aren't visible
-  * and loads the layer corresponding to target zoom.
+  /**
+   Updates the visible tileset. Discards tiles that aren't visible
+   and loads the layer corresponding to target zoom.
   */
   updateTiles : function(pointer_x, pointer_y, dir, at_zoom_end) {
     if (dir == undefined) dir = 1
@@ -445,7 +457,8 @@ TileMap.prototype = {
       }
       // Request tiles that have wanted zoom.
       // Preload a level from above when panning.
-      if (z == this.targetZ || (dir == 0 && z == this.targetZ-2))
+      // Keep z0 always loaded to avoid showing empty spots.
+      if (z == 0 || z == this.targetZ || (dir == 0 && z == this.targetZ-2))
         layer.requestVisibleTiles(pointer_x, pointer_y, dir, at_zoom_end && z == this.targetZ)
 
       occluded = occluded || layer.coversWholeScreen(pointer_x, pointer_y, dir)
@@ -628,21 +641,7 @@ MapLayer.prototype = {
           (Math.abs(this.Xdown - ev.clientX) < 3 &&
            Math.abs(this.Ydown - ev.clientY) < 3)
       ) {
-        if (ev.ctrlKey) {
-          if (this.menu) {
-            this.menu.hide()
-            delete this.menu
-          } else {
-            // show menu
-            this.menu = new Desk.Menu()
-            this.menu.addTitle(this.href.split("/").last())
-            this.menu.addItem('Edit metadata')
-            this.menu.addItem('Delete')
-            this.menu.show(ev)
-          }
-        } else {
-          new Desk.Window(this.itemHREF)
-        }
+        new Desk.Window(this.itemHREF)
       }
       Event.stop(ev)
     }
@@ -666,12 +665,26 @@ MapLayer.prototype = {
       for(var i=0; i<infos.length; i++) {
         var info = infos[i]
         var area = E('area')
+        area.info = info
         area.shape = 'rect'
         area.onmousedown = this.mousedownListener
         area.onclick = this.clickListener
         area.coords = [info.x, info.y, info.x + info.sz, info.y + info.sz].join(",")
         area.href = this.filePrefix + info.path
         area.itemHREF = this.itemPrefix + info.path + this.itemSuffix
+//         area.menu = new Desk.Menu()
+//         area.menu.addTitle(info.path)
+//         area.menu.addItem('Use as tile background', function() {
+//           Map.setBgimage(this.info.path)
+//         }.bind(area))
+//         area.menu.addSeparator()
+//         area.menu.addItem('Edit Item', function() {
+//           new Desk.Window(this.itemHREF.replace(/json$/, 'edit'))
+//         }.bind(area))
+//         area.menu.addItem('Delete Item', function() {
+//           new Desk.Window(this.itemHREF.replace(/json$/, 'delete'))
+//         }.bind(area))
+//         area.menu.bind(area)
         this.ImageMap.appendChild(area)
       }
       this.useMap = '#'+this.src

@@ -15,7 +15,13 @@ Desk.Button = function(name, onclickHandler, config){
   // If you want to use something other
   // than the default image names,
   // pass them in the config object.
-  if (config) button.mergeD(config)
+  if (config) Object.extend(button, config)
+
+  if (button.showText)
+    button.textElem = T(name)
+    
+  if (button.textElem && button.textSide != 'right')
+    button.appendChild(button.textElem)
 
   // Set up the button image.
   button.image = E('img')
@@ -24,6 +30,9 @@ Desk.Button = function(name, onclickHandler, config){
   button.image.style.border = '0px'
   button.image.src = button.normal_image
   button.appendChild(button.image)
+  
+  if (button.textElem && button.textSide == 'right')
+    button.appendChild(button.textElem)
 
   // Call toggle to make down normal and normal down.
   button.toggle = function(){
@@ -45,14 +54,12 @@ Desk.Button = function(name, onclickHandler, config){
   // Eventhandlers for pushing the button down and clicking.
   button.addEventListener('mousedown', function(e){
     this.image.src = this.down_image
-    e.stopPropagation()
-    e.preventDefault()
+    Event.stop(e)
   }, false)
   button.addEventListener('click', function(e){
     this.onclickHandler(this, e)
     this.image.src = this.normal_image
-    e.stopPropagation()
-    e.preventDefault()
+    Event.stop(e)
   }, false)
 
   return button

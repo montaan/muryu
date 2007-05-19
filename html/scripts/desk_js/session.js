@@ -26,10 +26,12 @@ Session.save = function(name) {
   var session = Object.toJSON(this.objects.invoke('dumpSession'))
   return this.storage.setItem(name, session)
 }
-Session.clear = function(name) {
+Session.clear = function(name, reload) {
   if (!name) name = 'session'
   this.objects = []
-  return this.storage.removeItem(name)
+  var rv = this.storage.removeItem(name)
+  if (reload != false) document.location.reload()
+  return rv
 }
 Session.add = function(o){ this.objects.push(o) }
 Session.remove = function(o){ this.objects.deleteFirst(o) }

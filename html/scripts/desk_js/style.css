@@ -1,11 +1,13 @@
-body {
-  background-color: #998;
-  overflow: hidden;
-  font-family: Arial, Sans-serif;
-}
-
 iframe {
   border: 0px;
+}
+
+.editable:hover {
+  color: #ffc840;
+}
+
+.editButton {
+  text-decoration: none;
 }
 
 .window {
@@ -36,28 +38,29 @@ iframe {
 .windowTitle {
   color: white;
   cursor: default;
-  font-family: Arial, Sans-serif;
-  font-size: 14px;
+  font-family: URW Gothic L, Arial, Sans-serif;
+  font-size: 13px;
   font-weight: bold;
   margin: 0px;
-  margin-left: 2px;
-  margin-top: 0px;
+  margin-left: 1px;
+  margin-top: -3px;
   margin-bottom: 0px;
   float: left;
 }
 .windowTaskbarTitle {
   margin: 0px;
-  font-family: Arial, Sans-serif;
-  padding-top: 2px;
+  font-family: URW Gothic L, Arial, Sans-serif;
+  padding-top: 1px;
   padding-bottom: 3px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
 }
 .windowButtons {
   text-align: right;
   position: relative;
   top: -2px;
   left: -1px;
+  z-index: -1;
 }
 .windowButtons a {
   margin: 0px;
@@ -66,11 +69,13 @@ iframe {
   margin-right: 3px;
 }
 .windowContent {
+  clear: both;
   margin-top: 1px;
   padding-top: 2px;
   padding-bottom: 0px;
   margin-bottom: 0px;
   border-top: 1px dotted #888;
+  font-size: 11px;
   color: white;
   overflow: hidden;
 }
@@ -143,6 +148,10 @@ iframe {
   border-top: 1px solid #555;
 }
 
+.panel .windowContent {
+  border-top: none;
+}
+
 .topPanel .taskbar {
   display: inline;
   width: inherit;
@@ -188,7 +197,7 @@ iframe {
   display: none;
 }
 .topPanel .taskbarTextInput {
-  width: 200px;
+  width: 130px;
 }
 .bottomPanel .taskbar {
   display: inline;
@@ -235,7 +244,7 @@ iframe {
   display: none;
 }
 .bottomPanel .taskbarTextInput {
-  width: 200px;
+  width: 130px;
 }
 
 .panel {
@@ -311,7 +320,7 @@ iframe {
 }
 
 .Menu {
-  opacity: 0.8;
+  opacity: 0.9;
   z-index: 100;
   background: black;
   color: white;
@@ -321,6 +330,8 @@ iframe {
   cursor: default;
   padding-bottom: 8px;
   padding-top: 2px;
+  font-size: 12px;
+  font-family: Trebuchet MS, Arial, Sans-Serif;
 }
 li.MenuItem {
   padding: 2px;

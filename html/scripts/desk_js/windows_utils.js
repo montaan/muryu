@@ -47,6 +47,21 @@ Hash.prototype.minKey = function(iterator) {
   return minKey
 }
 
+String.prototype.rjust = function(len, pad) {
+  var fpad = ''
+  if (!pad) pad = ' '
+  for(var i=0; i < (len-this.length); i++)
+    fpad = fpad.concat(pad)
+  return this.replace(/^/, fpad)
+}
+String.prototype.ljust = function(len, pad) {
+  var fpad = ''
+  if (!pad) pad = ' '
+  for(var i=0; i < (len-this.length); i++)
+    fpad = fpad.concat(pad)
+  return this.replace(/$/, fpad)
+}
+
 // Delete the first appearance of elem from the array.
 // Returns true if elem was found, false otherwise.
 Array.prototype.deleteFirst = function(elem) {
@@ -59,6 +74,13 @@ Array.prototype.isEmpty = function() {
   return (this.length == 0)
 }
 
+Number.magnitudes = ['k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y']
+Number.mag = function(num, last, acc) {
+  if (num < 1000)
+    return num + last
+  var mag_index = parseInt(Math.log(num) / Math.log(1000))
+  return (num / Math.pow(1000, mag_index)).toFixed(acc) + this.magnitudes[mag_index-1] + last
+}
 
 Object.formatTime = function(msec) {
   var sec = msec / 1000
@@ -71,11 +93,63 @@ Object.formatTime = function(msec) {
   return (hour>0 ? hour+":" : '') + min + ":" + sec
 }
 
-Object.guessLanguage = function() {
-  return ( parseSession().lang || navigator.language ||
-           navigator.browserLanguage || navigator.userLanguage ||
-           'en-US' )
+/**
+  Simple translation system.
+
+  Translate by doing Tr(key[, args, ...])
+
+  Add translations by doing Tr.getLanguage(language)[key] = translation
+
+  If the translation is a function, it'll be called (in context of
+  Tr.translations[language]) and the result returned.
+  Otherwise the translation will be returned as is.
+
+  E.g.
+    Tr.getLanguage('en-US')['MyApp.Welcome'] = 'Howdy, pardner.'
+    Tr.getLanguage('en-US')['MyApp.Goodbye'] = 'See ya, stranger.'
+    Tr.addTranslations('en-GB', {
+      'MyApp.Welcome' : function(firstname, surname) {
+        return 'Ah! How good of you to be here, my dear '+surname+'!'
+      }
+    })
+
+    Tr.language = 'en-GB'
+
+    Tr('MyApp.Welcome', 'John', 'Watson')
+    // "Ah! How good of you to be here, my dear Watson!"
+
+    Tr('MyApp.Goodbye', 'John', 'Watson')
+    // "See ya, stranger."
+*/
+function Tr(key) {
+  var lang = Tr.translations[Tr.language]
+  if ( !(lang && lang[key]) )
+    lang = Tr.translations[Tr.defaultLanguage]
+  var translation = lang[key] || key
+  if (typeof translation == 'function')
+    return translation.apply(lang, $A(arguments).slice(1))
+  return translation + $A(arguments).slice(1).join(" ")
 }
+Tr.getLanguage = function(lang) {
+  if (!Tr.translations[lang]) Tr.translations[lang] = {}
+  return Tr.translations[lang]
+}
+Tr.addTranslations = function(lang, translations) {
+  return Object.extend(Tr.getLanguage(lang), translations)
+}
+Tr.guessLanguage = function() {
+  return ( navigator.language ||
+           navigator.browserLanguage ||
+           navigator.userLanguage ||
+           Tr.defaultLanguage )
+}
+Tr.defaultLanguage = 'en-US'
+Tr.language = Tr.guessLanguage()
+Tr.translations = new Hash()
+Tr.translations[Tr.defaultLanguage] = new Hash()
+
+
+
 
 Desk.ElementUtils = {
   getComputedStyle : function(elem) {
@@ -100,7 +174,11 @@ Desk.ElementUtils = {
 }
 
 Element.addMethods(Desk.ElementUtils)
-  
+Tr.addTranslations('en-US', {
+  'Element.edit_failed' : function(reason) {
+    return 'edit failed: ' + reason
+  }
+})
 Element.makeEditable = function(elem, path, key, validator, title) {
   elem.className = elem.className + " editable"
   elem.title = (title || "Click to edit")
@@ -114,15 +192,18 @@ Element.makeEditable = function(elem, path, key, validator, title) {
         var old_color = elem.style.color
         elem.innerHTML = new_value
         elem.style.color = 'red'
-        postQuery(path, [[key, sendval]],
-          function(res) {
+        var params = {}
+        params[key] = sendval
+        new Ajax.Request(path, {
+          parameters : params,
+          onSuccess: function(res) {
             elem.style.color = old_color
           },
-          function(res) {
-            elem.innerHTML = oldval + " (edit failed: "+res.statusText+")"
+          onFailure: function(res) {
+            elem.innerHTML = oldval + " (" + Tr("Element.edit_failed", res.statusText)+")"
             elem.style.color = old_color
           }
-        )
+        })
       }
     })
   }, false)
@@ -188,7 +269,6 @@ EventListener = {
       delete this.listeners[type]
   }
 }
-
 
 
 
@@ -339,15 +419,29 @@ Plane.prototype = Object.extend(Object.extend({}, Vector.prototype), {
 
 Desk.Menu = function() {
   this.element = E('ul', null, null, 'Menu')
+  this.element.addEventListener('contextmenu', function(ev) {
+    if (!Event.isLeftClick(ev) && !(ev.ctrlKey))
+      Event.stop(ev)
+  }.bind(this), false)
   this.element.addEventListener('mouseup', function(e){
     this.skipHide = true
   }.bind(this), true)
-  this.hideHandler = this.hide.bind(this)
+  this.hideHandler = (function(){ this.hide(true) }).bind(this)
 }
 Desk.Menu.prototype = {
   emptyIcon : 'transparent.gif',
   checkedIcon : 'icons/checked.png',
   uncheckedIcon : 'icons/unchecked.png',
+
+  bind : function(element) {
+    element.addEventListener('contextmenu', function(ev) {
+      if (!Event.isLeftClick(ev) && !ev.ctrlKey ) {
+        this.show(ev)
+        this.skipHide = true
+        Event.stop(ev)
+      }
+    }.bind(this), false)
+  },
   
   addItem : function(name, callback, icon) {
     if (!icon) icon = this.emptyIcon
@@ -360,7 +454,7 @@ Desk.Menu.prototype = {
     li.checked = null
     if (callback)
       var t = this
-      li.addEventListener('click', function(e){
+      li.addEventListener('mouseup', function(e){
         if (this.checked == null) t.hide()
         if (this.enabled) return callback(e)
       }, false)
@@ -406,7 +500,7 @@ Desk.Menu.prototype = {
     li.appendChild(iconImg)
     li.appendChild(T(title))
     li.submenuCreator = submenuCreator
-    li.addEventListener('click', function(e){
+    li.addEventListener('mouseup', function(e){
       if (this.subMenu && this.subMenu.isVisible()) {
         this.subMenu.hide()
         this.subMenu = null
@@ -443,8 +537,8 @@ Desk.Menu.prototype = {
     this.element.style.visibility = null
   },
   
-  hide : function() {
-    if (this.skipHide) {
+  hide : function(skippable) {
+    if (skippable && this.skipHide) {
       this.skipHide = false
     } else {
       if (this.element.parentNode)

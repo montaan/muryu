@@ -207,27 +207,9 @@ Desk.Window.prototype = {
     this.taskbarElement.window = this
     this.taskbarTitleElement.addEventListener('mousedown', function(e){
       if (Event.isLeftClick(e)) {
-        Event.stop(e)
         this.focus()
         this.bringToFront()
-      }
-    }.bind(this), false)
-    this.taskbarTitleElement.addEventListener('click', function(e){
-      if (Event.isLeftClick(e)) {
-        if (e.ctrlKey) {
-          this.menu.show(e)
-        } else {
-          this.focus()
-          this.bringToFront()
-          this.minimize()
-        }
-        Event.stop(e)
-      }
-    }.bind(this), false)
-
-    this.titlebarElement.addEventListener('click', function(e){
-      if (Event.isLeftClick(e) && e.ctrlKey) {
-        this.menu.show(e)
+        this.minimize()
         Event.stop(e)
       }
     }.bind(this), false)
@@ -253,6 +235,8 @@ Desk.Window.prototype = {
     this.menu.addItem('Duplicate', this.duplicate.bind(this), 'icons/Duplicate.png')
     this.menu.addSeparator()
     this.menu.addItem('Close', this.close.bind(this), 'icons/Close.png')
+    this.menu.bind(this.taskbarTitleElement)
+    this.menu.bind(this.element)
   },
 
   initButtons : function() {
@@ -365,6 +349,11 @@ Desk.Window.prototype = {
 
   setGroup : function(new_value) {
     var ov = this.group
+    var gre = new RegExp('\\b'+this.group+'\\b')
+    if (this.element.className.match(gre))
+      this.element.className = this.element.className.replace(gre, new_value)
+    else
+      this.element.className += ' ' + new_value
     this.group = new_value
     this.newEvent('groupChange', {old_value: ov, value: new_value})
   },
