@@ -514,7 +514,7 @@ Mimetype = {
         var fac = info.metadata.width / iw
         if (this.originalSize) {
           var x = e.layerX
-          var y = e.layerY - this.offsetTop
+          var y = e.layerY - this.offsetTop/fac
           var rx = x/fac
           var ry = y/fac
           win.setX(win.x - (rx-x))
