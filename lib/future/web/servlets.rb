@@ -638,11 +638,17 @@ extend FutureServlet
       else
         bgimage = nil
       end
-      key = [servlet_user.id, servlet_path, color, bgcolor, bgimage_src, search_query, req.query['time']].join("::")
+      key = 'tile::' << Digest::MD5.hexdigest([servlet_user.id, servlet_path, color, bgcolor, bgimage_src, search_query, req.query['time']].join("::"))
+      res['ETag'] = key
       puts "#{Thread.current.telapsed} for tile arg parsing" if $PRINT_QUERY_PROFILE
       tile = $memcache.get(key) if $CACHE_TILES and not $indexes_changed
       puts "#{Thread.current.telapsed} for memcache get" if $PRINT_QUERY_PROFILE
-      unless tile
+      if tile
+        if req['If-None-Match'] == key
+          res.status = 304
+          return
+        end
+      else
         tile = Tiles.read(servlet_user, search_query, :rows, x, y, z, w, h,
                           color, bgcolor, bgimage)
         puts "#{Thread.current.telapsed} for creating a JPEG" if $PRINT_QUERY_PROFILE

@@ -13,7 +13,6 @@ Tr.addTranslations('fi-FI', {
   'Applet.Session.save' : 'Tallenna istunto',
   'Applet.Session.autosave' : 'Automaattinen tallennus',
   'Applet.Session.clear' : 'Pyyhi istunto'
-  
 })
 
 

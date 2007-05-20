@@ -673,15 +673,11 @@ MapLayer.prototype = {
         area.href = this.filePrefix + info.path
         area.itemHREF = this.itemPrefix + info.path + this.itemSuffix
 //         area.menu = new Desk.Menu()
-//         area.menu.addTitle(info.path)
-//         area.menu.addItem('Use as tile background', function() {
-//           Map.setBgimage(this.info.path)
-//         }.bind(area))
-//         area.menu.addSeparator()
-//         area.menu.addItem('Edit Item', function() {
+//         area.menu.addTitle(info.path.split("/").last())
+//         area.menu.addItem(Tr('Button.Item.edit'), function() {
 //           new Desk.Window(this.itemHREF.replace(/json$/, 'edit'))
 //         }.bind(area))
-//         area.menu.addItem('Delete Item', function() {
+//         area.menu.addItem(Tr('Button.Item.delete_item'), function() {
 //           new Desk.Window(this.itemHREF.replace(/json$/, 'delete'))
 //         }.bind(area))
 //         area.menu.bind(area)
@@ -823,6 +819,8 @@ TileInfoManager = function(servers) {
 }
 TileInfoManager.prototype = {
 
+  callbackDelay : 50,
+
   requestInfo : function(x,y,z, callback) {
     var rv = this.getCachedInfo(x,y,z)
     if (rv && callback.handleInfo)
@@ -854,7 +852,7 @@ TileInfoManager.prototype = {
         reqs.push(req)
         callbacks.push(reqb[i][1])
       } else if (reqb[i][1].handleInfo)
-        reqb[i][1].handleInfo(info)
+        this.callbackHandler(reqb[i][1], info)
     }
     var t = this
     new Ajax.Request(this.rotateServers(), {
@@ -872,7 +870,7 @@ TileInfoManager.prototype = {
             t.cache[req[2]] = {}
           t.cache[req[2]][req[0]+':'+req[1]] = info
           if (callback.handleInfo)
-            callback.handleInfo(info)
+            t.callbackHandler(callback, info)
         }
       },
       onFailure : function(res) {
@@ -884,6 +882,14 @@ TileInfoManager.prototype = {
       }
     })
     this.requestTimeout = false
+  },
+
+  callbackHandler : function(callback, info) {
+    setTimeout(this.makeCallbackHandler(callback, info), this.callbackDelay)
+  },
+
+  makeCallbackHandler : function(callback, info) {
+    return function(){ if (callback.handleInfo) callback.handleInfo(info) }
   },
 
   rotateServers : function() {

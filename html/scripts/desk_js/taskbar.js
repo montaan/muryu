@@ -1,3 +1,20 @@
+Tr.addTranslations('en-US', {
+  'Applets.Taskbar' : 'Taskbar',
+  'Applets.Taskbar.window_group' : 'Window group',
+  'Applets.Taskbar.collapsed' : 'Collapsed',
+  'Applets.Taskbar.rename' : 'Rename',
+  'Applets.Taskbar.duplicate' : 'Duplicate',
+  'Applets.Taskbar.close_all' : 'Close all'
+})
+Tr.addTranslations('fi-FI', {
+  'Applets.Taskbar' : 'Ikkunalista',
+  'Applets.Taskbar.window_group' : 'Ikkunaryhmä',
+  'Applets.Taskbar.collapsed' : 'Piilotettu',
+  'Applets.Taskbar.rename' : 'Uudelleennimeä',
+  'Applets.Taskbar.duplicate' : 'Monista',
+  'Applets.Taskbar.close_all' : 'Sulje kaikki'
+})
+
 Applets.Taskbar = function(wm) {
   var el = E('div', null, null, 'taskbar')
   Object.extend(el, Applets.Taskbar.prototype)
@@ -42,7 +59,7 @@ Applets.Taskbar.prototype = {
     this.onWindowRemoved = this.onWindowRemoveHandler.bind(this)
     this.onWindowGroupChanged = this.onWindowGroupChangeHandler.bind(this)
     this.menu = new Desk.Menu()
-    this.menu.addTitle('Taskbar')
+    this.menu.addTitle(Tr('Applets.Taskbar'))
     Applets.bakeAppletMenu(this)
   },
 
@@ -195,20 +212,20 @@ Object.extend(Applets.Taskbar.WindowGroup.prototype, {
       Event.stop(ev)
     }.bind(this), false)
     this.menu = new Desk.Menu()
-    this.menu.addTitle('Window group')
-    this.menu.addItem('Collapsed', this.collapse.bind(this))
-    this.menu.uncheckItem('Collapsed')
+    this.menu.addTitle(Tr('Applets.Taskbar.window_group'))
+    this.menu.addItem(Tr('Applets.Taskbar.collapsed'), this.collapse.bind(this))
+    this.menu.uncheckItem(Tr('Applets.Taskbar.collapsed'))
     this.addListener('collapseChange', function(e){
       if (e.value)
-        this.menu.checkItem('Collapsed')
+        this.menu.checkItem(Tr('Applets.Taskbar.collapsed'))
       else
-        this.menu.uncheckItem('Collapsed')
+        this.menu.uncheckItem(Tr('Applets.Taskbar.collapsed'))
     }.bind(this))
     this.menu.addSeparator()
-    this.menu.addItem('Rename', this.makeEditable.bind(this))
+    this.menu.addItem(Tr('Applets.Taskbar.rename'), this.makeEditable.bind(this))
     this.menu.addSeparator()
-    this.menu.addItem('Duplicate', this.duplicate.bind(this), 'icons/Duplicate.png')
-    this.menu.addItem('Close all', this.close.bind(this), 'icons/Close.png')
+    this.menu.addItem(Tr('Applets.Taskbar.duplicate'), this.duplicate.bind(this))
+    this.menu.addItem(Tr('Applets.Taskbar.close_all'), this.close.bind(this), 'icons/Remove.png')
     this.menu.bind(this.titleElement)
   },
 
