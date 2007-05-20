@@ -442,11 +442,38 @@ Mimetype = {
         this.downX = e.clientX
         this.downY = e.clientY
       }
-      i['ondblclick'] = function(e){
+      i.onclick = function(e) {
+        if (Event.isLeftClick(e) &&
+            Math.abs(this.downX - e.clientX) < 3 &&
+            Math.abs(this.downY - e.clientY) < 3)
+        {
+          i.toggleOriginalSize(e)
+          if (this.originalSize) {
+            this.style.cursor = '-moz-zoom-out'
+          } else {
+            this.style.cursor = '-moz-zoom-in'
+          }
+        }
+      }
+      i.style.cursor = 'move'
+      i.onmousemove = function(e) {
+        if (this.scaled) {
+          i.style.cursor = 'move'
+          if (this.cursorTimeout) clearTimeout(this.cursorTimeout)
+          this.cursorTimeout = setTimeout(function() {
+            if (this.originalSize) {
+              this.style.cursor = '-moz-zoom-out'
+            } else {
+              this.style.cursor = '-moz-zoom-in'
+            }
+          }.bind(this), 500)
+        }
+      }
+/*      i.ondblclick = function(e){
         if (Event.isLeftClick(e) &&
             Math.abs(this.downX - e.clientX) < 3 &&
             Math.abs(this.downY - e.clientY) < 3) win.close()
-      }
+      }*/
       i.src = Map.__filePrefix + info.path
       win.content.appendChild(i)
       if (mw < (iw + 20)) {
@@ -460,14 +487,16 @@ Mimetype = {
       }
       i.width = iw
       i.height = ih
+      i.scaled = false
+      var ic = false
       if (i.width < info.metadata.width || i.height < info.metadata.height) {
+        i.scaled = true
         if (navigator.userAgent.match(/rv:1\.[78].*Gecko/)) {
-          var ic = E('canvas')
+          ic = E('canvas')
           if (ic.getContext) {
             ic.style.display = 'block'
             ic.width = iw
             ic.height = ih
-            ic.onclick = i.onclick
             i.onload = function(){
               i.style.position = 'absolute'
               i.style.opacity = 0
@@ -479,6 +508,48 @@ Mimetype = {
             }
           }
         }
+      }
+      i.toggleOriginalSize = function(e) {
+        if (!this.scaled) return
+        var fac = info.metadata.width / iw
+        if (this.originalSize) {
+          var x = e.layerX
+          var y = e.layerY - this.offsetTop
+          var rx = x/fac
+          var ry = y/fac
+          win.setX(win.x - (rx-x))
+          win.setY(win.y - (ry-y))
+          this.width = iw
+          this.height = ih
+          if (win.x < 0) win.setX(0)
+          if (win.y < 0) win.setY(0)
+          win.setY(win.y+1)
+          setTimeout(function(){
+            win.setY(win.y-1)
+          }, 0)
+          if (ic) {
+            ic.style.display = 'block'
+            ic.style.position = 'static'
+            this.style.position = 'absolute'
+            this.style.opacity = 0
+          }
+        } else {
+          var x = e.layerX
+          var y = e.layerY
+          var rx = x*fac
+          var ry = y*fac
+          win.setX(win.x - (rx-x))
+          win.setY(win.y - (ry-y))
+          this.width = info.metadata.width
+          this.height = info.metadata.height
+          if (ic) {
+            ic.style.display = 'none'
+            ic.style.position = 'absolute'
+            this.style.position = 'static'
+            this.style.opacity = 1
+          }
+        }
+        this.originalSize = !this.originalSize
       }
       win.content.removeChild(i)
       d.appendChild(i)

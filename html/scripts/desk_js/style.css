@@ -28,8 +28,8 @@ iframe {
   padding: 4px;
 }
 .windowBackground {
-  background-color: black;
-  opacity: 0.8;
+  background-color: #13161C;
+  opacity: 0.9;
   border-bottom: 1px solid black;
 }
 .windowTitlebar {

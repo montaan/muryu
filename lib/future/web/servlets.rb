@@ -638,27 +638,45 @@ extend FutureServlet
       else
         bgimage = nil
       end
-      key = 'tile::' << Digest::MD5.hexdigest([servlet_user.id, servlet_path, color, bgcolor, bgimage_src, search_query, req.query['time']].join("::"))
-      res['ETag'] = key
+      key = Digest::MD5.hexdigest([servlet_user.id, servlet_path, color, bgcolor, bgimage_src, search_query, req.query['time']].join("::"))
+      time_key = 'tiletime::' + key
+      tile_key = 'tile::' + key
+      res['ETag'] = time_key
       puts "#{Thread.current.telapsed} for tile arg parsing" if $PRINT_QUERY_PROFILE
-      tile = $memcache.get(key) if $CACHE_TILES and not $indexes_changed
+      if $CACHE_TILES and not $indexes_changed
+        time = $memcache.get(time_key)
+      end
       puts "#{Thread.current.telapsed} for memcache get" if $PRINT_QUERY_PROFILE
-      if tile
-        if req['If-None-Match'] == key
+      if time
+        if req['If-None-Match'] == time_key && req['If-Modified-Since'] == time
           res.status = 304
           return
+        else
+          tile = $memcache.get(tile_key)
         end
-      else
+      end
+      unless tile
         tile = Tiles.read(servlet_user, search_query, :rows, x, y, z, w, h,
                           color, bgcolor, bgimage)
+        time = Time.now.rfc822
         puts "#{Thread.current.telapsed} for creating a JPEG" if $PRINT_QUERY_PROFILE
-        Thread.new { $memcache.set(key, tile, 300) } if tile and $CACHE_TILES
+        if tile and $CACHE_TILES
+          Thread.new {
+            $memcache.set(tile_key, tile, 300)
+            $memcache.set(time_key, time, 300)
+          }
+        end
       end
       if tile
         res.body = tile
       else
         res.status = 302
         res['location'] = '/empty.jpg'
+      end
+      res['Last-Modified'] = time if time
+      res['Cache-Control'] = 'private'
+      if time
+        res['Expires'] = (Time.parse(time) + 300).rfc822
       end
       puts "Tile time: #{"%.3fms" % [1000 * (Time.now.to_f - tile_start)]}" if $PRINT_QUERY_PROFILE
       puts "Total time: #{"%.3fms" % [1000 * (Time.now.to_f - request_time)]}" if $PRINT_QUERY_PROFILE

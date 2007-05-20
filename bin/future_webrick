@@ -82,6 +82,7 @@ include WEBrick
 include Future
 
 s = HTTPServer.new( :Port => (ARGV[0] || 2000).to_i )
+s.config[:MimeTypes]['svg'] = 'image/svg+xml'
 
 RootServlet.new(s).mount_servlets
 s.mount("/", WEBrick::HTTPServlet::FileHandler, "./html")
