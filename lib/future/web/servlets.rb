@@ -303,6 +303,14 @@ module FutureServlet
         res.cookies << new_cookie
       end
     end
+    if req.request_method.downcase == 'get'
+      if user and user.name != 'anonymous'
+        res['Cache-Control'] = 'private'
+      else
+        res['Cache-Control'] = 'public'
+      end
+#       res['Expires'] = (Time.now + 300).httpdate
+    end
     self.servlet_user = (user or Users.anonymous)
   end
   
@@ -658,7 +666,7 @@ extend FutureServlet
       unless tile
         tile = Tiles.read(servlet_user, search_query, :rows, x, y, z, w, h,
                           color, bgcolor, bgimage)
-        time = Time.now.rfc822
+        time = Time.now.httpdate
         puts "#{Thread.current.telapsed} for creating a JPEG" if $PRINT_QUERY_PROFILE
         if tile and $CACHE_TILES
           Thread.new {
@@ -674,9 +682,8 @@ extend FutureServlet
         res['location'] = '/empty.jpg'
       end
       res['Last-Modified'] = time if time
-      res['Cache-Control'] = 'private'
       if time
-        res['Expires'] = (Time.parse(time) + 300).rfc822
+        res['Expires'] = (Time.parse(time) + 300).httpdate
       end
       puts "Tile time: #{"%.3fms" % [1000 * (Time.now.to_f - tile_start)]}" if $PRINT_QUERY_PROFILE
       puts "Total time: #{"%.3fms" % [1000 * (Time.now.to_f - request_time)]}" if $PRINT_QUERY_PROFILE
@@ -725,12 +732,13 @@ extend FutureServlet
       if z < 5
         return '[]'
       end
-      key = [servlet_user.id, "x#{x}y#{y}z#{z}w#{w}h#{h}", search_query, time].join("::")
+      key = Digest::MD5.hexdigest([servlet_user.id, "x#{x}y#{y}z#{z}w#{w}h#{h}", search_query, time].join("::"))
       jinfo = $memcache.get(key) if $CACHE_INFO and not $info_changed
       unless jinfo
         if z >= 4
           sq[:columns] ||= []
           sq[:columns] << 'path'
+          sq[:columns] << 'deleted'
         end
         if z >= 7
   #         sq['columns'].push(*['metadata.width', 'metadata.height'])
@@ -743,7 +751,7 @@ extend FutureServlet
           servlet_user, sq,
           :rows, x, y, z, w, h
         ).to_a.map do |iind,((x,y,sz), info)|
-          {:x => x, :y => y, :sz => sz, :path => info[:path]}
+          {:x => x, :y => y, :sz => sz, :path => info[:path], :deleted => info[:deleted]}
         end
         puts "#{telapsed} for fetching tile info" if $PRINT_QUERY_PROFILE
         jinfo = info.to_json

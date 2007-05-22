@@ -29,7 +29,7 @@ iframe {
 }
 .windowBackground {
   background-color: #13161C;
-  opacity: 0.9;
+/*  opacity: 0.9;*/
   border-bottom: 1px solid black;
 }
 .windowTitlebar {
@@ -111,7 +111,7 @@ iframe {
 }
 .taskbarTextInput {
   margin: 0px;
-  width: 130px;
+  width: 10em;
   border: 1px #ffc840;
 }
 .taskbarSubmitInput {
@@ -145,11 +145,11 @@ iframe {
 .windowListEntry {
 }
 .windowListEntry {
-  border-top: 1px solid #555;
+  border-bottom: 1px solid #555;
 }
 
 .panel .windowContent {
-  border-top: none;
+  border: none;
 }
 
 .topPanel .taskbar {
@@ -184,7 +184,7 @@ iframe {
 }
 .topPanel .windowListEntry {
   padding-left: 6px;
-  border-top: none;
+  border: none;
   border-left: 1px solid #555;
 }
 .topPanel .windowTaskbarEntry {
@@ -198,7 +198,7 @@ iframe {
   display: none;
 }
 .topPanel .taskbarTextInput {
-  width: 130px;
+  width: 10em;
 }
 .bottomPanel .taskbar {
   display: inline;
@@ -232,7 +232,7 @@ iframe {
 }
 .bottomPanel .windowListEntry {
   padding-left: 6px;
-  border-top: none;
+  border: none;
   border-left: 1px solid #555;
 }
 .bottomPanel .windowTaskbarEntry {
@@ -246,7 +246,7 @@ iframe {
   display: none;
 }
 .bottomPanel .taskbarTextInput {
-  width: 130px;
+  width: 10em;
 }
 
 .panel {
@@ -293,6 +293,16 @@ iframe {
   top: -1px;
   margin-right: 8px;
 }
+.MusicPlayer .SongInfo {
+  width: 150px;
+  overflow: hidden;
+}
+.topPanel .MusicPlayer .SongInfo {
+  display: inline;
+}
+.bottomPanel .MusicPlayer .SongInfo {
+  display: inline;
+}
 .MusicPlayer .CurrentIndex {
   display: inline;
   color: #ffc840;
@@ -318,7 +328,6 @@ iframe {
 .MusicPlayer .CurrentlyPlaying {
   display: inline;
   font-family: Arial, Sans-serif;
-  overflow: hidden;
 }
 
 .Menu {

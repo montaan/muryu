@@ -191,9 +191,9 @@
       }
 
       .editor {
-        min-width: 450px;
+        min-width: 30em;
 /*         min-height: 490px; */
-        width: 450px;
+        width: 30em;
 /*         height: 490px; */
       }
 
@@ -242,7 +242,7 @@
         width: 100%;
         background-color: #DDDDDD;
         border: 0px;
-        height: 76px;
+        height: 5em;
         padding: 2px;
         font-size: 11px;
         border-bottom: 1px solid #222222;
@@ -295,7 +295,7 @@
       .listEditor ul {
         margin: 0px;
         padding: 0px;
-        height: 80px;
+        height: 5em;
         background-color: #222222;
         border-bottom: 1px solid #666666;
         overflow: auto;
@@ -432,6 +432,7 @@
           })
           var topPanel = new Desk.Panel('top')
           topPanel.addApplet(Applets.Session())
+          topPanel.addApplet(Applets.MusicPlayer())
           topPanel.addApplet(Applets.Taskbar())
           new Desk.Window(Tr('help.html'), {x: 200, y: 10, group: Tr('help')})
         }

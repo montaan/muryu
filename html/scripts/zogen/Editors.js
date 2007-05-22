@@ -46,7 +46,7 @@ Editors = {
 
   intInput : function(name, value) {
     var inp = E('input', null, null, 'intInput',
-      {width: Math.max(value.toString().length, 2) * 8 + 'px'},
+      {width: Math.max(value.toString().length, 2) * 0.75 + 'em'},
       {type:"text", size: value.toString().length, "name": name, "value": value})
     inp.addEventListener('change', function(e){
       if (inp.validator && !inp.validator(inp.value)) {
@@ -66,7 +66,7 @@ Editors = {
     var high = args[1]
     var padding = args[2] || 0
     var inp = E('input', null, null, 'limitedIntInput',
-      {width: Math.max(value.toString().length, 2) * 8 + 'px'},
+      {width: Math.max(value.toString().length, 2) * 0.75 + 'em'},
       { type:"text", size: value.toString().length,
         "name": name, "value": value.toString().rjust(padding, '0'),
         "low": low, "high": high

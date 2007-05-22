@@ -20,6 +20,229 @@
 */
 
 
+Tr.addTranslations('en-US', {
+  'Item.open' : 'Open',
+  'Item.select' : 'Select',
+  'Item.add_to_playlist' : 'Add to playlist',
+  'Selection' : 'Selection',
+  'Selection.unselect' : 'Clear selection',
+  'Selection.delete_all' : 'Delete all',
+  'Selection.undelete_all' : 'Undelete all',
+  'Selection.add_to_playlist' : 'Add to playlist',
+  'Selection.create_presentation' : 'Create presentation'
+})
+Tr.addTranslations('fi-FI', {
+  'Item.open' : 'Avaa',
+  'Item.select' : 'Valitse',
+  'Item.add_to_playlist' : 'Lisää soittolistaan',
+  'Selection' : 'Valinta',
+  'Selection.unselect' : 'Tyhjennä valinta',
+  'Selection.delete_all' : 'Poista kaikki',
+  'Selection.undelete_all' : 'Tuo kaikki takaisin',
+  'Selection.add_to_playlist' : 'Lisää soittolistaan',
+  'Selection.create_presentation' : 'Luo esitys'
+})
+
+
+ItemArea = {
+  delete : function() {
+    new Desk.Window(this.itemHREF.replace(/json$/, '/delete'))
+  },
+  
+  undelete : function() {
+    new Desk.Window(this.itemHREF.replace(/json$/, '/undelete'))
+  },
+
+  edit : function() {
+    new Desk.Window(this.itemHREF.replace(/json$/, '/edit'))
+  },
+  
+  open : function() {
+    new Desk.Window(this.itemHREF)
+  },
+
+  title : 'Left-click to inspect',
+
+  toggleSelect : function() {
+    Selection.toggle(this)
+  },
+
+  addToPlaylist : function() {
+    if (MusicPlayer)
+      MusicPlayer.addToPlaylist(this.href)
+  },
+
+  oncontextmenu : function(ev) {
+    if (!ev.ctrlKey) {
+      var menu = new Desk.Menu()
+      menu.addTitle(this.href.split("/").last())
+      if (this.href.match(/mp3$/i))
+        menu.addItem(Tr('Item.add_to_playlist'), this.addToPlaylist.bind(this))
+      menu.addSeparator()
+      menu.addItem(Tr('Item.open'), this.open.bind(this))
+      menu.addItem(Tr('Item.select'), this.toggleSelect.bind(this))
+      menu.addItem(Tr('Button.Item.edit'), this.edit.bind(this))
+      menu.addSeparator()
+      if (this.info.deleted == 't')
+        menu.addItem(Tr('Button.Item.undelete_item'), this.undelete.bind(this))
+      else
+        menu.addItem(Tr('Button.Item.delete_item'), this.delete.bind(this))
+      menu.skipHide = true
+      menu.show(ev)
+      Event.stop(ev)
+    }
+  },
+
+  onclick : function(ev) {
+    if (Event.isLeftClick(ev)) {
+      if (this.Xdown == undefined ||
+          (Math.abs(this.Xdown - ev.clientX) < 3 &&
+           Math.abs(this.Ydown - ev.clientY) < 3)
+      ) {
+        if (ev.ctrlKey) {
+          Selection.toggle(this)
+        } else if (ev.shiftKey) {
+          Selection.spanTo(this)
+        } else {
+          new Desk.Window(this.itemHREF)
+        }
+      }
+      Event.stop(ev)
+    }
+  },
+
+  onmousedown : function(ev) {
+    if (Event.isLeftClick(ev)) {
+      this.Xdown = ev.clientX
+      this.Ydown = ev.clientY
+    }
+  }
+  
+}
+
+Selection = {
+  selection : [],
+  lastSelected : null,
+  
+  oncontextmenu : function(ev) {
+    if (!ev.ctrlKey) {
+      var menu = new Desk.Menu()
+      menu.addTitle(Tr('Selection'))
+      menu.addItem(Tr('Selection.add_to_playlist'), this.addToPlaylist.bind(this))
+      menu.addItem(Tr('Selection.create_presentation'))
+      menu.addSeparator()
+      menu.addItem(Tr('Selection.delete_all'), this.deleteSelected.bind(this))
+      menu.addItem(Tr('Selection.undelete_all'), this.undeleteSelected.bind(this))
+      menu.addSeparator()
+      menu.addItem(Tr('Selection.unselect'), this.clear.bind(this))
+      menu.skipHide = true
+      menu.show(ev)
+      Event.stop(ev)
+    }
+  },
+
+  deselect : function(obj) {
+    if (!this.selection.include(obj)) return
+    this.selection.deleteFirst(obj)
+    $(obj.selectionIndicator).detachSelf()
+    this.lastSelected = obj
+  },
+
+  select : function(obj) {
+    if (this.selection.include(obj)) return
+    this.selection.push(obj)
+    var s = obj.selectionIndicator = E('div')
+    var xywh = obj.coords.split(",")
+    var tile = obj.parentNode.parentNode
+    // this is just bad and doesn't work at all with zoom
+    s.style.position = 'absolute'
+    s.style.left = parseInt(tile.style.left) + parseInt(xywh[0]) + 'px'
+    s.style.top = parseInt(tile.style.top) + parseInt(xywh[1]) + 'px'
+    s.style.width = (xywh[2]-xywh[0]) + 'px'
+    s.style.height = (xywh[3]-xywh[1]) + 'px'
+    s.style.zIndex = '1'
+    s.style.backgroundColor = 'blue'
+    s.style.opacity = 0.75
+    s.onclick = function(e) {
+      if (Event.isLeftClick(e)) {
+        if (!e.ctrlKey)
+          Selection.clear()
+        else
+          Selection.toggle(obj)
+      }
+    }
+    s.oncontextmenu = this.oncontextmenu.bind(this)
+    tile.parentNode.appendChild(s)
+    this.lastSelected = obj
+  },
+  
+  toggle : function(obj) {
+    if (this.selection.include(obj)) {
+      this.deselect(obj)
+    } else {
+      this.select(obj)
+    }
+  },
+
+  clear : function() {
+    while(this.selection.length > 0)
+      this.toggle(this.selection[0])
+  },
+  
+  spanTo : function(obj) {
+    if (this.lastSelected) {
+      this.findSpan(this.lastSelected, obj).each(this.toggle.bind(this))
+    } else {
+      this.toggle(obj)
+    }
+  },
+  
+  findSpan : function(from, to) {
+    return []
+  },
+  
+  deleteSelected : function() {
+    this.selection.invoke('delete')
+  },
+  
+  undeleteSelected : function() {
+    this.selection.invoke('undelete')
+  },
+
+  addToPlaylist : function() {
+    this.selection.invoke('addToPlaylist')
+  },
+  
+  addTags : function() {
+  },
+  
+  removeTags : function() {
+  },
+  
+  setTags : function() {
+  },
+  
+  addGroups : function() {
+  },
+  
+  removeGroups : function() {
+  },
+  
+  setGroups : function() {
+  },
+  
+  addSets : function() {
+  },
+  
+  removeSets : function() {
+  },
+  
+  setSets : function() {
+  }
+  
+}
+
+
 /*
 * Creates a new TileMap inside the passed element.
 */
@@ -567,15 +790,17 @@ MapLayer.prototype = {
     this.map.loader.cancel(this, tile)
     if (tile.handleInfo) {
       delete tile.handleInfo
-      if (tile.ImageMap && tile.ImageMap.parentNode)
-        tile.removeChild(tile.ImageMap)
+      if (tile.ImageMap) {
+        if (tile.ImageMap.parentNode)
+         tile.removeChild(tile.ImageMap)
+        delete tile.ImageMap
+        tile.useMap = false
+      }
     }
     if (tile.loaded) tile.loaded(false)
     delete tile.query
     delete tile.load
     delete tile.zoom
-    delete tile.clickListener
-    delete tile.mousedownListener
     tile.className = null
     tile.style.position = null
     this.map.pool.put(tile)
@@ -619,8 +844,6 @@ MapLayer.prototype = {
     tile.X = x
     tile.Y = y
     tile.Z = this.z
-    tile.clickListener = this.__tileClickListener
-    tile.mousedownListener = this.__tileMousedownListener
     tile.relativeURL = this.map.coordinateMapper(x, y, this.z)
     tile.Size = this.map.tileSize
     tile.loading = false
@@ -635,25 +858,6 @@ MapLayer.prototype = {
     return tile
   },
 
-  __tileClickListener : function(ev) {
-    if (Event.isLeftClick(ev)) {
-      if (this.Xdown == undefined ||
-          (Math.abs(this.Xdown - ev.clientX) < 3 &&
-           Math.abs(this.Ydown - ev.clientY) < 3)
-      ) {
-        new Desk.Window(this.itemHREF)
-      }
-      Event.stop(ev)
-    }
-  },
-
-  __tileMousedownListener : function(ev) {
-    if (Event.isLeftClick(ev)) {
-      this.Xdown = ev.clientX
-      this.Ydown = ev.clientY
-    }
-  },
-
   __tileLoad : function(server, infoManager) {
     this.src = server + this.relativeURL + this.query
     this.loading = true
@@ -665,22 +869,12 @@ MapLayer.prototype = {
       for(var i=0; i<infos.length; i++) {
         var info = infos[i]
         var area = E('area')
+        Object.extend(area, ItemArea)
         area.info = info
         area.shape = 'rect'
-        area.onmousedown = this.mousedownListener
-        area.onclick = this.clickListener
         area.coords = [info.x, info.y, info.x + info.sz, info.y + info.sz].join(",")
         area.href = this.filePrefix + info.path
         area.itemHREF = this.itemPrefix + info.path + this.itemSuffix
-//         area.menu = new Desk.Menu()
-//         area.menu.addTitle(info.path.split("/").last())
-//         area.menu.addItem(Tr('Button.Item.edit'), function() {
-//           new Desk.Window(this.itemHREF.replace(/json$/, 'edit'))
-//         }.bind(area))
-//         area.menu.addItem(Tr('Button.Item.delete_item'), function() {
-//           new Desk.Window(this.itemHREF.replace(/json$/, 'delete'))
-//         }.bind(area))
-//         area.menu.bind(area)
         this.ImageMap.appendChild(area)
       }
       this.useMap = '#'+this.src
@@ -782,10 +976,15 @@ Loader.prototype = {
       if (this.bandwidthLimit > 0) {
         setTimeout(function(){
           if (lt.tile.load)
-            lt.tile.load(t.rotateServers(), this.tileInfoManager)
+            lt.tile.load(t.rotateServers(), t.tileInfoManager)
         }, 1000 * ((this.tileSize * this.maxLoads) / this.bandwidthLimit))
       } else {
-        lt.tile.load(t.rotateServers(), this.tileInfoManager)
+        setTimeout(function(){
+          if (lt.tile.load)
+            lt.tile.load(t.rotateServers(), t.tileInfoManager)
+        }, Math.random()*50)
+        // hack to make zooming out a bit less of a pain
+        // if zooming out and answering queries instantly from cache
       }
       this.totalLoads++
     }

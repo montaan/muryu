@@ -29,12 +29,13 @@ Tr.addTranslations('en-US', {
   'Item.password' : 'Password',
   'Item.by' : 'by',
   'Item.author' : 'author',
-  'Item.date_taken' : 'date taken',
+  'Item.date_taken' : 'created at',
   'Item.camera' : 'camera',
   'Item.manufacturer' : 'manufacturer',
   'Item.software' : 'software',
   'Button.Item.edit' : 'Edit metadata',
   'Button.Item.delete_item' : 'Delete',
+  'Button.Item.undelete_item' : 'Undelete',
   'Item.filename' : 'filename',
   'Item.source' : 'source',
   'Item.referrer' : 'referrer',
@@ -64,10 +65,12 @@ Tr.addTranslations('en-US', {
   'Item.item' : 'item',
   'Item.metadata' : 'metadata',
   
-  'Item.Editing' : 'Editing',
-  'Item.Deleting' : 'Deleting',
+  'Item.Editing' : 'Editing ',
+  'Item.Deleting' : 'Deleting ',
+  'Item.Undeleting' : 'Undeleting ',
   'WindowGroup.editors' : 'editors',
   'WindowGroup.deletions' : 'deletions',
+  'WindowGroup.undeletions' : 'undeletions',
   'WindowGroup.images' : 'images',
   'WindowGroup.music' : 'music',
   'WindowGroup.videos' : 'videos',
@@ -106,12 +109,13 @@ Tr.addTranslations('fi-FI', {
   'Item.password' : 'Salasana',
   'Item.by' : '-',
   'Item.author' : 'tekijä',
-  'Item.date_taken' : 'otettu',
+  'Item.date_taken' : 'luotu',
   'Item.camera' : 'kamera',
   'Item.manufacturer' : 'valmistaja',
   'Item.software' : 'ohjelmisto',
   'Button.Item.edit' : 'Muokkaa tietoja',
   'Button.Item.delete_item' : 'Poista',
+  'Button.Item.undelete_item' : 'Tuo takaisin',
   'Item.filename' : 'tiedostonimi',
   'Item.source' : 'lähde',
   'Item.referrer' : 'viittaaja',
@@ -147,8 +151,12 @@ Tr.addTranslations('fi-FI', {
   'Item.Deleting' : function(name) {
     return 'Poistan kohteen ' + name
   },
+  'Item.Undeleting' : function(name) {
+    return 'Tuon takaisin kohteen ' + name
+  },
   'WindowGroup.editors' : 'muokkaimet',
   'WindowGroup.deletions' : 'poistot',
+  'WindowGroup.undeletions' : 'takaisintuonnit',
   'WindowGroup.images' : 'kuvat',
   'WindowGroup.music' : 'musiikki',
   'WindowGroup.videos' : 'videot',
@@ -310,7 +318,7 @@ Mimetype = {
           textSide: 'right'
         })
         var deleteButton = Desk.Button(
-          "Item.delete_item",
+          info.deleted ? "Item.undelete_item" : "Item.delete_item",
           function(){ t.deleteItem(win, info) }, {
           className: 'editButton',
           normal_image: 'images/delete_grey.png',
@@ -379,11 +387,13 @@ Mimetype = {
     },
 
     deleteItem : function(win, info) {
-      var url = Map.__itemPrefix + info.path + '/delete'
+      var method = info.deleted ? '/undelete' : '/delete'
+      var url = Map.__itemPrefix + info.path + method
       new Ajax.Request(url, {
         onSuccess : function(res){
           Map.forceUpdate()
-          if (win) win.close()
+          if (win && !info.deleted) win.close()
+          else if (win) win.setSrc(win.src)
         },
         onFailure: function(res){
           alert( Tr("Item.delete_failed") )
@@ -445,8 +455,9 @@ Mimetype = {
       i.onclick = function(e) {
         if (Event.isLeftClick(e) &&
             Math.abs(this.downX - e.clientX) < 3 &&
-            Math.abs(this.downY - e.clientY) < 3)
-        {
+            Math.abs(this.downY - e.clientY) < 3 &&
+            this.scaled
+        ) {
           i.toggleOriginalSize(e)
           if (this.originalSize) {
             this.style.cursor = '-moz-zoom-out'
@@ -521,8 +532,8 @@ Mimetype = {
           win.setY(win.y - (ry-y))
           this.width = iw
           this.height = ih
-          if (win.x < 0) win.setX(0)
-          if (win.y < 0) win.setY(0)
+/*          if (win.x < 0) win.setX(0)
+          if (win.y < 0) win.setY(0)*/
           win.setY(win.y+1)
           setTimeout(function(){
             win.setY(win.y-1)
@@ -829,6 +840,40 @@ Mimetype = {
     }
   },
 
+  undeletion : {
+    mimetype : 'undelete',
+    makeEmbed : function(src) {
+      return E('div')
+    },
+    
+    init : function(src, win) {
+      new Ajax.Request(src.replace(/\/undelete$/, '/json'), {
+        method : 'get',
+        onSuccess : function(res) {
+          try {
+            var info = res.responseText.evalJSON()
+            win.setGroup(Tr('WindowGroup.undeletions'))
+            win.setTitle(Tr('Item.Undeleting', info.path))
+            this.deleteItem(win, info)
+          } catch(e) { console.log(e) }
+        }.bind(this)
+      })
+    },
+
+    deleteItem : function(win, info) {
+      var url = Map.__itemPrefix + info.path + '/undelete'
+      new Ajax.Request(url, {
+        onSuccess : function(res){
+          Map.forceUpdate()
+          if (win) win.close()
+        },
+        onFailure: function(res){
+          win.content.appendChild( T(Tr("Item.undelete_failed")) )
+        }
+      })
+    }
+  },
+
   audio : {
     mimetype : 'audio',
     makeEmbed : function(src) {
@@ -946,12 +991,13 @@ Mime = {
     playlist : ['m3u'],
     json : ['json'],
     editor : ['edit'],
-    deletion : ['delete']
+    deletion : ['delete'],
+    undeletion : ['undelete']
   }),
   
   guess : function(src) {
     var base = src.split("/").last()
-    if (['json', 'edit', 'delete'].include(base))
+    if (['json', 'edit', 'delete', 'undelete'].include(base))
       var ext = base
     else if (src[src.length-1] == '/')
       var ext = 'html'
