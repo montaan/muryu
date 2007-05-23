@@ -50,15 +50,15 @@ Tr.addTranslations('fi-FI', {
 
 ItemArea = {
   delete : function() {
-    new Desk.Window(this.itemHREF.replace(/json$/, '/delete'))
+    new Desk.Window(this.itemHREF.replace(/json$/, 'delete'))
   },
   
   undelete : function() {
-    new Desk.Window(this.itemHREF.replace(/json$/, '/undelete'))
+    new Desk.Window(this.itemHREF.replace(/json$/, 'undelete'))
   },
 
   edit : function() {
-    new Desk.Window(this.itemHREF.replace(/json$/, '/edit'))
+    new Desk.Window(this.itemHREF.replace(/json$/, 'edit'))
   },
   
   open : function() {
@@ -313,7 +313,7 @@ TileMap.prototype = {
   __itemPrefix : '/items/',
   __itemSuffix : '/json',
 
-  time : false,
+  time : new Date().getTime(),
 
   x : 0,
   y : 0,
@@ -369,6 +369,14 @@ TileMap.prototype = {
     var y = this.y
     this.zoom(this.z, 0, 0)
     this.panBy(x, y)
+    this.selectionElem = E('div')
+    this.selectionElem.style.border = '2px solid blue'
+    this.selectionElem.style.backgroundColor = 'darkblue'
+    this.selectionElem.style.opacity = 0.5
+    this.selectionElem.style.position = 'absolute'
+    this.selectionElem.style.display = 'none'
+    this.selectionElem.style.zIndex = 50
+    this.element.appendChild(this.selectionElem)
     this.setupEventListeners()
   },
 
@@ -397,14 +405,29 @@ TileMap.prototype = {
     var t = this
     this.onmousedown = function(ev) {
       if (Event.isLeftClick(ev)) {
-        t.panning = true
-        t.panX = ev.clientX
-        t.panY = ev.clientY
+        if (ev.ctrlKey) {
+          t.selecting = true
+          t.selectX = ev.pageX - t.container.offsetLeft
+          t.selectY = ev.pageY - t.container.offsetTop
+          t.selectionElem.style.display = 'block'
+          t.selectionElem.style.left = t.selectX + 'px'
+          t.selectionElem.style.top = t.selectY + 'px'
+          t.selectionElem.style.width = '0px'
+          t.selectionElem.style.height = '0px'
+          t.selection = new Hash()
+          t.selectUnderSelection()
+        } else {
+          t.panning = true
+          t.panX = ev.clientX
+          t.panY = ev.clientY
+        }
         Event.stop(ev)
       }
     }
     this.onmouseup = function(ev) {
       t.panning = false
+      t.selecting = false
+      t.selectionElem.style.display = 'none'
     }
     this.onmousemove = function(ev) {
       t.pointerX = ev.pageX - t.container.offsetLeft
@@ -416,6 +439,14 @@ TileMap.prototype = {
         t.panBy(dx, dy)
         t.panX = ev.clientX
         t.panY = ev.clientY
+        Event.stop(ev)
+      } else if (t.selecting) {
+        t.selectionElem.style.display = 'block'
+        t.selectionElem.style.left = Math.min(t.pointerX, t.selectX) + 'px'
+        t.selectionElem.style.top = Math.min(t.pointerY, t.selectY) + 'px'
+        t.selectionElem.style.width = Math.abs(t.pointerX-t.selectX) + 'px'
+        t.selectionElem.style.height = Math.abs(t.pointerY-t.selectY) + 'px'
+        t.selectUnderSelection()
         Event.stop(ev)
       }
     }
@@ -450,6 +481,60 @@ TileMap.prototype = {
     this.element.addEventListener("DOMMouseScroll", this.onmousescroll, false)
     document.addEventListener("keypress", this.onkeypress, false)
     document.addEventListener("unload", this.onunload, false)
+  },
+
+  /**
+   * Selects all items that intersect the lasso selection box (selectionElem).
+   */
+  selectUnderSelection : function() {
+    var z = Math.max(Math.min(this.targetZ, this.layerCount-1), 0)
+    var layer = this.layers[z]
+    var tsz = this.tileSize
+    var left = -layer.x + parseInt(this.selectionElem.style.left)
+    var top = -layer.y + parseInt(this.selectionElem.style.top)
+    var width = parseInt(this.selectionElem.style.width)
+    var height = parseInt(this.selectionElem.style.height)
+    var l = Math.floor(left / tsz)
+    var t = Math.floor(top / tsz)
+    var r = Math.ceil((left+width) / tsz)
+    var b = Math.ceil((top+height) / tsz)
+    var previousSelection = this.selection
+    this.selection = new Hash()
+    for (var x=l; x<=r; x++) {
+      for (var y=t; y<=b; y++) {
+        var tile = layer.tiles[x+':'+y]
+        if (tile && tile.ImageMap) {
+          var areas = tile.ImageMap.childNodes
+          var tx = parseInt(tile.style.left)
+          var ty = parseInt(tile.style.top)
+          for (var i=0; i<areas.length; i++) {
+            var area = areas[i]
+            if (
+              !(this.selection[area.itemHREF]) && // not already processed
+              this.intersect(left, top, width, height,
+                             area.info.x+tx, area.info.y+ty, area.info.sz, area.info.sz)
+            ) {
+              var pr = previousSelection[area.itemHREF]
+              if (pr && pr != area) {
+                this.selection[area.itemHREF] = pr
+              } else {
+                if (!pr) // not previously selected
+                  area.toggleSelect()
+                this.selection[area.itemHREF] = area
+              }
+            }
+          }
+        }
+      }
+    }
+    var s = this.selection
+    previousSelection.each(function(kv,i) {
+      if (!s[kv[0]])
+        kv[1].toggleSelect()
+    })
+  },
+  intersect : function(x1,y1,w1,h1, x2,y2,w2,h2) {
+    return !(x1 > x2+w2 || y1 > y2+h2 || x1+w1 < x2 || y1+h1 < y2)
   },
 
   /**

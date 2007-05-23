@@ -635,7 +635,7 @@ Mimetype = {
     },
     
     init : function(src, win) {
-      new Ajax.Request(src.replace(/\/edit$/, '/json'), {
+      new Ajax.Request(src.replace(/edit$/, 'json'), {
         method : 'get',
         onSuccess : function(res) {
           try {
@@ -825,7 +825,7 @@ Mimetype = {
     },
     
     init : function(src, win) {
-      new Ajax.Request(src.replace(/\/delete$/, '/json'), {
+      new Ajax.Request(src.replace(/delete$/, 'json'), {
         method : 'get',
         onSuccess : function(res) {
           try {
@@ -859,7 +859,7 @@ Mimetype = {
     },
     
     init : function(src, win) {
-      new Ajax.Request(src.replace(/\/undelete$/, '/json'), {
+      new Ajax.Request(src.replace(/undelete$/, 'json'), {
         method : 'get',
         onSuccess : function(res) {
           try {

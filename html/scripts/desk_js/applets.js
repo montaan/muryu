@@ -257,6 +257,8 @@ Applets.MusicPlayer = function() {
       this.playlistIndex = top[1]
       this.currentIndex = index
       if (startPlaying) this.play()
+      else
+        this.newEvent('songChanged', {value: (this.playlist[this.playlistIndex] || '').split("/").last() })
     }
   }
   
@@ -396,9 +398,9 @@ Applets.MusicPlayer = function() {
     c.sound = soundManager.sounds[c.soundID]
     c.sound.options.onfinish = c.playNext
     c.sound.options.onload = function(e) {
-      c.seekTo(c.savedSeek)
-      c.savedSeek = 0
-      if (c.paused) soundManager.pause(c.soundID)
+//       c.seekTo(c.savedSeek)
+//       c.savedSeek = 0
+//       if (c.paused) soundManager.pause(c.soundID)
       c.updateButtons()
     }
     c.sound.options.whileplaying = function(e) {
@@ -521,8 +523,7 @@ Applets.MusicPlayer.loadSession = function(data) {
   mp.playlist = data.playlist || []
   mp.setShuffling(data.shuffling)
   mp.setRepeating(data.repeating)
-  mp.playing = data.playing
-  mp.paused = data.paused
+  mp.playing = false
   mp.savedSeek = data.seek || 0
   mp.goToIndex(data.currentIndex, false)
   return mp

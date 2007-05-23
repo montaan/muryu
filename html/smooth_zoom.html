@@ -364,7 +364,7 @@
           setItem : function(name, value) {
             var params = {}
             params[name] = value
-            new Ajax.Request('/users/set_preferences', { parameters : params })
+            new Ajax.Request('/users/set_preferences', { asynchronous : false, parameters : params })
           },
 
           removeItem : function(name) {

@@ -706,7 +706,7 @@ class TileDrawer
             color[0] = (color[0]*sa) >> 8;
             color[1] = (color[1]*sa) >> 8;
             color[2] = (color[2]*sa) >> 8;
-            if (sz >= 32) {
+            if (sz >= 64) {
               for(j=0; j<16; j++) {
                 oil_composite_over_argb_const_src(
                   (uint32_t*)&thumbs[i*sz24+j*sz*4],
