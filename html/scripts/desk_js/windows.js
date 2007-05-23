@@ -66,7 +66,7 @@ Desk.Window.prototype = {
   clickRadius : 3,
   movable : true,
   resizable : true,
-  defaultButtons : ['Duplicate', 'Minimize', 'Close'],
+  defaultButtons : ['Minimize', 'Maximize', 'Close'],
   group : 'default',
   showInTaskbar : true,
   avoid: false,
@@ -266,8 +266,8 @@ Desk.Window.prototype = {
     makeCheckButton(Tr('Window.Shaded'), 'Shaded')
     makeCheckButton(Tr('Window.Minimized'), 'Minimized')
     makeCheckButton(Tr('Window.Maximized'), 'Maximized')
-    this.menu.addSeparator()
-    this.menu.addItem(Tr('Window.Duplicate'), this.duplicate.bind(this), 'icons/Duplicate.png')
+/*    this.menu.addSeparator()
+    this.menu.addItem(Tr('Window.Duplicate'), this.duplicate.bind(this), 'icons/Duplicate.png')*/
     this.menu.addSeparator()
     this.menu.addItem(Tr('Window.Close'), this.close.bind(this), 'icons/Close.png')
     this.menu.bind(this.taskbarTitleElement)

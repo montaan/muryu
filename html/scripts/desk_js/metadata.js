@@ -408,8 +408,11 @@ Mimetype = {
         if (['image/jpeg','image/png','image/gif'].include(info.mimetype)) {
           viewer = this.makeImageViewer(info,win)
           group = 'images'
-        } else if (info.mimetype.match(/\bvideo\b/)) {
+        } else if (info.mimetype.split("/")[0] == 'video') {
           viewer = this.makeVideoViewer(info,win)
+          group = 'videos'
+        } else if (info.mimetype == 'application/x-flash-video') {
+          viewer = this.makeFlashVideoViewer(info,win)
           group = 'videos'
         } else if (info.mimetype.split("/")[0] == 'audio') {
           viewer = this.makeAudioViewer(info,win)
@@ -573,6 +576,15 @@ Mimetype = {
       i.height = info.metadata.height
       i.src = Map.__filePrefix + info.path
       i.setAttribute("type", "application/x-mplayer2")
+      return i
+    },
+
+    makeFlashVideoViewer : function(info) {
+      var i = E('div', '<a href="http://www.macromedia.com/go/getflashplayer">Get Flash</a> to see this player.')
+      var so = new SWFObject("/scripts/flv_player/flvplayer.swf","player","320","260","7")
+      so.addParam("allowfullscreen","true")
+      so.addVariable("file", Map.__filePrefix + info.path)
+      so.write(i)
       return i
     },
 

@@ -303,6 +303,12 @@ iframe {
 .bottomPanel .MusicPlayer .SongInfo {
   display: inline;
 }
+.MusicPlayer .CurrentSeek {
+  margin-right: 5px;
+  color: #ffc840;
+  font-weight: bold;
+  font-family: Arial, Sans-serif;
+}
 .MusicPlayer .CurrentIndex {
   display: inline;
   color: #ffc840;

@@ -58,6 +58,7 @@ class MozSnapshooter < Gtk::Window
     pixbuf = Gdk::Pixbuf.from_drawable(nil, gdkw, 0, 0, width, height)
     pixbuf.save(target,"png")
     puts "Wrote #{target}"
+  ensure
     Gtk.main_quit
   end
   
@@ -65,7 +66,11 @@ end
 
 File.open('/tmp/.moz-snapshooter.lock','w') {|f|
   f.flock(File::LOCK_EX)
-  MozSnapshooter.new ARGV[0], ARGV[1]
-  Gtk.main
-  f.flock(File::LOCK_UN)
+  Thread.new{ sleep 10; exit }
+  begin
+    MozSnapshooter.new ARGV[0], ARGV[1]
+    Gtk.main
+  ensure
+    f.flock(File::LOCK_UN)
+  end
 }

@@ -338,6 +338,7 @@
     <script type="text/javascript" src="/scripts/desk_js/prototype.js"></script>
     <script type="text/javascript" src="/scripts/desk_js/soundmanager2.js"></script>
     <script type="text/javascript" src="/scripts/desk_js/desk.js"></script>
+    <script type="text/javascript" src="/scripts/flv_player/swfobject.js"></script>
     <script type="text/javascript" src="/scripts/zogen/TileMap.js"></script>
     <script type="text/javascript" src="/scripts/zogen/Editors.js"></script>
     <script>
@@ -430,7 +431,7 @@
             width: window.innerWidth,
             height: window.innerHeight
           })
-          var topPanel = new Desk.Panel('top')
+          var topPanel = new Desk.Panel('left')
           topPanel.addApplet(Applets.Session())
           topPanel.addApplet(Applets.MusicPlayer())
           topPanel.addApplet(Applets.Taskbar())

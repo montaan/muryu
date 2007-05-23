@@ -23,9 +23,11 @@
 Tr.addTranslations('en-US', {
   'Item.open' : 'Open',
   'Item.select' : 'Select',
+  'Item.click_to_inspect' : 'Left-click to inspect ',
   'Item.add_to_playlist' : 'Add to playlist',
   'Selection' : 'Selection',
-  'Selection.unselect' : 'Clear selection',
+  'Selection.clear' : 'Clear selection',
+  'Selection.deselect' : 'Deselect',
   'Selection.delete_all' : 'Delete all',
   'Selection.undelete_all' : 'Undelete all',
   'Selection.add_to_playlist' : 'Add to playlist',
@@ -34,9 +36,11 @@ Tr.addTranslations('en-US', {
 Tr.addTranslations('fi-FI', {
   'Item.open' : 'Avaa',
   'Item.select' : 'Valitse',
+  'Item.click_to_inspect' : 'Napsauta nähdäksesi ',
   'Item.add_to_playlist' : 'Lisää soittolistaan',
   'Selection' : 'Valinta',
-  'Selection.unselect' : 'Tyhjennä valinta',
+  'Selection.clear' : 'Tyhjennä valinta',
+  'Selection.deselect' : 'Poista valinnasta',
   'Selection.delete_all' : 'Poista kaikki',
   'Selection.undelete_all' : 'Tuo kaikki takaisin',
   'Selection.add_to_playlist' : 'Lisää soittolistaan',
@@ -61,7 +65,9 @@ ItemArea = {
     new Desk.Window(this.itemHREF)
   },
 
-  title : 'Left-click to inspect',
+  getTitle : function() {
+    return Tr('Item.click_to_inspect', this.info.path.split("/").last())
+  },
 
   toggleSelect : function() {
     Selection.toggle(this)
@@ -76,11 +82,12 @@ ItemArea = {
     if (!ev.ctrlKey) {
       var menu = new Desk.Menu()
       menu.addTitle(this.href.split("/").last())
-      if (this.href.match(/mp3$/i))
+      if (this.href.match(/mp3$/i)) {
         menu.addItem(Tr('Item.add_to_playlist'), this.addToPlaylist.bind(this))
-      menu.addSeparator()
-      menu.addItem(Tr('Item.open'), this.open.bind(this))
+      }
       menu.addItem(Tr('Item.select'), this.toggleSelect.bind(this))
+      menu.addItem(Tr('Item.open'), this.open.bind(this))
+      menu.addSeparator()
       menu.addItem(Tr('Button.Item.edit'), this.edit.bind(this))
       menu.addSeparator()
       if (this.info.deleted == 't')
@@ -128,13 +135,14 @@ Selection = {
     if (!ev.ctrlKey) {
       var menu = new Desk.Menu()
       menu.addTitle(Tr('Selection'))
-      menu.addItem(Tr('Selection.add_to_playlist'), this.addToPlaylist.bind(this))
+      menu.addItem(Tr('Selection.add_to_playlist'), Selection.addToPlaylist.bind(Selection))
       menu.addItem(Tr('Selection.create_presentation'))
       menu.addSeparator()
-      menu.addItem(Tr('Selection.delete_all'), this.deleteSelected.bind(this))
-      menu.addItem(Tr('Selection.undelete_all'), this.undeleteSelected.bind(this))
+      menu.addItem(Tr('Selection.delete_all'), Selection.deleteSelected.bind(Selection))
+      menu.addItem(Tr('Selection.undelete_all'), Selection.undeleteSelected.bind(Selection))
       menu.addSeparator()
-      menu.addItem(Tr('Selection.unselect'), this.clear.bind(this))
+      menu.addItem(Tr('Selection.deselect'), function() { Selection.deselect(this.item) }.bind(this))
+      menu.addItem(Tr('Selection.clear'), Selection.clear.bind(Selection))
       menu.skipHide = true
       menu.show(ev)
       Event.stop(ev)
@@ -152,6 +160,7 @@ Selection = {
     if (this.selection.include(obj)) return
     this.selection.push(obj)
     var s = obj.selectionIndicator = E('div')
+    s.item = obj
     var xywh = obj.coords.split(",")
     var tile = obj.parentNode.parentNode
     // this is just bad and doesn't work at all with zoom
@@ -171,7 +180,7 @@ Selection = {
           Selection.toggle(obj)
       }
     }
-    s.oncontextmenu = this.oncontextmenu.bind(this)
+    s.oncontextmenu = this.oncontextmenu.bind(s)
     tile.parentNode.appendChild(s)
     this.lastSelected = obj
   },
@@ -874,6 +883,7 @@ MapLayer.prototype = {
         area.shape = 'rect'
         area.coords = [info.x, info.y, info.x + info.sz, info.y + info.sz].join(",")
         area.href = this.filePrefix + info.path
+        area.title = area.getTitle()
         area.itemHREF = this.itemPrefix + info.path + this.itemSuffix
         this.ImageMap.appendChild(area)
       }
@@ -982,7 +992,7 @@ Loader.prototype = {
         setTimeout(function(){
           if (lt.tile.load)
             lt.tile.load(t.rotateServers(), t.tileInfoManager)
-        }, Math.random()*50)
+        }, 0)
         // hack to make zooming out a bit less of a pain
         // if zooming out and answering queries instantly from cache
       }

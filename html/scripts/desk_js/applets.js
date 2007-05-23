@@ -167,6 +167,7 @@ Applets.MusicPlayer = function() {
     this.getTopPlaylist().push(item)
     this.newEvent('playlistChanged', { value: this.getTopPlaylist() })
   }
+  
   c.removeFromPlaylistAt = function(index) {
     var stack = this.collectPlaylistUpto(this.getTopPlaylist(), index)
     if (stack) {
@@ -180,18 +181,21 @@ Applets.MusicPlayer = function() {
       this.newEvent('playlistChanged', { value: this.getTopPlaylist() })
     }
   }
+  
   c.getTopPlaylist = function() {
     if (this.playlistStack.isEmpty())
       return this.playlist
     else
       return this.playlistStack[0][0]
   }
+  
   c.getPlaylistLength = function(playlist, i) {
     var pls = this.getTopPlaylist()
     if (!playlist) playlist = pls
     if (i == undefined) i = playlist.length
     return this.computePlaylistLength(playlist, i)
   }
+  
   c.computePlaylistLength = function(playlist, i) {
     return playlist.slice(0,i).inject(0, function(s, e){
       if (e.isPlaylist) {
@@ -201,6 +205,7 @@ Applets.MusicPlayer = function() {
       }
     }.bind(this))
   }
+  
   c.collectPlaylistUpto = function(playlist, i, count) {
     if (!count) count = [[], 0]
     for (var j=0; j<playlist.length; j++) {
@@ -220,6 +225,7 @@ Applets.MusicPlayer = function() {
     }
     return false
   }
+  
   c.next = function(){
     if (this.shuffling) {
       this.goToIndex(Math.floor(Math.random()*this.getPlaylistLength()))
@@ -229,14 +235,17 @@ Applets.MusicPlayer = function() {
       this.play()
     }
   }
+  
   c.previous = function(){
     this.playlistIndex -= 1
     this.currentIndex -= 1
     this.play()
   }
+  
   c.gotoFirst = function(startPlaying){
     this.goToIndex(0, startPlaying)
   }
+  
   c.goToIndex = function(index, startPlaying){
     if (startPlaying == undefined) startPlaying = true
     var pl = this.getTopPlaylist()
@@ -250,18 +259,22 @@ Applets.MusicPlayer = function() {
       if (startPlaying) this.play()
     }
   }
+  
   c.playNext = function() {
     if (this.repeating)
       this.play()
     else
       this.next()
   }.bind(c)
+  
   c.isPlaylist = function(w) {
     return (w.splice != undefined)
   }
+  
   c.shuffle = function(){
     this.setShuffling(!this.shuffling)
   }
+  
   c.setShuffling = function(v) {
     if (v != this.shuffling)
       this.shuffleButton.toggle()
@@ -269,9 +282,11 @@ Applets.MusicPlayer = function() {
     if (this.shuffling) this.menu.checkItem('Shuffle')
     else this.menu.uncheckItem('Shuffle')
   }
+  
   c.repeat = function(){
     this.setRepeating(!this.repeating)
   }
+  
   c.setRepeating = function(v) {
     if (v != this.repeating)
       this.repeatButton.toggle()
@@ -279,6 +294,7 @@ Applets.MusicPlayer = function() {
     if (this.repeating) this.menu.checkItem('Repeat Song')
     else this.menu.uncheckItem('Repeat Song')
   }
+  
   c.play = function(){
     if (!this.playlist.isEmpty()) {
       if (this.firstPlay) {
@@ -324,9 +340,8 @@ Applets.MusicPlayer = function() {
         this.currentURL = (typeof this.currentItem == 'string' ?
                            this.currentItem :
                            this.currentItem.src)
-        var params = {url: this.currentURL, autoPlay: true}
+        var params = {url: this.currentURL, autoPlay: true, stream: true}
         soundManager.load(this.soundID, params)
-        this.paused = false
       } else {
         setTimeout(this.playNext, 0)
       }
@@ -351,6 +366,7 @@ Applets.MusicPlayer = function() {
       this.play()
     }
   }
+  
   c.stop = function() {
     if (this.playing) {
       soundManager.stop(this.soundID)
@@ -359,6 +375,7 @@ Applets.MusicPlayer = function() {
     this.paused = false
     this.updateButtons()
   }
+  
   c.updateButtons = function() {
     if (this.paused) {
       this.pauseButton.style.display = 'none'
@@ -368,9 +385,12 @@ Applets.MusicPlayer = function() {
       this.pauseButton.style.display = null
     }
   }
+  
   c.seekTo = function(pos) {
     this.sound.setPosition(pos)
+    this.newEvent('positionChanged', { value: Object.formatTime(pos) })
   }
+  
   soundManager.onload = function() {
     soundManager.createSound(c.soundID, {url: 'data/null.mp3'})
     c.sound = soundManager.sounds[c.soundID]
@@ -378,6 +398,11 @@ Applets.MusicPlayer = function() {
     c.sound.options.onload = function(e) {
       c.seekTo(c.savedSeek)
       c.savedSeek = 0
+      if (c.paused) soundManager.pause(c.soundID)
+      c.updateButtons()
+    }
+    c.sound.options.whileplaying = function(e) {
+      c.newEvent('positionChanged', { value: Object.formatTime(c.sound.position) })
     }
     c.sound.options.onid3 = function(e){
       var elems = [c.sound.id3.artist, c.sound.id3.songname]
@@ -405,14 +430,23 @@ Applets.MusicPlayer = function() {
 
   c.infoElem = E('div', null, null, 'SongInfo')
   c.appendChild(c.infoElem)
+  
   c.indexElem = E('span', null, null, 'CurrentIndex')
   c.infoElem.appendChild(c.indexElem)
   c.sepElem = E('span', null, null, 'IndexSeparator')
   c.infoElem.appendChild(c.sepElem)
   c.allElem = E('span', null, null, 'PlaylistLength')
   c.infoElem.appendChild(c.allElem)
+
+  c.currentSeekElem = E('span', null, null, 'CurrentSeek')
+  c.infoElem.appendChild(c.currentSeekElem)
+  
   c.currentlyPlaying = E('span', null, null, 'CurrentlyPlaying')
   c.infoElem.appendChild(c.currentlyPlaying)
+
+  c.addListener('positionChanged', function(e) {
+    c.currentSeekElem.innerHTML = e.value
+  })
   c.addListener('songChanged', function(e){
     var plen = c.getPlaylistLength()
     c.indexElem.innerHTML = Math.min(plen, (c.currentIndex+1))
@@ -454,6 +488,7 @@ Applets.MusicPlayer = function() {
         repeating : this.repeating,
         shuffling : this.shuffling,
         playing : this.playing,
+        paused : this.paused,
         playlist : this.getTopPlaylist(),
         seek : (this.sound && this.sound.position)
       }
@@ -487,6 +522,7 @@ Applets.MusicPlayer.loadSession = function(data) {
   mp.setShuffling(data.shuffling)
   mp.setRepeating(data.repeating)
   mp.playing = data.playing
+  mp.paused = data.paused
   mp.savedSeek = data.seek || 0
   mp.goToIndex(data.currentIndex, false)
   return mp
