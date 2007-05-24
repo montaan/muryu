@@ -398,9 +398,9 @@ Applets.MusicPlayer = function() {
     c.sound = soundManager.sounds[c.soundID]
     c.sound.options.onfinish = c.playNext
     c.sound.options.onload = function(e) {
-//       c.seekTo(c.savedSeek)
+      c.seekTo(0)
 //       c.savedSeek = 0
-//       if (c.paused) soundManager.pause(c.soundID)
+      if (c.paused) soundManager.pause(c.soundID)
       c.updateButtons()
     }
     c.sound.options.whileplaying = function(e) {

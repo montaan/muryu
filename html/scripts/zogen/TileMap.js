@@ -128,7 +128,7 @@ ItemArea = {
 }
 
 Selection = {
-  selection : [],
+  selection : new Hash(),
   lastSelected : null,
   
   oncontextmenu : function(ev) {
@@ -150,30 +150,39 @@ Selection = {
   },
 
   deselect : function(obj) {
-    if (!this.selection.include(obj)) return
-    this.selection.deleteFirst(obj)
-    $(obj.selectionIndicator).detachSelf()
-    this.lastSelected = obj
+    if (!this.selection[obj.itemHREF]) return
+    var s = this.selection[obj.itemHREF]
+    delete this.selection[obj.itemHREF]
+    $(s.selectionIndicator).detachSelf()
+    this.lastSelected = s
   },
 
   select : function(obj) {
-    if (this.selection.include(obj)) return
-    this.selection.push(obj)
-    var s = obj.selectionIndicator = E('div')
-    s.item = obj
-    var xywh = obj.coords.split(",")
+    if (this.selection[obj.itemHREF]) return
+    this.selection[obj.itemHREF] = obj
     var tile = obj.parentNode.parentNode
-    // this is just bad and doesn't work at all with zoom
+    var s = E('div')
+    obj.selectionIndicator = s
+    s.item = obj
     s.style.position = 'absolute'
-    s.style.left = parseInt(tile.style.left) + parseInt(xywh[0]) + 'px'
-    s.style.top = parseInt(tile.style.top) + parseInt(xywh[1]) + 'px'
-    s.style.width = (xywh[2]-xywh[0]) + 'px'
-    s.style.height = (xywh[3]-xywh[1]) + 'px'
-    s.style.zIndex = '1'
-    s.style.backgroundColor = 'blue'
-    s.style.opacity = 0.75
+    s.X = (tile.X * (tile.Size / obj.info.sz) + (obj.info.x / obj.info.sz))
+    s.Y = (tile.Y * (tile.Size / obj.info.sz) + (obj.info.y / obj.info.sz))
+    s.style.left = s.X * obj.info.sz * (tile.rSize/tile.Size) + 'px'
+    s.style.top = s.Y * obj.info.sz * (tile.rSize/tile.Size) + 'px'
+    s.style.width = obj.info.sz * (tile.rSize/tile.Size) + 'px'
+    s.style.height = obj.info.sz * (tile.rSize/tile.Size) + 'px'
+    s.style.backgroundColor = 'cyan'
+    s.style.opacity = 0.5
+    s.onmousedown = function(e) {
+      this.downX = e.clientX
+      this.downY = e.clientY
+    }
     s.onclick = function(e) {
-      if (Event.isLeftClick(e)) {
+      if (Event.isLeftClick(e) &&
+          (this.downX == undefined || this.downY == undefined) ||
+          (Math.abs(this.downX - e.clientX) < 3 &&
+           Math.abs(this.downY - e.clientY) < 3   )
+      ) {
         if (!e.ctrlKey)
           Selection.clear()
         else
@@ -181,12 +190,12 @@ Selection = {
       }
     }
     s.oncontextmenu = this.oncontextmenu.bind(s)
-    tile.parentNode.appendChild(s)
+    Map.selectionLayer.element.appendChild(s)
     this.lastSelected = obj
   },
   
   toggle : function(obj) {
-    if (this.selection.include(obj)) {
+    if (this.selection[obj.itemHREF]) {
       this.deselect(obj)
     } else {
       this.select(obj)
@@ -194,8 +203,7 @@ Selection = {
   },
 
   clear : function() {
-    while(this.selection.length > 0)
-      this.toggle(this.selection[0])
+    this.selection.values().each(this.deselect.bind(this))
   },
   
   spanTo : function(obj) {
@@ -211,15 +219,15 @@ Selection = {
   },
   
   deleteSelected : function() {
-    this.selection.invoke('delete')
+    this.selection.values().invoke('delete')
   },
   
   undeleteSelected : function() {
-    this.selection.invoke('undelete')
+    this.selection.values().invoke('undelete')
   },
 
   addToPlaylist : function() {
-    this.selection.invoke('addToPlaylist')
+    this.selection.values().invoke('addToPlaylist')
   },
   
   addTags : function() {
@@ -352,9 +360,9 @@ TileMap.prototype = {
   },
 
   /**
-   Called by the constructor to set up the TileMap.
-  
-   Sets up the map layers, loads the initial view and sets up event listeners.
+    Called by the constructor to set up the TileMap.
+
+    Sets up the map layers, loads the initial view and sets up event listeners.
   */
   init : function() {
     var t = this
@@ -364,6 +372,8 @@ TileMap.prototype = {
       this.layers.push(layer)
       this.element.appendChild(layer.element)
     }
+    this.selectionLayer = new SelectionLayer(this)
+    this.element.appendChild(this.selectionLayer.element)
     this.updateTileQuery(false)
     var x = this.x
     var y = this.y
@@ -381,9 +391,9 @@ TileMap.prototype = {
   },
 
   /**
-   When removing a TileMap from the document, call this.
-  
-   Removes event listeners, unloads layers.
+    When removing a TileMap from the document, call this.
+
+    Removes event listeners, unloads layers.
   */
   unload : function() {
     this.removeEventListeners()
@@ -515,6 +525,8 @@ TileMap.prototype = {
                              area.info.x+tx, area.info.y+ty, area.info.sz, area.info.sz)
             ) {
               var pr = previousSelection[area.itemHREF]
+              // If the item was in previous selection, but not from this area,
+              // use the previous selection and skip this one.
               if (pr && pr != area) {
                 this.selection[area.itemHREF] = pr
               } else {
@@ -528,11 +540,16 @@ TileMap.prototype = {
       }
     }
     var s = this.selection
+    // deselect all that fell out of selection
     previousSelection.each(function(kv,i) {
-      if (!s[kv[0]])
+      if (!s[kv[0]]) 
         kv[1].toggleSelect()
     })
   },
+
+  /**
+   * Box intersection test.
+   */
   intersect : function(x1,y1,w1,h1, x2,y2,w2,h2) {
     return !(x1 > x2+w2 || y1 > y2+h2 || x1+w1 < x2 || y1+h1 < y2)
   },
@@ -668,6 +685,7 @@ TileMap.prototype = {
       var rv = this.layers[i].panBy(dx, dy)
       need_update = need_update || rv
     }
+    this.selectionLayer.panBy(dx, dy)
     if (need_update)
       this.updateTiles(this.pointerX, this.pointerY, 0)
     this.x = this.layers[0].x
@@ -683,6 +701,7 @@ TileMap.prototype = {
       var layer = this.layers[i]
       layer.zoom(z, pointer_x, pointer_y)
     }
+    this.selectionLayer.zoom(z, pointer_x, pointer_y)
     this.x = this.layers[0].x
     this.y = this.layers[0].y
   },
@@ -785,6 +804,53 @@ TileMap.prototype = {
 }
 
 
+/**
+  A zoomable layer that handles selection divs instead of image tiles.
+ */
+SelectionLayer = function(map) {
+  this.map = map
+  this.z = 0
+  this.own_fac = Math.pow(2, this.z)
+  this.element = document.createElement("div")
+  this.element.className = "selectionLayer"
+  this.element.style.position = "absolute"
+  this.element.style.left = "0px"
+  this.element.style.top = "0px"
+  this.element.style.zIndex = 49
+}
+SelectionLayer.prototype = {
+  x : 0,
+  y : 0,
+  z : 0,
+  cZ : 0,
+  fac : 1,
+  rfac : 1,
+  own_fac : 1,
+
+  panBy : function(dx, dy) {
+    this.x += dx
+    this.y += dy
+    this.element.style.left = this.x + 'px'
+    this.element.style.top = this.y + 'px'
+  },
+
+  zoom : function(outer_z, pointer_x, pointer_y) {
+    this.rx = (-this.x + pointer_x) * this.rfac
+    this.ry = (-this.y + pointer_y) * this.rfac
+    var fac = Math.pow(2, outer_z)
+    this.panBy(-this.rx * (fac-this.fac), -this.ry * (fac-this.fac))
+    this.fac = fac
+    this.rfac = 1 / fac
+    this.cZ = outer_z
+    var divs = this.element.childNodes
+    for (var j=0; j<divs.length; j++) {
+      divs[j].style.width = divs[j].style.height = Math.ceil(fac) + 'px'
+      divs[j].style.left = Math.floor(divs[j].X * fac) + 'px'
+      divs[j].style.top = Math.floor(divs[j].Y * fac) + 'px'
+    }
+  }
+}
+
 
 MapLayer = function(map, z) {
   this.map = map
@@ -873,33 +939,6 @@ MapLayer.prototype = {
     return true
   },
 
-  discardTile : function(i) {
-    var tile = this.tiles[i]
-    delete this.tiles[tile.X + ":" + tile.Y]
-    this.tiles.splice(i,1)
-    tile.loading = false
-    tile.removeEventListener('load', this.__tileOnload, false)
-    if (tile.parentNode)
-      tile.parentNode.removeChild(tile)
-    this.map.loader.cancel(this, tile)
-    if (tile.handleInfo) {
-      delete tile.handleInfo
-      if (tile.ImageMap) {
-        if (tile.ImageMap.parentNode)
-         tile.removeChild(tile.ImageMap)
-        delete tile.ImageMap
-        tile.useMap = false
-      }
-    }
-    if (tile.loaded) tile.loaded(false)
-    delete tile.query
-    delete tile.load
-    delete tile.zoom
-    tile.className = null
-    tile.style.position = null
-    this.map.pool.put(tile)
-  },
-
   panBy : function(dx, dy) {
     var ox = Math.floor(this.x / this.map.tileSize)
     var oy = Math.floor(this.y / this.map.tileSize)
@@ -940,6 +979,7 @@ MapLayer.prototype = {
     tile.Z = this.z
     tile.relativeURL = this.map.coordinateMapper(x, y, this.z)
     tile.Size = this.map.tileSize
+    tile.useMap = false
     tile.loading = false
     tile.style.visibility = 'hidden'
     tile.filePrefix = this.map.__filePrefix
@@ -952,9 +992,36 @@ MapLayer.prototype = {
     return tile
   },
 
+  discardTile : function(i) {
+    var tile = this.tiles[i]
+    delete this.tiles[tile.X + ":" + tile.Y]
+    this.tiles.splice(i,1)
+    tile.loading = false
+    tile.removeEventListener('load', this.__tileOnload, false)
+    if (tile.parentNode)
+      tile.parentNode.removeChild(tile)
+    this.map.loader.cancel(this, tile)
+    if (tile.handleInfo) {
+      delete tile.handleInfo
+      if (tile.ImageMap) {
+        if (tile.ImageMap.parentNode) $(tile.ImageMap).detachSelf()
+        delete tile.ImageMap
+      }
+    }
+    tile.useMap = false
+    if (tile.loaded) tile.loaded(false)
+    delete tile.query
+    delete tile.load
+    delete tile.zoom
+    tile.className = null
+    tile.style.position = null
+    this.map.pool.put(tile)
+  },
+
   __tileLoad : function(server, infoManager) {
     this.src = server + this.relativeURL + this.query
     this.loading = true
+    if (this.Z < 5) return
     this.handleInfo = function(infos) {
       if (!infos) return
       this.ImageMap = E('map')
