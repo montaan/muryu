@@ -455,8 +455,8 @@ Desk.Window.prototype = {
     if (new_value) {
       this.movable = false
       this.oldCoords = {x:this.x, y:this.y,
-        w:this.element.style.width,
-        h:this.element.style.height}
+        w:this.element.offsetWidth,
+        h:this.element.offsetHeight}
       this.setX(0)
       this.setY(0)
       this.setSize(this.container.offsetWidth, this.container.offsetHeight)

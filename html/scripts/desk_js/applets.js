@@ -143,6 +143,30 @@ Applets.OpenURL.loadSession = function(dump) {
 }
 
 
+Desk.Slider = function(callback) {
+  var e = E('div', null, null, 'slider')
+  e.knob = E('div', null, null, 'sliderKnob')
+  e.onmousedown = function(ev) {
+    var lx = ev.layerX
+    if (ev.target == e.knob) lx += 1
+    else lx -= 4
+    e.setPosition(lx / e.offsetWidth)
+  }
+  e.appendChild(e.knob)
+  Object.extend(e, EventListener)
+  e.position = 0
+  e.setPosition = function(val, sendEvent) {
+    this.position = Math.min(Math.max(0, val), 1)
+    e.knob.style.width = (val * (e.offsetWidth-2)) + 'px'
+    if (sendEvent != false)
+      this.newEvent('valueChanged', { value: val })
+  }
+  if (callback)
+    e.addListener('valueChanged', function(e) { callback(e.value) })
+  return e
+}
+
+
 MusicPlayer = null
 Applets.MusicPlayer = function() {
   var c = E('span', null,null, 'taskbarApplet MusicPlayer')
@@ -152,11 +176,9 @@ Applets.MusicPlayer = function() {
 
   Object.extend(c, EventListener)
   c.playlist = []
-  c.playlistGroup = null
-  c.playlistIndex = 0
   c.currentIndex = 0
   c.savedSeek = 0
-  c.playlistStack = []
+  c.volume = 100
   c.currentURL = null
   c.repeating = false
   c.shuffling = false
@@ -164,82 +186,25 @@ Applets.MusicPlayer = function() {
   c.firstPlay = true
 
   c.addToPlaylist = function(item) {
-    this.getTopPlaylist().push(item)
-    this.newEvent('playlistChanged', { value: this.getTopPlaylist() })
+    this.playlist.push(item)
+    this.newEvent('playlistChanged', { value: this.playlist })
   }
   
   c.removeFromPlaylistAt = function(index) {
-    var stack = this.collectPlaylistUpto(this.getTopPlaylist(), index)
-    if (stack) {
-      var pls = stack[0].pop()
-      pls[0].splice(pls[1], 1)
-      if (this.currentIndex >= index) {
-        this.currentIndex--
-        if (this.playlist == pls[0])
-          this.playlistIndex--
-      }
-      this.newEvent('playlistChanged', { value: this.getTopPlaylist() })
-    }
-  }
-  
-  c.getTopPlaylist = function() {
-    if (this.playlistStack.isEmpty())
-      return this.playlist
-    else
-      return this.playlistStack[0][0]
-  }
-  
-  c.getPlaylistLength = function(playlist, i) {
-    var pls = this.getTopPlaylist()
-    if (!playlist) playlist = pls
-    if (i == undefined) i = playlist.length
-    return this.computePlaylistLength(playlist, i)
-  }
-  
-  c.computePlaylistLength = function(playlist, i) {
-    return playlist.slice(0,i).inject(0, function(s, e){
-      if (e.isPlaylist) {
-        return s + this.computePlaylistLength(e.items, e.items.length)
-      } else {
-        return s + 1
-      }
-    }.bind(this))
-  }
-  
-  c.collectPlaylistUpto = function(playlist, i, count) {
-    if (!count) count = [[], 0]
-    for (var j=0; j<playlist.length; j++) {
-      var e = playlist[j]
-      if (this.isPlaylist(e)) {
-        count[0].push([playlist, j])
-        this.collectPlaylistUpto(e.items, i, count)
-        if (count[1] > i) return count
-        count[0].pop()
-      } else {
-        count[1] += 1
-        if (count[1] > i) {
-          count[0].push([playlist, j])
-          return count
-        }
-      }
-    }
-    return false
+    this.playlist.splice(index, 1)
+    this.newEvent('playlistChanged', { value: this.playlist })
   }
   
   c.next = function(){
     if (this.shuffling) {
-      this.goToIndex(Math.floor(Math.random()*this.getPlaylistLength()))
+      this.goToIndex(Math.floor(Math.random()*this.playlist.length))
     } else {
-      this.playlistIndex += 1
-      this.currentIndex += 1
-      this.play()
+      this.goToIndex(this.currentIndex + 1)
     }
   }
   
   c.previous = function(){
-    this.playlistIndex -= 1
-    this.currentIndex -= 1
-    this.play()
+    this.goToIndex(this.currentIndex - 1)
   }
   
   c.gotoFirst = function(startPlaying){
@@ -248,18 +213,14 @@ Applets.MusicPlayer = function() {
   
   c.goToIndex = function(index, startPlaying){
     if (startPlaying == undefined) startPlaying = true
-    var pl = this.getTopPlaylist()
-    var stack = c.collectPlaylistUpto(pl, index)
-    if (stack) {
-      var top = stack[0].pop()
-      this.playlistStack = stack[0]
-      this.playlist = top[0]
-      this.playlistIndex = top[1]
-      this.currentIndex = index
-      if (startPlaying) this.play()
-      else
-        this.newEvent('songChanged', {value: (this.playlist[this.playlistIndex] || '').split("/").last() })
-    }
+    index = parseInt(index) % this.playlist.length
+    if (isNaN(index)) index = 0
+    if (index < 0) index = this.playlist.length + index
+    this.currentIndex = index
+    this.savedSeek = 0
+    if (startPlaying) this.play()
+    else
+      this.newEvent('songChanged', {value: (this.playlist[this.currentIndex] || '').split("/").last() })
   }
   
   c.playNext = function() {
@@ -268,10 +229,6 @@ Applets.MusicPlayer = function() {
     else
       this.next()
   }.bind(c)
-  
-  c.isPlaylist = function(w) {
-    return (w.splice != undefined)
-  }
   
   c.shuffle = function(){
     this.setShuffling(!this.shuffling)
@@ -299,50 +256,15 @@ Applets.MusicPlayer = function() {
   
   c.play = function(){
     if (!this.playlist.isEmpty()) {
-      if (this.firstPlay) {
-        this.firstPlay = false
-        this.goToIndex(this.currentIndex, false)
-      }
       this.playButton.style.display = 'none'
       this.pauseButton.style.display = null
       this.playing = true
-      while (this.playlistIndex >= this.playlist.length) {
-        if (this.playlistStack.isEmpty()) {
-          this.playlistIndex = 0
-          this.currentIndex = 0
-        } else {
-          var pi = this.playlistStack.pop()
-          this.playlist = pi[0]
-          this.playlistIndex = pi[1] + 1
-        }
-      }
-      var gotoEnd = false
-      while (this.playlistIndex < 0) {
-        if (this.playlistStack.isEmpty()) {
-          this.playlistIndex = Math.max(
-            this.playlist.length-1, 0)
-          this.currentIndex = this.getPlaylistLength() - 1
-        } else {
-          var pi = this.playlistStack.pop()
-          this.playlist = pi[0]
-          this.playlistIndex = pi[1] - 1
-        }
-        gotoEnd = true // start at the end of the playlist
-      }
-      this.currentItem = this.playlist[this.playlistIndex]
-      while (this.isPlaylist(this.currentItem)) {
-        this.playlistStack.push(
-          [this.playlist, this.playlistIndex])
-        this.playlist = this.currentItem
-        this.playlistIndex = (gotoEnd ?
-          Math.max(this.playlist.length-1, 0) : 0)
-        this.currentItem = this.playlist[this.playlistIndex]
-      }
+      this.currentItem = this.playlist[this.currentIndex]
       if (this.currentItem) {
         this.currentURL = (typeof this.currentItem == 'string' ?
                            this.currentItem :
                            this.currentItem.src)
-        var params = {url: this.currentURL, autoPlay: true, stream: true}
+        var params = {url: this.currentURL, autoPlay: true, stream: true, volume: this.volume}
         soundManager.load(this.soundID, params)
       } else {
         setTimeout(this.playNext, 0)
@@ -392,26 +314,53 @@ Applets.MusicPlayer = function() {
     this.sound.setPosition(pos)
     this.newEvent('positionChanged', { value: Object.formatTime(pos) })
   }
+
+  c.seekToPct = function(pct) {
+    this.seekTo(parseInt(this.sound.durationEstimate * pct))
+  }
+
+  c.setVolume = function(vol) {
+    this.volume = Math.min(100, Math.max(0, parseInt(vol)))
+    if (isNaN(this.volume)) this.volume = 100
+    if (this.sound)
+      this.sound.setVolume(this.volume)
+    this.newEvent('volumeChanged', {value: this.volume})
+  }
   
+  c.volumeUp = function() {
+    this.setVolume(this.volume + 20)
+  }
+  
+  c.volumeDown = function() {
+    this.setVolume(this.volume - 20)
+  }
+
+  c.togglePlaylist = function() {
+    new Desk.Window(E('div', this.playlist.join("<br/>")))
+  }
+
   soundManager.onload = function() {
     soundManager.createSound(c.soundID, {url: 'data/null.mp3'})
     c.sound = soundManager.sounds[c.soundID]
+    c.sound.setVolume(c.volume)
     c.sound.options.onfinish = c.playNext
     c.sound.options.onload = function(e) {
-      c.seekTo(0)
-//       c.savedSeek = 0
+      c.seekTo(c.savedSeek)
+      c.savedSeek = 0
       if (c.paused) soundManager.pause(c.soundID)
       c.updateButtons()
     }
     c.sound.options.whileplaying = function(e) {
-      c.newEvent('positionChanged', { value: Object.formatTime(c.sound.position) })
+      c.newEvent('positionChanged', {
+        pct: (c.sound.position / c.sound.durationEstimate),
+        value: Object.formatTime(c.sound.position)
+      })
     }
     c.sound.options.onid3 = function(e){
       var elems = [c.sound.id3.artist, c.sound.id3.songname]
       c.newEvent('songChanged', {value: elems.join(" - ")})
     }
-    if (c.playing)
-      c.play()
+    if (c.playing) c.play()
   }
 
   c.playButton = Desk.Button('Play', c.pause.bind(c))
@@ -423,12 +372,26 @@ Applets.MusicPlayer = function() {
   if (c.shuffling) c.shuffleButton.toggle()
   c.repeatButton = Desk.Button('Repeat', c.repeat.bind(c))
   if (c.repeating) c.repeatButton.toggle()
+  c.volumeUpButton = Desk.Button('VolumeUp', c.volumeUp.bind(c))
+  c.volumeDownButton = Desk.Button('VolumeDown', c.volumeDown.bind(c))
+  c.playlistButton = Desk.Button('Playlist', c.togglePlaylist.bind(c))
+
+  c.volumeElem = E('span', c.volume.toString(), null, 'Volume')
+  
   c.appendChild(c.prevButton)
   c.appendChild(c.pauseButton)
   c.appendChild(c.playButton)
   c.appendChild(c.nextButton)
   c.appendChild(c.shuffleButton)
   c.appendChild(c.repeatButton)
+  c.appendChild(c.playlistButton)
+  c.appendChild(c.volumeUpButton)
+  c.appendChild(c.volumeDownButton)
+  c.appendChild(c.volumeElem)
+
+
+  c.seekElem = Desk.Slider(function(val) { c.seekToPct(val) })
+  c.appendChild(c.seekElem)
 
   c.infoElem = E('div', null, null, 'SongInfo')
   c.appendChild(c.infoElem)
@@ -447,39 +410,41 @@ Applets.MusicPlayer = function() {
   c.infoElem.appendChild(c.currentlyPlaying)
 
   c.addListener('positionChanged', function(e) {
+    if (e.pct != undefined) c.seekElem.setPosition(e.pct, false)
     c.currentSeekElem.innerHTML = e.value
   })
   c.addListener('songChanged', function(e){
-    var plen = c.getPlaylistLength()
+    var plen = c.playlist.length
     c.indexElem.innerHTML = Math.min(plen, (c.currentIndex+1))
     c.allElem.innerHTML = plen
     c.currentlyPlaying.innerHTML = e.value
   })
   c.addListener('playlistChanged', function(e) {
-    var plen = c.getPlaylistLength()
+    var plen = c.playlist.length
     c.indexElem.innerHTML = Math.min(plen, (c.currentIndex+1))
     c.allElem.innerHTML = plen
+  })
+  c.addListener('volumeChanged', function(e) {
+    c.volumeElem.innerHTML = e.value
   })
   
   Droppable.makeDroppable(c)
   c.drop = function(dragged, e) {
     if (dragged.className.match(/\bwindowTaskbarEntry\b/)) {
       var w = dragged.window
-      if (w.src && w.src.split(".").last().match(/mp3|m3u/i)) {
-        this.playlistStack = []
-        this.playlist = [w]
-        this.playlistIndex = 0
-        this.currentIndex = 0
-        this.play()
+      if (w.src && w.src.split(".").last().match(/mp3\/json$/i)) {
+        this.addToPlaylist(w.src.replace(/items/,'files').replace(/\/json$/, ''))
+        this.goToIndex(this.playlist.length-1)
       }
     } else if (dragged.className.match(/\bwindowGroupTitle\b/)) {
-      this.playlistStack = []
-      this.playlist = dragged.windowGroup.findAll(function(w){
-        return w.src && w.src.split(".").last().match(/mp3|m3u/i)
+      var t = this
+      var pll = this.playlist.length
+      dragged.windowGroup.each(function(w){
+        if (w.src && w.src.split(".").last().match(/mp3\/json$/i))
+          t.addToPlaylist(w.src.replace(/items/,'files').replace(/\/json$/, ''))
       })
-      this.playlistIndex = 0
-      this.currentIndex = 0
-      this.play()
+      if (pll != this.playlist.length)
+        this.goToIndex(pll)
     }
   }
   c.dumpSession = function(){
@@ -491,7 +456,8 @@ Applets.MusicPlayer = function() {
         shuffling : this.shuffling,
         playing : this.playing,
         paused : this.paused,
-        playlist : this.getTopPlaylist(),
+        volume : this.volume,
+        playlist : this.playlist,
         seek : (this.sound && this.sound.position)
       }
     }
@@ -523,6 +489,7 @@ Applets.MusicPlayer.loadSession = function(data) {
   mp.playlist = data.playlist || []
   mp.setShuffling(data.shuffling)
   mp.setRepeating(data.repeating)
+  mp.setVolume(data.volume)
   mp.playing = false
   mp.savedSeek = data.seek || 0
   mp.goToIndex(data.currentIndex, false)
