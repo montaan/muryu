@@ -300,7 +300,8 @@ TileMap.prototype = {
       query: this.query,
       color: this.color,
       bgcolor : this.bgcolor,
-      bgimage : this.bgimage
+      bgimage : this.bgimage,
+      time : this.time
     }
     return {
       loader: this.dumpLoader,

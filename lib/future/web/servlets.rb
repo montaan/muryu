@@ -161,6 +161,9 @@ module FutureServlet
   
   def do_GET(req,res)
     handle_request(req,res)
+  rescue => e
+    log_error 'servlets', e
+    raise
   end
   
   def do_POST(req,res)
@@ -173,6 +176,9 @@ module FutureServlet
       }
     end
     handle_request(req,res)
+  rescue => e
+    log_error 'servlets', e
+    raise
   end
 
   def servlet_path_key
@@ -751,7 +757,7 @@ extend FutureServlet
           servlet_user, sq,
           :rows, x, y, z, w, h
         ).to_a.map do |iind,((x,y,sz), info)|
-          {:x => x, :y => y, :sz => sz, :path => info[:path], :deleted => info[:deleted]}
+          {:index => info[:index], :x => x, :y => y, :sz => sz, :path => info[:path], :deleted => info[:deleted]}
         end
         puts "#{telapsed} for fetching tile info" if $PRINT_QUERY_PROFILE
         jinfo = info.to_json
@@ -760,7 +766,7 @@ extend FutureServlet
       end
       jinfo
     end
-  
+    
     def do_list(req,res)
       if req.query.has_key?('tiles')
         res['Content-type'] = 'text/plain'
@@ -1169,9 +1175,6 @@ extend FutureServlet
       end
     end
     
-    def do_list(req,res)
-    end
-
     def do_file(req, res)
       return unless servlet_target
       res['Content-type'] = servlet_target.major + "/" + servlet_target.minor
@@ -1325,8 +1328,36 @@ extend FutureServlet
       end
     end
 
+    def get_info_list(first, last, time)
+      sq = self.search_query.clone
+      key = Digest::MD5.hexdigest([servlet_user.id, "f#{first}l#{last}", search_query, time].join("::"))
+      jinfo = $memcache.get(key) if $CACHE_INFO and not $info_changed
+      unless jinfo
+        sq[:columns] ||= []
+        sq[:columns] << 'path'
+        sq[:columns] << 'deleted'
+        puts "#{telapsed} for tile_info init" if $PRINT_QUERY_PROFILE
+        info = Tiles.info(
+          servlet_user, sq,
+          :rawlist, first, last, 0, 0, 0
+        ).to_a.map do |iind,(_, info)|
+          {:index => info[:index], :path => info[:path], :deleted => info[:deleted]}
+        end.sort_by{|h| h[:index] }
+        puts "#{telapsed} for fetching tile info" if $PRINT_QUERY_PROFILE
+        jinfo = info.to_json
+        puts "#{telapsed} for tile info jsonification" if $PRINT_QUERY_PROFILE
+        $memcache.set(key, jinfo, 300) if $CACHE_INFO
+      end
+      jinfo
+    end
+
     def do_list(req, res)
-      res.body = <<-EOF
+      if req.query.has_key?('first') and req.query.has_key?('last')
+        first = req.query['first'].to_s.to_i
+        last = req.query['last'].to_s.to_i
+        res.body = get_info_list(first, last, req.query['time'])
+      else
+        res.body = <<-EOF
         <FORM METHOD="post" ENCTYPE="multipart/form-data" ACTION="/items/create">
         <P><A href="http://textism.com/tools/textile/" target="_new">TEXTILE</A><BR>
           <TEXTAREA NAME="text" ROWS="1" COLS="30"></TEXTAREA>
@@ -1356,7 +1387,8 @@ extend FutureServlet
           <INPUT TYPE="submit" VALUE="Send all this junk, pronto!">
         </P>
         </FORM>
-      EOF
+        EOF
+      end
     end
 
   end

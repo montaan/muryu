@@ -280,12 +280,12 @@ EventListener = {
 
 
 
-Draggable = {
+Desk.Draggable = {
   currentlyDragged : null,
   dragEnded : false,
   
   makeDraggable : function(elem) {
-    Object.extend(elem, Draggable.Mixin)
+    Object.extend(elem, Desk.Draggable.Mixin)
     elem.addEventListener('mousedown', elem.startDrag.bind(elem), true)
   },
 
@@ -300,7 +300,7 @@ Draggable = {
       Event.stop(e)
     } else if (this.dragEnded) {
       this.dragEnded = false
-      Droppable.cancelDrop()
+      Desk.Droppable.cancelDrop()
     } else {
       if (this.currentlyDragged) {
         var pv = new Vector(Event.pointerX(e), Event.pointerY(e))
@@ -316,8 +316,8 @@ Draggable = {
             display: 'block',
             position: 'fixed',
             zIndex: 1000,
-            marginLeft: (this.currentlyDragged.offsetLeft - this.dragStart.x) + 'px',
-            marginTop: (this.currentlyDragged.offsetTop - this.dragStart.y) + 'px',
+            marginLeft: (-this.currentlyDragged.offsetWidth / 2) + 'px',
+            marginTop: (-this.currentlyDragged.offsetHeight / 2) + 'px',
             left: this.dragElement.x + 'px',
             top: this.dragElement.y + 'px',
             width: this.currentlyDragged.getWidth() + 'px',
@@ -337,26 +337,28 @@ Draggable = {
         this.beingDragged = false
         this.dragElement.parentNode.removeChild(this.dragElement)
         this.dragElement = null
-        Droppable.drop(this.currentlyDragged)
+        Desk.Droppable.drop(this.currentlyDragged)
         this.dragEnded = true
       }
       this.currentlyDragged = null
+      Event.stop(e)
     }
   }
 }
-Draggable.Mixin = {
+Desk.Draggable.Mixin = {
   startDrag: function(e) {
     if (Event.isLeftClick(e)) {
-      Draggable.currentlyDragged = this
-      Draggable.dragStart = new Vector(Event.pointerX(e), Event.pointerY(e))
+      Desk.Draggable.currentlyDragged = this
+      Desk.Draggable.dragStart = new Vector(Event.pointerX(e), Event.pointerY(e))
+      Event.stop(e)
     }
   }
 }
-window.addEventListener('mousemove', Draggable.drag.bind(Draggable), false)
-window.addEventListener('mouseup', Draggable.endDrag.bind(Draggable), false)
+window.addEventListener('mousemove', Desk.Draggable.drag.bind(Desk.Draggable), false)
+window.addEventListener('mouseup', Desk.Draggable.endDrag.bind(Desk.Draggable), false)
 
 
-Droppable = {
+Desk.Droppable = {
   dropTarget : null,
 
   drop : function(dragged) {
@@ -369,14 +371,14 @@ Droppable = {
 
   makeDroppable : function(elem) {
     elem.addEventListener('mousemove', function(e){
-      if (Droppable.dropped) {
-        this.drop(Droppable.dropped, e)
-        Droppable.cancelDrop()
+      if (Desk.Droppable.dropped) {
+        this.drop(Desk.Droppable.dropped, e)
+        Desk.Droppable.cancelDrop()
       }
     }, true)
   }
 }
-Droppable.Mixin = {
+Desk.Droppable.Mixin = {
   drop : function(dragged, e) {
   }
 }

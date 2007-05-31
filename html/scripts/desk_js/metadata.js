@@ -239,15 +239,15 @@ Mimetype = {
         return info.path.split("/").last()
       if (info.metadata.title && show_title) {
         var title = E('span', info.metadata.title)
-        if (info.writable)
+/*        if (info.writable)
           Element.makeEditable(title, Map.__itemPrefix+info.path+'/edit',
-            'metadata.title', null, Tr('Item.click_to_edit_title'))
+            'metadata.title', null, Tr('Item.click_to_edit_title'))*/
         elem.appendChild(title)
       } else {
         var title = E('span')
         var basename = info.path.split("/").last()
         var editable_part = E('span', basename)
-        if (info.writable)
+/*        if (info.writable)
           Element.makeEditable(editable_part,
             Map.__itemPrefix+info.path+'/edit',
             'metadata.title',
@@ -255,7 +255,7 @@ Mimetype = {
               if (base.length == 0) return false
               info.metadata.title = base
               return base
-          }, Tr('Item.click_to_edit_title') )
+          }, Tr('Item.click_to_edit_title') )*/
         title.appendChild(editable_part)
         elem.appendChild(title)
       }
@@ -263,20 +263,23 @@ Mimetype = {
         if (info.metadata.author) {
           metadata.appendChild(T(Tr('Item.by')+" "))
           var author = E('span', info.metadata.author)
-          if (info.writable)
+/*          if (info.writable)
             Element.makeEditable(author, Map.__itemPrefix+info.path+'/edit',
-              'metadata.author', null, Tr('Item.click_to_edit_author'))
+              'metadata.author', null, Tr('Item.click_to_edit_author'))*/
           metadata.appendChild(author)
         }
+        var mda = []
         if (info.metadata.length)
-          metadata.appendChild(T(" " + Object.formatTime(info.metadata.length*1000)))
+          mda.push(Object.formatTime(info.metadata.length*1000))
         if (info.metadata.width && info.metadata.height)
-          metadata.appendChild(T(" (" + info.metadata.width+"x"+info.metadata.height +
-                        (info.metadata.dimensions_unit || "") + ")"))
+          mda.push(info.metadata.width+"x"+info.metadata.height +
+                   (info.metadata.dimensions_unit || ""))
+        mda.push(Number.mag(info.size, Tr('Item.byte_abbr'), 1))
       }
+      metadata.appendChild(T(" ("+mda.join(", ")+") "))
       elem.appendChild(T(" "))
       elem.appendChild(metadata)
-      return elem
+      return elem.textContent
     },
     
     // Creates user | src | ref | date | size -div and returns it.
@@ -295,8 +298,7 @@ Mimetype = {
         by.appendChild(E('a', Tr("Item.referrer"), null, 'infoDivLink', null,
                                   {href:info.referrer}))
       }
-      by.appendChild(T(' | ' + Tr('Item.DateObject', info.created_at)))
-      by.appendChild(T(' | ' + Number.mag(info.size, Tr('Item.byte_abbr'), 1)))
+      by.appendChild(T(" | " + Tr('Item.DateObject', info.created_at)))
       infoDiv.appendChild(by)
       if (info.writable && !hide_edit_link) {
         var t = this
@@ -327,8 +329,7 @@ Mimetype = {
           showText: true,
           textSide: 'right'
         })
-        var editDiv = E("div", ' | ', null, 'editDiv',
-           {display:'inline'})
+        var editDiv = E("div", null, null, 'editDiv')
         editDiv.appendChild(editButton)
         editDiv.appendChild(T(' | '))
         editDiv.appendChild(deleteButton)
@@ -582,7 +583,8 @@ Mimetype = {
     makeFlashVideoViewer : function(info) {
       var i = E('div', '<a href="http://www.macromedia.com/go/getflashplayer">Get Flash</a> to see this player.')
       var so = new SWFObject("/scripts/flv_player/flvplayer.swf","player","320","260","7")
-      so.addParam("allowfullscreen","true")
+      so.addParam("allowfullscreen", "true")
+      so.addVariable("volume", (MusicPlayer && MusicPlayer.volume) || 100)
       so.addVariable("file", Map.__filePrefix + info.path)
       so.write(i)
       return i

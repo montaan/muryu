@@ -33,6 +33,14 @@ module Kernel
     subsystem ||= File.basename(caller(1).first[/([^:]+)\.rb:/, 1] || caller(1).first)
     log(message, subsystem, Logger::INFO, &block) 
   end
+  
+  def log_error(message, subsystem = nil, &block)
+    subsystem ||= File.basename(caller(1).first[/([^:]+)\.rb:/, 1] || caller(1).first)
+    if message.is_a?(Exception)
+      message = "#{e.class}: #{e.message}\n#{e.backtrace.join("\n")}"
+    end
+    log(message, subsystem, Logger::ERROR, &block) 
+  end
 
   def log_debug(message, subsystem = nil, &block)
     subsystem ||= File.basename(caller(1).first[/([^:]+)\.rb:/, 1] || caller(1).first)

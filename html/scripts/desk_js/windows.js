@@ -231,7 +231,7 @@ Desk.Window.prototype = {
       this.shade()
     }.bind(this), false)
 
-    Draggable.makeDraggable(this.taskbarElement)
+    Desk.Draggable.makeDraggable(this.taskbarElement)
     this.taskbarElement.window = this
     this.taskbarTitleElement.addEventListener('mousedown', function(e){
       if (Event.isLeftClick(e)) {

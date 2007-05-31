@@ -30,7 +30,8 @@ Desk.WindowManager.prototype = {
     if (!this.windows.include(win)) this.pushWindow(win)
     win.setContainer(this.windowContainer)
     this.update()
-    Session.add(win)
+    if (!win.transient)
+      Session.add(win)
     this.newEvent('add', {window: win})
   },
 

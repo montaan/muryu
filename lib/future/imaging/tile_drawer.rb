@@ -227,18 +227,20 @@ extend self
           cidxs = q[:columns].zip((0...q[:columns].size).to_a).to_hash
           rkey = q[:columns].join("_").capitalize
           unless TileDrawer.constants.include?(rkey)
-            eval("TileDrawer::#{rkey} = Struct.new(#{q[:columns].map{|c|":#{c}"}.join(",")})")
+            eval("TileDrawer::#{rkey} = Struct.new(:index, #{q[:columns].map{|c|":#{c}"}.join(",")})")
           end
           rstr = TileDrawer.const_get(rkey)
           ii_c = cidxs[:image_index]
           idxs = []
           iidxs = {}
           GC.disable
+          j = 0
           result.each{|r|
-            h = rstr.new(*r)
+            h = rstr.new(j,*r)
             ii = h.image_index.to_i
             iidxs[ii] = h
             idxs << ii
+            j += 1
           }
           GC.enable
           puts "#{Thread.current.telapsed} for mangling info" if $PRINT_QUERY_PROFILE
@@ -255,7 +257,9 @@ extend self
         indexes, iindexes = t
     end
     infos = {}
-    tile_drawer.tile_info(indexes, *tile_args){|i, *a| infos[i] = [a, iindexes[i]]}
+    tile_drawer.tile_info(indexes, *tile_args){|i, *a| 
+      infos[i] = [a, iindexes[i]]
+    }
     puts "#{Thread.current.telapsed} for info layout" if $PRINT_QUERY_PROFILE
     infos
   end
@@ -299,10 +303,11 @@ class TileDrawer
     end
     return false if empty_tile
     puts "#{Thread.current.telapsed} for tile init" if $PRINT_QUERY_PROFILE
-    return draw_tile_sw(bgcolor, indexes[1], palette, x, y, zoom, bgimage) if zoom <= 7
+    return draw_tile_sw(bgcolor, indexes[1], palette, x, y, zoom, bgimage) if zoom <= 7 && layouter_name.to_s == 'rows'
     tile = nil
     $imlib_mutex.synchronize do
       tile = Imlib2::Image.new(w,h)
+      tile.has_alpha = true
       tile.fill_rectangle(0,0, w, h, Imlib2::Color::RgbaColor.new(bgcolor))
       if bgimage
         bg = Imlib2::Image.create_using_data(256, 256, bgimage)
@@ -1277,6 +1282,40 @@ class TileDrawer
 
   end # RowLayouter
   LAYOUTERS['rows'] = RowLayouter
+  
+  module ListLayouter
+  extend self
+
+    def each(indexes, x, y, sz, w, h, *rest)
+      if x > -w && x < sz
+        ix = -x
+        len = indexes.size / sz
+        sidx = (y / sz).floor
+        tlen = (h / sz.to_f).ceil 
+        return if -sidx >= tlen
+        iy = (sidx * sz) - y
+        i = 0
+        sidx.upto(tlen){|iindex|
+          index = indexes[iindex]
+          next unless index
+          yield(index, ix, iy+(i*sz))
+          i += 1
+        }
+      end
+    end
+
+  end # ListLayouter
+  LAYOUTERS['list'] = ListLayouter
+
+  module RawListLayouter
+  extend self
+
+    def each(indexes, first, last, *rest)
+      first.upto(last){|iindex| yield(indexes[iindex],0,0) }
+    end
+
+  end # RawListLayouter
+  LAYOUTERS['rawlist'] = RawListLayouter
 
 end # TileDrawer
 

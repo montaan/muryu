@@ -145,6 +145,7 @@ Applets.OpenURL.loadSession = function(dump) {
 
 Desk.Slider = function(callback) {
   var e = E('div', null, null, 'slider')
+  e.style.cursor = 'pointer'
   e.knob = E('div', null, null, 'sliderKnob')
   e.onmousedown = function(ev) {
     var lx = ev.layerX
@@ -177,6 +178,8 @@ Applets.MusicPlayer = function() {
   Object.extend(c, EventListener)
   c.playlist = []
   c.currentIndex = 0
+  c.position = 0
+  c.lastPos = 0
   c.savedSeek = 0
   c.volume = 100
   c.currentURL = null
@@ -187,11 +190,15 @@ Applets.MusicPlayer = function() {
 
   c.addToPlaylist = function(item) {
     this.playlist.push(item)
-    this.newEvent('playlistChanged', { value: this.playlist })
+    this.playlistChanged()
   }
   
   c.removeFromPlaylistAt = function(index) {
     this.playlist.splice(index, 1)
+    this.playlistChanged()
+  }
+  
+  c.playlistChanged = function() {
     this.newEvent('playlistChanged', { value: this.playlist })
   }
   
@@ -265,7 +272,9 @@ Applets.MusicPlayer = function() {
                            this.currentItem :
                            this.currentItem.src)
         var params = {url: this.currentURL, autoPlay: true, stream: true, volume: this.volume}
+        soundManager.unload(this.soundID)
         soundManager.load(this.soundID, params)
+        this.position = 0
       } else {
         setTimeout(this.playNext, 0)
       }
@@ -311,6 +320,8 @@ Applets.MusicPlayer = function() {
   }
   
   c.seekTo = function(pos) {
+    this.position = 0
+    this.lastPos = 0
     this.sound.setPosition(pos)
     this.newEvent('positionChanged', { value: Object.formatTime(pos) })
   }
@@ -336,7 +347,110 @@ Applets.MusicPlayer = function() {
   }
 
   c.togglePlaylist = function() {
-    new Desk.Window(E('div', this.playlist.join("<br/>")))
+    if (this.playlistWindow) {
+      this.playlistWindow.close()
+      var pl = this.playlistWindow.content.firstChild.firstChild
+      this.removeListener('songChanged', pl.currentUpdater)
+      this.removeListener('playlistChanged', pl.playlistUpdater)
+      delete this.playlistWindow
+      Sortable.destroy('MusicPlayer_playlist')
+    } else {
+      var pl = E('ol', null, 'MusicPlayer_playlist')
+      var tlc = E('div', null)
+      var t = this
+      tlc.appendChild(Desk.Button('RemoveFromPlaylist', function() {
+          for (var i=0; i<pl.childNodes.length; i++) {
+            if (pl.childNodes[i].className == 'selected') {
+              pl.removeChild(pl.childNodes[i])
+              t.removeFromPlaylistAt(i)
+              i--
+            }
+          }
+      }, { showText: true, showImage: false }))
+      tlc.appendChild(Desk.Button('SortPlaylist', function(){
+      }, { showText: true, showImage: false }))
+
+      var plc = E('div', null, 'MusicPlayer_playlistContainer')
+      plc.style.overflow = 'auto'
+      plc.style.width = '100%'
+      plc.style.height = '100%'
+      pl.style.marginLeft = '2px'
+      pl.getIndex = function(obj) {
+        var c = this.childNodes
+        for (var i=0; i<c.length; i++) {
+          if (c[i] == obj) return i
+        }
+        return 0
+      }
+      pl.updateCurrent = function(val) {
+        var idx = t.currentIndex
+        var c = this.childNodes
+        for (var i=0; i<c.length; i++) {
+          if (i != idx)
+            c[i].className = c[i].className.replace(/\s*\bcurrent\b/, '')
+          else if (!c[i].className.match(/\s*\bcurrent\b/)) {
+            c[i].className += ' current'
+            this.current = c[i]
+          }
+        }
+      }
+      pl.updatePlaylist = function(val) {
+        if (this.updated) {
+          this.updated = false
+        } else if ($A(this.childNodes).include(this.current)) {
+          this.updated = true
+          t.currentIndex = this.getIndex(this.current)
+          t.playlistChanged()
+        }
+      }
+      pl.currentUpdater = pl.updateCurrent.bind(pl)
+      pl.playlistUpdater = pl.updatePlaylist.bind(pl)
+      this.addListener('songChanged', pl.currentUpdater)
+      this.addListener('playlistChanged', pl.playlistUpdater)
+      pl.deselect = function() {
+        var c = this.childNodes
+        for (var i=0; i<c.length; i++) {
+          c[i].className = c[i].className.replace(/\s*\bselected\b/, '')
+        }
+      }
+      this.playlist.each(function(i) {
+        var a = A(i, i.split('/').last())
+        a.style.textDecoration = 'none'
+        a.onclick = function(ev) { if (Event.isLeftClick(ev)) ev.preventDefault() }
+        var li = E('li', a)
+        li.ondblclick = function(ev) {
+          t.goToIndex(pl.getIndex(this))
+          Event.stop(ev)
+        }
+        li.onclick = function(ev) {
+          if (Event.isLeftClick(ev)) {
+            if (!ev.ctrlKey) pl.deselect()
+            if (this.className.match(/\s*\bselected\b/))
+              this.className = this.className.replace(/\s*\bselected\b/, '')
+            else
+              this.className += ' selected'
+            Event.stop(ev)
+          }
+        }
+        pl.appendChild(li)
+      })
+      pl.updateCurrent()
+      plc.appendChild(pl)
+      tlc.appendChild(plc)
+      this.playlistWindow = new Desk.Window(tlc, {title: 'Playlist', group: 'playlist', transient: true})
+      Position.includeScrollOffsets = true
+      Sortable.create('MusicPlayer_playlist', {
+        scroll:'MusicPlayer_playlistContainer',
+        onChange: function(){
+          var new_pl = []
+          $A(pl.childNodes).each(function(cn) {
+            new_pl.push(cn.firstChild.href)
+          })
+          t.playlist = new_pl
+          t.newEvent('playlistChanged', {value: t.playlist})
+        }
+      })
+    }
   }
 
   soundManager.onload = function() {
@@ -344,16 +458,18 @@ Applets.MusicPlayer = function() {
     c.sound = soundManager.sounds[c.soundID]
     c.sound.setVolume(c.volume)
     c.sound.options.onfinish = c.playNext
-    c.sound.options.onload = function(e) {
-      c.seekTo(c.savedSeek)
-      c.savedSeek = 0
-      if (c.paused) soundManager.pause(c.soundID)
+    c.sound.options.onplay = function(e) {
+      c.setVolume(c.volume)
       c.updateButtons()
     }
     c.sound.options.whileplaying = function(e) {
+      if (c.sound.volume != c.volume) c.sound.setVolume(c.volume)
+      if (c.sound.position < c.lastPos) c.seekTo(0)
+      c.position += c.sound.position - c.lastPos
+      c.lastPos = c.sound.position
       c.newEvent('positionChanged', {
-        pct: (c.sound.position / c.sound.durationEstimate),
-        value: Object.formatTime(c.sound.position)
+        pct: c.position < 0 ? 0 : (c.position / Math.max(1, c.sound.durationEstimate)),
+        value: c.position < 0 ? "..." : Object.formatTime(c.position)
       })
     }
     c.sound.options.onid3 = function(e){
@@ -428,7 +544,7 @@ Applets.MusicPlayer = function() {
     c.volumeElem.innerHTML = e.value
   })
   
-  Droppable.makeDroppable(c)
+  Desk.Droppable.makeDroppable(c)
   c.drop = function(dragged, e) {
     if (dragged.className.match(/\bwindowTaskbarEntry\b/)) {
       var w = dragged.window

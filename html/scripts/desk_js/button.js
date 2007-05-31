@@ -23,19 +23,22 @@ Desk.Button = function(name, onclickHandler, config){
   if (button.textElem && button.textSide != 'right')
     button.appendChild(button.textElem)
 
-  // Set up the button image.
-  button.image = E('img')
-  button.image.alt = Tr('Button.'+name)
-  button.image.title = Tr('Button.'+name)
-  button.image.style.border = '0px'
-  button.image.src = button.normal_image
-  button.appendChild(button.image)
+  if (button.showImage != false) {
+    // Set up the button image.
+    button.image = E('img')
+    button.image.alt = Tr('Button.'+name)
+    button.image.title = Tr('Button.'+name)
+    button.image.style.border = '0px'
+    button.image.src = button.normal_image
+    button.appendChild(button.image)
+  }
   
   if (button.textElem && button.textSide == 'right')
     button.appendChild(button.textElem)
 
   // Call toggle to make down normal and normal down.
   button.toggle = function(){
+    if (!this.image) return
     if (this.image.src == this.normal_image)
       this.image.src = this.down_image
     else if (this.image.src == this.down_image)
@@ -45,20 +48,22 @@ Desk.Button = function(name, onclickHandler, config){
     this.normal_image = tmp
   }
 
-  // Eventhandlers for lighting up the button on hover.
-  button.addEventListener('mouseover',
-    function(e){ this.image.src = this.hover_image }, false)
-  button.addEventListener('mouseout',
-    function(e){ this.image.src = this.normal_image }, false)
+  if (button.image) {
+    // Eventhandlers for lighting up the button on hover.
+    button.addEventListener('mouseover',
+      function(e){ this.image.src = this.hover_image }, false)
+    button.addEventListener('mouseout',
+      function(e){ this.image.src = this.normal_image }, false)
 
-  // Eventhandlers for pushing the button down and clicking.
-  button.addEventListener('mousedown', function(e){
-    this.image.src = this.down_image
-    Event.stop(e)
-  }, false)
+    // Eventhandlers for pushing the button down and clicking.
+    button.addEventListener('mousedown', function(e){
+      this.image.src = this.down_image
+      Event.stop(e)
+    }, false)
+  }
   button.addEventListener('click', function(e){
     this.onclickHandler(this, e)
-    this.image.src = this.normal_image
+    if (this.image) this.image.src = this.normal_image
     Event.stop(e)
   }, false)
 

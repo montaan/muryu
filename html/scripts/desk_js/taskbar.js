@@ -197,10 +197,10 @@ Object.extend(Applets.Taskbar.WindowGroup.prototype, {
 
   initEventListeners : function() {
     this.titleElement.windowGroup = this
-    Draggable.makeDraggable(this.titleElement)
-    Droppable.makeDroppable(this.titleElement)
-    Droppable.makeDroppable(this.appletListElement)
-    Droppable.makeDroppable(this.listElement)
+    Desk.Draggable.makeDraggable(this.titleElement)
+    Desk.Droppable.makeDroppable(this.titleElement)
+    Desk.Droppable.makeDroppable(this.appletListElement)
+    Desk.Droppable.makeDroppable(this.listElement)
     this.titleElement.drop = this.dropTitle.bind(this)
     this.appletListElement.drop = this.dropList.bind(this)
     this.listElement.drop = this.dropList.bind(this)
