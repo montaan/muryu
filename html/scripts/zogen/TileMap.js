@@ -1026,8 +1026,10 @@ MapLayer.prototype = {
     this.src = server + this.relativeURL + this.query
     this.loading = true
     if (this.Z < 5) return
+    this.style.cursor = 'wait'
     this.handleInfo = function(infos) {
       if (!infos) return
+      this.style.cursor = 'default'
       this.ImageMap = E('map')
       this.ImageMap.name = this.src
       this.appendChild(this.ImageMap)
@@ -1250,7 +1252,7 @@ TileInfoManager.prototype = {
   bundleRequest : function(req) {
     this.request_bundle.push(req)
     if (this.requestTimeout) clearTimeout(this.requestTimeout)
-    this.requestTimeout = setTimeout(this.sendBundle, 200)
+    this.requestTimeout = setTimeout(this.sendBundle, 500)
   },
 
   bundleSender : function() {
@@ -1317,7 +1319,10 @@ TileInfoManager.prototype = {
   makeCallbackHandler : function(callback) {
     var t = this
     return function(){
-      t.requestInfo.apply(t, callback)
+      if (callback[3].handleInfo) {
+        var info = t.getCachedInfo.apply(t, callback)
+        callback[3].handleInfo(info)
+      }
     }
   },
 
