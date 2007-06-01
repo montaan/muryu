@@ -832,8 +832,11 @@ extend FutureServlet
       if item.mimetype == "text/html"
         res.status = 302
         res['location'] = "/subfiles/" + servlet_path + "/data"
+      elsif req['If-None-Match'] == item.sha1_hash
+        res.status = 304
       else
         res['Content-type'] = item.major + "/" + item.minor
+        res['ETag'] = item.sha1_hash
         res.body = item.read
       end
     else
@@ -872,10 +875,21 @@ extend FutureServlet
             res.status = 403
             res.body = "<html><body> No directory listings </body></html>"
           elsif fn == File.join(ip, 'data')
-            res['Content-type'] = item.major + "/" + item.minor + "; charset=" + item.charset.to_s
-            res.body = File.read(fn)
+            if req['If-None-Match'] == item.sha1_hash
+              res.status = 304
+            else
+              res['Content-type'] = item.major + "/" + item.minor + "; charset=" + item.charset.to_s
+              res['ETag'] = item.sha1_hash
+              res.body = File.read(fn)
+            end
           else
-            res.body = File.read(fn)
+            mtime = File.mtime(fn).httpdate 
+            if req['If-Modified-Since'] == mtime
+              res.status = 304
+            else
+              res['Last-Modified'] = mtime
+              res.body = File.read(fn)
+            end
           end
         else
           res.status = 404
