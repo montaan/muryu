@@ -274,8 +274,8 @@ TileMap = function(config) {
   this.element.style.overflow = 'hidden'
   this.container.appendChild(this.element)
   this.layers = []
-  this.loader = new Loader(this.tileServers, this.tileInfoServers)
-  this.pool = new ImagePool()
+  this.loader = new Loader(this, this.tileServers, this.tileInfoServers)
+  this.pool = ImagePool.getPool()
   this.init()
   Desk.Windows.addListener('resize', function(v){
     this.setWidth(v.width)
@@ -669,6 +669,7 @@ TileMap.prototype = {
       this.__tileQuery = ''
     else
       this.__tileQuery = '?'+nq.join('&')
+    this.loader.flushCache()
     if (reload_tiles != false) {
       for (var i=0; i<this.layers.length; i++) {
         this.layers[i].discardAllTiles()
@@ -1066,8 +1067,13 @@ MapLayer.prototype = {
   }
 }
 
-ImagePool = function(){
+ImagePool = function() {
   this.pool = []
+}
+ImagePool.getPool = function() {
+  if (!ImagePool.pool)
+    ImagePool.pool = new ImagePool()
+  return ImagePool.pool
 }
 ImagePool.prototype = {
 
@@ -1084,10 +1090,11 @@ ImagePool.prototype = {
 
 }
 
-Loader = function(servers, infoServers) {
+Loader = function(map, servers, infoServers) {
+  this.map = map
   this.servers = servers
   this.queue = new PriorityQueue()
-  this.tileInfoManager = new TileInfoManager(infoServers)
+  this.tileInfoManager = new TileInfoManager(map, infoServers)
   var t = this
   this.loaded = function(completed){
     delete this.loaded
@@ -1165,12 +1172,17 @@ Loader.prototype = {
       this.totalCancels++
     }
     this.process()
+  },
+  
+  flushCache : function() {
+    this.tileInfoManager.flushCache()
   }
 
 }
 
 
-TileInfoManager = function(servers) {
+TileInfoManager = function(map, servers) {
+  this.map = map
   this.servers = servers
   this.request_bundle = []
   this.cache = {}
@@ -1182,6 +1194,10 @@ TileInfoManager = function(servers) {
 TileInfoManager.prototype = {
 
   callbackDelay : 50,
+  
+  flushCache : function() {
+    this.cache = {}
+  },
 
   requestInfo : function(x,y,z, callback) {
     var rv = this.getCachedInfo(x,y,z)
@@ -1217,11 +1233,15 @@ TileInfoManager.prototype = {
         this.callbackHandler(reqb[i][1], info)
     }
     var t = this
+    var parameters = {}
+    parameters.tiles = Object.toJSON(reqs)
+    if (this.map.query)
+      parameters.q = this.map.query
+    if (this.map.time)
+      parameters.time = this.map.time
     new Ajax.Request(this.rotateServers(), {
       method : 'post',
-      parameters : {
-        tiles : Object.toJSON(reqs)
-      },
+      parameters : parameters,
       onSuccess : function(res) {
         var infos = res.responseText.evalJSON()
         for (var i=0; i<reqs.length; i++) {
