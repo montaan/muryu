@@ -61,6 +61,25 @@ ItemArea = {
     new Desk.Window(this.itemHREF.replace(/json$/, 'edit'))
   },
   
+  defaultAction : function() {
+    var ext = this.href.split(".").last().toString().toLowerCase()
+    if (['jpeg','jpg','png','gif'].include(ext)) {
+      var m = this.parentNode.parentNode.map
+      if (m.slideshowWindow) {
+        if (!m.slideshowWindow.windowManager)
+          m.slideshowWindow.setWindowManager(Desk.Windows)
+        m.slideshowWindow.slideshow.showIndex(this.info.index)
+      } else {
+        m.slideshowWindow = Slideshow.make(this.info.index, m.query)
+      }
+    } else if ( MusicPlayer && ext == 'mp3' ) {
+      MusicPlayer.addToPlaylist(this.href)
+      MusicPlayer.goToIndex(MusicPlayer.playlist.length - 1)
+    } else {
+      this.open()
+    }
+  },
+  
   open : function() {
     new Desk.Window(this.itemHREF)
   },
@@ -111,7 +130,7 @@ ItemArea = {
         } else if (ev.shiftKey) {
           Selection.spanTo(this)
         } else {
-          new Desk.Window(this.itemHREF)
+          this.defaultAction()
         }
       }
       Event.stop(ev)

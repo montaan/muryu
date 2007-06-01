@@ -348,12 +348,10 @@ Applets.MusicPlayer = function() {
 
   c.togglePlaylist = function() {
     if (this.playlistWindow) {
-      this.playlistWindow.close()
-      var pl = this.playlistWindow.content.firstChild.firstChild
-      this.removeListener('songChanged', pl.currentUpdater)
-      this.removeListener('playlistChanged', pl.playlistUpdater)
-      delete this.playlistWindow
-      Sortable.destroy('MusicPlayer_playlist')
+      if (this.playlistWindow.windowManager)
+        this.playlistWindow.close()
+      else
+        this.playlistWindow.setWindowManager(Desk.Windows)
     } else {
       var pl = E('ol', null, 'MusicPlayer_playlist')
       var tlc = E('div', null)
@@ -501,8 +499,8 @@ Applets.MusicPlayer = function() {
   c.appendChild(c.shuffleButton)
   c.appendChild(c.repeatButton)
   c.appendChild(c.playlistButton)
-  c.appendChild(c.volumeUpButton)
   c.appendChild(c.volumeDownButton)
+  c.appendChild(c.volumeUpButton)
   c.appendChild(c.volumeElem)
 
 

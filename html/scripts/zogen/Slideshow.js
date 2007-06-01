@@ -1,9 +1,10 @@
 Slideshow = function(container){
+  this.infos = {}
   this.container = container
   this.setupElements()
   this.animate()
 }
-Slideshow.make = function() {
+Slideshow.make = function(idx, query) {
   var e = E('div', null, null, null, {
     width: '640px',
     height: '480px'
@@ -17,6 +18,12 @@ Slideshow.make = function() {
       e.style.height = w.contentElement.style.height
     w.slideshow.resize()
   })
+  w.slideshow.listURL = '/items'
+  w.slideshow.filePrefix = '/files/'
+  w.slideshow.query = {}
+  if (query)
+    w.slideshow.query.q = query
+  w.slideshow.showIndex(idx)
   return w
 }
 
@@ -33,6 +40,14 @@ var CanvasSlideshow = {
       display: 'block',
       position: 'absolute'
     })
+    this.element.addEventListener('click', function(ev) {
+      if (Event.isLeftClick(ev)) {
+        if (ev.layerX < this.width/2)
+          this.prev()
+        else
+          this.next()
+      }
+    }.bind(this), false)
     this.currentCanvas = this.makeCanvas()
     this.nextCanvas = this.makeCanvas()
     this.viewCanvas = this.makeCanvas()
@@ -44,7 +59,7 @@ var CanvasSlideshow = {
       left: '0px',
       top: '0px',
       width: '4px',
-      height: '16px',
+      height: '12px',
       backgroundColor: 'red',
       zIndex: 1
     })
@@ -124,6 +139,49 @@ var CanvasSlideshow = {
     }
   },
   
+  next : function(idx) {
+    this.seek(1)
+  },
+
+  prev : function(idx) {
+    this.seek(-1)
+  },
+  
+  seek : function(dir, amt) {
+    if (amt == undefined) amt = 1
+    this.showIndex(this.index + dir*amt, dir)
+  },
+  
+  showIndex : function(idx, dir) {
+    if (idx < 0) return
+    if (dir == undefined) dir = 1
+    var params = Object.clone(this.query)
+    this.index = idx
+    if (this.infos[idx]) {
+      if (this.infos[idx].deleted == 't')
+        this.seek(1, dir)
+      else
+        this.show(this.filePrefix + this.infos[idx].path)
+    } else {
+      var f = Math.max(0, idx - 100)
+      var l = idx + 100
+      params.first = f
+      params.last = l
+      new Ajax.Request(this.listURL, {
+        parameters : params,
+        onSuccess : function(res) {
+          var infos = res.responseText.evalJSON()
+          for (var i=0; i<infos.length; i++) {
+            var info = infos[i]
+            this.infos[info.index] = info
+          }
+          if (this.infos[this.index])
+            this.showIndex(this.index)
+        }.bind(this)
+      })
+    }
+  },
+  
   load : function(url) {
     if (this.getLoadingImage().src == url && !this.loading) {
       this.getLoadingImage().onload()
@@ -147,7 +205,7 @@ var CanvasSlideshow = {
   
   resize : function() {
     this.width = this.container.offsetWidth
-    this.height = this.container.offsetHeight
+    this.height = this.container.offsetHeight - 4
     this.element.style.width = this.width + 'px'
     this.element.style.height = this.height + 'px'
     this.resizeCanvas(this.currentCanvas)

@@ -371,7 +371,7 @@ Desk.Droppable = {
 
   makeDroppable : function(elem) {
     elem.addEventListener('mousemove', function(e){
-      if (Desk.Droppable.dropped) {
+      if (Desk && Desk.Droppable && Desk.Droppable.dropped) {
         this.drop(Desk.Droppable.dropped, e)
         Desk.Droppable.cancelDrop()
       }
