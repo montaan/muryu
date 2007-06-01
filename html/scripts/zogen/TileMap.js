@@ -911,6 +911,8 @@ MapLayer.prototype = {
     for (var x=x0; x<x0+w; x++) {
       for (var y=y0; y<y0+h; y++) {
         if (!this.tiles[x + ":" + y]) {
+        // FIXME brokenly fetches half-offset tiles when preloading
+        //       the layer two levels above
           var tile = this.makeTile(x, y, load_info)
           this.tiles.push(tile)
           this.tiles[x + ":" + y] = tile
@@ -1194,7 +1196,8 @@ TileInfoManager = function(map, servers) {
 TileInfoManager.prototype = {
 
   callbackDelay : 50,
-  
+  cacheZ : 5,
+
   flushCache : function() {
     this.cache = {}
   },
@@ -1204,18 +1207,50 @@ TileInfoManager.prototype = {
     if (rv && callback.handleInfo)
       callback.handleInfo(rv)
     else
-      this.bundleRequest(x,y,z, callback)
+      this.bundleRequest(arguments)
   },
 
   getCachedInfo : function(x,y,z) {
-    if (!this.cache[z]) return false
-    return this.cache[z][x+':'+y]
+    var zc = this.cache[z]
+    var c = zc && zc[x+':'+y]
+    if (c) {
+      return c
+    } else if (z > this.cacheZ) {
+      if (!this.cache[this.cacheZ]) return false
+      var zf = 1 << (z-this.cacheZ)
+      var rzf = 1.0 / zf
+      var rx = x * rzf
+      var ry = y * rzf
+      var rsz = this.map.tileSize * rzf
+      var x4 = Math.floor(rx / this.map.tileSize) * this.map.tileSize
+      var y4 = Math.floor(ry / this.map.tileSize) * this.map.tileSize
+      var t4 = this.cache[this.cacheZ][x4+':'+y4]
+      if (!t4) return false
+      var res = []
+      var rrx = rx - x4
+      var rry = ry - y4
+      for (var i=0; i<t4.length; i++) {
+        var a = t4[i]
+        if (!(a.x+a.sz < rrx || a.y+a.sz < rry || a.x >= rrx+rsz || a.y >= rry+rsz)) {
+          var na = Object.extend({}, a)
+          na.x = (a.x - rrx) * zf
+          na.y = (a.y - rry) * zf
+          na.sz *= zf
+          res.push(na)
+        }
+      }
+      if (!this.cache[z]) this.cache[z] = {}
+      this.cache[z][x+':'+y] = res
+      return res
+    } else {
+      return false
+    }
   },
 
-  bundleRequest : function(x,y,z, callback) {
-    this.request_bundle.push([[x,y,z],callback])
+  bundleRequest : function(req) {
+    this.request_bundle.push(req)
     if (this.requestTimeout) clearTimeout(this.requestTimeout)
-    this.requestTimeout = setTimeout(this.sendBundle, 150)
+    this.requestTimeout = setTimeout(this.sendBundle, 200)
   },
 
   bundleSender : function() {
@@ -1223,15 +1258,23 @@ TileInfoManager.prototype = {
     var callbacks = []
     var reqb = this.request_bundle
     this.request_bundle = []
+    var tsz = this.map.tileSize
     for (var i=0; i<reqb.length; i++) {
-      var req = reqb[i][0]
+      var req = reqb[i]
       var info = this.getCachedInfo(req[0], req[1], req[2])
       if (!info) {
-        reqs.push(req)
-        callbacks.push(reqb[i][1])
-      } else if (reqb[i][1].handleInfo)
-        this.callbackHandler(reqb[i][1], info)
+        if (req[2] >= this.cacheZ) {
+          var rz = 1 << (req[2]-this.cacheZ)
+          reqs.push([Math.floor(req[0]/rz/tsz) * tsz, Math.floor(req[1]/rz/tsz) * tsz, this.cacheZ])
+        } else {
+          reqs.push(req.slice(0,3))
+        }
+        callbacks.push(req)
+      } else {
+        this.callbackHandler(req)
+      }
     }
+    reqs = reqs.uniq()
     var t = this
     var parameters = {}
     parameters.tiles = Object.toJSON(reqs)
@@ -1247,31 +1290,35 @@ TileInfoManager.prototype = {
         for (var i=0; i<reqs.length; i++) {
           var info = infos[i]
           var req = reqs[i]
-          var callback = callbacks[i]
           if (!t.cache[req[2]])
             t.cache[req[2]] = {}
           t.cache[req[2]][req[0]+':'+req[1]] = info
-          if (callback.handleInfo)
-            t.callbackHandler(callback, info)
+        }
+        // everything cached, let's retry requestInfo
+        for (var i=0; i<callbacks.length; i++) {
+          t.callbackHandler(callbacks[i])
         }
       },
       onFailure : function(res) {
         for (var i=0; i<callbacks.length; i++) {
           var callback = callbacks[i]
-          if (callback.handleInfo)
-            callback.handleInfo(false)
+          if (callback[3].handleInfo)
+            callback[3].handleInfo(false)
         }
       }
     })
     this.requestTimeout = false
   },
 
-  callbackHandler : function(callback, info) {
-    setTimeout(this.makeCallbackHandler(callback, info), this.callbackDelay)
+  callbackHandler : function(callback) {
+    setTimeout(this.makeCallbackHandler(callback), this.callbackDelay)
   },
 
-  makeCallbackHandler : function(callback, info) {
-    return function(){ if (callback.handleInfo) callback.handleInfo(info) }
+  makeCallbackHandler : function(callback) {
+    var t = this
+    return function(){
+      t.requestInfo.apply(t, callback)
+    }
   },
 
   rotateServers : function() {
