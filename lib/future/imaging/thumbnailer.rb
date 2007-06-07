@@ -83,7 +83,7 @@ module Mimetype
   end
 
   def icon_thumbnail(filename, thumb_filename, thumb_size=128, crop='0x0+0+0')
-    image_thumbnail(icon(thumb_size), thumb_filename, thumb_size, 0, crop)
+    Mimetype['image/png'].image_thumbnail(icon(thumb_size), thumb_filename, thumb_size, 0, crop)
   end
 
   def icon(thumb_size)

@@ -782,10 +782,13 @@ extend FutureServlet
           res.body = tile_array
         end
       else
+        sq = self.search_query.clone
         res['Content-type'] = 'text/plain'
         res.body = {
-          "maxZoom" => 15,
-          "title" => servlet_user.name + ' ' + req.query['q'].to_s
+          "dimensions" => Tiles.dimensions(servlet_user, sq, :rows),
+          "itemCount" => Tiles.item_count(servlet_user, sq),
+          "maxZoom" => 10,
+          "title" => req.query['q'].to_s
         }.to_json
       end
     end
@@ -870,7 +873,7 @@ extend FutureServlet
         sp = rest.gsub(/\A\.*\/|(\/\.\.\/)|(\/\.\.\Z)/, '')
         fn = File.join(ip, sp)
         fn = File.join(ip,'data') if fn == ip
-        if fn.index(File.dirname(ip)) == 0
+        if fn.index(File.dirname(ip)) == 0 and File.exist?(fn)
           if File.directory?(fn)
             res.status = 403
             res.body = "<html><body> No directory listings </body></html>"
@@ -937,7 +940,7 @@ extend FutureServlet
 
   class << self
     def sub_modes
-      ['owner','file','groups','tags','sets','thumbnail','upload','purge']
+      ['owner','file','groups','tags','sets','thumbnail','upload','purge', 'make_public', 'make_private']
     end
     
     def servlet_view_actions(req)
@@ -968,7 +971,12 @@ extend FutureServlet
     def parse_search_query(req)
       puts "#{telapsed} for rest of handle_request" if $PRINT_QUERY_PROFILE
       parser = QueryStringParser.new
-      query = parser.parse(req.query['q'] || "user:#{servlet_user.name} sort:date")
+      default_query = if servlet_user.name == 'anonymous'
+        "sort:date"
+      else
+        "user:#{servlet_user.name} sort:date"
+      end
+      query = parser.parse(req.query['q'] || default_query)
       puts "#{telapsed} for search query parsing" if $PRINT_QUERY_PROFILE
       self.search_query = make_query_hash(query)
       puts "#{telapsed} for making a dbconn hash out of the AST" if $PRINT_QUERY_PROFILE
@@ -977,7 +985,32 @@ extend FutureServlet
     def make_query_hash(query)
       h = {}
       collect_query(query, h)
+      if h['mimetype_id']
+        mimetypes = Mimetypes.find_all(:columns => :all)
+        mh = {}
+        mimetypes.each{|mt| mh[mt.id] = [mt.major, mt.minor].join("/") }
+        h['mimetype_id'] = extract_mimetypes(h['mimetype_id'], mh)
+      end
+      unless h[:order_by]
+        h[:order_by] = [['image_index', :asc]]
+      end
       h
+    end
+
+    def extract_mimetypes(arr, mh)
+      case arr
+      when String
+        r = Regexp.new(arr)
+        a = mh.find_all{|k,v|
+          v =~ r
+        }.map{|k,v| k }
+        a.predicate = 'ANY'
+        a
+      else
+        a = arr.map{|c| extract_mimetypes(c, mh) }.flatten
+        a.predicate = 'ANY'
+        a
+      end
     end
 
     def collect_query(query, h=nil)
@@ -1097,7 +1130,7 @@ extend FutureServlet
       return false unless servlet_target
       h = servlet_target.to_hash
       %w(mimetype_id owner_id metadata_id internal_path).each{|k| h.delete(k)}
-      h[:groups] = servlet_target.groups.map{|g| g.name }
+      h[:groups] = servlet_target.groups.map{|g| g.name if g.namespace != 'users' }.compact
       h[:sets] = servlet_target.sets.map{|g| g.name }
       h[:tags] = servlet_target.tags.map{|g| g.name }
       h[:owner] = servlet_target.owner.name
@@ -1112,11 +1145,23 @@ extend FutureServlet
       res.body = h.to_json
     end
 
+    def do_make_public(req,res)
+      servlet_target.radd_groups(servlet_user, ['public'])
+      res['Content-type'] = 'text/plain'
+      res.body = 'OK'
+    end
+    
+    def do_make_private(req,res)
+      servlet_target.rremove_groups(servlet_user, ['public'])
+      res['Content-type'] = 'text/plain'
+      res.body = 'OK'
+    end
+    
     def metadata_editable_column?(k)
       ['title', 'author', 'publisher', 'publish_time', 'description',
        'location', 'genre', 'album', 'tracknum', 'album_art']
     end
-    
+
     def servlet_target_edit(req)
       if req.query.has_key?('filename')
         fn = req.query['filename']
@@ -1722,7 +1767,7 @@ extend FutureServlet
       res.body = h.to_json
     else
       req.query['columns'] = 'name'
-      res.body = servlet_list_rows(req).map{|c| c.name }.to_json
+      res.body = servlet_list_rows(req).map{|c| c.name if c.namespace != 'users'}.compact.to_json
     end
   end
 

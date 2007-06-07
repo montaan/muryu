@@ -55,6 +55,7 @@ Tr.addTranslations('en-US', {
   'Item.album_art' : 'album art',
   'Item.cancel' : 'cancel',
   'Item.done' : 'save',
+  'Button.Item.show_EXIF' : 'Show EXIF data',
   'Item.edit_failed' : 'Saving edits failed',
   'Item.delete_failed' : 'Deleting item failed',
   'Item.loading_tile_info' : 'Loading tile info failed',
@@ -76,6 +77,8 @@ Tr.addTranslations('en-US', {
   'WindowGroup.videos' : 'videos',
   'WindowGroup.text' : 'text',
   'WindowGroup.HTML' : 'HTML',
+  'WindowGroup.document' : 'documents',
+  'WindowGroup.other' : 'others'
 })
 Tr.addTranslations('en-GB', {
   'Item.DateObject' : function(d){
@@ -135,6 +138,7 @@ Tr.addTranslations('fi-FI', {
   'Item.album_art' : 'kansitaide',
   'Item.cancel' : 'peruuta',
   'Item.done' : 'tallenna',
+  'Button.Item.show_EXIF' : 'Näytä EXIF-tiedot',
   'Item.edit_failed' : 'Muutosten tallentaminen epäonnistui',
   'Item.delete_failed' : 'Poisto epäonnistui',
   'Item.loading_tile_info' : 'Tiilen tietojen lataaminen epäonnistui',
@@ -162,6 +166,8 @@ Tr.addTranslations('fi-FI', {
   'WindowGroup.videos' : 'videot',
   'WindowGroup.text' : 'tekstit',
   'WindowGroup.HTML' : 'HTML',
+  'WindowGroup.document' : 'asiakirjat',
+  'WindowGroup.other' : 'muut'
 })
 Tr.addTranslations('de-DE', {
   'Item.by' : '-',
@@ -383,7 +389,36 @@ Mimetype = {
         desc.appendChild(T(info.metadata.description))
         infoDiv.appendChild(desc)
       }
-  //     infoDiv.appendChild(E('pre', info.metadata.exif))
+      if (info.metadata.exif && info.metadata.exif.length > 0) {
+        var showExif = Desk.Button('Item.show_EXIF', function(){
+          if (infoDiv.exifWindow && infoDiv.exifWindow.windowManager) {
+            infoDiv.exifWindow.close()
+            delete infoDiv.exifWindow
+          } else {
+            var exifDiv = E('div', null, null, 'exif')
+            var exifTable = E('table')
+            var tags = info.metadata.exif.split("\n")
+            for (var i=0; i<tags.length; i++) {
+              var tr = E('tr')
+              tr.valign = 'top'
+              var tag_val = tags[i].split("\t")
+              tr.appendChild(E('td', E('h4', tag_val[0])))
+              tr.appendChild(E('td', E('p', tag_val[1])))
+              exifTable.appendChild(tr)
+            }
+            exifDiv.appendChild(exifTable)
+            infoDiv.exifWindow = new Desk.Window(exifDiv, {
+              title : info.path.split("/").last(),
+              transient : true,
+              cropToScreen : true
+            })
+          }
+        }, {
+          showImage : false, showText : true
+        })
+        showExif.style.display = 'block'
+        infoDiv.appendChild(showExif)
+      }
       return infoDiv
     },
 
@@ -412,6 +447,9 @@ Mimetype = {
         } else if (info.mimetype.split("/")[0] == 'video') {
           viewer = this.makeVideoViewer(info,win)
           group = 'videos'
+        } else if (info.mimetype == 'application/x-shockwave-flash') {
+          viewer = this.makeFlashViewer(info,win)
+          group = 'flash'
         } else if (info.mimetype == 'application/x-flash-video') {
           viewer = this.makeFlashVideoViewer(info,win)
           group = 'videos'
@@ -426,7 +464,7 @@ Mimetype = {
           group = 'text'
         } else {
           viewer = this.makeThumbViewer(info,win)
-          group = info.mimetype.split("/")[0]
+          group = 'other'
         }
       } catch(e) {
         console.log('hälärm', e)
@@ -442,10 +480,11 @@ Mimetype = {
     },
 
     makeImageViewer : function(info,win) {
-      this.easyMove = true
+      win.easyMove = true
       var d = E('div')
-      d.style.lineHeight = '0px'
+      // d.style.lineHeight = '0px'
       var i = E('img')
+      i.style.display = 'block'
       var mw = win.container.offsetWidth
       var mh = win.container.offsetHeight
       var iw = info.metadata.width
@@ -571,36 +610,97 @@ Mimetype = {
       return d
     },
     
-    makeVideoViewer : function(info) {
+    makeVideoViewer : function(info, win) {
+      var s = E('div')
+      // s.style.lineHeight = '0'
       var i = E('embed')
-      i.width = info.metadata.width
-      i.height = info.metadata.height
+      i.style.display = 'block'
+      s.appendChild(i)
+      s.style.minHeight = (info.metadata.height + 16) + 'px'
+      s.style.minWidth = (info.metadata.width) + 'px'
+      s.style.height = (info.metadata.height + 16) + 'px'
+      i.width = '100%'
+      i.height = '100%'
+      win.addListener('resize', function(ev) {
+        this.style.width = win.contentElement.offsetWidth + 'px'
+        var restheight = win.content.offsetHeight - parseInt(this.style.height)
+        var newheight = parseInt(win.contentElement.style.height) - restheight
+        this.style.height = newheight + 'px'
+      }.bind(s))
       i.src = Map.__filePrefix + info.path
-      i.setAttribute("type", "application/x-mplayer2")
-      return i
+      i.setAttribute("scale", "aspect")
+      i.setAttribute("bgcolor", "000000")
+      if (navigator.userAgent.indexOf('Windows') != -1)
+        i.setAttribute("type", "video/quicktime") // WMP, the scourge
+      else
+        i.setAttribute("type", "application/x-mplayer2")
+      return s
     },
 
-    makeFlashVideoViewer : function(info) {
+    makeFlashVideoViewer : function(info, win) {
+      var s = E('div')
+      // s.style.lineHeight = '0'
       var i = E('div', '<a href="http://www.macromedia.com/go/getflashplayer">Get Flash</a> to see this player.')
-      var so = new SWFObject("/scripts/flv_player/flvplayer.swf","player","320","260","7")
+      if (!info.metadata.width)
+        info.metadata.width = 320
+      if (!info.metadata.height)
+        info.metadata.height = 240
+      i.style.minHeight = (info.metadata.height + 20) + 'px'
+      i.style.minWidth = (info.metadata.width) + 'px'
+      i.style.height = (info.metadata.height + 20) + 'px'
+      win.addListener('resize', function(ev) { // this is no worky :|
+        this.style.width = win.contentElement.offsetWidth + 'px'
+        var restheight = win.content.offsetHeight - parseInt(this.style.height)
+        var newheight = parseInt(win.contentElement.style.height) - restheight
+        this.style.height = newheight + 'px'
+      }.bind(i))
+      s.appendChild(i)
+      var so = new SWFObject("/scripts/flv_player/flvplayer.swf","player",info.metadata.width,info.metadata.height+20,"7")
       so.addParam("allowfullscreen", "true")
       so.addVariable("volume", (MusicPlayer && MusicPlayer.volume) || 100)
       so.addVariable("file", Map.__filePrefix + info.path)
       so.write(i)
-      return i
+      i.firstChild.style.display = 'block'
+      return s
+    },
+
+    makeFlashViewer : function(info, win) {
+      var s = E('div')
+      // s.style.lineHeight = '0'
+      var i = E('div', '<a href="http://www.macromedia.com/go/getflashplayer">Get Flash</a> to see this player.')
+      if (!info.metadata.width)
+        info.metadata.width = 320
+      if (!info.metadata.height)
+        info.metadata.height = 240
+      i.style.minHeight = (info.metadata.height) + 'px'
+      i.style.minWidth = (info.metadata.width) + 'px'
+      i.style.height = (info.metadata.height) + 'px'
+      win.addListener('resize', function(ev) { // this is no worky :|
+        this.style.width = win.contentElement.offsetWidth + 'px'
+        var restheight = win.content.offsetHeight - parseInt(this.style.height)
+        var newheight = parseInt(win.contentElement.style.height) - restheight
+        this.style.height = newheight + 'px'
+      }.bind(i))
+      s.appendChild(i)
+      var so = new SWFObject(Map.__filePrefix + info.path, "player",
+        '100%','100%',"7")
+      so.write(i)
+      i.firstChild.style.display = 'block'
+      return s
     },
 
     makeAudioViewer : function(info, win) {
-      if (soundManager && !soundManager._disabled) {
-        var i = A(Map.__filePrefix + info.path, info.path)
-      } else {
-        var i = E('embed')
-        i.width = 400
-        i.height = 16
-        i.src = Map.__filePrefix + info.path
-        i.setAttribute("type", info.mimetype)
-      }
-      return i
+      var s = E('div')
+      // s.style.lineHeight = '0'
+      var i = E('embed')
+      i.style.display = 'block'
+      s.appendChild(i)
+      i.width = '100%'
+      i.height = 16
+      i.setAttribute("volume", (MusicPlayer && MusicPlayer.volume) || 100)
+      i.src = Map.__filePrefix + info.path
+      i.setAttribute("type", info.mimetype)
+      return s
     },
 
     makeHTMLViewer : function(info, win) {
@@ -615,18 +715,15 @@ Mimetype = {
     },
 
     makeThumbViewer : function(info, win) {
+      var s = E('a')
       var i = E('img')
-      i.onmousedown = function(e){
-        this.downX = e.clientX
-        this.downY = e.clientY
-      }
-      i['ondblclick'] = function(e){
-        if (Event.isLeftClick(e) &&
-            Math.abs(this.downX - e.clientX) < 3 &&
-            Math.abs(this.downY - e.clientY) < 3) win.close()
-      }
-      i.src = Map.__filePrefix + info.path
-      return i
+      i.style.display = 'block'
+      i.style.border = '0px'
+      i.src = Map.__itemPrefix + info.path + '/thumbnail'
+      s.appendChild(i)
+      s.appendChild(T(info.path.split("/").last()))
+      s.href = Map.__filePrefix + info.path
+      return s
     }
   },
 
@@ -965,9 +1062,10 @@ Mimetype = {
       var container = E('div')
       var cover = E('div')
       var e = E('iframe')
+      e.style.display = 'block'
       e.style.backgroundColor = 'white'
       e.src = src
-      cover.style.width = e.style.width = '600px'
+      cover.style.width = e.style.width = '100%'
       cover.style.height = e.style.height = '400px'
       e.style.zIndex = 0
       cover.style.position = 'absolute'
@@ -975,15 +1073,17 @@ Mimetype = {
       cover.style.zIndex = -1
       this.cover = cover
       this.embed = e
-      container.style.lineHeight = '0px'
+      // container.style.lineHeight = '0px'
       container.appendChild(cover)
       container.appendChild(e)
       return container
     },
     init : function(src, win) {
       win.addListener('resize', function(e){
-        this.cover.style.width = this.embed.style.width = win.contentElement.style.width
-        this.cover.style.height = this.embed.style.height = (parseInt(win.contentElement.style.height) - 21) + 'px'
+        this.cover.style.width = this.embed.style.width = win.contentElement.offsetWidth + 'px'
+        var restheight = win.content.offsetHeight - parseInt(this.cover.style.height)
+        var newheight = parseInt(win.contentElement.style.height) - restheight
+        this.cover.style.height = this.embed.style.height = newheight + 'px'
       }.bind(this))
       win.addListener('dragStart', function() {
         this.cover.style.zIndex = 1

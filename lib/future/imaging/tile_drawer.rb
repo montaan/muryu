@@ -206,6 +206,16 @@ extend self
 
   def info(user, query, *tile_args)
     return {} if tile_args[1] < 0 or tile_args[2] < 0
+    indexes, iindexes = query_info(user, query)
+    infos = {}
+    tile_drawer.tile_info(indexes, *tile_args){|i, *a| 
+      infos[i] = [a, iindexes[i]]
+    }
+    puts "#{Thread.current.telapsed} for info layout" if $PRINT_QUERY_PROFILE
+    infos
+  end
+
+  def query_info(user, query, time=(Time.now.to_f / 300).floor)
     q = query.clone
     q[:columns] ||= []
     q[:columns] |= [:image_index]
@@ -213,7 +223,7 @@ extend self
     @@mutex.synchronize do
         puts "#{Thread.current.telapsed} for info init" if $PRINT_QUERY_PROFILE
         t = nil
-        key = "info::" + user.id.to_s + "::" + sanitize_query(query)
+        key = ["info", user.id.to_s, time, sanitize_query(query)].join("::")
         if $CACHE_INFO and not $info_changed
           if $memcache
             t = $memcache.get(key)
@@ -256,12 +266,16 @@ extend self
         end
         indexes, iindexes = t
     end
-    infos = {}
-    tile_drawer.tile_info(indexes, *tile_args){|i, *a| 
-      infos[i] = [a, iindexes[i]]
-    }
-    puts "#{Thread.current.telapsed} for info layout" if $PRINT_QUERY_PROFILE
-    infos
+    [indexes, iindexes]
+  end
+  
+  def item_count(user, query)
+    query_info(user, query).first.size
+  end
+
+  def dimensions(user, query, layouter)
+    indexes, iindexes = query_info(user, query)
+    tile_drawer.dimensions(indexes, layouter)
   end
 
   private
@@ -335,6 +349,12 @@ class TileDrawer
     layouter.each(indexes, x, y, sz, w, h, *layouter_args) do |i, ix, iy|
       yield(i, ix, iy, sz)
     end
+  end
+
+  def dimensions(indexes, layouter_name)
+    layouter = LAYOUTERS[layouter_name.to_s]
+    raise ArgumentError, "Bad layouter_name: #{layouter_name.inspect}" unless layouter
+    layouter.dimensions(indexes)
   end
 
   def draw_tile_sw(bgcolor, indexes, palette, x, y, z, bgimage=nil)
@@ -1237,6 +1257,15 @@ class TileDrawer
   module RowLayouter
   extend self
 
+    def dimensions(indexes)
+      {
+        :x => 0,
+        :y => 0,
+        :width => 200,
+        :height => ((indexes.size * 0.001).ceil * 5.5)
+      }
+    end
+
     def each(indexes, x, y, sz, w, h,
                   row_offset = sz / 2, columns = 200, rows = 5)
       return false if x < 0 or y < 0
@@ -1311,7 +1340,12 @@ class TileDrawer
   extend self
 
     def each(indexes, first, last, *rest)
-      first.upto(last){|iindex| yield(indexes[iindex],0,0) }
+      return if last - first > 1_000_000
+      first.upto(last){|iindex|
+        index = indexes[iindex]
+        next unless index
+        yield(index,0,0)
+      }
     end
 
   end # RawListLayouter

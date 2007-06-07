@@ -160,20 +160,16 @@ Editors = {
       {type:"hidden", "name": name, "value": value})
     loc.appendChild(hid)
     if (typeof GBrowserIsCompatible != 'undefined' && GBrowserIsCompatible()) {
-      var txt = E('span', value)
+      var txt = E('span', value || '(-,-)')
       loc.appendChild(txt)
       var latlng = [ NaN ]
       if (value) {
         latlng = value.replace(/[)(]/g, '').split(",").map(parseFloat)
       }
       if (isNaN(latlng[0]) || isNaN(latlng[1])) latlng = [0.0, 0.0]
-      loc.mapAttachNode = document.body
       var loaded = function() {
-        var map_outer_cont = E('span', null, null, 'google_map',
-          {display: 'block', position: 'absolute'})
-        if (loc.mapLeft) map_outer_cont.style.left = loc.mapLeft
-        if (loc.mapTop) map_outer_cont.style.top = loc.mapTop
-        loc.mapAttachNode.appendChild(map_outer_cont)
+        var map_outer_cont = E('div', null, null, 'google_map')
+        loc.appendChild(map_outer_cont)
         var map_cont = E('span', null, null, null,
           {width: '100%', height: '100%', display: 'block'})
         map_outer_cont.appendChild(map_cont)
@@ -182,7 +178,7 @@ Editors = {
         var marker = new GMarker(new GLatLng(latlng[0], latlng[1]), {draggable: true})
         map.addOverlay(marker)
         map.addControl(new GSmallZoomControl())
-        map.addControl(new GMapTypeControl())
+        //map.addControl(new GMapTypeControl())
         map.enableContinuousZoom()
         map.enableScrollWheelZoom()
         var updateVal = function(pt) {
@@ -196,10 +192,6 @@ Editors = {
         GEvent.addListener(marker, 'dragend', function(){
           updateVal(marker.getPoint())
         })
-        map_cont.addEventListener("DOMMouseScroll", function(ev){
-          ev.stopPropagation()
-          ev.preventDefault()
-        }, false)
         map_outer_cont.unloadMonitor = setInterval(function(){
           var o = loc
           while (o) {

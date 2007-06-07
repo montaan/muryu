@@ -55,10 +55,10 @@ extend self
         :vbr => m.vbr,
         :author => enc_utf8(t['artist'], charset),
         :genre => enc_utf8(t['genre_s'], charset),
-        :publish_time => parse_time(t['year'], charset),
+        :publish_time => parse_time(t['year']),
         :album => enc_utf8(t['album'], charset),
         :title => enc_utf8(t['title'], charset),
-        :tracknum => parse_num(t['tracknum'], charset)
+        :tracknum => parse_num(t['tracknum'])
       }
     end
   end

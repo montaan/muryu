@@ -5,7 +5,20 @@ Tr.addTranslations('en-US', {
   'Applets.Session.save' : 'Save session now',
   'Applets.Session.autosave' : 'Autosave',
   'Applets.Session.clear' : 'Clear session',
+  'Applets.Session.Welcome' : function(name) { return 'Welcome, '+name+'!' },
+  'Applets.Session.LogOut' : 'Log out',
+  'Applets.Session.LogIn' : 'Log in',
+  'Applets.Session.Register' : 'Register new account',
+  'Applets.Session.AccountName' : 'Account name',
+  'Applets.Session.Password' : 'Password',
+  'Applets.Session.Upload' : 'Upload',
+  'Applets.Session.UploadItems' : 'Upload items',
+  'Applets.Session.FirefoxExtension' : 'Firefox add-on',
+  'Applets.Session.Settings' : 'Settings',
+  'Applets.Session.BackgroundColor' : 'Background color',
+  'Button.Applets.Session.ToggleColors' : 'Toggle colors',
   'Applets.MusicPlayer' : 'Player',
+  'Applets.MusicPlayer.Playlist' : 'Playlist'
 })
 Tr.addTranslations('fi-FI', {
   'Applets.Applet' : 'Sovelma',
@@ -14,7 +27,20 @@ Tr.addTranslations('fi-FI', {
   'Applets.Session.save' : 'Tallenna istunto',
   'Applets.Session.autosave' : 'Automaattinen tallennus',
   'Applets.Session.clear' : 'Pyyhi istunto',
+  'Applets.Session.Welcome' : function(name) { return 'Tervetuloa, '+name+'!' },
+  'Applets.Session.LogOut' : 'Kirjaudu ulos',
+  'Applets.Session.LogIn' : 'Kirjaudu sisään',
+  'Applets.Session.Register' : 'Luo uusi tunnus',
+  'Applets.Session.AccountName' : 'Tunnuksesi',
+  'Applets.Session.Password' : 'Salasana',
+  'Applets.Session.Upload' : 'Tiedostot',
+  'Applets.Session.UploadItems' : 'Tuo tiedostoja',
+  'Applets.Session.FirefoxExtension' : 'Firefoxin lisäosa',
+  'Applets.Session.Settings' : 'Asetukset',
+  'Applets.Session.BackgroundColor' : 'Taustaväri',
+  'Button.Applets.Session.ToggleColors' : 'Värien näyttö',
   'Applets.MusicPlayer' : 'Soitin',
+  'Applets.MusicPlayer.Playlist' : 'Soittolista'
 })
 
 
@@ -34,7 +60,56 @@ Applets.Session = function(wm) {
   if (!wm) wm = Desk.Windows
   var c = E('span', null, null, 'taskbarApplet Session')
   var title = E('h4', Tr('Applets.Session'), null, 'windowGroupTitle')
+  var controls = E('div')
+
+  var logout = E('p', A('/users/logout', Tr('Applets.Session.LogOut')))
+  logout.onclick = function(){ c.autosaveSession() }
+
+  var loginform = E('form')
+  loginform.method='POST'
+  loginform.action='/users/login'
+  loginform.appendChild(E('h5', Tr('Applets.Session.LogIn'), null, 'windowGroupTitle'))
+  loginform.appendChild(E('h5', Tr('Applets.Session.AccountName'), null, 'taskbarFormTitle'))
+  var username = E('input', null, null, 'taskbarTextInput')
+  username.name = 'username'
+  username.type = 'text'
+  loginform.appendChild(username)
+  loginform.appendChild(E('h5', Tr('Applets.Session.Password'), null, 'taskbarFormTitle'))
+  var password = E('input', null, null, 'taskbarTextInput')
+  password.name = 'password'
+  password.type = 'password'
+  loginform.appendChild(password)
+  var submit = E('input', null, null, 'taskbarSubmitInput')
+  submit.value = Tr('Log in')
+  submit.type = 'submit'
+  loginform.appendChild(submit)
+  
+  c.loggedIn = (Session.storage.info.name && Session.storage.info.name != 'anonymous')
+  
+  if (c.loggedIn) {
+    controls.appendChild(E('p', Tr('Applets.Session.Welcome', Session.storage.info.name)))
+    controls.appendChild(logout)
+    controls.appendChild(E('h5', Tr('Applets.Session.Upload'), null, 'windowGroupTitle'))
+    controls.appendChild(E('p', A('/items', Tr('Applets.Session.UploadItems'))))
+    controls.appendChild(E('p', A('muryu_uploader.xpi', Tr('Applets.Session.FirefoxExtension'))))
+  } else {
+    controls.appendChild(loginform)
+    controls.appendChild(E('p', A('/users/register', Tr('Applets.Session.Register'))))
+  }
+  controls.appendChild(E('h5', Tr('Applets.Session.Settings'), null, 'windowGroupTitle'))
+  var toggleColorsButton = Desk.Button('Applets.Session.ToggleColors',
+    function() {
+      window.lastFocusedMap.setColor(window.lastFocusedMap.color == 'true' ? 'false' : 'true')
+      this.toggle()
+    }, {
+    showText: true,
+    showImage: false
+  })
+  controls.appendChild(toggleColorsButton)
+  
   c.appendChild(title)
+  c.appendChild(controls)
+
   c.session = null
   c.autosave = true
   c.toggleAutosave = function(){
@@ -49,43 +124,53 @@ Applets.Session = function(wm) {
     }
   }
   c.autosaveSession = function(){
-    if (this.autosave)
+    if (this.autosave && this.sessionChanged)
       this.saveSession()
   }
   c.saveSession = function(){
+    if (this.loggedIn) {
+      this.sessionChanged = false
       Session.save()
+    }
   }
   c.clearSession = function(){
-    Session.clear()
+    if (this.loggedIn) {
+      this.sessionChanged = false
+      Session.clear()
+      this.loggedIn = false
+      document.location.reload()
+    }
   }
   c.dumpSession = function(){
     return {loader: 'Applets.Session', data: ''}
   }
+  c.signalSessionChange = function() {
+    c.sessionChanged = true
+  }
 
   wm.addListener('addWindow', function(e){
     if (e.value.avoid) {
-      e.addListener('addApplet', c.autosaveSession)
-      e.addListener('removeApplet', c.autosaveSession)
+      e.addListener('addApplet', c.signalSessionChange)
+      e.addListener('removeApplet', c.signalSessionChange)
     }
-    c.autosaveSession()
+    c.signalSessionChange()
   })
   wm.addListener('removeWindow', function(e){
     if (e.value.avoid) {
-      e.removeListener('addApplet', c.autosaveSession)
-      e.removeListener('removeApplet', c.autosaveSession)
+      e.removeListener('addApplet', c.signalSessionChange)
+      e.removeListener('removeApplet', c.signalSessionChange)
     }
-    c.autosaveSession()
+    c.signalSessionChange()
   })
-  window.addEventListener('unload', c.saveSession, false)
+  c.autosaveInterval = setInterval(c.autosaveSession.bind(c), 5*60*1000) 
+  window.addEventListener('unload', c.saveSession.bind(c), false)
   c.menu = new Desk.Menu()
   c.menu.addTitle(Tr('Applets.Session'))
-  c.menu.addItem(Tr('Applets.Session.save'), c.saveSession)
-  c.menu.addItem(Tr('Applets.Session.autosave'), function(){
-    c.toggleAutosave()
-  })
+  c.menu.addItem(Tr('Applets.Session.save'), c.saveSession.bind(c))
+  c.menu.addItem(Tr('Applets.Session.autosave'), c.toggleAutosave.bind(c))
   c.menu.checkItem(Tr('Applets.Session.autosave'))
   c.menu.addSeparator()
-  c.menu.addItem(Tr('Applets.Session.clear'), c.clearSession)
+  c.menu.addItem(Tr('Applets.Session.clear'), c.clearSession.bind(c))
   Applets.bakeAppletMenu(c)
 
   return c
@@ -144,6 +229,7 @@ Applets.OpenURL.loadSession = function(dump) {
 
 
 Desk.Slider = function(callback) {
+  var px = 1 / 6
   var e = E('div', null, null, 'slider')
   e.style.cursor = 'pointer'
   e.knob = E('div', null, null, 'sliderKnob')
@@ -172,7 +258,7 @@ MusicPlayer = null
 Applets.MusicPlayer = function() {
   var c = E('span', null,null, 'taskbarApplet MusicPlayer')
   var title = E('h4', Tr('Applets.MusicPlayer'), null, 'windowGroupTitle')
-//   c.appendChild(title)
+  c.appendChild(title)
   MusicPlayer = c
 
   Object.extend(c, EventListener)
@@ -435,7 +521,8 @@ Applets.MusicPlayer = function() {
       pl.updateCurrent()
       plc.appendChild(pl)
       tlc.appendChild(plc)
-      this.playlistWindow = new Desk.Window(tlc, {title: 'Playlist', group: 'playlist', transient: true})
+      var w = this.playlistWindow = new Desk.Window(tlc, {title: Tr('Applets.MusicPlayer.Playlist'), transient: true})
+      tlc.addEventListener('mousedown', function(){ w.bringToFront(); return true }, true)
       Position.includeScrollOffsets = true
       Sortable.create('MusicPlayer_playlist', {
         scroll:'MusicPlayer_playlistContainer',

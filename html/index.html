@@ -1,158 +1,563 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
-
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <title>zogen</title>
-    <link rel="stylesheet" href="style.css"/>
-    <script src="rototype.js"></script>
-    <script src="portal.js"></script>
-<!--      <script src="http://maps.google.com/maps?file=api&amp;v=2.x&amp;key=ABQIAAAAWpSYHNXxjMT-MLolMNpBmRS2fNlMtol7He-Jym4WpRf8M4n2NBTj9mfCSuHnIDtWQFsggjMA8zq-UA" type="text/javascript"></script>-->
-    <script>
-      function toggleColor() {
-        focusedPortal.toggleColor()
+    <title>muryu</title>
+    <link rel="stylesheet" href="/scripts/desk_js/style.css"></link>
+    <style type="text/css">
+      body {
+        margin : 0px;
+        padding : 0px;
+        font-size: 12px;
+        font-family: Trebuchet MS, Arial, Sans-Serif;
+        overflow: hidden;
       }
-      window.addEventListener("load",function(){
-        postQuery('/users/json', '', function(res){
-          var obj = res.responseText.parseRawJSON()
-          var zs = $S("#zogen").style
-          var x = parseInt(zs.left || 0)
-          var y = parseInt(zs.top || 0)
-          var z = parseInt(zs.zIndex || 0)
-          var w = window.innerWidth - x
-          var h = window.innerHeight - y
-          var qvars = document.location.search.slice(1).split("&")
-          var query = {}
-          qvars.each(function(q){ var p = q.split("="); query[p[0]] = p[1] })
-          var config = {
-            currentLocation : $('currentLocationLink'),
-            hash : document.location.hash
+      h1, h2, h3, h4, h5, h6 {
+        font-family: URW Gothic L, Arial, Sans-Serif;
+      }
+      #map {
+        width: 0px;
+        height: 0px;
+        position: absolute;
+        top: 0px;
+        left: 0px;
+        background-color: gray;
+      }
+      #loadStats {
+        margin: 0px;
+        padding: 5px;
+        width: 250px;
+        background-color: black;
+        color: white;
+      }
+      #help {
+        margin: 0px;
+        padding: 5px;
+        width: 500px;
+        background-color: #e3e6ec;
+        color: black;
+      }
+      h3 {
+        margin-top: 0px;
+        margin-bottom: 5px;
+      }
+      h4 {
+        margin-top: 15px;
+        margin-bottom: 2px;
+      }
+      p {
+        margin-top: 1px;
+        margin-bottom: 4px;
+      }
+      .tile {
+        border: 0px;
+      }
+      .leftPanel {
+        width:158px;
+      }
+
+      .editors .windowBackground, .muokkaimet .windowBackground {
+        background-color: #444444;
+        opacity: 1.0;
+        border-bottom: 1px solid #222222;
+        border-top: 1px solid #505050;
+      }
+
+      .editDiv img {
+        margin-right: 4px;
+      }
+
+      .infoLink {
+        color: white;
+        margin-left: 4px;
+      }
+
+      .infoDiv {
+        padding-left: 0px;
+        padding-right: 0px;
+        font-family: URW Gothic L, Arial;
+        font-weight: bold;
+      }
+
+      .infoDiv p {
+        padding-top: 0px;
+        padding-bottom: 2px;
+        margin-top: 0px;
+        margin-bottom: 0px;
+      }
+
+      .infoDiv p+p {
+        padding-top: 0px;
+      }
+
+      .infoDivLink {
+        color: white;
+        text-decoration: none;
+      }
+
+      .info {
+        position: absolute;
+        z-index: 3;
+      }
+      
+      .editable:hover {
+        color: #ffdd66;
+      }
+      .windowTaskbarTitle .editable:hover {
+        color: default;
+      }
+
+      .infoLayer {
+        display: none;
+        background: url(80_opacity_black.png);
+        position: absolute;
+        z-index: 8;
+        padding: 4px;
+        margin-left: 5px;
+        margin-top: 10px;
+        color: #CCCCCC;
+        font-family: URW Gothic L, Arial;
+        font-weight: bold;
+      }
+
+      .infoText {
+        background: url(80_opacity_black.png);
+        position: absolute;
+        z-index: 3;
+        color: white;
+        font-family: URW Gothic L, Arial;
+        font-weight: bold;
+        overflow: hidden;
+      }
+
+      .infoLayer img {
+        vertical-align: middle;
+      }
+
+      .emblemImage16 {
+        z-index: 2;
+      }
+      .emblemImage32 {
+        z-index: 2;
+      }
+
+      a.emblemText16 {
+        color: white;
+        text-decoration: none;
+      }
+      a.emblemText32 {
+        color: white;
+        text-decoration: none;
+      }
+      a.emblemText16:visited {
+        color: #DDDDDD;
+      }
+      a.emblemText32:visited {
+        color: #DDDDDD;
+      }
+
+      .emblemText16 {
+        position: absolute;
+        left: 8px;
+        top: 0px;
+        height: 16px;
+        font-family: URW Gothic L, Arial;
+        font-weight: bold;
+        margin: 0px;
+        padding: 0px;
+        padding-left:12px;
+        padding-right:4px;
+        background: url(80_opacity_black.png);
+        z-index: 1;
+      }
+      .emblemText32 {
+        position: absolute;
+        left: 16px;
+        top: 8px;
+        height: 16px;
+        font-family: URW Gothic L, Arial;
+        font-weight: bold;
+        margin: 0px;
+        padding: 0px;
+        padding-left:20px;
+        padding-right:4px;
+        background: url(80_opacity_black.png);
+        z-index: 1;
+      }
+
+      a {
+        color: white;
+      }
+
+      a:visited {
+        color: #AAAAAA;
+      }
+
+      .editor {
+        min-width: 30em;
+/*         min-height: 490px; */
+        width: 50em;
+/*         height: 490px; */
+      }
+
+      .editor h3 {
+        font-size: 14px;
+        text-align: center;
+        margin-top: 8px;
+        margin-left: 5%;
+        margin-right: 5%;
+        border-bottom: 1px solid #CCCCCC;
+        margin-bottom: 6px;
+      }
+      .editor h4 {
+        font-size: 13px;
+        text-align: center;
+        color: white;
+        margin-left: 5%;
+        margin-right: 5%;
+        border-bottom: 1px solid #CCCCCC;
+        margin-top: 2px;
+        margin-bottom: 2px;
+      }
+      .editor h5 {
+        font-size: 11px;
+        margin-bottom: 0px;
+        margin-top: 4px;
+      }
+
+      .editor div {
+        margin-left: 5%;
+        margin-right: 5%;
+        background: none;
+      }
+
+      .editor input[type=text] {
+        width: 100%;
+        background-color: #222222;
+        border: 0px;
+        border-bottom: 1px solid #666666;
+        color: white;
+        padding-left: 2px;
+        font-family: Trebuchet MS, Arial;
+        font-weight: normal;
+      }
+      .editor textarea {
+        width: 100%;
+        background-color: #DDDDDD;
+        border: 0px;
+        height: 10em;
+        padding: 2px;
+        font-size: 11px;
+        border-bottom: 1px solid #222222;
+        font-family: Trebuchet MS, Arial;
+        font-weight: normal;
+      }
+      div.editorSubmit {
+        margin: 10px 12px 12px 0px;
+        text-align: right;
+      }
+      .editor input[type=submit] {
+        font-family: Trebuchet MS, Arial;
+        font-size: 11px;
+        font-weight: bold;
+        background-color: #AAFFAA;
+        border-color: #AAFFAA;
+      }
+      .editor input[type=reset] {
+        font-family: Trebuchet MS, Arial;
+        font-size: 11px;
+        font-weight: bold;
+        background-color: #FFAAAA;
+        border-color: #FFAAAA;
+        margin-right: 40px;
+      }
+      div.timeEditor {
+        margin-left : 0px;
+        margin-right : 0px;
+        padding : 0px;
+      }
+      .timeEditor input {
+        text-align: center;
+        margin-right: 1px;
+      }
+      div.listEditor {
+        margin-left : 0px;
+        margin-right : 0px;
+        padding : 0px;
+      }
+      .listEditor select {
+        width: 100%;
+        background-color: #DDDDDD;
+        font-family: Trebuchet MS, Arial;
+        font-weight: normal;
+        border: 0px;
+      }
+      .listEditor input[type=text] {
+        margin-bottom: 2px;
+      }
+      .listEditor ul {
+        margin: 0px;
+        padding: 0px;
+        height: 10em;
+        background-color: #222222;
+        border-bottom: 1px solid #666666;
+        overflow: auto;
+        list-style: none;
+      }
+      .listEditor li {
+        margin: 0px;
+        padding: 0px;
+        list-style: none;
+      }
+      .listOrNewSeparator {
+        margin: 0px;
+        text-align: center;
+      }
+      div.locationEditor {
+        margin-left : 0px;
+        margin-right : 0px;
+        padding : 0px;
+      }
+      .locationEditor div {
+        margin-left : 0px;
+        margin-right : 0px;
+        padding : 0px;
+      }
+      div.google_map {
+        padding: 8px;
+        height: 10em;
+        width: 100%;
+        padding-left: 0px;
+      }
+      .google_map div {
+        margin-left : 0px;
+        margin-right : 0px;
+        padding : 0px;
+      }
+      
+      div.slideshow {
+        background-color: #222;
+      }
+
+
+      div.exif {
+        height: 100%;
+        overflow: auto;
+      }
+      .exif h4 {
+        font-family: Arial, Sans-Serif;
+        margin: 0px;
+        text-align: right;
+      }
+      .exif p {
+        margin: 0px;
+      }
+      .exif td {
+        padding: 0px;
+        padding-left: 2px;
+      }
+
+    </style>
+<!--     <script src="http://maps.google.com/maps?file=api&amp;v=2.x&amp;key=ABQIAAAAWpSYHNXxjMT-MLolMNpBmRS2fNlMtol7He-Jym4WpRf8M4n2NBTj9mfCSuHnIDtWQFsggjMA8zq-UA" type="text/javascript"></script> -->
+    <script type="text/javascript" src="/scripts/desk_js/prototype.js"></script>
+    <script type="text/javascript" src="/scripts/desk_js/scriptaculous.js"></script>
+    <script type="text/javascript" src="/scripts/desk_js/soundmanager2.js"></script>
+    <script type="text/javascript" src="/scripts/desk_js/desk.js"></script>
+    <script type="text/javascript" src="/scripts/flv_player/swfobject.js"></script>
+    <script type="text/javascript" src="/scripts/zogen/TileMap.js"></script>
+    <script type="text/javascript" src="/scripts/zogen/Slideshow.js"></script>
+    <script type="text/javascript" src="/scripts/zogen/Editors.js"></script>
+    <script>
+      // <![CDATA[
+      window.addEventListener("load", function(ev){
+        Session.storage = {
+          load : function() {
+            var t = this
+            new Ajax.Request('/users/json', {
+              method : 'get',
+              asynchronous : false,
+              onSuccess : function(res) {
+                t.info = res.responseText.evalJSON()
+              }
+            })
+          },
+          
+          getItem : function(name) {
+            var item = undefined
+            try { item = this.info.preferences[name] } catch(e) {}
+            return (item ? {key: name, value: item} : undefined)
+          },
+          
+          setItem : function(name, value) {
+            var params = {}
+            params[name] = value
+            new Ajax.Request('/users/set_preferences', { asynchronous : false, parameters : params })
+          },
+
+          removeItem : function(name) {
+            var params = {}
+            params[name] = true
+            new Ajax.Request('/users/delete_preferences', { asynchronous : false, parameters : params })
           }
-          var prefs = obj.preferences || {}
-          if (query.q)
-            config.query = 'q=' + query.q
-          if (!config.query && prefs.location && !config.hash || config.hash.isEmpty())
-            config.hash = prefs.location
-          if (prefs.color)
-            config.color = (prefs.color == "true")
-          if (prefs.bgcolor)
-            config.bgcolor = prefs.bgcolor
-          if (prefs.bgimage)
-            config.bgimage = prefs.bgimage
-          if (query.color)
-            config.color = query.color
-          if (query.bgcolor)
-            config.color = query.bgcolor
-          if (query.bgimage)
-            config.bgimage = query.bgimage
-          if (prefs.addons && prefs.addons.length > 0 && (query.disable_addons == undefined)) {
-            var addons = prefs.addons.split(";")
-            for(var i=0; i<addons.length; i++) {
-              require(addons[i])
-            }
+        }
+        Session.storage.load()
+        
+        var qvars = document.location.search.slice(1).split("&")
+        var query = {}
+        qvars.each(function(q){ var p = q.split("="); query[p[0]] = p[1] })
+        var prefs = Session.storage.info.preferences
+        if (prefs && prefs.addons && prefs.addons.length > 0 && (query.disable_addons == undefined)) {
+          var addons = prefs.addons.split(";")
+          for(var i=0; i<addons.length; i++) {
+            Object.require(addons[i])
           }
-          var z = window.focusedPortal = createNewPortal(x, y, z, w, h, document.body, config)
-          window.addEventListener("keypress", function(e){ window.focusedPortal.keyHandler(e) }, false)
-          window.addEventListener("resize", function() {
-            z.container.style.width = window.innerWidth - z.container.absoluteLeft() + 'px'
-            z.container.style.height = window.innerHeight - z.container.absoluteTop() + 'px'
-          }, false)
-          var updatePrefs = function() {
-            if (obj.name == 'anonymous') return
-            var q = ""
-            q += 'location=x' + z.x + 'y' + z.y + 'z' + z.zoom
-            if (z.color != undefined)
-              q += '&color=' + z.color
-            if (z.bgcolor)
-              q += '&bgcolor=' + z.bgcolor
-            if (z.bgimage)
-              q += '&bgimage=' + z.bgimage
-            postQuery('/users/' + obj.name + '/set_preferences', q, function(){}, null)
+        }
+
+        var map = document.getElementById("map")
+        Desk.Windows.setContainer(map)
+        map.style.width = window.innerWidth + 'px'
+        map.style.height = window.innerHeight + 'px'
+        setInterval(function(){
+          if (window.innerWidth != Desk.Windows.previousInnerWidth ||
+              window.innerHeight != Desk.Windows.previousInnerHeight) {
+            map.style.width = window.innerWidth + 'px'
+            map.style.height = window.innerHeight + 'px'
+            Desk.Windows.previousInnerWidth = window.innerWidth
+            Desk.Windows.previousInnerHeight = window.innerHeight
           }
-//           z.prefUpdater = setInterval(updatePrefs, 30000)
-          window.addEventListener("unload", updatePrefs, false)
-          var lf = $('login_form')
-          lf.style.position = 'absolute'
-          lf.style.display = 'none'
-          lf.style.top = '18px'
-          lf.style.paddingTop = '1px'
-          lf.style.width = '100%'
-          lf.style.left = '0px'
-          lf.style.textAlign = 'right'
-          lf.style.background = 'url(50_opacity_black.png)'
-          var si = $('sign_in')
-          si.style.display = 'inline'
-          si.addEventListener("click", function(e){
-            if (Mouse.normal(e)) {
-              lf.style.display = (lf.style.display == 'none' ? 'block' : 'none')
-              if (lf.style.display == 'block') lf.username.focus()
-              e.preventDefault()
-            }
-          }, false)
-          if (obj.name != 'anonymous') {
-            $('greet').innerHTML = z.translate('welcome', '<a class="username" href="/users/'+obj.name+'">'+obj.name+'</a>')
-            $('sign_out').innerHTML = z.translate('sign_out')
-            $('sign_out').addEventListener('click', updatePrefs, false)
-            $S('.logout').style.display = 'inline'
-          } else {
-            $('register').innerHTML = z.translate('register')
-            $('sign_in').innerHTML = z.translate('sign_in')
-            $('form_username').innerHTML = z.translate('username')
-            $('form_password').innerHTML = z.translate('password')
-            $('submit_sign_in').value = z.translate('sign_in')
-            $S('.login').style.display = 'inline'
-          }
+        }, 100)
+        Tr.addTranslations('fi-FI', {
+          'Windows' : 'Ikkunat',
+          'Collapse all groups' : 'Piilota kaikki ryhmät',
+          'Expand all groups' : 'Laajenna kaikki ryhmät',
+          'Add Panel' : 'Lisää paneeli',
+          'Session' : 'Istunto',
+          'Save Session' : 'Tallenna istunto',
+          'Clear Session' : 'Pyyhi istunto',
+          'help.html' : 'help.html',
+          'help' : 'apua'
         })
-        if (typeof GUnload != 'undefined')
-          document.body.addEventListener("unload", GUnload, false)
-      },false)
+        Tr.translations['fi'] = Tr.translations['fi-FI']
+        menu = new Desk.Menu()
+        menu.addTitle(Tr('Windows'))
+        menu.addItem(Tr('Collapse all groups'), function() {
+          Desk.Windows.taskbar.setCollapsedForAll(true)
+        }, 'icons/CollapseAllGroups.png')
+        menu.addItem(Tr('Expand all groups'), function() {
+          Desk.Windows.taskbar.setCollapsedForAll(false)
+        }, 'icons/ExpandAllGroups.png')
+//         menu.addSeparator()
+//         menu.addItem(Tr('Add Panel'), function(){ new Desk.Panel() })
+        menu.addTitle(Tr('Session'))
+        menu.addItem(Tr('Save Session'), function(){ Session.save() })
+        menu.addItem(Tr('Clear Session'), function(){ Session.clear() })
+        menu.bind(Desk.Windows.windowContainer)
+        if (!Session.load()) {
+          Map = new TileMap({
+            x:50, y: 50,
+            z: 1,
+            width: window.innerWidth,
+            height: window.innerHeight,
+            noTiles: true
+          })
+          new TileMap({
+            isSubmap : true,
+            title: 'all',
+            left: 0,
+            top: 0,
+            width: 256,
+            height: 256
+          }).setParent(Map)
+          var types = ['audio','video','pdf|postscript','html','image']
+          var i = 0
+          types.each(
+          function(e) {
+            new TileMap({
+              isSubmap : true,
+              left : 210,
+              top : i*32,
+              width: 256,
+              color: 'false',
+              height: e == 'image' ? 256 : 32,
+              query : 'type:'+e
+            }).setParent(Map)
+            i++
+          })
+          var topPanel = new Desk.Panel('left')
+          topPanel.addApplet(Applets.Session())
+          topPanel.addApplet(Applets.MusicPlayer())
+          topPanel.addApplet(Applets.Taskbar())
+          new Desk.Window(Tr('help.html'), {x: 800, y: 10, group: Tr('help')})
+        }
+        if (false) { // start instrumentation block
+          var load_buf = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+          var req_buf = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+          var last_reqs = 0
+          var last_loads = 0
+          var max_rps = 0
+          var max_lps = 0
+          var ls = E('pre', null, 'loadStats')
+          ls.style.display = 'block'
+          var statWindow = false
+          var windows = Desk.Windows.windows
+          for (var i=0; i<windows.length; i++) {
+            var w = windows[i]
+            if (w.title == 'stats') {
+              statWindow = w
+              break
+            }
+          }
+          if (statWindow)
+            statWindow.setContent(ls)
+          else
+            new Desk.Window(ls, {title:"stats", x: 750, y: 10})
+          var updatesPerSec = 5
+          var start_time = new Date().getTime()
+          setInterval(function(){
+            req_buf.shift()
+            load_buf.shift()
+            req_buf.push(Map.loader.totalCompletes - last_reqs)
+            load_buf.push(Map.loader.totalLoads - last_loads)
+            last_reqs = Map.loader.totalCompletes
+            last_loads = Map.loader.totalLoads
+            var reqs = 0
+            var loads = 0
+            for (var i=0; i<req_buf.length; i++) reqs += req_buf[i]
+            for (var i=0; i<load_buf.length; i++) loads += load_buf[i]
+            var rps = updatesPerSec * reqs / req_buf.length
+            var lps = updatesPerSec * loads / load_buf.length
+            if (rps > max_rps) max_rps = rps
+            if (lps > max_lps) max_lps = lps
+            var bw = rps * 0.125 + ' Mbps'
+            var max_bw = max_rps * 0.125 + ' Mbps'
+            var total_bw = Map.loader.totalLoads * 0.125
+            var avg_bw = total_bw / ((new Date().getTime() - start_time) * 0.001)
+            ls.innerHTML = [
+              "         requests: " + Map.loader.totalRequests,
+              "          cancels: " + Map.loader.totalCancels,
+              "            loads: " + Map.loader.totalLoads,
+              "        completed: " + Map.loader.totalCompletes,
+              "       load ratio: " + parseInt(100*(Map.loader.totalLoads / Map.loader.totalRequests)) / 100,
+              " completion ratio: " + parseInt(100*(Map.loader.totalCompletes / Map.loader.totalLoads)) / 100,
+              " pending requests: " + Map.loader.queue.queue.length,
+              "        loads/sec: " + lps,
+              "    completes/sec: " + rps,
+              "    bandwidth use: " + bw,
+              "    max loads/sec: " + max_lps,
+              "max completes/sec: " + max_rps,
+              "    bandwidth max: " + max_bw,
+              "average bandwidth: " + parseInt(100*avg_bw) / 100 + 'Mbps',
+              "  total bandwidth: " + parseInt(100*total_bw) / 100 + 'Mb',
+              "              fps: " + parseInt(100*Map.fps) / 100,
+              "      average fps: " + parseInt(100*Map.avgFps) / 100
+            ].join("\n")
+          }, 1000/updatesPerSec)
+        } // end instrumentation block
+      }, false)
+      // ]]>
     </script>
   </head>
-
   <body>
-    <div id="currentLocation" style="font-family: Trebuchet MS, Arial; font-size: 12px;">
-      <table width="100%" border="0" cellspacing="0" cellpadding="0">
-      <tr valign="top"><td align="left">
-        |
-        <form id="search_form" action="/" method="GET">
-          <input name="q" type="text"/>
-          <input value="Search" type="submit"/>
-        </form>
-        |
-        <a id="currentLocationLink" href="zogen.html#x0y0z2">Link here</a>
-        |
-<!--        Create [
-          <a href="javascript:void(createNewPortalWindow(100, 100, 640, 480, document.body))">portal</a>
-        | <a href="javascript:void(createNewSubPortal())">subportal</a> ]-->
-        Toggle [
-          <a href="javascript:toggleColor()">colors</a> ]
-        Background [
-          <a href="javascript:focusedPortal.setBgColor('ffffff')">white</a>
-        | <a href="javascript:focusedPortal.setBgColor('032338')">blue</a>
-        | <a href="javascript:focusedPortal.setBgColor('231323')">purple</a>
-        | <a href="javascript:focusedPortal.setBgColor('13191c')">flint</a> ]
-        
-        Items [ <a href="items/">upload</a>
-        | <a href="muryu_uploader.xpi">firefox extension</a> ]
-      </td>
-      <td align="right">
-        <span class="login">
-          <a id="sign_in" href="/users/login">Log in</a>
-          <form id="login_form" action="/users/login" method="POST">
-            <span id="form_username">Username</span>
-            <input name="username" type="text"/>
-            <span id="form_password">Password</span>
-            <input name="password" type="password"/>
-            <input id="submit_sign_in" value="Sign in" type="submit"/>
-            | <a id="register" href="/users/create">Register</a>
-          </form>
-        </span>
-        <span class="logout">
-          <span id="greet">Welcome!</span> | 
-          <a id="sign_out" href="/users/logout">Log out</a>
-        </span>
-      </td></tr></table>
-    </div>
+    <div id="map"></div>
   </body>
-
 </html>

@@ -29,6 +29,11 @@ Desk.Button = function(name, onclickHandler, config){
     button.image.alt = Tr('Button.'+name)
     button.image.title = Tr('Button.'+name)
     button.image.style.border = '0px'
+    button.image.onload = function() {
+      button.image.onload = false
+      // button.image.style.width = (this.width / 6) + 'ex'
+      button.image.style.height = (this.height / 6) + 'ex'
+    }
     button.image.src = button.normal_image
     button.appendChild(button.image)
   }

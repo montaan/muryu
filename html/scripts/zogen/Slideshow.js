@@ -1,3 +1,10 @@
+Tr.addTranslations('en-US', {
+  'Slideshow' : 'Slideshow'
+})
+Tr.addTranslations('fi-FI', {
+  'Slideshow' : 'Kuvaesitys'
+})
+
 Slideshow = function(container){
   this.infos = {}
   this.container = container
@@ -9,7 +16,7 @@ Slideshow.make = function(idx, query) {
     width: '640px',
     height: '480px'
   })
-  var w = new Desk.Window(e, {'title':'slideshow','transient':true,'group':'slideshow'})
+  var w = new Desk.Window(e, {'title':Tr('Slideshow'),'transient':true})
   w.slideshow = new Slideshow(e)
   w.addListener('resize', function(ev) {
     if (e.style.width != w.contentElement.style.width)
@@ -42,15 +49,17 @@ var CanvasSlideshow = {
     })
     this.element.addEventListener('click', function(ev) {
       if (Event.isLeftClick(ev)) {
-        if (ev.layerX < this.width/2)
+        if (ev.layerX < ev.target.offsetWidth/2)
           this.prev()
         else
           this.next()
       }
+      return true
     }.bind(this), false)
     this.currentCanvas = this.makeCanvas()
     this.nextCanvas = this.makeCanvas()
     this.viewCanvas = this.makeCanvas()
+    this.viewCanvas.style.position = 'absolute'
     this.viewCanvas.style.zIndex = 0
     this.loadingIndicator = E('div',null,null,'loading', {
       display: 'block',
@@ -81,15 +90,20 @@ var CanvasSlideshow = {
       this.needRefresh = false
     }
     if (this.updateNextCanvas && !this.blendStart) {
-      this.nextCanvas.ctx.clearRect(0,0,this.width,this.height)
+      this.nextCanvas.ctx.clearRect(0,0,this.nextCanvas.width,this.nextCanvas.height)
       this.nextCanvas.ctx.drawImage(this.loadingImage, 
         0, 0,
-        this.nextCanvas.imageWidth, this.nextCanvas.imageHeight)
+        this.nextCanvas.width, this.nextCanvas.height)
       this.updateNextCanvas = false
     }
     if (this.blending && !this.loading) {
-      if (!this.blendStart)
+      if (!this.blendStart) {
         this.blendStart = new Date().getTime()
+        this.viewCanvas.width = Math.max(this.nextCanvas.width, this.currentCanvas.width)
+        this.viewCanvas.height = Math.max(this.nextCanvas.height, this.currentCanvas.height)
+        this.viewCanvas.style.left = Math.floor((this.width-this.viewCanvas.width)/2) + 'px'
+        this.viewCanvas.style.top = Math.floor((this.height-this.viewCanvas.height)/2) + 'px'
+      }
       var elapsed = new Date().getTime() - this.blendStart
       var blendFactor = (elapsed / this.blendDuration)
       if (this.skipBlend || elapsed >= this.blendDuration) {
@@ -101,13 +115,13 @@ var CanvasSlideshow = {
       if (isNaN(curvedFactor))
         curvedFactor = 1.0
       var c = this.viewCanvas.ctx
-      c.clearRect(0,0,this.width, this.height)
+      c.clearRect(0,0,this.viewCanvas.width,this.viewCanvas.height)
       if (!this.skipBlend) {
         c.globalAlpha = 1.0 - curvedFactor
-        this.drawImageCentered(c, this.currentCanvas)
+        this.drawImageCentered(this.viewCanvas, this.currentCanvas)
       }
       c.globalAlpha = curvedFactor
-      this.drawImageCentered(c, this.nextCanvas)
+      this.drawImageCentered(this.viewCanvas, this.nextCanvas)
       c.globalAlpha = 1.0
       if (!this.blending) {
         var tmp = this.currentCanvas
@@ -118,14 +132,12 @@ var CanvasSlideshow = {
     }
   },
   
-  drawImageCentered : function(ctx, canvas) {
-    if (canvas.imageWidth) {
-      ctx.drawImage(canvas,
-        0, 0, 
-        canvas.imageWidth, canvas.imageHeight,
-        (this.width-canvas.imageWidth)/2, (this.height-canvas.imageHeight)/2, 
-        canvas.imageWidth, canvas.imageHeight)
-    }
+  drawImageCentered : function(canvas, image) {
+    canvas.ctx.drawImage(image,
+      0, 0, 
+      image.width, image.height,
+      Math.floor((canvas.width-image.width)/2), Math.floor((canvas.height-image.height)/2), 
+      image.width, image.height)
   },
   
   sinewaveBlend : function(fac) {
@@ -158,10 +170,11 @@ var CanvasSlideshow = {
     var params = Object.clone(this.query)
     this.index = idx
     if (this.infos[idx]) {
-      if (this.infos[idx].deleted == 't')
-        this.seek(1, dir)
+      var info = this.infos[idx]
+      if (info.deleted == 't' || !['jpeg','jpg','png','gif'].include( info.path.split(".").last().toString().toLowerCase() ))
+        this.seek(dir, 1)
       else
-        this.show(this.filePrefix + this.infos[idx].path)
+        this.show(this.filePrefix + info.path)
     } else {
       var f = Math.max(0, idx - 100)
       var l = idx + 100
@@ -199,26 +212,20 @@ var CanvasSlideshow = {
   
   makeCanvas : function() {
     var c = E('canvas')
+    c.imageWidth = 0
+    c.imageHeight = 0
     c.ctx = c.getContext('2d')
     return c
   },
   
   resize : function() {
     this.width = this.container.offsetWidth
-    this.height = this.container.offsetHeight - 4
+    this.height = this.container.offsetHeight
     this.element.style.width = this.width + 'px'
     this.element.style.height = this.height + 'px'
-    this.resizeCanvas(this.currentCanvas)
-    this.resizeCanvas(this.nextCanvas)
-    this.resizeCanvas(this.viewCanvas)
     this.needRefresh = true
   },
   
-  resizeCanvas : function(c) {
-    c.width = this.width
-    c.height = this.height
-  },
-
   getLoadingImage : function() {
     if (!this.loadingImage) {
       this.loadingImage = new Image()
@@ -234,8 +241,8 @@ var CanvasSlideshow = {
           rw = Math.floor(rw * (t.height / rh))
           rh = t.height
         }
-        t.nextCanvas.imageWidth = rw
-        t.nextCanvas.imageHeight = rh
+        t.nextCanvas.width = Math.floor(rw)
+        t.nextCanvas.height = Math.floor(rh)
         t.updateNextCanvas = true
         t.onload()
       }

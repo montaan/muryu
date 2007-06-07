@@ -90,6 +90,34 @@ class Items < DB::Tables::Items
     end
   end
 
+  def radd_groups(user, new_group_names)
+    write(user) do
+      new_groups = []
+      DB.transaction do
+        new_groups = new_group_names.uniq.map{|t|
+          Groups.rfind_or_create(user, :name => t)
+        }
+      end
+      DB.transaction do
+        (new_groups - groups).each{|t| add_group(t) }
+      end
+    end
+  end
+
+  def rremove_groups(user, new_group_names)
+    write(user) do
+      new_groups = []
+      DB.transaction do
+        new_groups = new_group_names.uniq.map{|t|
+          Groups.rfind(user, :name => t)
+        }.compact
+      end
+      DB.transaction do
+        (groups & new_groups).each{|t| remove_group(t) }
+      end
+    end
+  end
+
   def add_group(group)
     ItemsGroups.find_or_create(:item => self, :group => group)
     remove_instance_variable(:@groups) rescue nil

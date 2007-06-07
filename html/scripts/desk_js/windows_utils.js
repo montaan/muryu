@@ -465,6 +465,14 @@ Desk.Menu.prototype = {
     if (!icon) icon = this.emptyIcon
     var li = E('li', null, null, 'MenuItem')
     var iconImg = E('img')
+    var ei = this.emptyIcon
+    iconImg.onload = function() {
+      if (iconImg.src != ei) {
+        delete iconImg.onload 
+        //iconImg.style.width = (iconImg.width / 6) + 'ex'
+        iconImg.style.height = (iconImg.height / 6) + 'ex'
+      }
+    }
     iconImg.src = icon
     li.appendChild(iconImg)
     li.appendChild(T(name))

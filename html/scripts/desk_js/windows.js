@@ -27,7 +27,6 @@ Tr.addTranslations('fi-FI', {
 
 
 Desk.Window = function(content, config){
-  this.group = Tr('WindowGroup.default')
   if (config) Object.extend(this, config)
   if (!this.buttons)
     this.buttons = this.defaultButtons.map()
@@ -39,8 +38,8 @@ Desk.Window = function(content, config){
   if (config) {
     if (config.title) this.setTitle(config.title)
     if (config.minimized) this.setMinimized(config.minimized)
-    if (config.group) this.setGroup(config.group)
   }
+  this.setGroup(config && config.group)
   this.setWindowManager((this.windowManager || Desk.Windows))
   if (this.shaded) {
     this.shaded = false
@@ -70,6 +69,7 @@ Desk.Window.prototype = {
   group : 'default',
   showInTaskbar : true,
   avoid: false,
+  easyMove: false,
   src: null,
   metadata: null,
   loader : 'Desk.Window',
@@ -249,6 +249,29 @@ Desk.Window.prototype = {
       }
     }.bind(this), false)
 
+    var bsz = 3
+
+    this.borders.addEventListener('mousemove', function(e){
+      if (e.target == this) {
+        var prefix = ''
+        var left = e.layerX <= bsz
+        var right = e.layerX >= (this.offsetWidth - bsz)
+        var top = e.layerY <= bsz
+        var bottom = e.layerY >= (this.offsetHeight - bsz)
+        if (top) prefix += 'N'
+        if (bottom) prefix += 'S'
+        if (left) prefix += 'W'
+        if (right) prefix += 'E'
+        if (prefix.length >= 0) {
+          this.style.cursor = prefix + '-resize'
+        } else {
+          this.style.cursor = 'default'
+        }
+      } else {
+        this.style.cursor = 'default'
+      }
+    }, false)
+
     var makeCheckButton = function(item, name) {
       this.addListener(name.toLowerCase().slice(0,-1) + 'Change', function(e){
         this.menu[(e.value ? '' : 'un') + 'checkItem'](item)
@@ -328,7 +351,7 @@ Desk.Window.prototype = {
   },
 
   validMoveTarget : function(e){
-    if (this.metadata && this.metadata.easyMove)
+    if (this.easyMove)
       return true
     var validTargets = [
       this.element, this.backgroundElement,
@@ -367,10 +390,12 @@ Desk.Window.prototype = {
     this.element.style.height = (typeof h == 'string' ? h : h + 'px')
     this.contentElement.style.height = (
       this.element.offsetHeight -
-      this.titlebarElement.offsetHeight - 8 - 3) + 'px'
+      this.contentElement.offsetTop - 6) + 'px'
     this.contentElement.style.width = (
       this.element.offsetWidth - 8) + 'px'
     this.newEvent('resize', { value : [w,h] })
+    this.setX(this.x)
+    this.setY(this.y)
   },
 
   endMove : function(e){
@@ -389,8 +414,10 @@ Desk.Window.prototype = {
   },
 
   setGroup : function(new_value) {
+    if (!new_value) new_value = 'default'
     var ov = this.group
-    var gre = new RegExp('\\b'+this.group+'\\b')
+    if (!ov) ov = 'default'
+    var gre = new RegExp('\\b'+ov+'\\b')
     if (this.element.className.match(gre))
       this.element.className = this.element.className.replace(gre, new_value)
     else
@@ -407,6 +434,8 @@ Desk.Window.prototype = {
       new_value.appendChild(this.element)
     this.container = new_value
     this.newEvent('containerChange', {old_value: ov, value: new_value})
+    this.setX(this.x)
+    this.setY(this.y)
   },
 
   setWindowManager : function(new_value) {
@@ -513,12 +542,28 @@ Desk.Window.prototype = {
   },
 
   setX : function(new_value) {
+    if (!this.avoid) {
+      if (new_value < -this.element.offsetWidth + 50) {
+        new_value = -this.element.offsetWidth + 50
+      } else if (this.container && new_value > this.container.offsetWidth - 50) {
+        new_value = this.container.offsetWidth - 50
+      }
+    }
     this.element.style.left = new_value + 'px'
     this.x = new_value
     this.newEvent('positionChange', {x: this.x, y: this.y})
   },
 
   setY : function(new_value) {
+    if (!this.avoid) {
+      if (this.easyMove && new_value < -this.element.offsetHeight + 50) {
+        new_value = -this.element.offsetHeight + 50
+      } else if (!this.easyMove && new_value < 0) {
+        new_value = 0
+      } else if (this.container && new_value > this.container.offsetHeight - 50) {
+        new_value = this.container.offsetHeight - 50
+      }
+    }
     this.element.style.top = new_value + 'px'
     this.y = new_value
     this.newEvent('positionChange', {x: this.x, y: this.y})
@@ -536,6 +581,7 @@ Desk.Window.prototype = {
     this.src = new_src
     if (this.metadata.title && this.metadata.title.length > 0)
       this.setTitle(this.metadata.title)
+    this.easyMove = this.metadata.easyMove
     if (this.metadata.init) this.metadata.init(new_src, this)
     if (new_src == document.location.href)
       this.setContent(A(new_src, new_src))

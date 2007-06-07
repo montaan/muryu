@@ -30,6 +30,8 @@ Applets.Taskbar.prototype = {
   init : function() {
     this.element = this
     this.taskbar = this
+    this.titleElement = E('h4', Tr('Windows'), null, 'windowGroupTitle')
+    this.element.appendChild(this.titleElement)
     this.dumpSession = function() {
       return { loader: 'Applets.Taskbar', data: '' }
     }
@@ -61,6 +63,7 @@ Applets.Taskbar.prototype = {
     this.menu = new Desk.Menu()
     this.menu.addTitle(Tr('Applets.Taskbar'))
     Applets.bakeAppletMenu(this)
+    this.createWindowGroup('default')
   },
 
   setCollapsedForAll : function(new_value) {
@@ -141,7 +144,6 @@ Applets.Taskbar.prototype = {
     this.windowGroups.each(function(kv) {
       this.removeWindowGroup(kv[0])
     }.bind(this))
-    this.windowGroups = new Hash()
   },
 
   createWindowGroup : function(name) {
@@ -160,6 +162,7 @@ Applets.Taskbar.prototype = {
   },
 
   removeWindowGroup : function(name) {
+    if (name == 'default') return
     var wg = this.windowGroups[name]
     this.element.removeChild(wg.element)
     delete this.windowGroups[name]
@@ -169,6 +172,7 @@ Applets.Taskbar.prototype = {
 
 
 Applets.Taskbar.WindowGroup = function(name, taskbar) {
+  this.title = name
   this.taskbar = taskbar
   this.init()
   this.setTitle(name)
@@ -190,7 +194,8 @@ Object.extend(Applets.Taskbar.WindowGroup.prototype, {
     this.titleElement = E('h3', null, null, 'windowGroupTitle')
     this.appletListElement = E('ul', null, null, 'windowGroupAppletList')
     this.listElement = E('ul', null, null, 'windowList')
-    this.element.appendChild(this.titleElement)
+    if (this.title != 'default') 
+      this.element.appendChild(this.titleElement)
     this.element.appendChild(this.appletListElement)
     this.element.appendChild(this.listElement)
   },

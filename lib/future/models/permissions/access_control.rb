@@ -23,6 +23,7 @@ module AccessControl
   end
 
   def writable_by(user)
+    return true if columns['owner_id'] and user.id == owner_id
     grs = (groups & user.groups)
     return false if grs.empty?
     DB::Tables.const_get(self.class.to_s.split(/::/).last+"Groups").find(
