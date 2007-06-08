@@ -27,7 +27,7 @@ Muryu = {
   uploadURL : function(url) {
     var w = gBrowser.contentWindow
     var upload_url = 'http://manifold.fhtr.org:8080/items/create'
-    var query = 'json&url=' + encodeURI(url) + '&referrer=' + encodeURI(w.location)
+    var query = 'json&url=' + encodeURIComponent(url) + '&referrer=' + encodeURIComponent(w.location)
     var d = document.createElement("div")
     d.style.borderRight = '1px solid black'
     d.style.fontFamily = 'Sans'

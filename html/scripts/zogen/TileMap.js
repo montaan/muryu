@@ -798,7 +798,7 @@ TileMap.prototype = {
     document.addEventListener("mouseup", this.onmouseup, false)
     this.element.addEventListener("mousemove", this.onmousemove, false)
     this.element.addEventListener("DOMMouseScroll", this.onmousescroll, false)
-    document.addEventListener("keypress", this.onkeypress, false)
+    document.addEventListener("keypress", this.onkeypress.bind(this.element), false)
     document.addEventListener("unload", this.onunload, false)
   },
   
@@ -1153,10 +1153,26 @@ TileMap.prototype = {
   */
   updateTiles : function(pointer_x, pointer_y, dir, at_zoom_end) {
     this.submapLayer.updateTiles(pointer_x, pointer_y, dir, this.targetZ)
-    if (this.noTiles) return
+    if (this.noTiles) return // container layer
+    // hidden layer
+    if (this.element.width <= 0 || this.element.height <= 0)
+      return
     if (dir == undefined) dir = 1
-    if (this.z < 0 || this.targetZ < 0) return
+    // load z0 and return if negative z
+    if (this.z < 0 || this.targetZ < 0) {
+      this.layers[0].requestVisibleTiles(
+        pointer_x, pointer_y, dir,
+        at_zoom_end && z == this.targetZ
+      )
+      return
+    }
     var occluded = false
+    // parent offsets
+    var sx = this.isSubmap ? this.parent.submapLayer.x + parseInt(this.element.style.left) : 0
+    var sy = this.isSubmap ? this.parent.submapLayer.y + parseInt(this.element.style.top) : 0
+    // element dims
+    var sw = this.element.width
+    var sh = this.element.height
     for(var z=this.layers.length-1; z>=0; z--) {
       var layer = this.layers[z]
       // discard all tiles with too high resolution
@@ -1180,10 +1196,10 @@ TileMap.prototype = {
         var tile = layer.tiles[i]
         if (
           // discard tiles outside screen area
-          (tile.X+1+border) * tile.rSize < -layer.x - this.element.left ||
-          (tile.Y+1+border) * tile.rSize < -layer.y - this.element.top  ||
-          (tile.X  -border) * tile.rSize > -layer.x - this.element.left + this.element.width ||
-          (tile.Y  -border) * tile.rSize > -layer.y - this.element.top + this.element.height
+          (tile.X+1+border) * tile.rSize < -layer.x - sx ||
+          (tile.Y+1+border) * tile.rSize < -layer.y - sy  ||
+          (tile.X  -border) * tile.rSize > -layer.x - sx + sw ||
+          (tile.Y  -border) * tile.rSize > -layer.y - sy + sh
         ) {
           layer.discardTile(i)
           i--
@@ -1245,6 +1261,8 @@ SubmapLayer.prototype = {
     var nx2 = Math.floor((this.x + this.map.element.width) / this.map.tileSize)
     var ny2 = Math.floor((this.y + this.map.element.height) / this.map.tileSize)
     if (ox != nx || oy != ny || ox2 != nx2 || oy2 != ny2) {
+      if (this.map.z == this.map.targetZ)
+        this.updateTiles(this.map.pointerX,this.map.pointerY,0,this.map.targetZ)
       return true
     }
     return false
@@ -1272,8 +1290,18 @@ SubmapLayer.prototype = {
       d.style.width = d.width + 'px'
       d.style.height = d.height + 'px'
       m.titleElem.style.left = d.style.left
-      m.titleElem.style.fontSize = (10 * fac) + 'px'
       m.titleElem.style.top = (d.top - 18 * fac) + 'px'
+      m.titleElem.style.fontSize = (10 * fac) + 'px'
+/*      if (
+        d.left > -m.root.x + m.root.width ||
+        d.top > -m.root.y + m.root.height ||
+        d.left + m.root.x + m.titleElem.offsetWidth < 0 ||
+        d.top + m.root.y < 0
+      ) {
+        m.titleElem.style.display = 'none'
+      } else {
+        m.titleElem.style.display = 'block'
+      }*/
       this.cropMap(m)
       m.zoom(m.relativeZ+outer_z, 0,0)
     }
@@ -1285,20 +1313,20 @@ SubmapLayer.prototype = {
     d.top = Math.floor(m.top * this.fac)
     d.width = Math.ceil(m.width * this.fac)
     d.height = Math.ceil(m.height * this.fac)
+    if (
+      d.left > -m.root.x + m.root.width ||
+      d.top > -m.root.y + m.root.height ||
+      d.left + d.width < -m.root.x ||
+      d.top + d.height < -m.root.y
+    ) {
+      d.width = 0
+      d.height = 0
+    }
     if (d.left + m.root.x < 0) {
       d.left += m.root.x
     }
     if (d.top + m.root.y < 0) {
       d.top += m.root.y
-    }
-    if (
-      d.left > -m.root.x + m.root.width ||
-      d.top > -m.root.y + m.root.height ||
-      d.left + d.width < 0 ||
-      d.top + d.height < 0
-    ) {
-      d.width = 0
-      d.height = 0
     }
     if (d.width > m.parent.element.width) {
       d.width = m.parent.element.width
@@ -1416,8 +1444,6 @@ MapLayer.prototype = {
   },
 
   requestVisibleTiles : function(pointer_x, pointer_y, dir, load_info) {
-    if (this.map.element.width <= 0 || this.map.element.height <= 0)
-      return
     var tsz = this.map.tileSize * (this.fac / this.own_fac)
     var x0 = Math.floor(((-this.x-Math.min(0,this.map.element.left)) / tsz))
     var y0 = Math.floor(((-this.y-Math.min(0,this.map.element.top)) / tsz))

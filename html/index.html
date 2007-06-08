@@ -503,7 +503,9 @@
           topPanel.addApplet(Applets.Taskbar())
           new Desk.Window(Tr('help.html'), {x: 800, y: 10, group: Tr('help')})
         }
+        $('while_loading').detachSelf()
         if (false) { // start instrumentation block
+          Map.loader = Map.children[0].loader
           var load_buf = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
           var req_buf = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
           var last_reqs = 0
@@ -512,19 +514,7 @@
           var max_lps = 0
           var ls = E('pre', null, 'loadStats')
           ls.style.display = 'block'
-          var statWindow = false
-          var windows = Desk.Windows.windows
-          for (var i=0; i<windows.length; i++) {
-            var w = windows[i]
-            if (w.title == 'stats') {
-              statWindow = w
-              break
-            }
-          }
-          if (statWindow)
-            statWindow.setContent(ls)
-          else
-            new Desk.Window(ls, {title:"stats", x: 750, y: 10})
+          new Desk.Window(ls, {title:"stats", transient:true, x: 750, y: 10})
           var updatesPerSec = 5
           var start_time = new Date().getTime()
           setInterval(function(){
@@ -572,6 +562,15 @@
     </script>
   </head>
   <body>
+    <div id="while_loading">
+      <h1>Muryu Files</h1>
+      <p>Loading... around 420k in total</p>
+      <p>
+        You need Firefox 1.5+ with JavaScript enabled
+        to use this thing. We're working on compatability with other browsers
+        and text-only access.
+      </p>
+    </div>
     <div id="map"></div>
   </body>
 </html>
