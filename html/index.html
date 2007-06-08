@@ -427,6 +427,8 @@
           }
         }, 100)
         Tr.addTranslations('fi-FI', {
+          'Workspace' : 'Työtila',
+          'Add search' : 'Lisää haku',
           'Windows' : 'Ikkunat',
           'Collapse all groups' : 'Piilota kaikki ryhmät',
           'Expand all groups' : 'Laajenna kaikki ryhmät',
@@ -439,6 +441,18 @@
         })
         Tr.translations['fi'] = Tr.translations['fi-FI']
         menu = new Desk.Menu()
+        menu.addTitle(Tr('Workspace'))
+        menu.addItem(Tr('Add search'), function() {
+          var ns = new TileMap({
+            isSubmap : true,
+            query: 'all',
+            bgcolor: Map.bgcolor,
+            left: Math.pow(2,-Map.targetZ)*(Map.pointerX-Map.x),
+            top: Math.pow(2,-Map.targetZ)*(Map.pointerY-Map.y),
+            width: 256,
+            height: 256
+          }).setParent(Map)
+        })
         menu.addTitle(Tr('Windows'))
         menu.addItem(Tr('Collapse all groups'), function() {
           Desk.Windows.taskbar.setCollapsedForAll(true)
@@ -462,7 +476,7 @@
           })
           new TileMap({
             isSubmap : true,
-            title: 'all',
+            query: 'all',
             left: 0,
             top: 0,
             width: 256,
@@ -474,7 +488,7 @@
           function(e) {
             new TileMap({
               isSubmap : true,
-              left : 210,
+              left : 220,
               top : i*32,
               width: 256,
               color: 'false',

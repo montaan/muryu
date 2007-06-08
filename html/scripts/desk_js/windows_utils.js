@@ -178,6 +178,10 @@ Desk.ElementUtils = {
   detachSelf : function(elem, obj) {
     if (elem.parentNode)
       return elem.parentNode.removeChild(elem)
+  },
+
+  replaceWithEditor : function(elem, callback) {
+    Element.replaceWithEditor(elem, callback)
   }
 }
 
@@ -478,7 +482,7 @@ Desk.Menu.prototype = {
     li.appendChild(T(name))
     li.enabled = true
     li.checked = null
-    if (callback)
+    if (callback) {
       var t = this
       li.addEventListener('mouseup', function(e){
         if (this.checked == null && this.enabled) t.hide()
@@ -487,6 +491,7 @@ Desk.Menu.prototype = {
       li.addEventListener('mousedown', function(e) {
         Event.stop(e)
       }, false)
+    }
     li.enable = function(){
       li.enabled = true
       li.className = li.className.replace(/\sdisabled\b|$/, '')

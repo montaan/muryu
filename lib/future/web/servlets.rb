@@ -55,7 +55,7 @@ class MemCachePool
     lc = @local_cache[a]
     return lc if lc
     s = @queue.shift
-    r = s.get(a)
+    r = s.get(a) rescue false
     if r
       local_cache_set(a,r,60)
     end
@@ -685,7 +685,8 @@ extend FutureServlet
         res.body = tile
       else
         res.status = 302
-        res['location'] = '/empty.jpg'
+        res['Content-type'] = 'image/gif'
+        res['location'] = '/transparent.gif'
       end
       res['Last-Modified'] = time if time
       if time
@@ -976,7 +977,7 @@ extend FutureServlet
       else
         "user:#{servlet_user.name} sort:date"
       end
-      query = parser.parse(req.query['q'] || default_query)
+      query = parser.parse((req.query['q'] != 'all' && req.query['q']) || default_query)
       puts "#{telapsed} for search query parsing" if $PRINT_QUERY_PROFILE
       self.search_query = make_query_hash(query)
       puts "#{telapsed} for making a dbconn hash out of the AST" if $PRINT_QUERY_PROFILE

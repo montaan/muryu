@@ -97,15 +97,20 @@ Applets.Session = function(wm) {
     controls.appendChild(E('p', A('/users/register', Tr('Applets.Session.Register'))))
   }
   controls.appendChild(E('h5', Tr('Applets.Session.Settings'), null, 'windowGroupTitle'))
-  var toggleColorsButton = Desk.Button('Applets.Session.ToggleColors',
-    function() {
-      window.lastFocusedMap.setColor(window.lastFocusedMap.color == 'true' ? 'false' : 'true')
-      this.toggle()
-    }, {
-    showText: true,
-    showImage: false
-  })
-  controls.appendChild(toggleColorsButton)
+  var colorToggles = E('p', 'BG [ ')
+  var colors = {
+    flint: '13191C',
+    blue: '03233C',
+    purple: '231323'
+  }
+  for (var i in colors) {
+    var a = A("javascript:void(Map.setBgcolor('"+colors[i]+"'))", i)
+    colorToggles.appendChild(a)
+    colorToggles.appendChild(T(' | '))
+  }
+  colorToggles.removeChild(colorToggles.lastChild)
+  colorToggles.appendChild(T(' ]'))
+  controls.appendChild(colorToggles)
   
   c.appendChild(title)
   c.appendChild(controls)

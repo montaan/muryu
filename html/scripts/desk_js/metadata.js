@@ -457,7 +457,7 @@ Mimetype = {
           viewer = this.makeAudioViewer(info,win)
           group = 'music'
         } else if (info.mimetype == 'text/html') {
-          viewer = this.makeHTMLViewer(info,win)
+          viewer = this.makeThumbViewer(info,win)
           group = 'HTML'
         } else if (info.mimetype.split("/")[0] == 'text') {
           viewer = this.makeTextViewer(info,win)

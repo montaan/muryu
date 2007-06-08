@@ -21,6 +21,11 @@
 
 
 Tr.addTranslations('en-US', {
+  'TileMap.DblClickToEditTitle' : 'Double-click to edit search terms',
+  'TileMap' : 'Search',
+  'TileMap.EditTitle' : 'Edit search terms',
+  'TileMap.RemoveMap' : 'Remove search',
+  'TileMap.ShowColors' : 'Color items',
   'Item.open' : 'Open',
   'Item.select' : 'Select',
   'Item.click_to_inspect' : 'Left-click to inspect ',
@@ -39,6 +44,11 @@ Tr.addTranslations('en-US', {
   'Selection.create_presentation' : 'Create presentation'
 })
 Tr.addTranslations('fi-FI', {
+  'TileMap.DblClickToEditTitle' : 'Kaksoisnapsauta muokataksesi hakua',
+  'TileMap' : 'Haku',
+  'TileMap.EditTitle' : 'Muokkaa hakua',
+  'TileMap.RemoveMap' : 'Poista haku',
+  'TileMap.ShowColors' : 'Väritä tiedostot',
   'Item.open' : 'Avaa',
   'Item.select' : 'Valitse',
   'Item.click_to_inspect' : 'Napsauta nähdäksesi ',
@@ -72,12 +82,14 @@ ItemArea = {
   },
   
   defaultAction : function() {
-    var ext = this.href.split(".").last().toString().toLowerCase()
+    var ext = this.getExt()
     if (['jpeg','jpg','png','gif'].include(ext)) {
       this.viewInSlideshow()
     } else if ( MusicPlayer && ext == 'mp3' ) {
       MusicPlayer.addToPlaylist(this.href)
       MusicPlayer.goToIndex(MusicPlayer.playlist.length - 1)
+    } else if (ext == 'html') {
+      window.open(this.href, '_tab')
     } else {
       this.open()
     }
@@ -95,8 +107,12 @@ ItemArea = {
     this.getMap().selection.toggle(this)
   },
 
+  getExt : function() {
+    return this.href.split(".").last().toString().toLowerCase()
+  },
+
   addToPlaylist : function() {
-    if (MusicPlayer)
+    if (MusicPlayer && this.getExt() == 'mp3')
       MusicPlayer.addToPlaylist(this.href)
   },
   
@@ -117,10 +133,11 @@ ItemArea = {
       menu.addTitle(this.href.split("/").last())
       menu.addItem(Tr('Item.open'), this.open.bind(this))
       menu.addItem(Tr('Item.select'), this.toggleSelect.bind(this))
-      if (this.href.match(/mp3$/i)) {
+      var ext = this.getExt()
+      if (ext == 'mp3') {
         menu.addSeparator()
         menu.addItem(Tr('Item.add_to_playlist'), this.addToPlaylist.bind(this))
-      } else if (this.href.match(/(jpe?g|png|gif)$/i)) {
+      } else if (ext.match(/^(jpe?g|png|gif)$/)) {
         menu.addSeparator()
         menu.addItem(Tr('Item.view_in_slideshow'), this.viewInSlideshow.bind(this))
       }
@@ -367,6 +384,7 @@ TileMap = function(config) {
   this.parent = this
   this.layerCount = this.noTiles ? 0 : this.maxZoom + 1
   this.element = document.createElement('div')
+  this.element.isMap = true
   this.element.style.position = 'absolute'
   this.element.style.left = this.left + 'px'
   this.element.style.top = this.top + 'px'
@@ -581,8 +599,11 @@ TileMap.prototype = {
         fontSize: '12px',
         color: 'white',
         zIndex: 49,
-        cursor: 'move'
+        cursor: 'move',
+        whiteSpace: 'nowrap'
       })
+      this.titleElem.title = Tr('TileMap.DblClickToEditTitle')
+      this.titleElem.map = this
     }
     var t = this
     this.targetZ = this.z
@@ -637,6 +658,7 @@ TileMap.prototype = {
     var t = this
     this.titleDragStart = function(ev) {
       if (Event.isLeftClick(ev)) {
+        window.lastFocusedMap = this.map
         this.dragging = true
         this.dragX = Event.pointerX(ev)
         this.dragY = Event.pointerY(ev)
@@ -658,16 +680,47 @@ TileMap.prototype = {
         Event.stop(ev)
       }
     }
+    this.titleEdit = function(ev) {
+      if (!ev || Event.isLeftClick(ev)) {
+        $(this).replaceWithEditor(function(val) {
+          this.innerHTML = val
+          this.map.setQuery(val)
+        }.bind(this))
+      }
+    }
     if (this.titleElem) {
+      this.titleElem.ondblclick = this.titleEdit
       this.titleElem.onmousedown = this.titleDragStart
       document.addEventListener('mouseup', this.titleDragEnd.bind(this.titleElem), false)
       document.addEventListener('mousemove', this.titleDrag.bind(this.titleElem), false)
+      this.titleMenu = new Desk.Menu()
+      this.titleMenu.addTitle(Tr('TileMap'))
+      this.titleMenu.addItem(Tr('TileMap.EditTitle'), this.titleEdit.bind(this.titleElem))
+      this.titleMenu.addItem(Tr('TileMap.ShowColors'), function(){
+        if (this.color != 'false') {
+          this.titleMenu.uncheckItem(Tr('TileMap.ShowColors'))
+          this.setColor('false')
+        } else {
+          this.titleMenu.checkItem(Tr('TileMap.ShowColors'))
+          this.setColor('true')
+        }
+      }.bind(this))
+      this.titleMenu.checkItem(Tr('TileMap.ShowColors'))
+      if (this.color == 'false')
+        this.titleMenu.uncheckItem(Tr('TileMap.ShowColors'))
+      this.titleMenu.addSeparator()
+      this.titleMenu.addItem(Tr('TileMap.RemoveMap'), this.detachSelf.bind(this))
+      this.titleMenu.bind(this.titleElem)
     }
     if (this.isSubmap) return
     this.onmousedown = function(ev) {
       window.focus()
       document.focusedMap = this
-      window.lastFocusedMap = t
+      var obj = ev.target
+      while (!obj.map && obj.parentNode)
+        obj = obj.parentNode
+      if (obj)
+        window.lastFocusedMap = obj.map
       if (Event.isLeftClick(ev)) {
         if (ev.ctrlKey) {
           t.selecting = true
@@ -697,7 +750,6 @@ TileMap.prototype = {
       t.pointerX = ev.pageX - t.container.offsetLeft
       t.pointerY = ev.pageY - t.container.offsetTop
       document.focusedMap = this
-      window.lastFocusedMap = t
       if (t.panning) {
         var dx = ev.clientX - t.panX
         var dy = ev.clientY - t.panY
@@ -901,6 +953,8 @@ TileMap.prototype = {
   */
   setBgcolor : function(q) {
     this.bgcolor = q
+    if (this.noTiles) this.element.style.backgroundColor = '#'+q
+    this.children.invoke('setBgcolor',q)
     this.updateTileQuery()
   },
 
@@ -951,21 +1005,24 @@ TileMap.prototype = {
       params.q = this.query
     if (this.time)
       params.time = this.time
-    new Ajax.Request('/tile_info', {
-      parameters : params,
-      onSuccess : function(res) {
-        var obj = res.responseText.evalJSON()
-        var dims = obj.dimensions
-        this.tileInfo = obj
-        if (this.isSubmap) {
-          this.width = obj.dimensions.width
-          this.height = obj.dimensions.height
-          if (this.parent != this) {
-            this.parent.submapLayer.zoom(this.parent.z,0,0)
+    if (this.lastQuery != this.query) {
+      this.lastQuery = this.query
+      new Ajax.Request('/tile_info', {
+        parameters : params,
+        onSuccess : function(res) {
+          var obj = res.responseText.evalJSON()
+          var dims = obj.dimensions
+          this.tileInfo = obj
+          if (this.isSubmap) {
+            this.width = obj.dimensions.width
+            this.height = obj.dimensions.height
+            if (this.parent != this) {
+              this.parent.submapLayer.zoom(this.parent.z,0,0)
+            }
           }
-        }
-      }.bind(this)
-    })
+        }.bind(this)
+      })
+    }
   },
 
   /*
@@ -1204,8 +1261,8 @@ SubmapLayer.prototype = {
     var divs = this.element.childNodes
     for (var j=0; j<divs.length; j++) {
       var d = divs[j]
+      if (!d.isMap) continue
       var m = d.map
-      if (!m) continue
       d.left = Math.floor(m.left * fac)
       d.top = Math.floor(m.top * fac)
       d.width = Math.ceil(m.width * fac)
@@ -1215,8 +1272,8 @@ SubmapLayer.prototype = {
       d.style.width = d.width + 'px'
       d.style.height = d.height + 'px'
       m.titleElem.style.left = d.style.left
-      m.titleElem.style.top = (d.top - 15*fac) + 'px'
       m.titleElem.style.fontSize = (10 * fac) + 'px'
+      m.titleElem.style.top = (d.top - 18 * fac) + 'px'
       this.cropMap(m)
       m.zoom(m.relativeZ+outer_z, 0,0)
     }
@@ -1255,8 +1312,8 @@ SubmapLayer.prototype = {
     var divs = this.element.childNodes
     for (var j=0; j<divs.length; j++) {
       var d = divs[j]
+      if (!d.isMap) continue
       var m = d.map
-      if (!m) continue
       this.cropMap(m)
       m.targetZ = m.relativeZ + tz
       m.updateTiles(

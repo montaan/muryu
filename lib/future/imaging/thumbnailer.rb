@@ -166,7 +166,11 @@ module Mimetype
   def html_thumbnail(filename, thumb_filename, thumb_size, page, crop)
     tfn = thumb_filename.to_pn
     tmp_filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}-moz.png"
-    system('ruby', File.join(File.dirname(__FILE__), 'moz-snapshooter.rb'), "file://" + File.expand_path(filename), tmp_filename.expand_path)
+    system('ruby',
+      File.join(File.dirname(__FILE__), 'moz-snapshooter.rb'),
+      "file://" + File.expand_path(filename),
+      tmp_filename.expand_path
+    )
     rv = Mimetype['image/png'].image_thumbnail(tmp_filename, thumb_filename, thumb_size, page, crop)
     tmp_filename.unlink if tmp_filename.exist?
     rv
@@ -175,8 +179,12 @@ module Mimetype
   def web_thumbnail(url, thumb_filename, thumb_size, page=0, crop='0x0+0+0')
     tfn = thumb_filename.to_pn
     tmp_filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}-moz.png"
-    system('ruby', File.join(File.dirname(__FILE__), 'moz-snapshooter.rb'), url.to_s, tmp_filename.expand_path)
-    rv = Mimetype['image/png'].image_thumbnail(tmp_filename, thumb_filename, thumb_size, page, crop)
+    system('ruby',
+      File.join(File.dirname(__FILE__), 'moz-snapshooter.rb'),
+      url.to_s,
+      tmp_filename.expand_path
+    )
+    rv = Mimetype['image/png'].image_thumbnail(tmp_filename.expand_path, thumb_filename, thumb_size, page, crop)
     tmp_filename.unlink if tmp_filename.exist?
     rv
   end
