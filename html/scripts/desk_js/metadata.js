@@ -546,7 +546,7 @@ Mimetype = {
       if (i.width < info.metadata.width || i.height < info.metadata.height) {
         i.scaled = true
         if (navigator.userAgent.match(/rv:1\.[78].*Gecko/)) {
-          ic = E('canvas')
+          var ic = E('canvas')
           if (ic.getContext) {
             ic.style.display = 'block'
             ic.width = iw

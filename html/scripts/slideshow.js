@@ -782,6 +782,19 @@ Suture.prototype = {
 FaderDiv = function(div) {
   this.div = div
   this.img = div.getElementsByTagName("img")[0]
+  if (navigator.userAgent.match(/rv:1\.[78].*Gecko/)) {
+    var ic = E('canvas')
+    if (ic.getContext) {
+      this.canvas = ic
+      this.canvas.style.display = 'block'
+      this.canvas.style.zIndex = 1
+      this.canvas.style.position = 'absolute'
+      this.canvas.style.borderLeft = '1px solid #161616'
+      this.canvas.style.borderTop = '1px solid #1A1A1A'
+      this.canvas.style.borderRight = '1px solid #161616'
+      this.canvas.style.borderBottom = '0px'
+    }
+  }
   this.shadow = document.createElement("div")
   this.shadow.style.height = "10px"
   this.shadow.style.width = "0px"
@@ -821,6 +834,20 @@ FaderDiv.prototype = {
       w = fw * (dh / fh)
       h = dh
     }
+    if (f.width > w || f.height > h) {
+      this.setElementOpacity(f, 0)
+      f.style.zIndex = 2
+      f.parentNode.insertAfter(this.canvas, f)
+      this.canvas.style.top = Math.ceil((dh - h) / 2) + 'px'
+      this.canvas.style.left = Math.ceil((dw - w) / 2) + 'px'
+      this.canvas.width = Math.ceil(w)
+      this.canvas.height = Math.ceil(h)
+      var c = this.canvas.getContext('2d')
+      c.drawImage(f,0,0,Math.ceil(w),Math.ceil(h))
+    } else if (this.canvas.parentNode) {
+      $(this.canvas).detachSelf()
+      this.setElementOpacity(f, this.canvas.style.opacity)
+    }
     f.style.top = Math.ceil((dh - h) / 2) + 'px'
     f.style.left = Math.ceil((dw - w) / 2) + 'px'
     f.style.width = Math.ceil(w) + 'px'
@@ -847,7 +874,10 @@ FaderDiv.prototype = {
   },
   
   setOpacity : function(op) {
-    this.setElementOpacity(this.img, op)
+    if (this.canvas.parentNode)
+      this.setElementOpacity(this.canvas, op)
+    else
+      this.setElementOpacity(this.img, op)
     this.setElementOpacity(this.shadow, Math.max(op, 0))
   },
   
