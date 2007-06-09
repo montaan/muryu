@@ -92,6 +92,7 @@ Desk.Window.prototype = {
 
   close : function() {
     this.setWindowManager(null)
+    this.newEvent('close', {})
   },
 
   minimize : function() {

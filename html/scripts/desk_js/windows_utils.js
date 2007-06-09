@@ -22,6 +22,7 @@ E = function(tag, content, id, klass, style, attributes){
   if (attributes) Object.forceExtend(e, attributes)
   return e
 }
+Elem = E
 
 A = function(href, content, id, klass, style, attributes){
   var a = E('a', content, id, klass, style, attributes)
@@ -182,6 +183,33 @@ Desk.ElementUtils = {
 
   replaceWithEditor : function(elem, callback) {
     Element.replaceWithEditor(elem, callback)
+  },
+
+  byTag : function(elem, tag) {
+    return elem.getElementsByTagName(tag)
+  },
+
+  $ : function(elem, id){
+    if (elem == document || elem == window) {
+      return document.getElementById(id)
+    } else {
+      if (!elem.childNodes) return false
+      var gc
+      var cn
+      // check this level, then do depth-first search
+      for(var j=0;j < elem.childNodes.length;j++) {
+        cn = elem.childNodes[j]
+        if (cn.id == id) return cn
+      }
+      for(var j=0;j<elem.childNodes.length;j++) {
+        cn = $(elem.childNodes[j])
+        if (cn.$) {
+          gc = cn.$(id)
+          if (gc) return gc
+        }
+      }
+      return false
+    }
   }
 }
 

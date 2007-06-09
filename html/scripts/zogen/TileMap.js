@@ -26,6 +26,7 @@ Tr.addTranslations('en-US', {
   'TileMap.EditTitle' : 'Edit search terms',
   'TileMap.RemoveMap' : 'Remove search',
   'TileMap.ShowColors' : 'Color items',
+  'TileMap.ShowStats' : 'Open stats window',
   'Item.open' : 'Open',
   'Item.select' : 'Select',
   'Item.click_to_inspect' : 'Left-click to inspect ',
@@ -49,6 +50,7 @@ Tr.addTranslations('fi-FI', {
   'TileMap.EditTitle' : 'Muokkaa hakua',
   'TileMap.RemoveMap' : 'Poista haku',
   'TileMap.ShowColors' : 'Väritä tiedostot',
+  'TileMap.ShowStats' : 'Seuraa latauksia',
   'Item.open' : 'Avaa',
   'Item.select' : 'Valitse',
   'Item.click_to_inspect' : 'Napsauta nähdäksesi ',
@@ -117,13 +119,16 @@ ItemArea = {
   },
   
   viewInSlideshow : function() {
-    var m = this.getMap()
+    var m = document
     if (m.slideshowWindow) {
       if (!m.slideshowWindow.windowManager)
         m.slideshowWindow.setWindowManager(Desk.Windows)
+      var map = this.getMap()
+      if (m.slideshowWindow.slideshow.query.q != map.query)
+        m.slideshowWindow.slideshow.setQuery({q:map.query}, false)
       m.slideshowWindow.slideshow.showIndex(this.info.index)
     } else {
-      m.slideshowWindow = Slideshow.make(this.info.index, m.query)
+      m.slideshowWindow = Suture.make(this.info.index, this.getMap().query)
     }
   },
 
@@ -174,6 +179,7 @@ ItemArea = {
 
   onclick : function(ev) {
     if (Event.isLeftClick(ev)) {
+      Event.stop(ev)
       if (this.Xdown == undefined ||
           (Math.abs(this.Xdown - ev.clientX) < 3 &&
            Math.abs(this.Ydown - ev.clientY) < 3)
@@ -186,7 +192,6 @@ ItemArea = {
           this.defaultAction()
         }
       }
-      Event.stop(ev)
     }
   },
 
@@ -491,6 +496,8 @@ TileMap.prototype = {
   z : 0, // current zoom
   targetZ : 0, // target zoom
 
+  minZoom : -5, // min zoom of the map (to avoid "oh where did my files go :(")
+                // also javascript hang when zoomed to -20 or so
   maxZoom : 10, // max zoom of the map (should get from the server)
 
   pointerX : 0,
@@ -708,6 +715,8 @@ TileMap.prototype = {
       this.titleMenu.checkItem(Tr('TileMap.ShowColors'))
       if (this.color == 'false')
         this.titleMenu.uncheckItem(Tr('TileMap.ShowColors'))
+      this.titleMenu.addSeparator()
+      this.titleMenu.addItem(Tr('TileMap.ShowStats'), this.showStats.bind(this))
       this.titleMenu.addSeparator()
       this.titleMenu.addItem(Tr('TileMap.RemoveMap'), this.detachSelf.bind(this))
       this.titleMenu.bind(this.titleElem)
@@ -1092,6 +1101,7 @@ TileMap.prototype = {
    Zooms each layer to zoom z, with (pointer_x, pointer_y) as the origin.
   */
   zoom : function(z, pointer_x, pointer_y) {
+    if (z < this.minZoom) z = this.minZoom
     for (var i=0; i<this.layers.length; i++) {
       var layer = this.layers[i]
       layer.zoom(z, pointer_x, pointer_y)
@@ -1108,6 +1118,7 @@ TileMap.prototype = {
    this.frameTime.
   */
   animatedZoom : function(z) {
+    if (z < this.minZoom) z = this.minZoom
     if (this.zoomIval) {
       this.targetZ = z
       return
@@ -1219,8 +1230,68 @@ TileMap.prototype = {
 
       occluded = occluded || layer.coversWholeScreen(pointer_x, pointer_y, dir)
     }
-  }
+  },
 
+  /**
+    Show load statistics and bandwidth use for the map in a new window.
+   */
+  showStats : function() {
+    var map = this
+    var load_buf = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    var req_buf = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    var last_reqs = 0
+    var last_loads = 0
+    var max_rps = 0
+    var max_lps = 0
+    var ls = E('pre', null, 'loadStats')
+    ls.style.display = 'block'
+    var win = new Desk.Window(ls, {title:"stats for "+this.query, transient:true, x: 800, y: 40})
+    var updatesPerSec = 5
+    var start_time = new Date().getTime()
+    var updater = setInterval(function(){
+      req_buf.shift()
+      load_buf.shift()
+      req_buf.push(map.loader.totalCompletes - last_reqs)
+      load_buf.push(map.loader.totalLoads - last_loads)
+      last_reqs = map.loader.totalCompletes
+      last_loads = map.loader.totalLoads
+      var reqs = 0
+      var loads = 0
+      for (var i=0; i<req_buf.length; i++) reqs += req_buf[i]
+      for (var i=0; i<load_buf.length; i++) loads += load_buf[i]
+      var rps = updatesPerSec * reqs / req_buf.length
+      var lps = updatesPerSec * loads / load_buf.length
+      if (rps > max_rps) max_rps = rps
+      if (lps > max_lps) max_lps = lps
+      var bw = rps * 0.125 + ' Mbps'
+      var max_bw = max_rps * 0.125 + ' Mbps'
+      var total_bw = map.loader.totalLoads * 0.125
+      var avg_bw = total_bw / ((new Date().getTime() - start_time) * 0.001)
+      ls.innerHTML = [
+        "         requests: " + map.loader.totalRequests,
+        "          cancels: " + map.loader.totalCancels,
+        "            loads: " + map.loader.totalLoads,
+        "        completed: " + map.loader.totalCompletes,
+        "       load ratio: " + parseInt(100*(map.loader.totalLoads / map.loader.totalRequests)) / 100,
+        " completion ratio: " + parseInt(100*(map.loader.totalCompletes / map.loader.totalLoads)) / 100,
+        " pending requests: " + map.loader.queue.queue.length,
+        "        loads/sec: " + lps,
+        "    completes/sec: " + rps,
+        "    bandwidth use: " + bw,
+        "    max loads/sec: " + max_lps,
+        "max completes/sec: " + max_rps,
+        "    bandwidth max: " + max_bw,
+        "average bandwidth: " + parseInt(100*avg_bw) / 100 + 'Mbps',
+        "  total bandwidth: " + parseInt(100*total_bw) / 100 + 'Mb',
+        "              fps: " + parseInt(100*map.fps) / 100,
+        "      average fps: " + parseInt(100*map.avgFps) / 100
+      ].join("\n")
+    }, 1000/updatesPerSec)
+    win.addListener('close', function() {
+      clearInterval(updater)
+    })
+  }
+        
 }
 
 

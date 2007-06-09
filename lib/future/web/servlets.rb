@@ -1397,12 +1397,13 @@ extend FutureServlet
         sq[:columns] << 'path'
         sq[:columns] << 'deleted'
         puts "#{telapsed} for tile_info init" if $PRINT_QUERY_PROFILE
-        info = Tiles.info(
+        items = Tiles.info(
           servlet_user, sq,
           :rawlist, first, last, 0, 0, 0
         ).to_a.map do |iind,(_, info)|
           {:index => info[:index], :path => info[:path], :deleted => info[:deleted]}
         end.sort_by{|h| h[:index] }
+        info = {:items => items, :itemCount => Tiles.item_count(servlet_user, sq)}
         puts "#{telapsed} for fetching tile info" if $PRINT_QUERY_PROFILE
         jinfo = info.to_json
         puts "#{telapsed} for tile info jsonification" if $PRINT_QUERY_PROFILE

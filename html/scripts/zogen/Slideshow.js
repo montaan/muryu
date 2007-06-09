@@ -161,11 +161,14 @@ var CanvasSlideshow = {
   
   seek : function(dir, amt) {
     if (amt == undefined) amt = 1
-    this.showIndex(this.index + dir*amt, dir)
+    var ni = this.index + dir*amt
+    if (ni < 0 && this.itemCount) ni = this.itemCount+ni
+    if (this.itemCount && ni >= this.itemCount) ni -= this.itemCount
+    this.showIndex(ni, dir)
   },
   
   showIndex : function(idx, dir) {
-    if (idx < 0) return
+    if (idx < 0 && idx >= this.itemCount) return
     if (dir == undefined) dir = 1
     var params = Object.clone(this.query)
     this.index = idx
@@ -184,8 +187,9 @@ var CanvasSlideshow = {
         parameters : params,
         onSuccess : function(res) {
           var infos = res.responseText.evalJSON()
-          for (var i=0; i<infos.length; i++) {
-            var info = infos[i]
+          this.itemCount = infos.itemCount
+          for (var i=0; i<infos.items.length; i++) {
+            var info = infos.items[i]
             this.infos[info.index] = info
           }
           if (this.infos[this.index])

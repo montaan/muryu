@@ -4,6 +4,7 @@
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <title>muryu</title>
     <link rel="stylesheet" href="/scripts/desk_js/style.css"></link>
+    <link rel="stylesheet" href="/scripts/slideshow.css"></link>
     <style type="text/css">
       body {
         margin : 0px;
@@ -27,8 +28,9 @@
         margin: 0px;
         padding: 5px;
         width: 250px;
-        background-color: black;
-        color: white;
+        background-color: #CCC;
+        font-weight: bold;
+        color: black;
       }
       #help {
         margin: 0px;
@@ -367,6 +369,7 @@
     <script type="text/javascript" src="/scripts/zogen/TileMap.js"></script>
     <script type="text/javascript" src="/scripts/zogen/Slideshow.js"></script>
     <script type="text/javascript" src="/scripts/zogen/Editors.js"></script>
+    <script type="text/javascript" src="/scripts/slideshow.js"></script>
     <script>
       // <![CDATA[
       window.addEventListener("load", function(ev){
@@ -504,59 +507,6 @@
           new Desk.Window(Tr('help.html'), {x: 800, y: 10, group: Tr('help')})
         }
         $('while_loading').detachSelf()
-        if (false) { // start instrumentation block
-          Map.loader = Map.children[0].loader
-          var load_buf = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-          var req_buf = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-          var last_reqs = 0
-          var last_loads = 0
-          var max_rps = 0
-          var max_lps = 0
-          var ls = E('pre', null, 'loadStats')
-          ls.style.display = 'block'
-          new Desk.Window(ls, {title:"stats", transient:true, x: 750, y: 10})
-          var updatesPerSec = 5
-          var start_time = new Date().getTime()
-          setInterval(function(){
-            req_buf.shift()
-            load_buf.shift()
-            req_buf.push(Map.loader.totalCompletes - last_reqs)
-            load_buf.push(Map.loader.totalLoads - last_loads)
-            last_reqs = Map.loader.totalCompletes
-            last_loads = Map.loader.totalLoads
-            var reqs = 0
-            var loads = 0
-            for (var i=0; i<req_buf.length; i++) reqs += req_buf[i]
-            for (var i=0; i<load_buf.length; i++) loads += load_buf[i]
-            var rps = updatesPerSec * reqs / req_buf.length
-            var lps = updatesPerSec * loads / load_buf.length
-            if (rps > max_rps) max_rps = rps
-            if (lps > max_lps) max_lps = lps
-            var bw = rps * 0.125 + ' Mbps'
-            var max_bw = max_rps * 0.125 + ' Mbps'
-            var total_bw = Map.loader.totalLoads * 0.125
-            var avg_bw = total_bw / ((new Date().getTime() - start_time) * 0.001)
-            ls.innerHTML = [
-              "         requests: " + Map.loader.totalRequests,
-              "          cancels: " + Map.loader.totalCancels,
-              "            loads: " + Map.loader.totalLoads,
-              "        completed: " + Map.loader.totalCompletes,
-              "       load ratio: " + parseInt(100*(Map.loader.totalLoads / Map.loader.totalRequests)) / 100,
-              " completion ratio: " + parseInt(100*(Map.loader.totalCompletes / Map.loader.totalLoads)) / 100,
-              " pending requests: " + Map.loader.queue.queue.length,
-              "        loads/sec: " + lps,
-              "    completes/sec: " + rps,
-              "    bandwidth use: " + bw,
-              "    max loads/sec: " + max_lps,
-              "max completes/sec: " + max_rps,
-              "    bandwidth max: " + max_bw,
-              "average bandwidth: " + parseInt(100*avg_bw) / 100 + 'Mbps',
-              "  total bandwidth: " + parseInt(100*total_bw) / 100 + 'Mb',
-              "              fps: " + parseInt(100*Map.fps) / 100,
-              "      average fps: " + parseInt(100*Map.avgFps) / 100
-            ].join("\n")
-          }, 1000/updatesPerSec)
-        } // end instrumentation block
       }, false)
       // ]]>
     </script>
