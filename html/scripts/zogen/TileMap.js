@@ -109,6 +109,14 @@ ItemArea = {
     this.getMap().selection.toggle(this)
   },
 
+  select : function() {
+    this.getMap().selection.select(this)
+  },
+
+  deselect : function() {
+    this.getMap().selection.deselect(this)
+  },
+
   getExt : function() {
     return this.href.split(".").last().toString().toLowerCase()
   },
@@ -121,14 +129,24 @@ ItemArea = {
   viewInSlideshow : function() {
     var m = document
     if (m.slideshowWindow) {
-      if (!m.slideshowWindow.windowManager)
+      if (!m.slideshowWindow.windowManager) {
         m.slideshowWindow.setWindowManager(Desk.Windows)
+        if (m.slideshowWindow.maximized)
+          m.slideshowWindow.maximize()
+      }
       var map = this.getMap()
-      if (m.slideshowWindow.slideshow.query.q != map.query)
+      if (m.slideshowWindow.slideshow.query.q != map.query) {
         m.slideshowWindow.slideshow.setQuery({q:map.query}, false)
+      }
+      if (m.slideshowWindow.minimized)
+        m.slideshowWindow.minimize()
+      if (m.slideshowWindow.shaded)
+        m.slideshowWindow.shade()
       m.slideshowWindow.slideshow.showIndex(this.info.index)
     } else {
-      m.slideshowWindow = Suture.make(this.info.index, this.getMap().query)
+      new Desk.Window('app:Suture.loadWindow', {
+        parameters: {index:this.info.index, query:{ q:this.getMap().query }}
+      })
     }
   },
 
@@ -179,19 +197,20 @@ ItemArea = {
 
   onclick : function(ev) {
     if (Event.isLeftClick(ev)) {
-      Event.stop(ev)
       if (this.Xdown == undefined ||
           (Math.abs(this.Xdown - ev.clientX) < 3 &&
            Math.abs(this.Ydown - ev.clientY) < 3)
       ) {
+        this.Xdown = this.Ydown = undefined
         if (ev.ctrlKey) {
-          this.getMap().selection.toggle(this)
+          this.toggleSelect()
         } else if (ev.shiftKey) {
           this.getMap().selection.spanTo(this)
         } else {
           this.defaultAction()
         }
       }
+      Event.stop(ev)
     }
   },
 
@@ -236,10 +255,12 @@ ItemArea = {
           (Math.abs(this.downX - e.clientX) < 3 &&
            Math.abs(this.downY - e.clientY) < 3   )
       ) {
-        if (!e.ctrlKey)
+        if (e.ctrlKey) {
+          this.item.toggleSelect()
+        } else {
           this.selection.clear()
-        else
-          this.selection.toggle(this.item)
+        }
+        Event.stop(e)
       }
     }
     s.oncontextmenu = s.selection.oncontextmenu
@@ -513,6 +534,8 @@ TileMap.prototype = {
 
   tileSize : 256,
 
+  zoomKeyDown : 0,
+
 
   setParent : function(p) {
     if (this.parent) this.parent.removeChild(this)
@@ -561,10 +584,10 @@ TileMap.prototype = {
   getKeyHandlers : function() {
     if (!this.keyHandlers) {
       this.keyHandlers = {
-        't' : function(){ this.animatedZoom(this.z+1) },
-        'g' : function(){ this.animatedZoom(this.z-1) },
-        'z' : function(){ this.animatedZoom(this.z+1) },
-        'x' : function(){ this.animatedZoom(this.z-1) },
+        't' : function(){ this.animatedZoom(this.targetZ+1) },
+        'g' : function(){ this.animatedZoom(this.targetZ-1) },
+        'z' : function(){ this.animatedZoom(this.targetZ+1) },
+        'x' : function(){ this.animatedZoom(this.targetZ-1) },
         'f' : function(){ this.panRight() },
         'e' : function(){ this.panUp() },
         's' : function(){ this.panLeft() },
@@ -577,6 +600,24 @@ TileMap.prototype = {
       kh[Event.KEY_DOWN]  = function(){ this.panDown() }
     }
     return this.keyHandlers
+  },
+  getKeyDownHandlers : function() {
+    if (!this.keyDownHandlers) {
+      this.keyDownHandlers = {
+        't' : function(){ this.zoomKeyDown = 1 },
+        'g' : function(){ this.zoomKeyDown = -1 }
+      }
+    }
+    return this.keyDownHandlers
+  },
+  getKeyUpHandlers : function() {
+    if (!this.keyUpHandlers) {
+      this.keyUpHandlers = {
+        't' : function(){ this.zoomKeyDown = 0 },
+        'g' : function(){ this.zoomKeyDown = 0 }
+      }
+    }
+    return this.keyUpHandlers
   },
 
   /**
@@ -689,10 +730,17 @@ TileMap.prototype = {
     }
     this.titleEdit = function(ev) {
       if (!ev || Event.isLeftClick(ev)) {
-        $(this).replaceWithEditor(function(val) {
-          this.innerHTML = val
-          this.map.setQuery(val)
-        }.bind(this))
+        this.style.minWidth = this.offsetWidth + 200 + 'px'
+        $(this).replaceWithEditor(
+          function(val) {
+            this.style.minWidth = '0px'
+            this.innerHTML = val
+            this.map.setQuery(val)
+          }.bind(this),
+          function() {
+            this.style.minWidth = '0px'
+          }.bind(this)
+        )
       }
     }
     if (this.titleElem) {
@@ -735,13 +783,12 @@ TileMap.prototype = {
           t.selecting = true
           t.selectX = ev.pageX - t.container.offsetLeft
           t.selectY = ev.pageY - t.container.offsetTop
-          t.selectionElem.style.display = 'block'
           t.selectionElem.style.left = t.selectX + 'px'
           t.selectionElem.style.top = t.selectY + 'px'
           t.selectionElem.style.width = '0px'
           t.selectionElem.style.height = '0px'
+          t.selectionStartTime = new Date().getTime()
           t.selected = new Hash()
-          t.selectUnderSelection()
         } else {
           t.panning = true
           t.panX = ev.clientX
@@ -766,7 +813,9 @@ TileMap.prototype = {
         t.panX = ev.clientX
         t.panY = ev.clientY
         Event.stop(ev)
-      } else if (t.selecting) {
+      } else if (t.selecting && (Math.abs(t.pointerX - t.selectX) > 3 ||
+                                 Math.abs(t.pointerY - t.selectY) > 3)
+      ) {
         t.selectionElem.style.display = 'block'
         t.selectionElem.style.left = Math.min(t.pointerX, t.selectX) + 'px'
         t.selectionElem.style.top = Math.min(t.pointerY, t.selectY) + 'px'
@@ -800,6 +849,29 @@ TileMap.prototype = {
         Event.stop(ev)
       }
     }
+    this.onkeydown = function(ev) {
+      if (ev.target.tagName == 'INPUT') return
+      if (document.focusedMap == this && !ev.ctrlKey) {
+        var c = ev.keyCode | ev.charCode | ev.which
+        var cs = String.fromCharCode(c).toLowerCase()
+        var keyHandlers = t.getKeyDownHandlers()
+        var h = keyHandlers[c] || keyHandlers[cs]
+        if (h) h.apply(t, [c,cs])
+        Event.stop(ev)
+      }
+    }
+    this.onkeyup = function(ev) {
+      this.zoomKeyDown = 0
+      if (ev.target.tagName == 'INPUT') return
+      if (document.focusedMap == this && !ev.ctrlKey) {
+        var c = ev.keyCode | ev.charCode | ev.which
+        var cs = String.fromCharCode(c).toLowerCase()
+        var keyHandlers = t.getKeyUpHandlers()
+        var h = keyHandlers[c] || keyHandlers[cs]
+        if (h) h.apply(t, [c,cs])
+        Event.stop(ev)
+      }
+    }
     this.onunload = function(ev) {
       t.unload()
     }
@@ -808,6 +880,8 @@ TileMap.prototype = {
     this.element.addEventListener("mousemove", this.onmousemove, false)
     this.element.addEventListener("DOMMouseScroll", this.onmousescroll, false)
     document.addEventListener("keypress", this.onkeypress.bind(this.element), false)
+    document.addEventListener("keydown", this.onkeydown, false)
+    document.addEventListener("keyup", this.onkeyup, false)
     document.addEventListener("unload", this.onunload, false)
   },
   
@@ -823,6 +897,8 @@ TileMap.prototype = {
     this.element.removeEventListener("mousemove", this.onmousemove, false)
     this.element.removeEventListener("DOMMouseScroll", this.onmousescroll, false)
     document.removeEventListener("keypress", this.onkeypress, false)
+    document.removeEventListener("keydown", this.onkeydown, false)
+    document.removeEventListener("keyup", this.onkeyup, false)
     document.removeEventListener("unload", this.onunload, false)
     delete this.onmousemove
     delete this.onmousescroll
@@ -833,9 +909,14 @@ TileMap.prototype = {
   /**
     Selects all items that intersect the lasso selection box (selectionElem).
   */
-  selectUnderSelection : function() {
+  selectUnderSelection : function(startSelection) {
+    if (this.root.selectionStartTime != this.lastSelectionStartTime) {
+      this.root.selected[this] = new Hash()
+      this.lastSelectionStartTime = this.root.selectionStartTime
+    }
     var z = Math.max(Math.min(this.targetZ, this.layerCount-1), 0)
     var layer = this.layers[z]
+    if (!layer) return
     var lx = layer.x
     var ly = layer.y
     var tsz = this.tileSize
@@ -859,8 +940,9 @@ TileMap.prototype = {
     var t = Math.floor(top / tsz)
     var r = Math.ceil((left+width) / tsz)
     var b = Math.ceil((top+height) / tsz)
-    var previousSelection = this.selected || new Hash()
-    this.selected = new Hash()
+    var previousSelection = this.root.selected[this]
+    this.root.selected[this] = new Hash()
+    var selection = this.root.selected[this]
     for (var x=l; x<=r; x++) {
       for (var y=t; y<=b; y++) {
         var tile = layer.tiles[x+':'+y]
@@ -870,31 +952,32 @@ TileMap.prototype = {
           var ty = parseInt(tile.style.top)
           for (var i=0; i<areas.length; i++) {
             var area = areas[i]
+            var key = area.info.index
             if (
-              !(this.selected[area.itemHREF]) && // not already processed
+              !(selection[key]) && // not already processed
               this.intersect(left, top, width, height,
                              area.info.x+tx, area.info.y+ty, area.info.sz, area.info.sz)
             ) {
-              var pr = previousSelection[area.itemHREF]
+              var pr = previousSelection[key]
               // If the item was in previous selected, but not from this area,
               // use the previous selected and skip this one.
               if (pr && pr != area) {
-                this.selected[area.itemHREF] = pr
+                selection[key] = pr
               } else {
                 if (!pr) // not previously selected
                   area.toggleSelect()
-                this.selected[area.itemHREF] = area
+                selection[key] = area
               }
             }
           }
         }
       }
     }
-    var s = this.selected
     // deselect all that fell out of selection
     previousSelection.each(function(kv,i) {
-      if (!s[kv[0]]) 
+      if (!selection[kv[0]]) {
         kv[1].toggleSelect()
+      }
     })
   },
 
@@ -1120,7 +1203,7 @@ TileMap.prototype = {
   animatedZoom : function(z) {
     if (z < this.minZoom) z = this.minZoom
     if (this.zoomIval) {
-      this.targetZ = z
+      this.continueZoom = z
       return
     }
     var i = 0
@@ -1151,6 +1234,12 @@ TileMap.prototype = {
       this.z = this.targetZ
       // discard tiles outside zoom
       this.updateTiles(this.pointerX, this.pointerY, this.zoomDirection, true)
+      if (this.continueZoom != undefined) {
+        this.animatedZoom(this.continueZoom)
+        this.continueZoom = undefined
+      } else if (this.zoomKeyDown != 0) {
+        this.animatedZoom(this.targetZ + this.zoomKeyDown)
+      }
     } else {
       var f = (elapsed / this.zoomDuration)
       var zi = this.z*(1-f) + this.targetZ*f
@@ -1361,8 +1450,8 @@ SubmapLayer.prototype = {
       d.style.width = d.width + 'px'
       d.style.height = d.height + 'px'
       m.titleElem.style.left = d.style.left
-      m.titleElem.style.top = (d.top - 18 * fac) + 'px'
-      m.titleElem.style.fontSize = (10 * fac) + 'px'
+      m.titleElem.style.top = (d.top - Math.min(36, 9 * fac)) + 'px'
+      m.titleElem.style.fontSize = Math.min(20, (5 * fac)) + 'px'
 /*      if (
         d.left > -m.root.x + m.root.width ||
         d.top > -m.root.y + m.root.height ||
@@ -1891,7 +1980,7 @@ TileInfoManager.prototype = {
   bundleRequest : function(req) {
     this.request_bundle.push(req)
     if (this.requestTimeout) clearTimeout(this.requestTimeout)
-    this.requestTimeout = setTimeout(this.sendBundle, 500)
+    this.requestTimeout = setTimeout(this.sendBundle, 10)
   },
 
   bundleSender : function() {

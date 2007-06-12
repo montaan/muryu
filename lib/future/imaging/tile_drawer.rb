@@ -142,8 +142,9 @@ extend self
         end
         indexes = t
       end
+      deleted_color = (query['deleted'] ? [0,0,0,0] : vbgcolor)
       puts "#{Thread.current.telapsed} for fetching indexes" if $PRINT_QUERY_PROFILE
-      pal = palette(colors, vbgcolor)
+      pal = palette(colors, deleted_color)
       tile = tile_drawer.draw_tile(vbgcolor, indexes, pal, r,x,y,z,w,h, bgimage)
     end
     if tile

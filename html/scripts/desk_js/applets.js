@@ -238,20 +238,25 @@ Desk.Slider = function(callback) {
   var e = E('div', null, null, 'slider')
   e.style.cursor = 'pointer'
   e.knob = E('div', null, null, 'sliderKnob')
+  e.loaded = E('div', null, null, 'sliderLoaded')
   e.onmousedown = function(ev) {
     var lx = ev.layerX
-    if (ev.target == e.knob) lx += 1
+    if (ev.target == this.knob || ev.target == this.loaded) lx += 1
     else lx -= 4
-    e.setPosition(lx / e.offsetWidth)
+    this.setPosition(lx / this.offsetWidth)
   }
+  e.appendChild(e.loaded)
   e.appendChild(e.knob)
   Object.extend(e, EventListener)
   e.position = 0
   e.setPosition = function(val, sendEvent) {
     this.position = Math.min(Math.max(0, val), 1)
-    e.knob.style.width = (val * (e.offsetWidth-2)) + 'px'
+    this.knob.style.width = (val * (this.offsetWidth-2)) + 'px'
     if (sendEvent != false)
       this.newEvent('valueChanged', { value: val })
+  }
+  e.setLoaded = function(val) {
+    this.loaded.style.width = (val * (this.offsetWidth-2)) + 'px'
   }
   if (callback)
     e.addListener('valueChanged', function(e) { callback(e.value) })
@@ -354,9 +359,8 @@ Applets.MusicPlayer = function() {
   
   c.play = function(){
     if (!this.playlist.isEmpty()) {
-      this.playButton.style.display = 'none'
-      this.pauseButton.style.display = null
       this.playing = true
+      this.paused = false
       this.currentItem = this.playlist[this.currentIndex]
       if (this.currentItem) {
         this.currentURL = (typeof this.currentItem == 'string' ?
@@ -402,11 +406,9 @@ Applets.MusicPlayer = function() {
   
   c.updateButtons = function() {
     if (this.paused) {
-      this.pauseButton.style.display = 'none'
-      this.playButton.style.display = null
+      this.playButton.pull()
     } else {
-      this.playButton.style.display = 'none'
-      this.pauseButton.style.display = null
+      this.playButton.push()
     }
   }
   
@@ -437,97 +439,107 @@ Applets.MusicPlayer = function() {
     this.setVolume(this.volume - 20)
   }
 
-  c.togglePlaylist = function() {
+  c.togglePlaylist = function(win) {
     if (this.playlistWindow) {
       if (this.playlistWindow.windowManager)
         this.playlistWindow.close()
       else
         this.playlistWindow.setWindowManager(Desk.Windows)
     } else {
-      var pl = E('ol', null, 'MusicPlayer_playlist')
-      var tlc = E('div', null)
-      var t = this
-      tlc.appendChild(Desk.Button('RemoveFromPlaylist', function() {
-          for (var i=0; i<pl.childNodes.length; i++) {
-            if (pl.childNodes[i].className == 'selected') {
-              pl.removeChild(pl.childNodes[i])
-              t.removeFromPlaylistAt(i)
-              i--
-            }
+      new Desk.Window('app:MusicPlayer.initPlaylistWindow')
+    }
+  }
+  c.initPlaylistWindow = function(w) {
+    this.playlistWindow = w
+    w.setTitle(Tr('Applets.MusicPlayer.Playlist'))
+    if (!w.width) {
+      w.setSize(400, 400)
+    }
+    var pl = E('ol', null, 'MusicPlayer_playlist')
+    var tlc = E('div', null)
+    w.setContent(tlc)
+    var t = this
+    tlc.appendChild(Desk.Button('RemoveFromPlaylist', function() {
+        for (var i=0; i<pl.childNodes.length; i++) {
+          if (pl.childNodes[i].className == 'selected') {
+            pl.removeChild(pl.childNodes[i])
+            t.removeFromPlaylistAt(i)
+            i--
           }
-      }, { showText: true, showImage: false }))
-      tlc.appendChild(Desk.Button('SortPlaylist', function(){
-      }, { showText: true, showImage: false }))
+        }
+    }, { showText: true, showImage: false }))
+    tlc.appendChild(Desk.Button('SortPlaylist', function(){
+    }, { showText: true, showImage: false }))
 
-      var plc = E('div', null, 'MusicPlayer_playlistContainer')
-      plc.style.overflow = 'auto'
-      plc.style.width = '100%'
-      plc.style.height = '100%'
-      pl.style.marginLeft = '2px'
-      pl.getIndex = function(obj) {
-        var c = this.childNodes
-        for (var i=0; i<c.length; i++) {
-          if (c[i] == obj) return i
-        }
-        return 0
+    var plc = E('div', null, 'MusicPlayer_playlistContainer')
+    plc.style.overflow = 'auto'
+    plc.style.width = '100%'
+    plc.style.height = '100%'
+    pl.getIndex = function(obj) {
+      var c = this.childNodes
+      for (var i=0; i<c.length; i++) {
+        if (c[i] == obj) return i
       }
-      pl.updateCurrent = function(val) {
-        var idx = t.currentIndex
-        var c = this.childNodes
-        for (var i=0; i<c.length; i++) {
-          if (i != idx)
-            c[i].className = c[i].className.replace(/\s*\bcurrent\b/, '')
-          else if (!c[i].className.match(/\s*\bcurrent\b/)) {
-            c[i].className += ' current'
-            this.current = c[i]
-          }
+      return 0
+    }
+    pl.updateCurrent = function(val) {
+      var idx = t.currentIndex
+      var c = this.childNodes
+      for (var i=0; i<c.length; i++) {
+        if (i != idx)
+          c[i].className = c[i].className.replace(/\s*\bcurrent\b/, '')
+        else if (!c[i].className.match(/\s*\bcurrent\b/)) {
+          c[i].className += ' current'
+          this.current = c[i]
         }
       }
-      pl.updatePlaylist = function(val) {
-        if (this.updated) {
-          this.updated = false
-        } else if ($A(this.childNodes).include(this.current)) {
-          this.updated = true
-          t.currentIndex = this.getIndex(this.current)
-          t.playlistChanged()
-        }
+    }
+    pl.updatePlaylist = function(val) {
+      if (this.updated) {
+        this.updated = false
+      } else if ($A(this.childNodes).include(this.current)) {
+        this.updated = true
+        t.currentIndex = this.getIndex(this.current)
+        t.playlistChanged()
       }
-      pl.currentUpdater = pl.updateCurrent.bind(pl)
-      pl.playlistUpdater = pl.updatePlaylist.bind(pl)
-      this.addListener('songChanged', pl.currentUpdater)
-      this.addListener('playlistChanged', pl.playlistUpdater)
-      pl.deselect = function() {
-        var c = this.childNodes
-        for (var i=0; i<c.length; i++) {
-          c[i].className = c[i].className.replace(/\s*\bselected\b/, '')
-        }
+    }
+    pl.currentUpdater = pl.updateCurrent.bind(pl)
+    pl.playlistUpdater = pl.updatePlaylist.bind(pl)
+    this.addListener('songChanged', pl.currentUpdater)
+    this.addListener('playlistChanged', pl.playlistUpdater)
+    pl.deselect = function() {
+      var c = this.childNodes
+      for (var i=0; i<c.length; i++) {
+        c[i].className = c[i].className.replace(/\s*\bselected\b/, '')
       }
-      this.playlist.each(function(i) {
-        var a = A(i, i.split('/').last())
-        a.style.textDecoration = 'none'
-        a.onclick = function(ev) { if (Event.isLeftClick(ev)) ev.preventDefault() }
-        var li = E('li', a)
-        li.ondblclick = function(ev) {
-          t.goToIndex(pl.getIndex(this))
+    }
+    this.playlist.each(function(i) {
+      var a = A(i, i.split('/').last())
+      a.style.textDecoration = 'none'
+      a.onclick = function(ev) { if (Event.isLeftClick(ev)) ev.preventDefault() }
+      var li = E('li', a)
+      li.ondblclick = function(ev) {
+        t.goToIndex(pl.getIndex(this), true)
+        Event.stop(ev)
+      }
+      li.onclick = function(ev) {
+        if (Event.isLeftClick(ev)) {
+          if (!ev.ctrlKey) pl.deselect()
+          if (this.className.match(/\s*\bselected\b/))
+            this.className = this.className.replace(/\s*\bselected\b/, '')
+          else
+            this.className += ' selected'
           Event.stop(ev)
         }
-        li.onclick = function(ev) {
-          if (Event.isLeftClick(ev)) {
-            if (!ev.ctrlKey) pl.deselect()
-            if (this.className.match(/\s*\bselected\b/))
-              this.className = this.className.replace(/\s*\bselected\b/, '')
-            else
-              this.className += ' selected'
-            Event.stop(ev)
-          }
-        }
-        pl.appendChild(li)
-      })
-      pl.updateCurrent()
-      plc.appendChild(pl)
-      tlc.appendChild(plc)
-      var w = this.playlistWindow = new Desk.Window(tlc, {title: Tr('Applets.MusicPlayer.Playlist'), transient: true})
-      tlc.addEventListener('mousedown', function(){ w.bringToFront(); return true }, true)
+      }
+      pl.appendChild(li)
+    })
+    pl.updateCurrent()
+    plc.appendChild(pl)
+    tlc.appendChild(plc)
+    tlc.addEventListener('mousedown', function(){ w.bringToFront(); return true }, true)
+    t.initSortable = function(){
+      w.removeListener('containerChange', t.initSortable)
       Position.includeScrollOffsets = true
       Sortable.create('MusicPlayer_playlist', {
         scroll:'MusicPlayer_playlistContainer',
@@ -541,6 +553,7 @@ Applets.MusicPlayer = function() {
         }
       })
     }
+    w.addListener('containerChange', t.initSortable)
   }
 
   soundManager.onload = function() {
@@ -548,13 +561,13 @@ Applets.MusicPlayer = function() {
     c.sound = soundManager.sounds[c.soundID]
     c.sound.setVolume(c.volume)
     c.sound.options.onfinish = c.playNext
-    c.sound.options.onplay = function(e) {
+    c.sound.options.onplay = function() {
       c.setVolume(c.volume)
       c.updateButtons()
     }
-    c.sound.options.whileplaying = function(e) {
+    c.sound.options.whileplaying = function() {
       if (c.sound.volume != c.volume) c.sound.setVolume(c.volume)
-      if (c.sound.position < c.lastPos) c.seekTo(0)
+      if (c.sound.position < c.lastPos) c.lastPos = c.sound.position
       c.position += c.sound.position - c.lastPos
       c.lastPos = c.sound.position
       c.newEvent('positionChanged', {
@@ -562,16 +575,32 @@ Applets.MusicPlayer = function() {
         value: c.position < 0 ? "..." : Object.formatTime(c.position)
       })
     }
-    c.sound.options.onid3 = function(e){
+    c.sound.options.whileloading = function() {
+      c.loaded = (c.sound.bytesLoaded / c.sound.bytesTotal)
+      c.newEvent('loadedChanged', {
+        pct: c.sound.bytesLoaded / c.sound.bytesTotal,
+        value : c.sound.bytesLoaded,
+        total : c.sound.bytesTotal
+      })
+    }
+    c.sound.options.onload = function() {
+      c.loaded = 1
+      c.newEvent('loadedChanged', {
+        pct: 1,
+        value : c.sound.bytesLoaded,
+        total : c.sound.bytesTotal
+      })
+    }
+    c.sound.options.onid3 = function(){
       var elems = [c.sound.id3.artist, c.sound.id3.songname]
       c.newEvent('songChanged', {value: elems.join(" - ")})
     }
     if (c.playing) c.play()
   }
 
-  c.playButton = Desk.Button('Play', c.pause.bind(c))
-  c.pauseButton = Desk.Button('Pause', c.pause.bind(c))
-  c.pauseButton.style.display = 'none'
+  c.playButton = Desk.Button('Play', c.pause.bind(c), {
+    downTitle : 'Pause'
+  })
   c.prevButton = Desk.Button('Previous', c.previous.bind(c))
   c.nextButton = Desk.Button('Next', c.next.bind(c))
   c.shuffleButton = Desk.Button('Shuffle', c.shuffle.bind(c))
@@ -585,7 +614,6 @@ Applets.MusicPlayer = function() {
   c.volumeElem = E('span', c.volume.toString(), null, 'Volume')
   
   c.appendChild(c.prevButton)
-  c.appendChild(c.pauseButton)
   c.appendChild(c.playButton)
   c.appendChild(c.nextButton)
   c.appendChild(c.shuffleButton)
@@ -618,6 +646,9 @@ Applets.MusicPlayer = function() {
   c.addListener('positionChanged', function(e) {
     if (e.pct != undefined) c.seekElem.setPosition(e.pct, false)
     c.currentSeekElem.innerHTML = e.value
+  })
+  c.addListener('loadedChanged', function(e) {
+    if (e.pct != undefined) c.seekElem.setLoaded(e.pct)
   })
   c.addListener('songChanged', function(e){
     var plen = c.playlist.length

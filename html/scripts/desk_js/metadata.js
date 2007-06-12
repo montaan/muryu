@@ -642,9 +642,9 @@ Mimetype = {
       // s.style.lineHeight = '0'
       var i = E('div', '<a href="http://www.macromedia.com/go/getflashplayer">Get Flash</a> to see this player.')
       if (!info.metadata.width)
-        info.metadata.width = 320
+        info.metadata.width = 480
       if (!info.metadata.height)
-        info.metadata.height = 240
+        info.metadata.height = 360
       i.style.minHeight = (info.metadata.height + 20) + 'px'
       i.style.minWidth = (info.metadata.width) + 'px'
       i.style.height = (info.metadata.height + 20) + 'px'
@@ -669,9 +669,9 @@ Mimetype = {
       // s.style.lineHeight = '0'
       var i = E('div', '<a href="http://www.macromedia.com/go/getflashplayer">Get Flash</a> to see this player.')
       if (!info.metadata.width)
-        info.metadata.width = 320
+        info.metadata.width = 480
       if (!info.metadata.height)
-        info.metadata.height = 240
+        info.metadata.height = 360
       i.style.minHeight = (info.metadata.height) + 'px'
       i.style.minWidth = (info.metadata.width) + 'px'
       i.style.height = (info.metadata.height) + 'px'
@@ -1092,38 +1092,76 @@ Mimetype = {
         this.cover.style.zIndex = -1
       }.bind(this))
     }
+  },
+
+  /**
+    Application window.
+    Calls the named function with the opened window.
+
+    app:MusicPlayer.initPlaylistWindow
+    app:Suture.createWindow/string_to_pass_as_second_param
+   */
+  app : {
+    init : function(src, win) {
+      var path_param = src.split("/")
+      var full_path = path_param[0].split(":")[1]
+      var param = path_param.slice(1).join("/")
+      var object_method = full_path.split(".")
+      var object_path = object_method.slice(0,-1).join(".")
+      var method_name = object_method.last()
+      if (object_path.length == 0)
+        window[method_name](win, param)
+      else
+        Object.retrieve(object_path)[method_name](win, param)
+    }
   }
 }
 
 Mime = {
-  typeExtensions : new Hash({
+  extensionHandlers : new Hash({
     video : ['avi', 'mpg', 'wmv', 'mov'],
     audio : ['wav', 'ogg'],
     music : ['mp3'],
     image : ['jpg', 'jpeg', 'png', 'gif'],
     html : ['html', 'org', 'com', 'net'],
-    playlist : ['m3u'],
+    playlist : ['m3u']
+  }),
+  dirHandlers : new Hash({
     json : ['json'],
     editor : ['edit'],
     deletion : ['delete'],
     undeletion : ['undelete']
   }),
+  protocolHandlers : new Hash({
+    app : ['app']
+  }),
   
   guess : function(src) {
+    var proto = src.split(":")[0]
     var base = src.split("/").last()
-    if (['json', 'edit', 'delete', 'undelete'].include(base))
-      var ext = base
-    else if (src[src.length-1] == '/')
+    if (src[src.length-1] == '/')
       var ext = 'html'
     else
       var ext = src.split('.').last().toLowerCase()
-    var type = this.extensions[ext]
+    var type = this.protocols[proto] || this.dirs[base] || this.extensions[ext]
     var mimetype = Mimetype[type] || Mimetype['html']
     return mimetype
   }
 }
+Mime.protocols = new Hash()
+Mime.protocolHandlers.each(function(kv){
+  kv[1].each(function(ext){
+    Mime.protocols[ext] = kv[0]
+  })
+})
+Mime.dirs = new Hash()
+Mime.dirHandlers.each(function(kv){
+  kv[1].each(function(ext){
+    Mime.dirs[ext] = kv[0]
+  })
+})
 Mime.extensions = new Hash()
-Mime.typeExtensions.each(function(kv){
+Mime.extensionHandlers.each(function(kv){
   kv[1].each(function(ext){
     Mime.extensions[ext] = kv[0]
   })

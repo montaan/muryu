@@ -2,6 +2,7 @@ Desk.Button = function(name, onclickHandler, config){
   // The button is a regular link.
   var button = E('a', null, null, 'button '+name)
   button.title = Tr('Button.'+name)
+  button.normalTitle = name
 
   // A link that goes nowhere.
   button.href = 'javascript:void(null)'
@@ -10,12 +11,21 @@ Desk.Button = function(name, onclickHandler, config){
   button.normal_image = Desk.Button.buttonDir + name + '.png'
   button.hover_image = Desk.Button.buttonDir + name + '_hover.png'
   button.down_image = Desk.Button.buttonDir + name + '_down.png'
+  button.down_normal_image = Desk.Button.buttonDir + name + '_down.png'
+  button.down_hover_image = Desk.Button.buttonDir + name + '_hover.png'
+  button.down_down_image = Desk.Button.buttonDir + name + '.png'
   button.onclickHandler = onclickHandler
 
   // If you want to use something other
   // than the default image names,
   // pass them in the config object.
   if (config) Object.extend(button, config)
+
+  if (button.downTitle) {
+    button.down_normal_image = Desk.Button.buttonDir + button.downTitle + '.png'
+    button.down_hover_image = Desk.Button.buttonDir + button.downTitle + '_hover.png'
+    button.down_down_image = Desk.Button.buttonDir + button.downTitle + '_down.png'
+  }
 
   if (button.showText)
     button.textElem = T(Tr('Button.'+name))
@@ -41,34 +51,57 @@ Desk.Button = function(name, onclickHandler, config){
   if (button.textElem && button.textSide == 'right')
     button.appendChild(button.textElem)
 
-  // Call toggle to make down normal and normal down.
+  button.down = false
+  // Call toggle to toggle button down state
   button.toggle = function(){
+    if (this.down)
+      this.pull()
+    else
+      this.push()
+  }
+  button.push = function() {
+    this.down = true
+    if (this.downTitle) {
+      this.title = Tr('Button.'+this.downTitle)
+      if (this.image)
+        this.image.title = this.image.alt = this.title
+      if (button.showText)
+        button.textElem.textContent = Tr('Button.'+this.downTitle)
+    }
     if (!this.image) return
-    if (this.image.src == this.normal_image)
-      this.image.src = this.down_image
-    else if (this.image.src == this.down_image)
-      this.image.src = this.normal_image
-    var tmp = this.down_image
-    this.down_image = this.normal_image
-    this.normal_image = tmp
+    this.image.src = this.down_normal_image
+  }
+  button.pull = function() {
+    this.down = false
+    if (this.downTitle) {
+      this.title = Tr('Button.'+this.normalTitle)
+      if (this.image)
+        this.image.title = this.image.alt = this.title
+      if (button.showText)
+        button.textElem.textContent = Tr('Button.'+this.normalTitle)
+    }
+    if (!this.image) return
+    this.image.src = this.normal_image
   }
 
   if (button.image) {
     // Eventhandlers for lighting up the button on hover.
     button.addEventListener('mouseover',
-      function(e){ this.image.src = this.hover_image }, false)
+      function(e){ this.image.src = (this.down ? this.down_hover_image : this.hover_image) }, false)
     button.addEventListener('mouseout',
-      function(e){ this.image.src = this.normal_image }, false)
+      function(e){ this.image.src = (this.down ? this.down_normal_image : this.normal_image) }, false)
 
     // Eventhandlers for pushing the button down and clicking.
     button.addEventListener('mousedown', function(e){
-      this.image.src = this.down_image
+      this.image.src = (this.down ? this.down_down_image : this.down_image)
       Event.stop(e)
     }, false)
   }
   button.addEventListener('click', function(e){
+    var d = this.down
     this.onclickHandler(this, e)
-    if (this.image) this.image.src = this.normal_image
+    if (this.image && d == this.down)
+      this.image.src = (this.down ? this.down_normal_image : this.normal_image)
     Event.stop(e)
   }, false)
 

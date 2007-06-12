@@ -13,6 +13,7 @@ iframe {
 .window {
   min-width: 100px;
   min-height: 20px;
+  border-bottom: 1px solid black;
 }
 .focused .windowTitle {
   color: white;
@@ -30,16 +31,15 @@ iframe {
   padding: 4px;
 }
 .windowBackground {
-  background-color: #13161C;
-/*   opacity: 0.9; */
-  border-bottom: 1px solid black;
+  background-color: black;
+  opacity: 0.8;
 }
-.default .windowBackground {
+/*.default .windowBackground {
   background-color: #444444;
   opacity: 1;
   border-bottom: 1px solid #222222;
   border-top: 1px solid #505050;
-}
+}*/
 
 .windowTitlebar {
   margin: 0px;
@@ -291,15 +291,21 @@ iframe {
 .slider {
   margin-top: 4px;
   margin-bottom: 3px;
-  height: 0.33333ex;
-  background-color: black;
-  border-bottom: 0.33333ex solid #ffc840;
+  height: 0.5ex;
+  border-bottom: 0.16666ex solid #ffc840;
   border-left: 1px solid #ffc840;
   border-right: 1px solid #ffc840;
 }
+.sliderLoaded {
+  position: relative;
+  top: 0.33333ex;
+  height: 0.16666ex;
+  border-top: 0.16666ex solid #ffc840;
+  width: 0px;
+}
 .sliderKnob {
   position: relative;
-  top: 0px;
+  top: -0.33333ex;
   height: 0.33333ex;
   background-color: black;
   border-top: 0.33333ex solid #ffc840;
@@ -309,14 +315,14 @@ iframe {
 
 
 #MusicPlayer_playlist {
-  min-width: 400px;
-  min-height: 400px;
+  margin-left: 0px;
+  margin-right: 16px;
 }
 #MusicPlayer_playlist a {
   color: white;
 }
 #MusicPlayer_playlist .selected {
-  background-color: black;
+  background-color: #355;
 }
 #MusicPlayer_playlist .current {
   color: #ffc840;
@@ -328,7 +334,7 @@ iframe {
   color: #ffc840;
 }
 #MusicPlayer_playlist .selected a {
-  background-color: black;
+  background-color: #355;
 }
 .MusicPlayer .button img {
   position: relative;

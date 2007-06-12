@@ -37,13 +37,9 @@ Suture = function(config) {
   this.slideDelayPlusElement = el.$("slideshow-slidedelay-plus")
   this.slideDelayPlusElement.addEventListener("mouseup", this.bind( 'rotateAutoProgressDelay', 1), false)
 
-  this.slideRandomElement = el.$("slideshow-play-random")
-  this.setRandomProgress(this.randomProgress)
-  this.slideRandomElement.addEventListener("click", this.bind('toggleRandom'), false)
-
   this.slideReverseElement = el.$("slideshow-play-reverse")
   this.setReverseProgress(this.reverseProgress)
-  this.slideReverseElement.addEventListener("click", this.bind('toggleReverse'), false)
+  this.slideReverseElement.addEventListener("click", this.bind('toggleDirection'), false)
 
   this.prevHundredElement = el.$("slideshow-prev-100")
   this.prevTenElement = el.$("slideshow-prev-10")
@@ -89,25 +85,45 @@ Suture = function(config) {
   this.frameIntervalPointer = setInterval(function(e){ t.frameHandler(e) }, this.frameTime)
   this.showIndex(this.index)
 }
-Suture.make = function(index, query){
+Suture.make = function(w, index, query){
+  if (!w.width) w.setSize(600,400)
+  var wasShaded = w.shaded
+  if (w.shaded) {
+    w.shade()
+  }
+  w.setTitle(Tr('Slideshow'))
   var c = E('div')
-  c.style.minWidth = '700px'
-  c.style.minHeight = '400px'
   c.style.width = '100%'
   c.style.height = '100%'
-  var w = new Desk.Window(c, {title:Tr('Slideshow'),transient:true})
   var s = new Suture({
     container: c,
     fillWindow: true,
     index: index,
-    query: { q: query },
+    query: query,
     listURL : '/items',
-    filePrefix : '/files/'
+    filePrefix : '/files/',
+    window: w
   })
   w.slideshow = s
-  w.addListener('resize', function() { s.resize() })
-  s.resize()
+  var resizer = function() {
+    if (!w.shaded) s.resize()
+    if (wasShaded) {
+      wasShaded = false
+      w.shade()
+    }
+  }
+  w.addListener('resize', resizer)
+  w.addListener('close', function() {
+    if (s.autoProgressTimer)
+      s.toggleAutoProgress()
+  })
+  w.addListener('containerChange', resizer)
+  w.addListener('shadeChange', resizer)
+  w.setContent(c)
   return w
+}
+Suture.loadWindow = function(win, params) {
+  document.slideshowWindow = Suture.make(win, win.parameters.index, win.parameters.query)
 }
 
 
@@ -135,7 +151,7 @@ Suture.prototype = {
   previousSearchValue : "",
   randomProgress : false,
   reverseProgress : false,
-  autoProgressDelay : 5,
+  autoProgressDelay : 3,
 
   bind : function(f) {
     var args = $A(arguments).slice(1)
@@ -149,13 +165,20 @@ Suture.prototype = {
   setQuery : function(q, loadFirst) {
     this.query = q
     this.infos = {}
-    this.search.value = this.previousSearchValue = q.q
-    if (loadFirst != false)
+    this.newQuery = true
+    this.itemCount = 0
+    this.previousSearchValue = q.q
+    if (loadFirst != false) {
       this.showIndex(0)
+    } else if (this.search.value != q.q) { // no loadFirst => didn't come from liveSearch
+      this.search.value = q.q
+    }
+    if (this.window)
+      this.window.parameters.query = this.query
   },
 
   isSupported : function(fn){
-    return fn.match(/\.(jpe?g|png|gif)$/i)
+    return fn.split(".").last().toString().match(/^(jpe?g|png|gif)$/i)
   },
 
   rotate : function(offset) {
@@ -171,22 +194,35 @@ Suture.prototype = {
   },
   
   showIndex : function(idx, dir) {
-    if (idx < 0 && idx >= this.itemCount) return
+    if (idx < 0 && idx >= this.itemCount && !this.newQuery) return
     if (dir == undefined) dir = 1
     var params = Object.clone(this.query)
     this.index = idx
+    if (this.window)
+      this.window.parameters.index = this.index
     if (this.infos[idx]) {
       var info = this.infos[idx]
-      if (info.deleted == 't' || !this.isSupported(info.path))
-        this.seek(dir, 1)
-      else
+      if ((info.deleted == 't' && !this.query.q.match(/\bdeleted:\s*(true|any)\b/i))
+          || !this.isSupported(info.path)) {
+        if (this.startIdx == undefined) {
+          this.startIdx = this.index
+        } else if (this.index == this.startIdx) { // no displayable images in set
+          this.search.style.background = "#ff0000"
+          this.search.style.color = "#ffffff"
+          return
+        }
+        this.seek(dir)
+      } else {
+        this.startIdx = undefined
         this.request(this.filePrefix + info.path, this.index)
+      }
     } else {
       var f = Math.max(0, idx - 100)
       var l = idx + 100
       params.first = f
       params.last = l
       this.loadingIndicator.style.visibility = "inherit"
+      this.newQuery = false
       new Ajax.Request(this.listURL, {
         parameters : params,
         onSuccess : function(res) {
@@ -227,10 +263,10 @@ Suture.prototype = {
       this.continueFade()
     }
     var sv = this.search.value
-    if (sv != this.previousSearchValue) {
-      this.previousSearchValue = sv
+    if (sv.strip() != this.previousSearchValue) {
+      this.previousSearchValue = sv.strip()
       if (this.liveSearchTimeout) clearTimeout(this.liveSearchTimeout)
-      this.liveSearchTimeout = setTimeout(this.bind( 'submitLiveImageSearch'), 200)
+      this.liveSearchTimeout = setTimeout(this.bind( 'submitLiveImageSearch'), 300)
     }
   },
   
@@ -438,7 +474,9 @@ Suture.prototype = {
   },
   
   randomIndex : function() {
-    return Math.ceil(Math.random()*(this.itemCount-1))
+    var i = Math.floor(Math.random()*this.itemCount)
+    if (i == this.itemCount) i--
+    return i
   },
 
   goToRandom : function() {
@@ -478,12 +516,14 @@ Suture.prototype = {
   
   setRandomProgress : function(rp) {
     this.randomProgress = rp
-    this.slideRandomElement.innerHTML = (this.randomProgress ? "on" : "off") 
+    this.slideReverseElement.innerHTML = (this.randomProgress ? "random" :
+      (this.reverseProgress ? "&larr;" : "&rarr;")
+    )
   },
   
   setReverseProgress : function(rp) {
     this.reverseProgress = rp
-    this.slideReverseElement.innerHTML = (this.reverseProgress ? "&larr;" : "&rarr;") 
+    this.slideReverseElement.innerHTML = (this.reverseProgress ? "backward" : "forward")
   },
 
   setAutoProgressDelay : function(seconds) {
@@ -495,14 +535,24 @@ Suture.prototype = {
   
   toggleRandom : function(e) {
     this.setRandomProgress(!this.randomProgress)
-    if (e && e.preventDefault) e.preventDefault()
-    return false
+    Event.stop(e)
   },
-  
+
   toggleReverse : function(e) {
     this.setReverseProgress(!this.reverseProgress)
-    if (e && e.preventDefault) e.preventDefault()
-    return false
+    Event.stop(e)
+  },
+  
+  toggleDirection : function(e) {
+    if (this.randomProgress) {
+      this.setRandomProgress(false)
+      this.setReverseProgress(false)
+    } else if (!this.reverseProgress) {
+      this.setReverseProgress(true)
+    } else {
+      this.setRandomProgress(true)
+    }
+    Event.stop(e)
   },
   
   toggleAutoProgress : function(e) {
@@ -567,15 +617,15 @@ Suture.prototype = {
         break
       case 83:
       case 115:
-        (!this.autoProgressTimer ? this.startAutoProgress() : this.stopAutoProgress())
+        this.toggleAutoProgress()
         break
       case 68:
       case 100:
-        this.setReverseProgress(!this.reverseProgress)
+        this.toggleReverse()
         break
       case 86:
       case 118:
-        this.setRandomProgress(!this.randomProgress)
+        this.toggleRandom()
         break
     }
     if (e.charCode >= 48 && e.charCode <= 57) {
@@ -735,11 +785,11 @@ Suture.prototype = {
       '        </p>'+
       '     </div>'+
       '  </div>'+
-      '  <div id="slideshow-index"></div>'+
-      '  <div id="slideshow-stat">'+
-      '    <div id="slideshow-search-index">'+
+      '  <div id="slideshow-stats">'+
+      '    <div id="slideshow-index"></div>'+
+      '    <div id="slideshow-stat">'+
+      '      <a id="slide-name"></a>'+
       '    </div>'+
-      '    <a id="slide-name"></a>'+
       '  </div>'+
       '  <div id="slideshow-controls-for-realz">'+
       '   <div id="slideshow-search">'+
@@ -751,7 +801,6 @@ Suture.prototype = {
       '   <div id="slideshow-autoprogress">'+
       '    <div id="slideshow-play"></div>'+
       '    <div id="slideshow-play-reverse"></div>'+
-      '    <div id="slideshow-play-random"></div>'+
       '    <div id="slideshow-slidedelay-container">'+
       '      <div id="slideshow-slidedelay-minus"></div>'+
       '      <div id="slideshow-slidedelay"></div>'+
@@ -844,9 +893,10 @@ FaderDiv.prototype = {
       this.canvas.height = Math.ceil(h)
       var c = this.canvas.getContext('2d')
       c.drawImage(f,0,0,Math.ceil(w),Math.ceil(h))
+      this.setElementOpacity(this.canvas, this.opacity)
     } else if (this.canvas.parentNode) {
       $(this.canvas).detachSelf()
-      this.setElementOpacity(f, this.canvas.style.opacity)
+      this.setElementOpacity(f, this.opacity)
     }
     f.style.top = Math.ceil((dh - h) / 2) + 'px'
     f.style.left = Math.ceil((dw - w) / 2) + 'px'
@@ -874,6 +924,7 @@ FaderDiv.prototype = {
   },
   
   setOpacity : function(op) {
+    this.opacity = op
     if (this.canvas.parentNode)
       this.setElementOpacity(this.canvas, op)
     else

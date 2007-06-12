@@ -95,6 +95,18 @@ class Uploader
           nil
         end
       end
+    end,
+    
+    # Blogger image page
+    #
+    lambda do |u|
+      if u.to_s =~ /\Ahttp:\/\/([a-z0-9A-Z]+\.)?blogger.com\/.*\/s[0-9]+\-h\/[^\/]+\Z/
+        nu = URI.parse(u.to_s.sub(/\-h(\/[^\/]+)\Z/, '\1'))
+        cmd = "wget -q -k --no-check-certificate -U " +
+              "'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.0.4) Gecko/20060508 Firefox/1.5.0.4' " +
+              "-i - -O %output_filename"
+        [cmd, nil, nu]
+      end
     end
   ]
 

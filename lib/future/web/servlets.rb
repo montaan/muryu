@@ -977,7 +977,7 @@ extend FutureServlet
       else
         "user:#{servlet_user.name} sort:date"
       end
-      query = parser.parse((req.query['q'] != 'all' && req.query['q']) || default_query)
+      query = parser.parse(req.query['q'] || default_query)
       puts "#{telapsed} for search query parsing" if $PRINT_QUERY_PROFILE
       self.search_query = make_query_hash(query)
       puts "#{telapsed} for making a dbconn hash out of the AST" if $PRINT_QUERY_PROFILE
@@ -992,9 +992,17 @@ extend FutureServlet
         mimetypes.each{|mt| mh[mt.id] = [mt.major, mt.minor].join("/") }
         h['mimetype_id'] = extract_mimetypes(h['mimetype_id'], mh)
       end
+      if h['deleted']
+        if h['deleted'].downcase == 'any'
+          h.delete('deleted')
+        else
+          h['deleted'] = h['deleted'].downcase == 'true'
+        end
+      end
       unless h[:order_by]
         h[:order_by] = [['image_index', :asc]]
       end
+      p h
       h
     end
 
@@ -1033,10 +1041,9 @@ extend FutureServlet
         return unless h
         h[column_key(query.key)] = collect_query(query.values)
       when String
-        query = /#{query[1..-2]}/i if query =~ /\A\/.+\/\Z/
         if h
           h[:path] ||= []
-          h[:path] << query
+          h[:path] << /#{query}/i
         end
         query
       end
@@ -1077,6 +1084,8 @@ extend FutureServlet
       case key
       when 'user'
         'owner.name'
+      when 'deleted'
+        'deleted'
       when 'set'
         'sets.name'
       when 'tag'

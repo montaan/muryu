@@ -23,6 +23,11 @@ Desk.WindowManager.prototype = {
       this.updateConstraints()
       this.previousWidth = this.container.style.width
       this.previousHeight = this.container.style.height
+      this.windows.each(function(win) {
+        if (win.maximized) {
+          win.setSize(win.container.offsetWidth,win.container.offsetHeight)
+        }
+      })
     }
   },
 

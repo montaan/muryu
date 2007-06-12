@@ -14,10 +14,7 @@ Session.load = function(name) {
   return false
 }
 Session.loadDump = function(dump) {
-  var loader = dump.loader.split(".").inject(
-    window,
-    function(o,n){return o[n]}
-  )
+  var loader = Object.retrieve(dump.loader)
   return loader.loadSession(dump.data)
 }
 Session.save = function(name) {

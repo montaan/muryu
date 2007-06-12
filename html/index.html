@@ -61,6 +61,8 @@
       .editors .windowBackground, .muokkaimet .windowBackground {
         background-color: #444444;
         opacity: 1.0;
+      }
+      div.editors, div.muokkaimet {
         border-bottom: 1px solid #222222;
         border-top: 1px solid #505050;
       }
@@ -404,6 +406,7 @@
           }
         }
         Session.storage.load()
+        var loggedIn = (Session.storage.info.name && Session.storage.info.name != 'anonymous')
         
         var qvars = document.location.search.slice(1).split("&")
         var query = {}
@@ -445,10 +448,14 @@
         Tr.translations['fi'] = Tr.translations['fi-FI']
         menu = new Desk.Menu()
         menu.addTitle(Tr('Workspace'))
+        var q = ""
+        if (loggedIn)
+          q += "user:"+Session.storage.info.name+" " 
+        q += "sort:date"
         menu.addItem(Tr('Add search'), function() {
           var ns = new TileMap({
             isSubmap : true,
-            query: 'all',
+            query: q,
             bgcolor: Map.bgcolor,
             left: Math.pow(2,-Map.targetZ)*(Map.pointerX-Map.x),
             top: Math.pow(2,-Map.targetZ)*(Map.pointerY-Map.y),
@@ -479,7 +486,7 @@
           })
           new TileMap({
             isSubmap : true,
-            query: 'all',
+            query: q,
             left: 0,
             top: 0,
             width: 256,
@@ -496,7 +503,7 @@
               width: 256,
               color: 'false',
               height: e == 'image' ? 256 : 32,
-              query : 'type:'+e
+              query : 'type:'+e+" "+q
             }).setParent(Map)
             i++
           })

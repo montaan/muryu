@@ -4,6 +4,14 @@ Object.forceExtend = function(dest,src){
     try{ dest[i] = src[i] } catch(e) {}
   return dest
 }
+// Retrieves the named object.
+// E.g. Object.retrieve('MusicPlayer.playlist')
+Object.retrieve = function(object_path) {
+  return object_path.split(".").inject(
+    window,
+    function(o,n){return o[n]}
+  )
+}
 
 // Create a new element with tagName tag, with content (string or node), set
 // CSS className to klass, merge given style with new element style and merge
@@ -248,7 +256,7 @@ Element.makeEditable = function(elem, path, key, validator, title) {
     })
   }, false)
 }
-Element.replaceWithEditor = function(elem, callback) {
+Element.replaceWithEditor = function(elem, callback, oncancel) {
   var input = E('input', null, null, null, null, {type:"text", value:" "})
   var cs = $(elem).getComputedStyle()
   Object.forceExtend(input.style, cs)
@@ -259,6 +267,7 @@ Element.replaceWithEditor = function(elem, callback) {
   input.cancel = function(){
     this.parentNode.insertBefore(elem, this)
     $(this).detachSelf()
+    if (oncancel) oncancel()
   }
   var sf = function(ev){
     if (this.iv) clearTimeout(this.iv)

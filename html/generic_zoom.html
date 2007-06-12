@@ -1,0 +1,1042 @@
+<html>
+  <head>
+    <script type="text/javascript" src="/scripts/desk_js/prototype.js"></script>
+    <script type="text/javascript" src="/scripts/desk_js/scriptaculous.js"></script>
+    <script type="text/javascript" src="/scripts/desk_js/desk.js"></script>
+    <script type="text/javascript" src="/scripts/slideshow.js"></script>
+    <script type="text/javascript">
+
+      /**
+        A PortalMap consists of a map tiletree, a selection layer and a submap layer.
+        
+        When panning the top-level map, it informs all its submaps.
+        
+        A map that has moved to new floor(absolute_c / tileSize) -coord
+        updates its visible tileset.
+
+        A map that is outside the container hides itself and stops updating
+        its submaps.
+
+        The submaps of a map can't go outside the parent map's boundary -
+        the parent map's boundary is ( min(submaps.left), min(submaps.top),
+        max(submaps.right), max(submaps.bottom) ).
+       */
+      PortalMap = function(config) {
+        if (config) Object.extend(this, config)
+        this.children = []
+        this.tiles = []
+        this.element = E('div',null,null,null, {
+          position: 'absolute',
+          top: '0px',
+          left: '0px',
+          width: this.width + 'px',
+          height: this.height + 'px'
+        })
+        this.mapWidth = this.width
+        this.mapHeight = this.height
+        this.right = this.left + this.width
+        this.bottom = this.top + this.height
+        if (this.parent) {
+          this.setParent(this.parent)
+        } else if (this.container) {
+          this.root = this
+          this.loader = new Loader(this)
+          this.setContainer(this.container)
+        }
+        if (this.tileQuery) {
+          this.updateInfo()
+        } else {
+//           this.element.style.border = '1px solid black'
+        }
+      }
+      PortalMap.prototype = {
+        tileSize : 256,
+        tileQuery : false,
+        
+        left : 0, top : 0,
+        relativeZ : 0,
+        width: 256, height: 256,
+        pointerX : 0, pointerY : 0,
+
+        // state variables
+        tx : 0, ty : 0, z : 0,
+        x : 0, y : 0, w : 256, h : 256,
+        ax : 0, ay : 0,
+
+        /**
+          Does an animated zoom towards the cursor.
+         */
+        animatedZoom : function( z, dx, dy ) {
+          if (this.animation) return
+          this.pointerX = dx
+          this.pointerY = dy
+          var elapsed = 0
+          var time = new Date().getTime()
+          var oz = this.z
+          this.animation = setInterval(function(){
+            var t = new Date().getTime()
+            elapsed += t - time
+            time = t
+            var pos = Math.min(1, elapsed / 200)
+            var nz = z * pos + oz * (1-pos)
+            this.panBy(-this.pointerX, -this.pointerY, false)
+            this.z = nz
+            this.updateCoordinates()
+            this.panBy(this.pointerX, this.pointerY, false)
+            this.zoom(nz)
+            if (pos >= 1) {
+              clearInterval(this.animation)
+              this.animation = false
+            }
+          }.bind(this), 16)
+        },
+          
+        /**
+          Zooms map.
+         */
+        zoom : function(z) {
+          this.z = z
+          this.updatePosition()
+          this.updateAbsoluteCoordinates()
+          if (this.isVisible()) {
+            if (this.element.style.display == 'none')
+              this.element.style.display = 'inherit'
+            this.children.invoke('zoom',z+this.relativeZ)
+            this.tiles.invoke('zoom',z+this.relativeZ)
+          } else {
+            this.element.style.display = 'none'
+          }
+        },
+
+        /**
+          Updates dimensions from the server.
+         */
+        updateInfo : function() {
+          this.initTiles()
+          return
+          this.discardTiles()
+          new Ajax.Request('/tile_info', {
+            parameters : params,
+            onSuccess : function(res) {
+              var obj = res.responseText.evalJSON()
+              var dims = obj.dimensions
+              this.tileInfo = obj
+              this.mapWidth = obj.dimensions.width
+              this.mapHeight = obj.dimensions.height
+              this.updateDimensions()
+              this.initTiles()
+            }.bind(this)
+          })
+        },
+
+        /**
+          Updates boundary dimensions for the map.
+         */
+        updateDimensions : function(updateParent) {
+          this.leftBound = this.topBound = this.bottomBound = this.rightBound = 0
+          if (this.children.length > 0) {
+            this.leftBound = this.children.pluck('left').min()
+            this.topBound = this.children.pluck('top').min()
+            this.rightBound = this.children.pluck('right').max()
+            this.bottomBound = this.children.pluck('bottom').max()
+            if (this.leftBound != 0) {
+              var lb = -this.leftBound
+              this.left -= lb
+              this.rightBound += lb
+              this.children.each(function(c) { c.left += lb })
+              this.leftBound = 0
+            }
+            if (this.topBound != 0) {
+              var lb = -this.topBound
+              this.top -= lb
+              this.bottomBound += lb
+              this.children.each(function(c) { c.top += lb })
+              this.topBound = 0
+            }
+          }
+          this.updatePosition()
+          if (this.parent) this.parent.updateDimensions()
+        },
+
+        /**
+          Updates position and dimensions of element.
+         */
+        updatePosition : function() {
+          var relfac = Math.pow(2, this.relativeZ)
+          this.width = Math.max(this.rightBound-this.leftBound, this.mapWidth)*relfac
+          this.height = Math.max(this.bottomBound-this.topBound, this.mapHeight)*relfac
+          this.updateCoordinates()
+          this.element.style.left = Math.floor(this.x) + 'px'
+          this.element.style.top = Math.floor(this.y) + 'px'
+          this.element.style.width = Math.ceil(this.w) + 'px'
+          this.element.style.height = Math.ceil(this.h) + 'px'
+          this.right = this.left + this.width
+          this.bottom = this.top + this.height
+        },
+
+        /**
+          Updates absolute coordinates.
+         */
+        updateAbsoluteCoordinates : function() {
+          this.ax = this.x
+          this.ay = this.y
+          if (this.parent) {
+            this.ax += this.parent.ax
+            this.ay += this.parent.ay
+          }
+        },
+
+        /**
+          Updates parent-relative map coordinates.
+         */
+        updateCoordinates : function() {
+          var fac = Math.pow(2, this.z)
+          this.x = this.left * fac
+          this.y = this.top * fac
+          this.w = this.width * fac
+          this.h = this.height * fac
+        },
+
+        /**
+          Sets submap parent.
+         */
+        setParent : function(parent) {
+          parent.addChild(this)
+        },
+
+        /**
+          Adds child to submap.
+         */
+        addChild : function(child) {
+          child.parent = this
+          child.root = this.root
+          child.loader = this.loader
+          child.setContainer(this.container)
+          this.element.appendChild(child.element)
+          if (this.children.include(child)) return
+          this.children.push(child)
+          child.z = this.z + this.relativeZ
+          child.updateDimensions()
+          this.root.zoom(this.root.z)
+        },
+
+        /**
+          Sets the container for the map.
+         */
+        setContainer : function(container) {
+          this.container = container
+          if (!this.parent)
+            this.container.appendChild(this.element)
+        },
+        
+        /**
+          Figure out if this portal is visible by comparing its extents
+          to the container's extents.
+         */
+        isVisible : function() {
+          if (this.w < 4 || this.h < 4)
+            return false
+          var c = this.projectExtentsToContainer()
+          return (c.right > 0 && c.bottom > 0 &&
+                  c.left < this.container.width && c.top < this.container.height)
+        },
+
+        /**
+          Project extents to viewport space.
+         */
+        projectExtentsToContainer : function() {
+          return {
+            left: this.ax,
+            top: this.ay,
+            right: this.ax + this.w,
+            bottom: this.ay + this.h,
+          }
+        },
+
+        /**
+          Creates the top-level TileNodes for this map.
+         */
+        initTiles : function() {
+          for (var y=0; y < this.mapWidth/this.tileSize; y++) {
+            for (var x=0; x < this.mapHeight/this.tileSize; x++) {
+              var tile = new TileNode(x, y, 0)
+              tile.map = this
+              this.tiles.push(tile)
+            }
+          }
+        },
+
+        /**
+         Discards the top-level TileNodes.
+         */
+        discardTiles : function() {
+          this.tiles.invoke('unload')
+          this.tiles.clear()
+        },
+
+        /**
+          Moves the map by dx, dy.
+         */
+        panBy : function(dx, dy, updateCoords) {
+          var fac = Math.pow(2, -this.z)
+          var rdx = dx * fac
+          var rdy = dy * fac
+          this.left += rdx
+          this.right += rdx
+          this.top += rdy
+          this.bottom += rdy
+          if (updateCoords != false) {
+            this.updatePosition()
+            this.moved(dx, dy)
+          }
+        },
+
+        /**
+          Called when the map has been moved.
+          Updates tiles and map visibility.
+         */
+        moved : function(dx, dy) {
+          this.updateAbsoluteCoordinates()
+          if (this.isVisible()) {
+            this.element.style.display = 'block'
+            if (this.tileQuery) {
+              var rtsz = 1 / (this.tileSize*Math.pow(2,Math.min(0, this.z+this.relativeZ)))
+              var tl = Math.floor(this.ax * rtsz)
+              var tt = Math.floor(this.ay * rtsz)
+              var tr = Math.floor((this.ax+this.w) * rtsz)
+              var tb = Math.floor((this.ay+this.h) * rtsz)
+              if (tl != this.tl || tt != this.tt || tr != this.tr || tb != this.tb) {
+                this.tl = tl
+                this.tt = tt
+                this.tb = tb
+                this.tr = tr
+                this.zoom(this.z)
+              }
+            }
+            this.children.invoke('moved', dx, dy)
+          } else {
+            this.element.style.display = 'none'
+          }
+        }
+
+      }
+
+      
+
+
+
+
+      /**
+        TileNodes make up a mipmap hierarchy.
+
+        When you zoom in, each visible TileNode creates children for itself,
+        which load their tile images from the server.
+        If the TileNode's children cover the container-intersecting part of
+        the TileNode, the TileNode hides its image.
+        
+        When zooming out, the TileNode shows its image and discards its children.
+
+       */
+      TileNode = function(x, y, z, parent) {
+        this.x = x
+        this.y = y
+        this.z = z
+        this.uuid = TileNode.uuid++
+        this.children = []
+        this.setParent(parent)
+        this.tilePath = 'x'+this.tileX  +  'y'+this.tileY  +  'z'+z
+      }
+      TileNode.uuid = 0
+      TileNode.prototype = {
+        maxZoom : 10,
+
+        /**
+          Sets node's parent node (called on TileNode creation.)
+         */
+        setParent : function(parent) {
+          this.parent = parent
+          if (!this.parent) {
+            this.parent = this
+            this.root = this
+            this.tileX = this.x * 256
+            this.tileY = this.y * 256
+          } else {
+            this.tileX = this.parent.tileX * 2 + this.x * 256
+            this.tileY = this.parent.tileY * 2 + this.y * 256
+          }
+          this.root = this.parent.root
+        },
+
+        /**
+          Gets the selection that this tile uses.
+         */
+        getSelection : function() {
+          return this.root.selection
+        },
+        
+        /**
+          Zooms this node to the zoom level.
+          
+          Sets the position and dimensions of this TileNode, updates visibility,
+          creates/discards children when needed.
+
+          Invokes zoom on children if there are any.
+
+          Loads image if needed.
+         */
+        zoom : function(zoom) {
+          var zfac = Math.pow(2, zoom - this.z)
+          this.left = 0
+          this.top = 0
+          if (this.parent == this || !this.parent || !this.parent.size)
+            this.size = this.map.tileSize * zfac
+          else
+            this.size = this.parent.size * 0.5
+          this.left = Math.floor(this.parent.left + this.x * this.size)
+          this.top = Math.floor(this.parent.top + this.y * this.size)
+          this.size = Math.ceil(this.size)
+          this.zoom_level = zoom
+
+          var d = zoom - this.z
+          var is_zoom_out_cache = (d > 1 && d <= 2) || this.z == 0
+          var is_current = d > -1 && d <= 0
+          var is_visible = this.isVisible()
+          if (this.z == 0) {
+            this.above_loaded = true
+          } else {
+            if (d <= 0) 
+              this.above_loaded = this.parent.above_loaded || this.loaded
+            else 
+              this.above_loaded = false
+          }
+
+          var too_high_res = d < 0
+          var too_low_res = d > 2
+          var need_high_res = !this.above_loaded
+          
+          var need_image =
+             is_visible &&
+             (is_current || is_zoom_out_cache || this.z == this.maxZoom)
+          
+          if (need_image) {
+            if (!this.image)
+              this.loadImage(zoom)
+          } else if ( // keep loaded tiles, toss unneeded hires tiles
+            (too_high_res && (!this.loaded || need_high_res)) ||
+            (too_low_res && !this.loaded)
+          ) {
+            this.discardImage()
+          }
+          if (this.image) {
+            this.image.style.left = this.left + 'px'
+            this.image.style.top = this.top + 'px'
+            this.image.style.width = this.image.style.height = this.size + 'px'
+          }
+          
+          if (zoom < this.z+1) {
+            if (!is_visible || this.above_loaded)
+              this.discardChildren()
+          } else if (is_visible) {
+            this.createChildren()
+          }
+          this.children.invoke('zoom', zoom)
+          this.updateCoverage()
+        },
+
+        /**
+          Hides the image of this TileNode if it has one.
+          */
+        hideImage : function() {
+          this.imageHidden = true
+          if (!this.loaded) this.discardImage()
+          else if (this.image) this.image.style.display = 'none'
+        },
+
+        /**
+          Shows the image of this TileNode if it has one.
+          */
+        showImage : function() {
+          this.imageHidden = false
+          if (this.image && this.loaded)
+            this.image.style.display = 'block'
+        },
+
+        /**
+          Update coverage.
+         */
+        updateCoverage : function() {
+          if (this.zoom_level <= this.z) {
+            if (this.parent != this) {
+              var o = this
+              while (o.z <= this.zoom_level) {
+                if (o.loaded) {
+                  this.above_loaded = true
+                  break
+                }
+                o = o.parent
+                if (o == o.parent) break
+              }
+            }
+            if (!this.isVisible() || this.above_loaded) {
+              this.discardChildren()
+            }
+            return
+          }
+          this.covered = this.isCovered()
+          if (this.covered)
+            this.hideImage()
+          else
+            this.showImage()
+        },
+
+        /**
+          Figure out if this TileNode is hidden from view by its children.
+         */
+        isCovered : function() {
+          if (this.children.length == 0) {
+            return false
+          } else {
+            for (var i=0; i<this.children.length; i++) {
+              if (!(this.children[i].covered || this.children[i].loaded) &&
+                  this.children[i].isVisible()
+              ) {
+                return false
+              }
+            }
+            return true
+          }
+        },
+
+        /**
+          Figure out if this TileNode is visible by comparing its extents
+          to the container's extents.
+         */
+        isVisible : function() {
+          var m = this.root.map
+          var c = this.projectExtentsToContainer()
+          var container = m.container
+          return (c.right > -this.size && c.bottom > -this.size &&
+                  c.left < container.width + this.size && c.top < container.height + this.size)
+        },
+
+        /**
+          Project extents to viewport space.
+         */
+        projectExtentsToContainer : function() {
+          var m = this.root.map
+          var c = m.projectExtentsToContainer()
+          return {
+            left: c.left + this.left,
+            top: c.top + this.top,
+            right: c.left + this.left + this.size,
+            bottom: c.top + this.top + this.size,
+          }
+        },
+        
+        /**
+          Creates the lower level mipmap children for this tile.
+          
+          Ordered like this:
+          [ 0, 1 ]
+          [ 2, 3 ]
+         */
+        createChildren : function() {
+          if (this.maxZoom != undefined && this.z >= this.maxZoom) return
+          if (this.children.length > 0) return
+          for(var y=0; y<2; y++) {
+            for(var x=0; x<2; x++) {
+              this.children.push(new TileNode(x, y, this.z+1, this))
+            }
+          }
+        },
+
+        /**
+          Discards children.
+         */
+        discardChildren : function() {
+          this.covered = false
+          this.showImage()
+          this.children.invoke('unload')
+          this.children.clear()
+        },
+
+        /**
+          Sends a load request to the loader.
+         */
+        loadImage : function(zoom) {
+          this.image = ImagePool.getPool().get()
+          var c = this.projectExtentsToContainer()
+          var dx = ((c.left + this.size/2)-this.root.map.root.pointerX)
+          var dy = ((c.top + this.size/2)-this.root.map.root.pointerY)
+          var container = this.root.map.container
+          var directly_visible = (
+            c.right > 0 && c.bottom > 0 &&
+            c.left < container.width && c.top < container.height
+          )
+          var dz = (directly_visible ? 0 : -0.5) // load offscreen tiles last
+          this.root.map.loader.load(
+            -(this.z + dz),
+            dx*dx+dy*dy,
+            this
+          )
+        },
+
+        /**
+          Delegate to this.image.
+         */
+        addEventListener : function(e,f,b) {
+          this.image.addEventListener(e,f,b)
+        },
+
+        /**
+          Delegate to this.image.
+         */
+        removeEventListener : function(e,f,b) {
+          this.image.removeEventListener(e,f,b)
+        },
+
+        /**
+         Called by the loader.
+         */
+        load : function(tileInfoManager) {
+          if (!this.image) return
+          this.image.style.position = 'absolute'
+          this.image.style.zIndex = this.z
+          this.image.style.display = 'none'
+          this.root.map.element.appendChild(this.image)
+          this.image.onload = this.onload.bind(this)
+          var url = '/tile/' + this.tilePath
+          this.image.src = url
+        },
+
+        /**
+          Event listener for the tile image onload.
+         */
+        onload : function() {
+          if (!this.image) return
+          this.image.style.left = this.left + 'px'
+          this.image.style.top = this.top + 'px'
+          this.image.style.width = this.image.style.height = this.size + 'px'
+          this.loaded = true
+          this.updateCoverage()
+          if (this.parent != this) this.parent.updateCoverage()
+        },
+
+        /**
+          Discards the tile image of this node and returns it to the ImagePool.
+         */
+        discardImage : function() {
+          this.loaded = false
+          if (!this.image) return
+          delete this.image.onload
+          if (this.loader) this.loader()
+          this.image.src = 'data:'
+          this.root.map.loader.cancel(this)
+          $(this.image).detachSelf()
+          ImagePool.getPool().put(this.image)
+          delete this.image
+        },
+
+        /**
+          Unloads the tile and its children.
+         */
+        unload : function(){
+          this.hideImage()
+          // timeout to avoid rendering flicker from
+          // removeChild layouted before style.display = 'block'
+          setTimeout(function(){
+            this.discardImage()
+            this.children.invoke('unload')
+            this.children.clear()
+            delete this.parent
+            delete this.root
+            delete this.children
+            delete this.map
+            delete this.loader
+          }.bind(this), 50)
+        }
+      }
+
+
+ImagePool = function() {
+  this.pool = []
+}
+ImagePool.getPool = function() {
+  if (!ImagePool.pool)
+    ImagePool.pool = new ImagePool()
+  return ImagePool.pool
+}
+ImagePool.prototype = {
+
+  get : function() {
+    if (this.pool.length == 0) {
+      this.pool.push(document.createElement("img"))
+    }
+    return this.pool.shift()
+  },
+
+  put : function(img) {
+    this.pool.push(img)
+  }
+
+}
+
+Loader = function(map) {
+  this.map = map
+  this.queue = new PriorityQueue()
+  this.tileInfoManager = new TileInfoManager(map)
+  var t = this
+  this.loader = function(completed){
+    delete this.loader
+    this.removeEventListener("load", t.loader, true)
+    this.removeEventListener("abort", t.loader, true)
+    this.removeEventListener("error", t.loader, true)
+    if (completed) t.totalCompletes++
+    t.loads--
+    t.process()
+  }
+}
+Loader.prototype = {
+  totalLoads : 0,
+  totalRequests : 0,
+  totalCancels : 0,
+  totalCompletes : 0,
+
+  loads : 0,
+  maxLoads : 2,
+  tileSize : 0.125, // in Mbps
+  bandwidthLimit : -0.3, // in Mbps, negative values for no limit
+
+  load : function(dZ, dP, tile) {
+    this[tile.uuid + ':' + tile.tilePath] = tile
+    this.queue.insert(tile, [dZ, dP])
+    this.totalRequests++
+    this.process()
+  },
+
+  process : function() {
+    while ((this.loads < this.maxLoads) && !this.queue.isEmpty()) {
+      var tile = this.queue.shift()
+      tile.loader = this.loader
+      tile.addEventListener("load", this.loader, true)
+      tile.addEventListener("abort", this.loader, true)
+      tile.addEventListener("error", this.loader, true)
+      this.loads++
+      delete this[tile.uuid + ':' + tile.tilePath]
+      var t = this
+      if (this.bandwidthLimit > 0) {
+        setTimeout(function(){
+          if (tile.load)
+            tile.load(t.tileInfoManager)
+        }, 1000 * ((this.tileSize * this.maxLoads) / this.bandwidthLimit))
+      } else {
+        setTimeout(function(){
+          if (tile.load)
+            tile.load(t.tileInfoManager)
+        }, 0)
+        // hack to make zooming out a bit less of a pain
+        // if zooming out and answering queries instantly from cache
+      }
+      this.totalLoads++
+    }
+  },
+
+  cancel : function(tile) {
+    var lt = this[tile.uuid + ':' + tile.tilePath]
+    if (lt) {
+      this.queue.remove(lt)
+      this.totalCancels++
+    }
+    this.process()
+  },
+  
+  flushCache : function() {
+    this.tileInfoManager.flushCache()
+  }
+
+}
+
+
+TileInfoManager = function(map) {
+  this.map = map
+  this.request_bundle = []
+  this.cache = {}
+  var t = this
+  this.sendBundle = function(){
+    t.bundleSender()
+  }
+}
+TileInfoManager.prototype = {
+
+  callbackDelay : 50,
+  cacheZ : 5,
+
+  server : '/tile_info',
+
+  flushCache : function() {
+    this.cache = {}
+  },
+
+  requestInfo : function(x,y,z, callback) {
+    var rv = this.getCachedInfo(x,y,z)
+    if (rv && callback.handleInfo)
+      callback.handleInfo(rv)
+    else
+      this.bundleRequest(arguments)
+  },
+
+  getCachedInfo : function(x,y,z) {
+    var zc = this.cache[z]
+    var c = zc && zc[x+':'+y]
+    if (c) {
+      return c
+    } else if (z > this.cacheZ) {
+      if (!this.cache[this.cacheZ]) return false
+      var zf = 1 << (z-this.cacheZ)
+      var rzf = 1.0 / zf
+      var rx = x * rzf
+      var ry = y * rzf
+      var rsz = this.map.tileSize * rzf
+      var xz = Math.floor(rx / this.map.tileSize) * this.map.tileSize
+      var yz = Math.floor(ry / this.map.tileSize) * this.map.tileSize
+      var tz = this.cache[this.cacheZ][xz+':'+yz]
+      if (!tz) return false
+      var res = []
+      var rrx = rx - xz
+      var rry = ry - yz
+      for (var i=0; i<tz.length; i++) {
+        var a = tz[i]
+        if (!(a.x+a.sz < rrx || a.y+a.sz < rry || a.x >= rrx+rsz || a.y >= rry+rsz)) {
+          var na = Object.extend({}, a)
+          na.x = (a.x - rrx) * zf
+          na.y = (a.y - rry) * zf
+          na.sz *= zf
+          res.push(na)
+        }
+      }
+      if (!this.cache[z]) this.cache[z] = {}
+      this.cache[z][x+':'+y] = res
+      return res
+    } else {
+      return false
+    }
+  },
+
+  bundleRequest : function(req) {
+    this.request_bundle.push(req)
+    if (this.requestTimeout) clearTimeout(this.requestTimeout)
+    this.requestTimeout = setTimeout(this.sendBundle, 10)
+  },
+
+  bundleSender : function() {
+    var reqs = []
+    var callbacks = []
+    var reqb = this.request_bundle
+    this.request_bundle = []
+    var tsz = this.map.tileSize
+    for (var i=0; i<reqb.length; i++) {
+      var req = reqb[i]
+      var info = this.getCachedInfo(req[0], req[1], req[2])
+      if (!info) {
+        if (req[2] >= this.cacheZ) {
+          var rz = 1 << (req[2]-this.cacheZ)
+          reqs.push([Math.floor(req[0]/rz/tsz) * tsz, Math.floor(req[1]/rz/tsz) * tsz, this.cacheZ])
+        } else {
+          reqs.push(req.slice(0,3))
+        }
+        callbacks.push(req)
+      } else {
+        this.callbackHandler(req)
+      }
+    }
+    reqs = reqs.uniq()
+    var t = this
+    var parameters = {}
+    parameters.tiles = Object.toJSON(reqs)
+    if (this.map.query)
+      parameters.q = this.map.query
+    if (this.map.time)
+      parameters.time = this.map.time
+    new Ajax.Request(this.server, {
+      method : 'post',
+      parameters : parameters,
+      onSuccess : function(res) {
+        var infos = res.responseText.evalJSON()
+        for (var i=0; i<reqs.length; i++) {
+          var info = infos[i]
+          var req = reqs[i]
+          if (!t.cache[req[2]])
+            t.cache[req[2]] = {}
+          t.cache[req[2]][req[0]+':'+req[1]] = info
+        }
+        // everything cached, let's retry getCachedInfo
+        for (var i=0; i<callbacks.length; i++) {
+          t.callbackHandler(callbacks[i])
+        }
+      },
+      onFailure : function(res) {
+        for (var i=0; i<callbacks.length; i++) {
+          var callback = callbacks[i]
+          if (callback[3].handleInfo)
+            callback[3].handleInfo(false)
+        }
+      }
+    })
+    this.requestTimeout = false
+  },
+
+  callbackHandler : function(callback) {
+    setTimeout(this.makeCallbackHandler(callback), this.callbackDelay)
+  },
+
+  makeCallbackHandler : function(callback) {
+    var t = this
+    return function(){
+      if (callback[3].handleInfo) {
+        var info = t.getCachedInfo.apply(t, callback)
+        callback[3].handleInfo(info)
+      }
+    }
+  }
+  
+}
+
+
+PriorityQueue = function(){
+  this.queue = []
+}
+PriorityQueue.prototype = {
+
+  insert : function(item, priority) {
+    for (var i=0; i<this.queue.length; i++) {
+      if (this.queue[i].priority[0] > priority[0] ||
+          (this.queue[i].priority[0] == priority[0] &&
+          this.queue[i].priority[1] > priority[1])
+      ) {
+        this.queue.splice(i,0, {priority: priority, value: item})
+        return
+      }
+    }
+    this.queue.push({priority: priority, value: item})
+  },
+
+  remove : function(item) {
+    for (var i=0; i<this.queue.length; i++) {
+      if (this.queue[i].value == item) {
+        this.queue.splice(i,1)
+        return
+      }
+    }
+  },
+
+  shift : function() {
+    if (this.queue.length == 0) return false
+    return this.queue.shift().value
+  },
+
+  isEmpty : function() {
+    return this.queue.length == 0
+  }
+
+}
+
+
+      window.addEventListener('load', function() {
+        var container = E('div')
+        container.style.position = 'absolute'
+        container.style.width = '100%'
+        container.style.height = '100%'
+        container.width = 256
+        container.height = 256
+        var c = E('div',null,null,null, container.style)
+        c.style.border = '1px solid red'
+        c.style.top = '-1'
+        c.style.left = '-1'
+        c.style.zIndex = 1000
+//         container.appendChild(c)
+        var txt = E('div')
+        txt.style.position = 'absolute'
+        txt.style.left = '280px'
+        txt.style.width = '200px'
+        txt.style.color = 'white'
+        txt.style.zIndex = 1000
+        container.appendChild(txt)
+/*        container.style.top = '200px'
+        container.style.left = '200px'*/
+        container.width = document.body.clientWidth
+        container.height = document.body.clientHeight
+        document.body.appendChild(container)
+        document.body.style.overflow = 'hidden'
+        topmap = new PortalMap({
+          container: container
+        })
+        down = false
+        downX = 0
+        downY = 0
+        window.addEventListener('DOMMouseScroll', function(ev) {
+          var x = downX
+          var y = downY
+          var dx = x - topmap.container.offsetLeft
+          var dy = y - topmap.container.offsetTop
+          topmap.animatedZoom( topmap.z - (ev.detail > 1 ? 1 : -1), dx, dy )
+          Event.stop(ev)
+        }, false)
+        window.onmousedown = function(ev) {
+          down=true; return false }
+        window.onmouseup = function() {
+          down=false; return false  }
+        window.addEventListener('mousemove', function(ev) {
+          if (down) {
+            Event.stop(ev)
+            var dx = ev.clientX - downX
+            var dy = ev.clientY - downY
+            topmap.panBy(dx,dy)
+          }
+          downX=ev.clientX
+          downY=ev.clientY
+          var x = downX
+          var y = downY
+          topmap.pointerX = x - topmap.container.offsetLeft
+          topmap.pointerY = y - topmap.container.offsetTop
+        }, false)
+        createStuff = function(map, levels, x,y) {
+          var maptree = new PortalMap({
+            parent : map,
+            relativeZ : -2,
+            left : x,
+            top : y
+          })
+          var i = -1
+          for (var y=0; y<2; y++) {
+            for (var x=0; x<2; x++) {
+              if (i != 2) {
+                new PortalMap({
+                  parent : maptree,
+                  tileQuery : 'blaat',
+                  left : x*284 + y * (x*256),
+                  top : y*284,
+                  relativeZ : i
+                })
+              }
+              i++
+            }
+          }
+          if (levels > 0) {
+            createStuff(maptree, levels-1, 284+256, 256)
+          }
+          return maptree
+        }
+        maptree = createStuff(topmap, 3,0,0)
+        setInterval(function() {
+          txt.innerHTML = 'x '+topmap.left +
+                          '<br/>y '+topmap.top +
+                          '<br/>left '+topmap.element.style.left +
+                          '<br/>top '+topmap.element.style.top +
+                          '<br/>z ' + topmap.z
+        }, 50)
+      }, false)
+    </script>
+  </head>
+  <body bgcolor="#555555">
+  </body>
+</html>

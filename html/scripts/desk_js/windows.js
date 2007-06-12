@@ -31,6 +31,8 @@ Desk.Window = function(content, config){
   if (!this.buttons)
     this.buttons = this.defaultButtons.map()
   this.init()
+  if (this.width && this.height)
+    this.setSize(this.width, this.height)
   if (typeof content == 'string')
     this.setSrc(content)
   else
@@ -122,6 +124,8 @@ Desk.Window.prototype = {
         buttons : this.buttons,
         x : this.x + 10,
         y : this.y + 10,
+        width : this.width,
+        height : this.height,
         title : this.dupEl(this.title),
         layer : this.layer,
         movable : this.movable,
@@ -145,6 +149,8 @@ Desk.Window.prototype = {
         buttons : this.buttons,
         x : this.x,
         y : this.y,
+        width : this.width,
+        height: this.height,
         title : this.titleElement.innerHTML,
         layer : this.layer,
         movable : this.movable,
@@ -153,7 +159,8 @@ Desk.Window.prototype = {
         group : this.group,
         minimized : this.minimized,
         shaded : this.shaded,
-        maximized: this.maximized
+        maximized: this.maximized,
+        parameters : this.parameters
       }
     }
     return {
@@ -387,16 +394,21 @@ Desk.Window.prototype = {
   },
 
   setSize : function(w, h) {
+    this.width = w
+    this.height = h
     this.element.style.width = (typeof w == 'string' ? w : w + 'px')
-    this.element.style.height = (typeof h == 'string' ? h : h + 'px')
-    this.contentElement.style.height = (
-      this.element.offsetHeight -
-      this.contentElement.offsetTop - 6) + 'px'
     this.contentElement.style.width = (
-      this.element.offsetWidth - 8) + 'px'
-    this.newEvent('resize', { value : [w,h] })
+      parseInt(this.element.style.width) - 8) + 'px'
+    if (!this.shaded) {
+      this.element.style.height = (typeof h == 'string' ? h : h + 'px')
+      this.contentElement.style.height = (
+        parseInt(this.element.style.height) -
+        this.contentElement.offsetTop - 6) + 'px'
+      h = parseInt(this.previousHeight)
+    }
     this.setX(this.x)
     this.setY(this.y)
+    this.newEvent('resize', { value : [w,h] })
   },
 
   endMove : function(e){
@@ -434,9 +446,11 @@ Desk.Window.prototype = {
     if (new_value && new_value.appendChild)
       new_value.appendChild(this.element)
     this.container = new_value
-    this.newEvent('containerChange', {old_value: ov, value: new_value})
+    if (this.width)
+      this.setSize(this.width, this.height)
     this.setX(this.x)
     this.setY(this.y)
+    this.newEvent('containerChange', {old_value: ov, value: new_value})
   },
 
   setWindowManager : function(new_value) {
@@ -582,11 +596,12 @@ Desk.Window.prototype = {
     this.src = new_src
     if (this.metadata.title && this.metadata.title.length > 0)
       this.setTitle(this.metadata.title)
-    this.easyMove = this.metadata.easyMove
+    if (this.metadata.easyMove != undefined)
+      this.easyMove = this.metadata.easyMove
     if (this.metadata.init) this.metadata.init(new_src, this)
     if (new_src == document.location.href)
       this.setContent(A(new_src, new_src))
-    else
+    else if (this.metadata.makeEmbed)
       this.setContent(this.metadata.makeEmbed(new_src))
   }
 }

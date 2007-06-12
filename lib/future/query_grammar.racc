@@ -43,6 +43,7 @@ sort_expression
 
 discrete_key
   : SET    { result = val[0] }
+  | DELETED { result = val[0] }
   | TAG    { result = val[0] }
   | USER   { result = val[0] }
   | GROUP  { result = val[0] }
@@ -200,7 +201,7 @@ class Lexer
     on(/:/) { [:SEPARATOR, ':'] }
     on(/&|and\b/){ [:BI_AND, '&'] }
     on(/\||or\b/){ [:BI_OR, '|'] }
-    %w[set tag user group type author sort new old big small source referrer asc desc name  size date length width height pages words bitrate rating].each do |qualifier|
+    %w[set deleted tag user group type author sort new old big small source referrer asc desc name  size date length width height pages words bitrate rating].each do |qualifier|
       on(/#{qualifier}\b/i){ [qualifier.upcase.to_sym, qualifier] }
     end
     on(/(<|>|<=|>=|=|==)/){|op| [:RANGE_OP, op] }
