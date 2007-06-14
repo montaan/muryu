@@ -46,7 +46,7 @@
         if (this.tileQuery) {
           this.updateInfo()
         }
-        this.element.style.border = '1px solid black'
+//         this.element.style.border = '1px solid black'
       }
       PortalMap.prototype = {
         tileSize : 256,
@@ -61,6 +61,7 @@
         tx : 0, ty : 0, z : 0,
         x : 0, y : 0, w : 256, h : 256,
         ax : 0, ay : 0,
+        zoomIn : false, zoomOut : false,
 
         /**
           Does an animated zoom towards the cursor.
@@ -73,25 +74,38 @@
           var time = new Date().getTime()
           var oz = this.z
           var ml = this.loader.maxLoads
+          var delay = this.zoomIn || this.zoomOut ? 300 : 200
           this.loader.maxLoads = 0
           this.animation = setInterval(function(){
             var t = new Date().getTime()
             elapsed += t - time
             time = t
-            var pos = Math.min(1, elapsed / 200)
+            var pos = elapsed / delay
+            if (pos >= 1) {
+              if (this.zoomOut || this.zoomIn) {
+                pos %= 1
+                elapsed = pos * delay
+                time = t
+                if (this.zoomIn) z++
+                if (this.zoomOut) z--
+                oz = this.z
+              } else {
+                pos = 1
+              }
+            }
             var nz = z * pos + oz * (1-pos)
             this.panBy(-this.pointerX, -this.pointerY, false)
             this.z = nz
             this.updateCoordinates()
             this.panBy(this.pointerX, this.pointerY, false)
             this.zoom(nz, z)
-            if (pos >= 1) {
+            if (pos == 1) {
               clearInterval(this.animation)
               this.animation = false
               this.loader.maxLoads = ml
               this.loader.process()
             }
-          }.bind(this), 16)
+          }.bind(this), 20)
         },
           
         /**
@@ -244,7 +258,7 @@
           to the container's extents.
          */
         isVisible : function() {
-          if (this.w < 4 || this.h < 4)
+          if (this.w < 5 || this.h < 5)
             return false
           var c = this.projectExtentsToContainer()
           return (c.right > 0 && c.bottom > 0 &&
@@ -276,14 +290,16 @@
           }
           var z = this.z+this.relativeZ
           if (this.isVisible())
-            this.tiles.invoke('zoom', z, z)
+            for(var i=0,cl=this.tiles.length; i<cl; i++)
+              this.tiles[i].zoom(z,z)
         },
 
         /**
          Discards the top-level TileNodes.
          */
         discardTiles : function() {
-          this.tiles.invoke('unload')
+          for(var i=0,cl=this.tiles.length; i<cl; i++)
+            this.tiles[i].unload()
           this.tiles.clear()
         },
 
@@ -304,15 +320,19 @@
           }
         },
 
+        is_visible : true,
+
         /**
           Called when the map has been moved.
           Updates tiles and map visibility.
          */
         moved : function(dx, dy) {
-          this.updateAbsoluteCoordinates()
-          if (this.isVisible()) {
-            this.element.style.display = 'block'
-            if (this.tileQuery) {
+          if (this.tileQuery) {
+            var is_visible = this.isVisible()
+            this.updateAbsoluteCoordinates()
+            if (is_visible) {
+              if (this.element.style.display != 'block')
+                this.element.style.display = 'block'
               var rtsz = 1 / (this.tileSize*Math.pow(2,Math.min(0, this.z+this.relativeZ)))
               var tl = Math.floor(this.ax * rtsz)
               var tt = Math.floor(this.ay * rtsz)
@@ -325,10 +345,20 @@
                 this.tr = tr
                 this.zoom(this.z)
               }
+            } else if (this.is_visible) {
+              this.element.style.display = 'none'
             }
-            this.children.invoke('moved', dx, dy)
+            this.is_visible = is_visible
           } else {
-            this.element.style.display = 'none'
+            this.updateAbsoluteCoordinates()
+            if (this.isVisible()) {
+              if (this.element.style.display != 'block')
+                this.element.style.display = 'block'
+              for(var i=0,cl=this.children.length; i<cl; i++)
+                this.children[i].moved(dx, dy)
+            } else if (this.element.style.display != 'none') {
+              this.element.style.display = 'none'
+            }
           }
         }
 
@@ -416,8 +446,8 @@
         },
 
         determineChildren : function() {
-          if (this.d <= 0) {
-            if (!this.is_visible || this.loaded)
+          if (this.d <= 0 || this.is_current) {
+            if (!this.is_visible || this.loaded || this.above_loaded)
               this.discardChildren()
           } else if (this.is_visible && !this.is_current) {
             this.createChildren()
@@ -425,7 +455,7 @@
         },
 
         updateImage : function() {
-          if (this.image && !this.imageHidden) {
+          if (this.image && !this.imageHidden && this.changed) {
             this.image.style.left = this.left + 'px'
             this.image.style.top = this.top + 'px'
             this.image.style.width = this.image.style.height = this.size + 'px'
@@ -446,12 +476,13 @@
         },
         
         updateVars : function(zoom, targetZ) {
+          if (this.zoom_level != zoom) this.changed = true
           this.zoom_level = zoom
           this.zoom_complete = zoom == targetZ
           if (this.targetZ != targetZ || this.zoom_complete) {
             this.targetZ = targetZ
             var d = this.d = targetZ - this.z
-            var zo = (targetZ < this.z && this.parent == this)
+            var zo = (targetZ <= this.z && this.parent == this)
             this.is_zoom_out_cache = (this.parent==this) || (d == 2 && targetZ-zoom <= 0)
             this.is_current = d == 0 || zo || this.z == this.maxZoom
             this.load_image = (this.zoom_complete && this.is_current) || this.is_zoom_out_cache
@@ -498,6 +529,7 @@
         showImage : function() {
           this.imageHidden = false
           if (this.image && this.loaded) {
+            this.changed = true
             this.updateImage()
             this.image.style.display = 'block'
           }
@@ -600,7 +632,8 @@
         discardChildren : function() {
           this.covered = false
           this.showImage()
-          this.children.invoke('unload')
+          for(var i=0,cl=this.children.length; i<cl; i++)
+            this.children[i].unload()
           this.children.clear()
         },
 
@@ -694,10 +727,10 @@
           Unloads the tile and its children.
          */
         unload : function(){
+          this.discardChildren()
           this.hideImage(false)
           setTimeout(function(){
             this.discardImage()
-            this.discardChildren()
             if (this.loader) this.loader()
             this.root.map.loader.cancel(this)
             delete this.parent
@@ -1024,15 +1057,16 @@ PriorityQueue.prototype = {
         down = false
         downX = 0
         downY = 0
+        window.addEventListener('click', function(){window.focus()}, false)
         window.addEventListener('DOMMouseScroll', function(ev) {
           var x = downX
           var y = downY
           var dx = x - topmap.container.offsetLeft
           var dy = y - topmap.container.offsetTop
-          topmap.animatedZoom( topmap.z - (ev.detail > 1 ? 1 : -1), dx, dy )
+          topmap.animatedZoom( topmap.z - (ev.detail > 0 ? 1 : -1), dx, dy )
           Event.stop(ev)
         }, false)
-        window.addEventListener('keypress', function(ev) {
+        window.addEventListener('keydown', function(ev) {
           var x = downX
           var y = downY
           var dx = x - topmap.container.offsetLeft
@@ -1040,11 +1074,23 @@ PriorityQueue.prototype = {
           var k = ev.charCode | ev.keyCode
           var s = String.fromCharCode(k).toLowerCase()
           if (s == 't') {
+            topmap.zoomIn = true
             topmap.animatedZoom( topmap.z + 1, dx, dy )
-          } else if (s == 'r') {
+          } else if (s == 'g') {
+            topmap.zoomOut = true
             topmap.animatedZoom( topmap.z - 1, dx, dy )
           }
-          Event.stop(ev)
+//           Event.stop(ev)
+        }, false)
+        window.addEventListener('keyup', function(ev) {
+          var k = ev.charCode | ev.keyCode
+          var s = String.fromCharCode(k).toLowerCase()
+          if (s == 't') {
+            topmap.zoomIn = false
+          } else if (s == 'g') {
+            topmap.zoomOut = false
+          }
+//           Event.stop(ev)
         }, false)
         window.onmousedown = function(ev) {
           down=true; return false }
@@ -1055,7 +1101,8 @@ PriorityQueue.prototype = {
             Event.stop(ev)
             var dx = ev.clientX - downX
             var dy = ev.clientY - downY
-            topmap.panBy(dx,dy)
+            if (dx != 0 || dy != 0)
+              topmap.panBy(dx,dy)
           }
           downX=ev.clientX
           downY=ev.clientY
@@ -1078,7 +1125,7 @@ PriorityQueue.prototype = {
                 new PortalMap({
                   parent : maptree,
                   tileQuery : 'blaat',
-                  left : x*284 + y * (x*256),
+                  left : x*200,
                   top : y*284,
                   relativeZ : i
                 })
@@ -1087,11 +1134,16 @@ PriorityQueue.prototype = {
             }
           }
           if (levels > 0) {
+            createStuff(maptree, levels-1, 284+256, 0)
             createStuff(maptree, levels-1, 284+256, 256)
+            createStuff(maptree, levels-1, 284+256, 512)
+            createStuff(maptree, levels-1, 284+522, 0)
+            createStuff(maptree, levels-1, 284+522, 256)
+            createStuff(maptree, levels-1, 284+522, 512)
           }
           return maptree
         }
-        maptree = createStuff(topmap, 3,0,0)
+        maptree = createStuff(topmap, 1,0,0)
 /*        setInterval(function() {
           txt.innerHTML = 'x '+topmap.left +
                           '<br/>y '+topmap.top +
