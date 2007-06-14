@@ -3,7 +3,10 @@
 // can also have fillWindow, pollForNewImages, changeDocumentTitle
 Suture = function(config) {
   Object.extend(this, config)
-
+  if (this.window && this.window.parameters)
+    Object.extend(this, this.window.parameters)
+  var startprog = this.autoProgress
+    
   this.root = Elem("div", this.template, 'slideshow-root')
   var el = $(this.root)
   this.container.appendChild(this.root)
@@ -39,6 +42,7 @@ Suture = function(config) {
 
   this.slideReverseElement = el.$("slideshow-play-reverse")
   this.setReverseProgress(this.reverseProgress)
+  this.setRandomProgress(this.randomProgress)
   this.slideReverseElement.addEventListener("click", this.bind('toggleDirection'), false)
 
   this.prevHundredElement = el.$("slideshow-prev-100")
@@ -84,6 +88,8 @@ Suture = function(config) {
   var t = this
   this.frameIntervalPointer = setInterval(function(e){ t.frameHandler(e) }, this.frameTime)
   this.showIndex(this.index)
+  if (startprog)
+    this.startAutoProgress()
 }
 Suture.make = function(w, index, query){
   if (!w.width) w.setSize(600,400)
@@ -113,9 +119,20 @@ Suture.make = function(w, index, query){
     }
   }
   w.addListener('resize', resizer)
+  var minProg = false
   w.addListener('close', function() {
+    minProg = false
     if (s.autoProgressTimer)
       s.toggleAutoProgress()
+  })
+  w.addListener('minimizeChange', function() {
+    if (s.autoProgressTimer) {
+      s.toggleAutoProgress()
+      minProg = true
+    } else if (minProg) {
+      s.toggleAutoProgress()
+      minProg = false
+    }
   })
   w.addListener('containerChange', resizer)
   w.addListener('shadeChange', resizer)
@@ -486,6 +503,8 @@ Suture.prototype = {
   startAutoProgress : function(e) {
     this.stopAutoProgress()
     this.autoProgressElement.innerHTML = "Stop"
+    if (this.window)
+      this.window.parameters.autoProgress = true
     var t = this
     t.progress()
     this.autoProgressTimer = setInterval(function(){ t.progress() }, 100)
@@ -493,6 +512,8 @@ Suture.prototype = {
   
   stopAutoProgress : function() {
     clearInterval(this.autoProgressTimer)
+    if (this.window)
+      this.window.parameters.autoProgress = false
     this.autoProgressTimer = null
     this.autoProgressElement.innerHTML = "Start"
   },
@@ -516,6 +537,8 @@ Suture.prototype = {
   
   setRandomProgress : function(rp) {
     this.randomProgress = rp
+    if (this.window)
+      this.window.parameters.randomProgress = rp
     this.slideReverseElement.innerHTML = (this.randomProgress ? "random" :
       (this.reverseProgress ? "&larr;" : "&rarr;")
     )
@@ -523,11 +546,15 @@ Suture.prototype = {
   
   setReverseProgress : function(rp) {
     this.reverseProgress = rp
+    if (this.window)
+      this.window.parameters.reverseProgress = rp
     this.slideReverseElement.innerHTML = (this.reverseProgress ? "backward" : "forward")
   },
 
   setAutoProgressDelay : function(seconds) {
     this.autoProgressDelay = Math.max(0,seconds) 
+    if (this.window)
+      this.window.parameters.autoProgressDelay = this.autoProgressDelay
     this.slideDelayElement.innerHTML = this.autoProgressDelay
     if (this.autoProgressTimer)
       this.startAutoProgress()

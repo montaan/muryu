@@ -1067,7 +1067,7 @@ extend FutureServlet
       when 'size'
         column = 'size'
       when 'user'
-        column = 'owner.name'
+        column = 'owner_id'
       when 'source'
         column = 'source'
       when 'referrer'
@@ -1075,7 +1075,7 @@ extend FutureServlet
       when 'type'
         column = 'mimetype_id'
       when 'name'
-        column = 'metadata.title'
+        column = 'path'
       end
       [column, dir_f == -1 ? :asc : :desc]
     end

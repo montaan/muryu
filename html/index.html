@@ -374,6 +374,38 @@
     <script type="text/javascript" src="/scripts/slideshow.js"></script>
     <script>
       // <![CDATA[
+      Notes = {
+        make : function(win) {
+          var ta = E('textarea')
+          ta.style.display = 'block'
+          ta.style.width = '200px'
+          ta.style.height = '200px'
+          ta.style.backgroundColor = '#DDD'
+          ta.style.border = '0px'
+          ta.style.borderBottom = '1px solid #222222'
+          ta.style.padding = '2px'
+          ta.style.color = '#000'
+          ta.style.fontSize = '14px'
+          ta.style.fontWeight = 'normal'
+          ta.style.fontFamily = 'Serif'
+          win.setTitle('Note')
+          win.addListener('resize', function() {
+            ta.style.width = parseInt(win.contentElement.style.width) - 6 + 'px'
+            ta.style.height = parseInt(win.contentElement.style.height) - 7 + 'px'
+          })
+          if (win.parameters)
+            ta.value = win.parameters.content
+          else
+            win.parameters = {content:''}
+          ta.ival = setInterval(function() {
+            if (win.parameters.content != ta.value)
+              win.parameters.content = ta.value
+          }, 50)
+          win.addListener('close', function() { clearInterval(ta.ival) })
+          win.setContent(ta)
+        }
+      }
+      
       window.addEventListener("load", function(ev){
         Session.storage = {
           load : function() {
@@ -438,10 +470,27 @@
           'Windows' : 'Ikkunat',
           'Collapse all groups' : 'Piilota kaikki ryhmät',
           'Expand all groups' : 'Laajenna kaikki ryhmät',
+          'Utilities' : 'Työkalut',
+          'Make note' : 'Tee muistiinpano',
           'Add Panel' : 'Lisää paneeli',
           'Session' : 'Istunto',
           'Save Session' : 'Tallenna istunto',
           'Clear Session' : 'Pyyhi istunto',
+          'help.html' : 'help.html',
+          'help' : 'apua'
+        })
+        Tr.addTranslations('ja-JP', {
+          'Workspace' : '作業領域',
+          'Add search' : '検索',
+          'Windows' : '窓',
+          'Collapse all groups' : '隠',
+          'Expand all groups' : '見',
+          'Utilities' : '道具',
+          'Make note' : '覚書',
+          'Add Panel' : 'Lisää paneeli',
+          'Session' : '会',
+          'Save Session' : '覚',
+          'Clear Session' : '消',
           'help.html' : 'help.html',
           'help' : 'apua'
         })
@@ -463,6 +512,10 @@
             height: 256
           }).setParent(Map)
         })
+        if (loggedIn) {
+          menu.addTitle(Tr('Utilities'))
+          menu.addItem(Tr('Make note'), function(){ new Desk.Window('app:Notes.make') })
+        }
         menu.addTitle(Tr('Windows'))
         menu.addItem(Tr('Collapse all groups'), function() {
           Desk.Windows.taskbar.setCollapsedForAll(true)

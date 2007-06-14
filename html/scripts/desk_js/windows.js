@@ -35,8 +35,14 @@ Desk.Window = function(content, config){
     this.setSize(this.width, this.height)
   if (typeof content == 'string')
     this.setSrc(content)
-  else
-    this.setContent(content)
+  else {
+    if (config && config.content && typeof config.content == 'string') {
+      this.contentElement.innerHTML = config.content
+      this.setContent(this.contentElement.firstChild)
+    } else {
+      this.setContent(content)
+    }
+  }
   if (config) {
     if (config.title) this.setTitle(config.title)
     if (config.minimized) this.setMinimized(config.minimized)
@@ -49,12 +55,17 @@ Desk.Window = function(content, config){
   }
   if (this.maximized) {
     this.maximized = false
+    if (this.oldCoords) {
+      this.setX(this.oldCoords.x)
+      this.setY(this.oldCoords.y)
+      this.setSize(this.oldCoords.w, this.oldCoords.h)
+    }
     this.setMaximized(true)
   }
   this.focus()
 }
 Desk.Window.loadSession = function(data){
-  return new Desk.Window(data.content, data.config)
+  return new Desk.Window(data.src, data.config)
 }
 Desk.Window.prototype = {
   shaded : false,
@@ -136,7 +147,11 @@ Desk.Window.prototype = {
         group : this.group,
         minimized : this.minimized,
         shaded : this.shaded,
-        maximized: this.maximized
+        maximized: this.maximized,
+        oldCoords : this.oldCoords,
+        previousHeight : this.previousHeight,
+        saveContent : this.saveContent,
+        parameters : Object.clone(this.parameters)
       }
     )
     return dup
@@ -144,7 +159,7 @@ Desk.Window.prototype = {
 
   dumpSession : function() {
     var dump = {
-      content : this.src,
+      src : this.src,
       config : {
         buttons : this.buttons,
         x : this.x,
@@ -160,7 +175,11 @@ Desk.Window.prototype = {
         minimized : this.minimized,
         shaded : this.shaded,
         maximized: this.maximized,
-        parameters : this.parameters
+        oldCoords : this.oldCoords,
+        previousHeight : this.previousHeight,
+        parameters : this.parameters,
+        saveContent : this.saveContent,
+        content : (this.saveContent ? this.contentElement.innerHTML : undefined)
       }
     }
     return {
@@ -557,7 +576,7 @@ Desk.Window.prototype = {
   },
 
   setX : function(new_value) {
-    if (!this.avoid) {
+    if (!this.avoid && this.container) {
       if (new_value < -this.element.offsetWidth + 50) {
         new_value = -this.element.offsetWidth + 50
       } else if (this.container && new_value > this.container.offsetWidth - 50) {
@@ -570,7 +589,7 @@ Desk.Window.prototype = {
   },
 
   setY : function(new_value) {
-    if (!this.avoid) {
+    if (!this.avoid && this.container) {
       if (this.easyMove && new_value < -this.element.offsetHeight + 50) {
         new_value = -this.element.offsetHeight + 50
       } else if (!this.easyMove && new_value < 0) {

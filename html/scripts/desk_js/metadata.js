@@ -1096,10 +1096,14 @@ Mimetype = {
 
   /**
     Application window.
-    Calls the named function with the opened window.
+    Calls the named function with the opened window and the string after the
+    slash if any.
 
+    // Calls MusicPlayer.initPlaylistWindow(win)
     app:MusicPlayer.initPlaylistWindow
-    app:Suture.createWindow/string_to_pass_as_second_param
+
+    // Calls console.log(win, 'hello_world')
+    app:console.log/hello_world
    */
   app : {
     init : function(src, win) {

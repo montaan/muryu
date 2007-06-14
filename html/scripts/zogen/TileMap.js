@@ -705,6 +705,8 @@ TileMap.prototype = {
   setupEventListeners : function() {
     var t = this
     this.titleDragStart = function(ev) {
+      console.log(ev.target)
+      if (!t.validEventTarget(ev)) return
       if (Event.isLeftClick(ev)) {
         window.lastFocusedMap = this.map
         this.dragging = true
@@ -717,6 +719,7 @@ TileMap.prototype = {
       this.dragging = false
     }
     this.titleDrag = function(ev) {
+      if (!t.validEventTarget(ev)) return
       if (this.dragging) {
         var x = Event.pointerX(ev)
         var y = Event.pointerY(ev)
@@ -729,6 +732,7 @@ TileMap.prototype = {
       }
     }
     this.titleEdit = function(ev) {
+      if (!t.validEventTarget(ev)) return
       if (!ev || Event.isLeftClick(ev)) {
         this.style.minWidth = this.offsetWidth + 200 + 'px'
         $(this).replaceWithEditor(
@@ -771,6 +775,9 @@ TileMap.prototype = {
     }
     if (this.isSubmap) return
     this.onmousedown = function(ev) {
+      if (!t.validEventTarget(ev)) return
+      if (t.previousTarget)
+        t.previousTarget.blur()
       window.focus()
       document.focusedMap = this
       var obj = ev.target
@@ -798,11 +805,14 @@ TileMap.prototype = {
       }
     }
     this.onmouseup = function(ev) {
+      t.previousTarget = ev.target
       t.panning = false
       t.selecting = false
       t.selectionElem.style.display = 'none'
     }
     this.onmousemove = function(ev) {
+      t.previousTarget = ev.target
+      if (!t.validEventTarget(ev)) return
       t.pointerX = ev.pageX - t.container.offsetLeft
       t.pointerY = ev.pageY - t.container.offsetTop
       document.focusedMap = this
@@ -831,6 +841,7 @@ TileMap.prototype = {
       }
     }
     this.onmousescroll = function(ev) {
+      if (!t.validEventTarget(ev)) return
       if (ev.detail < 0) {
         t.animatedZoom(t.z+1)
       } else {
@@ -839,7 +850,8 @@ TileMap.prototype = {
       Event.stop(ev)
     }
     this.onkeypress = function(ev) {
-      if (ev.target.tagName == 'INPUT') return
+      t.previousTarget = ev.target
+      if (!t.validEventTarget(ev)) return
       if (document.focusedMap == this && !ev.ctrlKey) {
         var c = ev.keyCode | ev.charCode | ev.which
         var cs = String.fromCharCode(c).toLowerCase()
@@ -848,9 +860,9 @@ TileMap.prototype = {
         if (h) h.apply(t, [c,cs])
         Event.stop(ev)
       }
-    }
+    }.bind(this.element)
     this.onkeydown = function(ev) {
-      if (ev.target.tagName == 'INPUT') return
+      if (!t.validEventTarget(ev)) return
       if (document.focusedMap == this && !ev.ctrlKey) {
         var c = ev.keyCode | ev.charCode | ev.which
         var cs = String.fromCharCode(c).toLowerCase()
@@ -859,10 +871,10 @@ TileMap.prototype = {
         if (h) h.apply(t, [c,cs])
         Event.stop(ev)
       }
-    }
+    }.bind(this.element)
     this.onkeyup = function(ev) {
       this.zoomKeyDown = 0
-      if (ev.target.tagName == 'INPUT') return
+      if (!t.validEventTarget(ev)) return
       if (document.focusedMap == this && !ev.ctrlKey) {
         var c = ev.keyCode | ev.charCode | ev.which
         var cs = String.fromCharCode(c).toLowerCase()
@@ -871,18 +883,29 @@ TileMap.prototype = {
         if (h) h.apply(t, [c,cs])
         Event.stop(ev)
       }
-    }
+    }.bind(this.element)
     this.onunload = function(ev) {
       t.unload()
     }
     this.element.addEventListener("mousedown", this.onmousedown, false)
-    document.addEventListener("mouseup", this.onmouseup, false)
+    window.addEventListener("mouseup", this.onmouseup, false)
+    window.addEventListener("blur", this.onmouseup, false)
     this.element.addEventListener("mousemove", this.onmousemove, false)
     this.element.addEventListener("DOMMouseScroll", this.onmousescroll, false)
-    document.addEventListener("keypress", this.onkeypress.bind(this.element), false)
+    document.addEventListener("keypress", this.onkeypress, false)
     document.addEventListener("keydown", this.onkeydown, false)
     document.addEventListener("keyup", this.onkeyup, false)
     document.addEventListener("unload", this.onunload, false)
+  },
+
+  invalidTargets : {
+    'INPUT' : true,
+    'TEXTAREA' : true
+  },
+  
+  validEventTarget : function(ev) {
+    var tn = ev.target.tagName
+    return (!this.invalidTargets[tn])
   },
   
   /**
@@ -893,7 +916,8 @@ TileMap.prototype = {
     this.element.removeEventListener("mousedown", this.onmousedown, false)
     document.removeEventListener("mouseup", this.titleDragEnd, false)
     document.removeEventListener("mousemove", this.titleDrag, false)
-    document.removeEventListener("mouseup", this.onmouseup, false)
+    window.removeEventListener("mouseup", this.onmouseup, false)
+    window.removeEventListener("blur", this.onmouseup, false)
     this.element.removeEventListener("mousemove", this.onmousemove, false)
     this.element.removeEventListener("DOMMouseScroll", this.onmousescroll, false)
     document.removeEventListener("keypress", this.onkeypress, false)
@@ -1450,8 +1474,8 @@ SubmapLayer.prototype = {
       d.style.width = d.width + 'px'
       d.style.height = d.height + 'px'
       m.titleElem.style.left = d.style.left
-      m.titleElem.style.top = (d.top - Math.min(36, 9 * fac)) + 'px'
-      m.titleElem.style.fontSize = Math.min(20, (5 * fac)) + 'px'
+      m.titleElem.style.top = (d.top - Math.min(36, 15 * fac)) + 'px'
+      m.titleElem.style.fontSize = Math.min(20, (9 * fac)) + 'px'
 /*      if (
         d.left > -m.root.x + m.root.width ||
         d.top > -m.root.y + m.root.height ||
