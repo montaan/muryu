@@ -705,7 +705,6 @@ TileMap.prototype = {
   setupEventListeners : function() {
     var t = this
     this.titleDragStart = function(ev) {
-      console.log(ev.target)
       if (!t.validEventTarget(ev)) return
       if (Event.isLeftClick(ev)) {
         window.lastFocusedMap = this.map

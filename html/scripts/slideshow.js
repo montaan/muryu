@@ -539,7 +539,7 @@ Suture.prototype = {
     this.randomProgress = rp
     if (this.window)
       this.window.parameters.randomProgress = rp
-    this.slideReverseElement.innerHTML = (this.randomProgress ? "random" :
+    this.slideReverseElement.innerHTML = (this.randomProgress ? "shuffle" :
       (this.reverseProgress ? "&larr;" : "&rarr;")
     )
   },

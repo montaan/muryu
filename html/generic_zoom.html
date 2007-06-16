@@ -44,9 +44,11 @@
           this.setContainer(this.container)
         }
         if (this.tileQuery) {
+          this.element.style.backgroundColor = '#444444'
           this.updateInfo()
+        } else {
+          this.element.style.backgroundColor = '#' + this.bgColor
         }
-//         this.element.style.border = '1px solid black'
       }
       PortalMap.prototype = {
         tileSize : 256,
@@ -56,6 +58,8 @@
         relativeZ : 0,
         width: 256, height: 256,
         pointerX : 0, pointerY : 0,
+        maxZoom : 15, minZoom : -3,
+        bgColor : '13163C',
 
         // state variables
         tx : 0, ty : 0, z : 0,
@@ -67,15 +71,15 @@
           Does an animated zoom towards the cursor.
          */
         animatedZoom : function( z, dx, dy ) {
-          if (this.animation) return
+          if (this.animation || z > this.maxZoom || z < this.minZoom) return
           this.pointerX = dx
           this.pointerY = dy
           var elapsed = 0
           var time = new Date().getTime()
           var oz = this.z
           var ml = this.loader.maxLoads
-          var delay = this.zoomIn || this.zoomOut ? 300 : 200
-          this.loader.maxLoads = 0
+          var delay = this.zoomIn || this.zoomOut ? 200 : 200
+          this.loader.maxLoads = 1
           this.animation = setInterval(function(){
             var t = new Date().getTime()
             elapsed += t - time
@@ -88,7 +92,11 @@
                 time = t
                 if (this.zoomIn) z++
                 if (this.zoomOut) z--
-                oz = this.z
+                if (z >= this.maxZoom-0.00001 || z <= this.minZoom-0.00001) {
+                  pos = 1
+                } else {
+                  oz = this.z
+                }
               } else {
                 pos = 1
               }
@@ -233,6 +241,8 @@
          */
         addChild : function(child) {
           child.parent = this
+          child.bgColor = this.bgColor
+          child.queryString = '?bgcolor='+this.bgColor
           child.root = this.root
           child.loader = this.loader
           child.setContainer(this.container)
@@ -249,8 +259,10 @@
          */
         setContainer : function(container) {
           this.container = container
-          if (!this.parent)
+          if (!this.parent) {
             this.container.appendChild(this.element)
+            this.container.style.backgroundColor = '#'+this.bgColor
+          }
         },
         
         /**
@@ -283,8 +295,7 @@
         initTiles : function() {
           for (var y=0; y < this.mapWidth/this.tileSize; y++) {
             for (var x=0; x < this.mapHeight/this.tileSize; x++) {
-              var tile = new TileNode(x, y, 0)
-              tile.map = this
+              var tile = new TileNode(x, y, 0, null, this)
               this.tiles.push(tile)
             }
           }
@@ -380,14 +391,15 @@
         When zooming out, the TileNode shows its image and discards its children.
 
        */
-      TileNode = function(x, y, z, parent) {
+      TileNode = function(x, y, z, parent, map) {
         this.x = x
         this.y = y
         this.z = z
+        this.map = map
         this.uuid = TileNode.uuid++
         this.children = []
         this.setParent(parent)
-        this.tilePath = 'x'+this.tileX  +  'y'+this.tileY  +  'z'+z + '?color=false'
+        this.tilePath = 'x'+this.tileX  +  'y'+this.tileY  +  'z'+z + map.queryString
       }
       TileNode.uuid = 0
       TileNode.prototype = {
@@ -430,24 +442,25 @@
         zoom : function(zoom, targetZ) {
           this.updateDims(zoom, targetZ)
           this.updateVars(zoom, targetZ)
-          this.updateImage()
+          if (this.image && !this.imageHidden && this.changed)
+            this.updateImage()
           if (this.is_visible) {
             this.determineChildren()
             this.determineImage()
             for(var i=0,cl=this.children.length; i<cl; i++)
-              this.children[i].zoom(zoom, targetZ)
+              this.children[i].zoom(this.zoom_level, this.targetZ)
             this.updateCoverage()
           } else {
             this.hideImage()
             this.determineChildren()
             for(var i=0,cl=this.children.length; i<cl; i++)
-              this.children[i].zoom(zoom, targetZ)
+              this.children[i].zoom(this.zoom_level, this.targetZ)
           }
         },
 
         determineChildren : function() {
           if (this.d <= 0 || this.is_current) {
-            if (!this.is_visible || this.loaded || this.above_loaded)
+            if (this.zoom_complete && (!this.is_visible || this.loaded || this.above_loaded))
               this.discardChildren()
           } else if (this.is_visible && !this.is_current) {
             this.createChildren()
@@ -485,7 +498,7 @@
             var zo = (targetZ <= this.z && this.parent == this)
             this.is_zoom_out_cache = (this.parent==this) || (d == 2 && targetZ-zoom <= 0)
             this.is_current = d == 0 || zo || this.z == this.maxZoom
-            this.load_image = (this.zoom_complete && this.is_current) || this.is_zoom_out_cache
+            this.load_image = (d >= 0 && d < 1) || this.is_zoom_out_cache
             this.too_high_res = d < 0 && !zo
             this.too_low_res = d > 2 && !zo
           }
@@ -497,19 +510,19 @@
             this.above_loaded = false
           this.need_high_res = !this.above_loaded
           this.need_image =
-            this.is_visible &&
+            this.load_image && this.is_visible &&
             (this.is_current || this.is_zoom_out_cache)
         },
 
         determineImage : function() {
           if (this.need_image) {
             if (!this.image && this.load_image) this.loadImage(this.targetZ)
-            if (!this.is_current) this.hideImage(false)
+            if (!this.is_current && this.above_loaded) this.hideImage(false)
           // cancel unloaded tiles
-          } else if (!this.loaded) {
+          } else if (this.zoom_complete && !this.loaded) {
             this.discardImage()
           // toss unneeded hires tiles and lores tiles
-          } else if ((this.too_high_res && !this.need_high_res) || (this.too_low_res)) {
+          } else if ((this.too_high_res && !this.need_high_res) || (this.zoom_complete && this.too_low_res)) {
             this.hideImage()
           }
         },
@@ -621,7 +634,7 @@
           if (this.children.length > 0) return
           for(var y=0; y<2; y++) {
             for(var x=0; x<2; x++) {
-              this.children.push(new TileNode(x, y, this.z+1, this))
+              this.children.push(new TileNode(x, y, this.z+1, this, this.map))
             }
           }
         },
@@ -791,7 +804,7 @@ Loader.prototype = {
   loads : 0,
   maxLoads : 2,
   tileSize : 0.125, // in Mbps
-  bandwidthLimit : -0.3, // in Mbps, negative values for no limit
+  bandwidthLimit : -2.0, // in Mbps, negative values for no limit
 
   load : function(dZ, dP, tile) {
     this[tile.uuid] = tile
@@ -1028,6 +1041,8 @@ PriorityQueue.prototype = {
         document.body.style.overflow = 'hidden'
         var container = E('div')
         container.style.position = 'absolute'
+        container.style.left = '0px'
+        container.style.top = '0px'
         container.style.width = '100%'
         container.style.height = '100%'
         container.width = 256

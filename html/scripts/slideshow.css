@@ -146,7 +146,7 @@
   content: "<";
 }
 #slideshow-random:before {
-  content: "???";
+  content: "random";
 }
 #slideshow-next:before {
   content: ">";
