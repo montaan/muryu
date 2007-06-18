@@ -1,36 +1,125 @@
 #!/usr/bin/ruby
 
+$DB_USE_POOL = false
+$MEMCACHE_USE_POOL = false
+$SWIFTIPLY = false
+
 require 'rubygems'
+if $SWIFTIPLY
+  require 'swiftcore/swiftiplied_mongrel'
+else
+  require 'swiftcore/evented_mongrel'
+end
 require 'rack/request'
 require 'rack/response'
-require 'future/web/webapi_1.rb'
+require 'future/web/webapi_1'
+require 'future/utils'
 
-class MuryuRack
-  def call(env)
-    req = Rack::Request.new(env)
-    mr = MuryuRequest.new(req)
-    r = MuryuDispatch.dispatch(mr)
-    [r.status, r.headers.merge("Content-type" => r.content_type), r.body]
+def update_loaded_features
+  files = $LOADED_FEATURES.map{|fn|
+    lp = $LOAD_PATH.find{|pt| File.exist?(File.join(pt,fn)) }
+    if lp
+      File.join(lp,fn)
+    else
+      nil
+    end
+  }.compact
+  mtimes = files.map{|f| [f, File.mtime(f)] }.to_hash
+  Thread.new do
+    loop do
+      files.each do |fn|
+        if File.exist?(fn)
+          new_mtime = File.mtime(fn)
+          if new_mtime != mtimes[fn]
+            begin
+              load fn
+              STDERR.puts "Reloaded #{fn}"
+              mtimes[fn] = new_mtime
+            rescue Exception => e
+              STDERR.puts "Error reloading #{fn}: #{e.class}: #{e.message}", e.backtrace
+            end
+          end
+        end
+      end
+      sleep 1
+    end
+  end
+end
+
+update_loaded_features
+
+class Rack::Request
+  def headers
+    @headers ||= (
+      h = {}
+      re = /\AHTTP_/
+      @env.find_all{|k,v| k =~ re }.map{|k,v|
+        header_name = k.split("_")[1..-1].map{|s|s.capitalize}.join("-")
+        h[header_name] = v
+      }
+      h
+    )
   end
 end
 
 class MuryuRequest
-  attr_reader :relative_path, :get, :post, :cookies
+  attr_reader :relative_path, :get, :post, :cookies, :request_method, :headers
   def initialize(req)
     @relative_path = req.path_info.gsub(/\A\/+/, '')
-    @get = req.GET
+    @request_method = req.request_method
+    @headers = req.headers
     @post = req.POST
-    @get.each{|k,v| @get[k] = [v] unless v.is_a?(Array) }
     @post.each{|k,v| @post[k] = [v] unless v.is_a?(Array) }
+    @get = req.GET
+    @get.each{|k,v| @get[k] = [v] unless v.is_a?(Array) }
     @cookies = req.cookies
+  end
+
+  def [](k)
+    @headers[k]
+  end
+end
+
+class MuryuRack
+  def time(t0, msg)
+    return t0 unless $SHOW_REQUEST_PROFILE
+    t1 = Time.now.to_f
+    puts "#{(t1-t0) * 1000}\t: #{msg}"
+    t1
+  end
+  
+  def call(env)
+    t = Time.now.to_f
+    t0 = time(0, "got rack request")
+    req = Rack::Request.new(env)
+    t0 = time(t0, "parsed rack request")
+    mr = MuryuRequest.new(req)
+    t0 = time(t0, "created muryu request")
+    r = MuryuDispatch.dispatch(mr)
+    t0 = time(t0, "dispatch done")
+    res = Rack::Response.new(r.body, r.status, r.headers.merge("Content-Type" => r.content_type))
+    t0 = time(t0, "response created")
+    a = res.finish
+    t0 = time(t0, "request done")
+    time(t, "total time")
+    a
   end
 end
 
 if __FILE__ == $0
   require 'rack'
   require 'rack/showexceptions'
-  Rack::Handler::WEBrick.run(
+  default_port = $SWIFTIPLY ? 30000 : 3000
+  port = (ARGV.shift || default_port).to_i
+  processes = (ARGV.shift || 1).to_i
+  procs = (2..processes).map{|i|
+    i = 1 if $SWIFTIPLY
+    Thread.new{
+      system("ruby -Ilib bin/muryu_rack #{port+i-1} 1")
+    }
+  }
+  Rack::Handler::Mongrel.run(
     MuryuRack.new,
-    :Port => 9202)
+    :Port => port)
 end
 

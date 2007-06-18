@@ -9,6 +9,7 @@ require 'uri'
 require 'pathname'
 require 'fileutils'
 require 'ostruct'
+require 'json'
 
 require 'logger'
 module Kernel
@@ -69,8 +70,25 @@ class Array
     lambda{|a| inject(a){|o,msg| o.__send__(*msg) } }
   end
   
+  def to_hash
+    h = {}
+    each{|k,v| h[k] = v}
+    h
+  end
+
 end
 
+class StandardDateTime < DateTime
+  def to_json(*a)
+    strftime("new Date(\"%m/%d/%Y %H:%M:%S %z\")")
+  end
+end
+
+class Time
+  def to_json(*a)
+    strftime("new Date(\"%m/%d/%Y %H:%M:%S %z\")")
+  end
+end
 
 class String
 

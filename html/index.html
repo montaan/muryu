@@ -198,10 +198,13 @@
       }
 
       .editor {
-        min-width: 30em;
-/*         min-height: 490px; */
+        width: 100%;
+      }
+      .muokkaimet, .editors {
         width: 50em;
-/*         height: 490px; */
+      }
+      .muokkaimet .windowContent, .editors .windowContent {
+        overflow: auto;
       }
 
       .editor h3 {
@@ -378,7 +381,7 @@
         make : function(win) {
           var ta = E('textarea')
           ta.style.display = 'block'
-          ta.style.width = '200px'
+          ta.style.width = '100%'
           ta.style.height = '200px'
           ta.style.backgroundColor = '#DDD'
           ta.style.border = '0px'
@@ -388,7 +391,8 @@
           ta.style.fontSize = '14px'
           ta.style.fontWeight = 'normal'
           ta.style.fontFamily = 'Serif'
-          win.setTitle('Note')
+          if (win.title == win.src)
+            win.setTitle(Tr('Note', Tr('Date', new Date())))
           win.addListener('resize', function() {
             ta.style.width = parseInt(win.contentElement.style.width) - 6 + 'px'
             ta.style.height = parseInt(win.contentElement.style.height) - 7 + 'px'
@@ -400,13 +404,20 @@
           ta.ival = setInterval(function() {
             if (win.parameters.content != ta.value)
               win.parameters.content = ta.value
-          }, 50)
+          }, 1000)
           win.addListener('close', function() { clearInterval(ta.ival) })
           win.setContent(ta)
         }
       }
       
       window.addEventListener("load", function(ev){
+        String.prototype.unfilterJSON = function() {
+          if (this.slice(0,8) == 'while(0)') {
+            return this.slice(9,-1)
+          } else {
+            return this
+          }
+        }
         Session.storage = {
           load : function() {
             var t = this
@@ -472,27 +483,27 @@
           'Expand all groups' : 'Laajenna kaikki ryhmät',
           'Utilities' : 'Työkalut',
           'Make note' : 'Tee muistiinpano',
-          'Add Panel' : 'Lisää paneeli',
           'Session' : 'Istunto',
           'Save Session' : 'Tallenna istunto',
           'Clear Session' : 'Pyyhi istunto',
+          'Note' : 'Muistiinpano ',
           'help.html' : 'help.html',
-          'help' : 'apua'
+          'help' : 'Apua'
         })
         Tr.addTranslations('ja-JP', {
           'Workspace' : '作業領域',
-          'Add search' : '検索',
+          'Add search' : '検索を追加して',
           'Windows' : '窓',
-          'Collapse all groups' : '隠',
-          'Expand all groups' : '見',
+          'Collapse all groups' : '全グループを隠して',
+          'Expand all groups' : '全グループを広げて',
           'Utilities' : '道具',
           'Make note' : '覚書',
-          'Add Panel' : 'Lisää paneeli',
-          'Session' : '会',
-          'Save Session' : '覚',
-          'Clear Session' : '消',
+          'Session' : 'セッション',
+          'Save Session' : 'セッションを保管して',
+          'Clear Session' : 'セッションを消して',
+          'Note' : '覚書 ',
           'help.html' : 'help.html',
-          'help' : 'apua'
+          'help' : '使用法'
         })
         Tr.translations['fi'] = Tr.translations['fi-FI']
         menu = new Desk.Menu()
@@ -560,7 +571,7 @@
             }).setParent(Map)
             i++
           })
-          var topPanel = new Desk.Panel('left')
+          var topPanel = new Desk.Panel('left', {movable : false})
           topPanel.addApplet(Applets.Session())
           topPanel.addApplet(Applets.MusicPlayer())
           topPanel.addApplet(Applets.Taskbar())

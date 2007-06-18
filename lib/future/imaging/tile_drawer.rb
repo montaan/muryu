@@ -381,6 +381,7 @@ class TileDrawer
   @@draw_mutex = Mutex.new
 
   def init_sw
+    return if $NO_TILE_DRAWING
     @@init_mutex.synchronize do
       return if @@sw_init
       @@sw_init = true

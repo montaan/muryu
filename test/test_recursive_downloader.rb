@@ -2,7 +2,7 @@ require 'test/unit'
 require File.join(File.dirname(__FILE__), "set_include_path.rb")
 
 require 'future/recursive_downloader.rb'
-
+=begin
 class TestRecursiveDownloader < Test::Unit::TestCase
   include Future
   class DummyURI
@@ -141,4 +141,4 @@ EOF
   end
 
 end
-
+=end

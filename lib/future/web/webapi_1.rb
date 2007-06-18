@@ -1,3 +1,20 @@
+require 'jcode'
+require 'kconv'
+$KCODE = 'u'
+
+$NO_TILE_DRAWING = true
+
+unless defined? QueryStringParser
+  require 'future/search/search_query'
+end
+require 'future/database'
+require 'future/models'
+require 'future/metadata'
+require 'future/imaging'
+require 'future/web/memcachepool'
+require 'builder'
+require 'memcache'
+
 require 'future/web/webapi_handlers'
 
 
@@ -30,6 +47,9 @@ class MuryuQuery
   class NoListQuery < MuryuError
   end
 
+  class NotFound < MuryuError
+  end
+
   class BadMethod < MuryuError
   end
   
@@ -42,23 +62,23 @@ class MuryuQuery
   class BadPost < MuryuError
   end
   
-  attr_reader(:path, :type, :method, :key, :list_query, :get, :post, :cookies)
+  attr_reader(:path, :type, :method, :key, :list_query, :get, :post, :cookies, :query, :session_id)
 
   class << self
     attr_accessor(:type_methods, :type_list_query, :type_keys, :type_method_get_validators, :type_method_post_validators)
   end
   
   self.type_methods = {
-    'items' => %w(upload edit delete undelete purge json view thumbnail file),
+    'items' => %w(create json edit delete undelete purge view thumbnail file make_public make_private),
     'files' => %w(view item),
     'sets' => %w(create json edit delete undelete view),
-    'users' => %w(create login logout json edit delete view),
+    'users' => %w(create register login logout json edit delete purge view set_preferences delete_preferences clear_preferences create_workspace delete_workspace set_workspace),
     'groups' => %w(create json edit delete undelete view),
     'tile' => %w(view),
     'tile_info' => %w(view)
   }
-  
-  uint = '(([1-9][0-9]*)|0)'
+
+  uint = '(0|([1-9][0-9]*))'
   int = "((-|\\+)?#{uint})"
   ufloat = "((#{uint}(\.[0-9])?|0\.[0-9])[0-9]*)"
   float = "((-|\\+)?#{ufloat})"
@@ -72,7 +92,7 @@ class MuryuQuery
   tagname = '(\S+)'
   setkey = "(#{username}/#{setname})"
   groupname = '([0-9A-Za-z._-]+)'
-  tile = "(x[0-9]+\\.[0-9]+y[0-9]+\\.[0-9]+z#{uint}w#{uint}h#{uint})"
+  tile = "(x#{uint}y#{uint}z#{uint})"
   boolean = '(true|false)'
   url = '(.*)'
   string = '(.*)'
@@ -83,7 +103,8 @@ class MuryuQuery
   file = Matcher.new(:[]){|o|
     o.is_a?(Hash) and o[:filename] and o[:tempfile]
   }
-
+  any = Hash.new(Matcher.new{ true })
+  
   def self.e(pattern)
     Regexp.new('\A'+pattern+'\Z')
   end
@@ -111,20 +132,30 @@ class MuryuQuery
   
   self.type_list_query = {
     'items' => {
-      'q' => e(items_query)
+      'q' => e(items_query),
+      'first' => e(uint),
+      'last' => e(uint),
+      'time' => e(uint),
+      'offset' => e(uint),
+      'limit' => e(uint)
     },
     'files' => {
-      'q' => e(items_query)
+      'q' => e(items_query),
+      'first' => e(uint),
+      'last' => e(uint),
+      'offset' => e(uint),
+      'limit' => e(uint)
     },
     'sets' => {
       'name' => e(setname),
       'owner' => e(username)
     },
-    'users' => false,
+    'users' => {},
     'groups' => false,
     'tile' => false,
     'tile_info' => {
-      'q' => e(items_query)
+      'q' => e(items_query),
+      'time' => e(uint)
     }
   }
   
@@ -146,6 +177,7 @@ class MuryuQuery
       'json' => up
     },
     'users' => {
+      'logout' => up,
       'view' => up,
       'json' => up
     },
@@ -157,6 +189,7 @@ class MuryuQuery
       'view' => {
         'q' => e(string),
         'color' => e(boolean),
+        'time' => e(int),
         'bgcolor' => e(color)
       }.merge(up)
     },
@@ -164,6 +197,7 @@ class MuryuQuery
       'view' => {
         'q' => e(string),
         'color' => e(boolean),
+        'time' => e(uint),
         'columns' => list_of[field_names],
         'bgcolor' => e(color)
       }.merge(up)
@@ -191,13 +225,15 @@ class MuryuQuery
   })
   self.type_method_post_validators = {
     'items' => {
-      'upload' => item_edit.merge({
+      'create' => item_edit.merge({
         'remote_file' => e(url),
         'remote_archive' => e(url),
         'local_file' => file,
         'local_archive' => file
       }),
       'edit' => item_edit,
+      'make_public' => up,
+      'make_private' => up,
       'delete' => up,
       'undelete' => up,
       'purge' => up
@@ -215,12 +251,18 @@ class MuryuQuery
     },
     'users' => {
       'login' => up,
-      'logout' => {
-      },
+      'logout' => up,
       'create' => up,
       'edit' => {'new_password' => e(password)}.merge(up),
       'delete' => up,
-      'undelete' => up
+      'undelete' => up,
+      'purge' => up,
+      'set_preferences' => any,
+      'delete_preferences' => any,
+      'clear_preferences' => up,
+      'set_workspace' => { 'name' => e(string) },
+      'create_workspace' => { 'name' => e(string) },
+      'delete_workspace' => { 'name' => e(string) },
     },
     'groups' => {
       'create' => {
@@ -236,13 +278,21 @@ class MuryuQuery
     }
   }
   
-  def initialize(req)
+  def initialize(req,session_id)
     @get = req.get
     @post = req.post
+    @request_method = req.request_method
+    @session_id = session_id
+    @query = @request_method == 'POST' ? @post : @get
+    @headers = req.headers
     @cookies = req.cookies
     self.path = req.relative_path
   end
 
+  def [](k)
+    @headers[k]
+  end
+  
   def valid_methods
     self.class.type_methods[@type]
   end
@@ -269,6 +319,14 @@ class MuryuQuery
   
   def valid_post?(key, val)
     validate('post', key, val)
+  end
+
+  def supports_get?
+    self.class.type_method_get_validators[@type][@method]
+  end
+
+  def supports_post?
+    self.class.type_method_post_validators[@type][@method]
   end
 
   def validate(t, key, vals)
@@ -304,9 +362,7 @@ class MuryuQuery
       @method = 'view'
       @key = parts[0]
       raise(BadKey, "Malformed key for #@type: #@key") unless valid_key?(@key)
-    elsif (parts[0] == 'create' ||
-           @type == 'items' && parts[0] == 'upload' ||
-           @type == 'users' && parts[0] == 'login' )
+    elsif (parts[0] == 'create' || (@type == 'users' && parts[0] == 'login') )
       @method = parts[0]
     elsif (has_list_query?)
       @method = parts[0] || 'view'
@@ -314,16 +370,18 @@ class MuryuQuery
     else
       raise(NoListQuery, "You tried to reach #@type/#@method, but #@type doesn't have a list query.")
     end
-    if @post and not @post.empty?
+    if @request_method == 'POST' and supports_post?
       bp = @post.find_all{|k,v| !valid_post?(k, v) }
       raise(BadPost, "Bad POST query arguments for #@type/#@method (#{
         @list_query ? 'list query' : "target: #{@key or 'new'}"
       }): "+bp.map{|k,v| k + " => " + v.join(",") }.join(", ")) unless bp.empty?
-    elsif @get and not @get.empty?
+    elsif @request_method == 'GET' and supports_get?
       bg = @get.find_all{|k,v| !valid_get?(k, v) }
       raise(BadGet, "Bad GET query arguments for #@type/#@method (#{
         @list_query ? 'list query' : "target: #{@key or 'new'}"
       }): "+bg.map{|k,v| k + "=" + v.join(",") }.join(", ")) unless bg.empty?
+    else
+      raise(BadMethod, "#@type/#@method doesn't respond to #@request_method")
     end
   end
   
@@ -331,7 +389,27 @@ end
 
 
 MuryuResponse = Struct.new(:status, :content_type, :body, :headers)
+class MuryuResponse
+  def [](k)
+    headers[k]
+  end
 
+  def []=(k,v)
+    headers[k]=v
+  end
+
+  def cookies
+    @cookies ||= Hash.new{|h,k| h[k] = [] }
+  end
+
+  def set_cookie(k,v)
+    cookies[k] << v
+  end
+end
+
+$PRINT_QUERY_PROFILE = false
+$CACHE_INFO = true
+$CACHE_TILES = true
 
 module MuryuDispatch
 
@@ -342,43 +420,141 @@ module MuryuDispatch
   def self.get_handler(type)
     const_get(type.to_class_name)
   end
+
+  def self.authenticate(req, res)
+    un = req.post['username'] || req.get['username']
+    pw = req.post['password'] || req.get['password']
+    cookies = req.cookies['future_session_id']
+    cookies = [cookies].compact unless cookies.is_a?(Array)
+    user = cookie = session_id = nil
+    if cookies.size > 0
+      cookie = cookies.find{|c|
+        session_id = c
+        user = nil
+        user_id, user_name = Future.memcache.get("session-#{session_id}")
+        if user_id
+          user = Future::Users.new(user_id)
+          user.instance_variable_set(:@name, user_name) if user_name
+        else
+          user = Future::Users.continue_session(session_id)
+          Future.memcache.set("session-#{session_id}", [user.id, user.name], 3600) if user
+        end
+        user
+      }
+      if cookie
+        if !user or req.post['logout'] or req.get['logout']
+          if user
+            user.logout
+            user = nil
+          end
+          Future.memcache.delete("session-#{cookie}")
+        end
+      end
+    end
+    if un and pw
+      if user
+        user.logout
+      end
+      session_id = create_new_id
+      user = Future::Users.login(un[0], pw[0], session_id)
+      if user and user.name != 'anonymous'
+        cookie = new_cookie = session_id
+      end
+    end
+    if req.request_method.downcase == 'get'
+      if user and user.name != 'anonymous'
+        res['Cache-Control'] = 'private'
+      else
+        res['Cache-Control'] = 'public'
+      end
+    end
+    cookies.delete_at(cookies.index(cookie)) if cookies.index(cookie)
+    if user and new_cookie
+      res["Set-Cookie"] = "future_session_id=#{new_cookie}; Path=/; Max-Age=#{86400*7}; Version=1"
+    elsif cookies.size > 0
+      session_id = nil
+    end
+    if cookies.size > 0
+      dc = cookies.map{|c| "future_session_id=#{c}; Path=/; Max-Age=0; Version=1" }.join(",")
+      if res["Set-Cookie"]
+        res["Set-Cookie"] += ","+dc
+      else
+        res["Set-Cookie"] = dc
+      end
+    end
+    [(user or Future::Users.anonymous), session_id]
+  end
+  
+  # From cgi/session.rb
+  def self.create_new_id
+    require 'digest/md5'
+    md5 = Digest::MD5::new
+    now = Time::now
+    md5.update(now.to_s)
+    md5.update(String(now.usec))
+    md5.update(String(rand(0)))
+    md5.update(String($$))
+    md5.update('foobar')
+    md5.hexdigest
+  end
+  
+  def self.time(t0, msg)
+    return t0 unless $PRINT_QUERY_PROFILE
+    t1 = Time.now.to_f
+    puts " #{(t1-t0) * 1000}\t: #{msg}"
+    t1
+  end
   
   def self.dispatch_request(req)
+    t0 = time(0, "dispatch start")
     r = MuryuResponse.new
     r.status = 200
     r.content_type = 'text/html'
     r.body = ''
     r.headers = {}
     begin
-      q = MuryuQuery.new(req)
+      u,sid = authenticate(req,r)
+      t0 = time(t0, "authenticated")
+      q = MuryuQuery.new(req, sid)
+      t0 = time(t0, "parsed")
       handler = get_handler(q.type)
+      t0 = time(t0, "got_handler")
       if not q.key
-        handler.__send__(q.method, q, r)
+        handler.__send__(q.method, u, q, r)
       else
-        handler[q.key].__send__(q.method, q, r)
+        handler[u, q.key].__send__(q.method, q, r)
       end
+      t0 = time(t0, "handled")
     rescue MuryuQuery::BadMethod => e
       r.status = 405
       r.body = error(e,r.status.to_s+" Unsupported method")
     rescue MuryuQuery::BadKey, MuryuQuery::BadGet, MuryuQuery::BadPost => e
       r.status = 400
       r.body = error(e,r.status.to_s+" Bad request")
-    rescue MuryuQuery::NoListQuery, MuryuQuery::UnknownType => e
+    rescue MuryuQuery::NoListQuery, MuryuQuery::UnknownType, MuryuQuery::NotFound => e
       r.status = 404
       r.body = error(e,r.status.to_s+" File not found")
+    rescue => e
+      r.status = 500
+      r.body = error(e,r.status.to_s, true)
+    end
+    if r.content_type == 'application/json'
+      r.content_type = 'text/plain'
+      r.body = 'while(0){' << r.body << '}'
     end
     r
   end
 
-  def self.error(e, s)
+  def self.error(e, s, print_backtrace = false)
     "
     <html>
       <head>
-        <title>#{s}</title>
+        <title>#{CGI.escapeHTML(s)}</title>
       </head>
       <body>
-        <h1>#{s}: #{e.class.name}</h1>
-        <p>#{e.message}</p>
+        <h1>#{CGI.escapeHTML(s)}</h1>
+        <p>#{CGI.escapeHTML(e.message)}</p>
+        #{ "<p>#{e.backtrace.map{|s| CGI.escapeHTML(s) }.join("<br/>")}</p>" if print_backtrace }
       </body>
     </html>"
   end

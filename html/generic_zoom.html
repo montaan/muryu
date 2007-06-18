@@ -53,6 +53,12 @@
       PortalMap.prototype = {
         tileSize : 256,
         tileQuery : false,
+        tileServers : [
+          'http://t0.manifold.fhtr.org:8080/tile/',
+          'http://t1.manifold.fhtr.org:8080/tile/',
+          'http://t2.manifold.fhtr.org:8080/tile/',
+          'http://t3.manifold.fhtr.org:8080/tile/'
+        ],
         
         left : 0, top : 0,
         relativeZ : 0,
@@ -371,6 +377,14 @@
               this.element.style.display = 'none'
             }
           }
+        },
+
+        /**
+          Rotates the tile servers and returns the current first tile server.
+         */
+        rotateTileServers : function() {
+          this.tileServers.push(this.tileServers.shift())
+          return this.tileServers[0]
         }
 
       }
@@ -696,7 +710,7 @@
           this.image.style.display = 'none'
           this.image.onload = this.onload.bind(this)
           this.root.map.element.appendChild(this.image)
-          var url = '/tile/' + this.tilePath
+          var url = this.map.rotateTileServers() + this.tilePath
           this.image.src = url
         },
 

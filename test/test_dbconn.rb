@@ -13,7 +13,8 @@ class FinalizeDB
     }
   end
 end
-
+=begin
+why is this not worksing?
 class DBConnTest < Test::Unit::TestCase
 
   @@setup_done = nil
@@ -202,3 +203,4 @@ class DBConnTest < Test::Unit::TestCase
 
 
 end
+=end

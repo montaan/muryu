@@ -4,6 +4,10 @@ require 'postgres'
 require 'time'
 require 'date'
 
+if $DB_USE_POOL == nil
+  $DB_USE_POOL = true
+end
+
 class Thread
   attr_accessor :conn
 end
@@ -41,12 +45,6 @@ end
 class Array
 
   attr_writer :predicate
-
-  def to_hash
-    h = {}
-    each{|k,v| h[k] = v}
-    h
-  end
 
   def +@
     @predicate = 'ALL'
@@ -88,11 +86,15 @@ module DB
   class DBconn < PGconn
 
     def exec(query, log_level = Logger::DEBUG, subsystem = "dbconn")
-      log("DBconn#exec: "+query, subsystem, log_level) { super(query) }
+      log("DBconn#exec: "+query, subsystem, log_level) {
+        super(query)
+      }
     end
 
     def query(query, log_level = Logger::DEBUG, subsystem = "dbconn")
-      log("DBconn#query: "+query, subsystem, log_level) { super(query) }
+      log("DBconn#query: "+query, subsystem, log_level) {
+        super(query)
+      }
     end
   
   end
@@ -138,10 +140,17 @@ module DB
   def self.establish_connection(options)
     remove_const(:Conn) if defined? Conn
     log_info("Establishing DB connection #{options.inspect}", "dbconn")
-    const_set(:Conn, Pool.new(DBconn, 6, options[:host], options[:port],
-                                options[:options], nil, 
-                                options[:database], options[:login],
-                                options[:password]))
+    if $DB_USE_POOL
+      const_set(:Conn, Pool.new(DBconn, 6, options[:host], options[:port],
+                                  options[:options], nil, 
+                                  options[:database], options[:login],
+                                  options[:password]))
+    else
+      const_set(:Conn, DBconn.new(options[:host], options[:port],
+                                  options[:options], nil, 
+                                  options[:database], options[:login],
+                                  options[:password]))
+    end
   end
 
   def self.const_missing(const_name)
@@ -177,7 +186,16 @@ module DB
 
     "bool" => lambda{|i| i == true},
 
-    "timestamp" => lambda{|i| DB::Table.quote((Time.parse(i) rescue StandardDateTime.parse(i)).to_s)},
+    "timestamp" => lambda{|i|
+      DB::Table.quote(
+        case i
+        when Time, StandardDateTime
+          i.to_s
+        else
+          (Time.parse(i) rescue StandardDateTime.parse(i)).to_s
+        end
+      )
+    },
 
     :default => lambda{|i| DB::Table.quote i}
   }

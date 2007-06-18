@@ -23,7 +23,7 @@ def create_new_db(environment)
   end
 end
 
-file "lib/future/query_grammar.rb" => "lib/future/query_grammar.racc" do |t|
+file "lib/future/query_grammar.rb" => "lib/future/search/query_grammar.racc" do |t|
   sh "racc --version"
   sh "racc -o #{t.name} #{t.prerequisites[0]}"
 end

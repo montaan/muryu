@@ -39,7 +39,7 @@ end
 class Users < DB::Tables::Users
 
   def self.anonymous
-    find_or_create(:name => 'anonymous', :password => '')
+    @anonymous ||= find_or_create(:name => 'anonymous', :password => '')
   end
 
   def self.register(username, password_hash)

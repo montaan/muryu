@@ -489,7 +489,12 @@ TileMap.prototype = {
 
   parent : null,
 
-  tileServers : ['/tile/'],
+  tileServers : [
+    'http://t0.manifold.fhtr.org:8080/tile/',
+    'http://t1.manifold.fhtr.org:8080/tile/',
+    'http://t2.manifold.fhtr.org:8080/tile/',
+    'http://t3.manifold.fhtr.org:8080/tile/'
+  ],
   tileInfoServers : ['/tile_info/'],
 
   query : '',

@@ -9,25 +9,13 @@ $KCODE = 'u'
 require 'webrick'
 require 'future'
 require 'future/search/search_query'
+require 'future/web/memcachepool'
 require 'builder'
-require 'json'
 require 'memcache'
 
 $PRINT_QUERY_PROFILE = false
 $CACHE_TILES = true
 $CACHE_INFO = true
-
-class StandardDateTime < DateTime
-  def to_json(*a)
-    strftime("new Date(\"%m/%d/%Y %H:%M:%S %z\")")
-  end
-end
-
-class Time
-  def to_json(*a)
-    strftime("new Date(\"%m/%d/%Y %H:%M:%S %z\")")
-  end
-end
 
 class Thread
   attr_accessor :servlet_target, :servlet_path, :servlet_root, :last_time,
@@ -42,65 +30,7 @@ class Thread
   
 end
 
-class MemCachePool
-  def initialize(servers, size=16)
-    @queue = Queue.new
-    size.times{ @queue.push(MemCache.new(servers)) }
-    @local_cache = {}
-    @timeouts = {}
-    start_timeout_monitor
-  end
-
-  def get(a)
-    lc = @local_cache[a]
-    return lc if lc
-    s = @queue.shift
-    r = s.get(a) rescue false
-    if r
-      local_cache_set(a,r,60)
-    end
-    @queue.push(s)
-    r
-  end
-
-  def set(*a)
-    local_cache_set(*a)
-    s = @queue.shift
-    r = s.set(*a)
-    @queue.push(s)
-    r
-  end
-
-  def delete(a)
-    @local_cache.delete(a)
-    s = @queue.shift
-    r = s.delete(a)
-    @queue.push(s)
-    r
-  end
-
-  private
-  def local_cache_set(k, v, timeout=60)
-    @timeouts[k] = timeout
-    @local_cache[k] = v
-  end
-
-  def start_timeout_monitor
-    @timeout_monitor = Thread.new{
-      loop do
-        sleep(1)
-        @timeouts.each{|k,v|
-          @timeouts[k] = v-1
-        }
-        @local_cache.delete_if{|k,v| @timeouts[k] < 0 }
-      end
-    } 
-  end
-  
-end
-
-$memcache = MemCachePool.new(MEMCACHE_SERVERS)
-
+$memcache = Future.memcache
 
 module Future
   
@@ -285,6 +215,7 @@ module FutureServlet
       }
       if cookie
         cookie.instance_variable_set(:@discard, false)
+        cookie.domain = '.fhtr.org'
         cookie.max_age = 3600 * 24 * 7
         if !user or req.query['logout']
           user.logout if user
@@ -304,6 +235,7 @@ module FutureServlet
       user = Users.login(un, pw, session_id)
       if user
         new_cookie = WEBrick::Cookie.new('future_session_id', session_id)
+        new_cookie.domain = '.fhtr.org'
         new_cookie.max_age = 3600 * 24 * 7
         new_cookie.path = "/"
         res.cookies << new_cookie
@@ -1002,7 +934,6 @@ extend FutureServlet
       unless h[:order_by]
         h[:order_by] = [['image_index', :asc]]
       end
-      p h
       h
     end
 
@@ -1052,6 +983,10 @@ extend FutureServlet
     def sort_key(key, dir)
       dir_f = dir == 'asc' ? -1 : 1
       case key
+      when 'modified'
+        column = 'modified_at'
+      when 'created'
+        column = 'created_at'
       when 'new'
         column = 'created_at'
         dir_f *= -1
@@ -1137,22 +1072,25 @@ extend FutureServlet
       if servlet_path =~ /^[0-9]+$/
         self.servlet_target = rfind(servlet_user, :image_index => servlet_path)
       end
-      return false unless servlet_target
-      h = servlet_target.to_hash
-      %w(mimetype_id owner_id metadata_id internal_path).each{|k| h.delete(k)}
-      h[:groups] = servlet_target.groups.map{|g| g.name if g.namespace != 'users' }.compact
-      h[:sets] = servlet_target.sets.map{|g| g.name }
-      h[:tags] = servlet_target.tags.map{|g| g.name }
-      h[:owner] = servlet_target.owner.name
-      h[:metadata] = servlet_target.metadata.to_hash
-      h[:mimetype] = servlet_target.mimetype
-      h[:writable] = !!servlet_target.writable_by(servlet_user)
-      h[:emblems] = [
-        ['e', 'FUNNY HATS!! - £4.99 from eBay.co.uk', 'http://www.ebay.co.uk'],
-        ['euro', 'Rocket Ship - 8.49€ from Amazon.de', 'http://www.amazon.com'],
-        ['location', 'Bavaria, Germania', 'http://maps.google.com']
-      ]
-      res.body = h.to_json
+      if servlet_target
+        h = servlet_target.to_hash
+        %w(mimetype_id owner_id metadata_id internal_path).each{|k| h.delete(k)}
+        h[:groups] = servlet_target.groups.map{|g| g.name if g.namespace != 'users' }.compact
+        h[:sets] = servlet_target.sets.map{|g| g.name }
+        h[:tags] = servlet_target.tags.map{|g| g.name }
+        h[:owner] = servlet_target.owner.name
+        h[:metadata] = servlet_target.metadata.to_hash
+        h[:mimetype] = servlet_target.mimetype
+        h[:writable] = !!servlet_target.writable_by(servlet_user)
+  #       h[:emblems] = [
+  #         ['e', 'FUNNY HATS!! - £4.99 from eBay.co.uk', 'http://www.ebay.co.uk'],
+  #         ['euro', 'Rocket Ship - 8.49€ from Amazon.de', 'http://www.amazon.com'],
+  #         ['location', 'Bavaria, Germania', 'http://maps.google.com']
+  #       ]
+        res.body = h.to_json
+      else
+        do_list(req,res)
+      end
     end
 
     def do_make_public(req,res)
@@ -1169,7 +1107,7 @@ extend FutureServlet
     
     def metadata_editable_column?(k)
       ['title', 'author', 'publisher', 'publish_time', 'description',
-       'location', 'genre', 'album', 'tracknum', 'album_art']
+       'location', 'genre', 'album', 'tracknum', 'album_art'].include?(k)
     end
 
     def servlet_target_edit(req)
@@ -1387,7 +1325,7 @@ extend FutureServlet
           res.body = "Got it, thanks!"
         else
           res.status = 302
-          res['location'] = '/items'
+          res['location'] = '/'
         end
       else
         res.body = <<-EOF

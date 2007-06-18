@@ -522,7 +522,7 @@ Desk.Menu.prototype = {
     if (callback) {
       var t = this
       li.addEventListener('mouseup', function(e){
-        if (this.checked == null && this.enabled) t.hide()
+        if (this.enabled) t.hide()
         if (this.enabled) return callback(e)
       }, false)
       li.addEventListener('mousedown', function(e) {

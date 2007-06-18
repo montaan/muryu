@@ -29,6 +29,11 @@ class Items < DB::Tables::Items
     remove_instance_variable(:@items_tags) rescue nil
   end
 
+  def write(*args)
+    super
+    self.modified_at = Time.now
+  end
+
   def remove_tag(tag_name)
     if tag_name.is_a?(DB::Table)
       t = tag_name

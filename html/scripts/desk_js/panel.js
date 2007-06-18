@@ -1,17 +1,22 @@
-Desk.Panel = function(side, applets, config){
-  this.applets = []
+Desk.Panel = function(side, config){
   Desk.Window.apply(this, [null, config])
-  if (applets)
+  if (this.applets) {
+    var applets = this.applets
+    this.applets = []
     applets.each(this.addApplet.bind(this))
+  } else {
+    this.applets = []
+  }
   this.updatePlanes()
   if (side) this.side = side
   this.setSide(this.side)
 }
 Desk.Panel.loadSession = function(data){
+  var config = Object.clone(data.config)
+  config.applets = data.applets.map(Session.loadDump)
   return new Desk.Panel(
     data.side,
-    data.applets.map(Session.loadDump),
-    data.config)
+    config)
 }
 Desk.Panel.prototype = {}
 Object.extend(Desk.Panel.prototype, Desk.Window.prototype)
@@ -69,7 +74,7 @@ Object.extend(Desk.Panel.prototype, {
       }
     }.bind(this), false)
     window.addEventListener("mousemove", function(e){
-      if (this.dragging) {
+      if (this.dragging && this.movable) {
         var v = this.dragCur
         var closest_plane = this.planes.minKey(
           function(kv){ return kv[1].distance(v) })

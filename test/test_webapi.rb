@@ -1,22 +1,22 @@
 require 'future/web/webapi_1'
 require 'test/unit'
 
-Req = Struct.new(:relative_path, :get, :post, :cookies)
+Req = Struct.new(:relative_path, :get, :post, :cookies, :request_method, :headers)
 class Req
-  def initialize(rp, get=nil, post=nil, cookies=nil)
+  def initialize(rp, get='', post=nil, cookies={}, rm=nil, head=nil)
     get.each{|k,v| get[k] = [v] unless v.is_a?(Array) } if get
     post.each{|k,v| post[k] = [v] unless v.is_a?(Array) } if post
-    super(rp, get, post, cookies)
+    super(rp, get, post, cookies, rm || (get ? 'GET' : 'POST'), head)
   end
 end
 
 module MuryuDispatch
   module TileInfo
-    def self.[](key)
+    def self.[](u,key)
       Ti.new
     end
     
-    def self.view(q,r)
+    def self.view(u,q,r)
       r.body = %w(tileinfo1 tileinfo2 tileinfo3)
     end
     
@@ -28,11 +28,11 @@ module MuryuDispatch
   end
   
   module Items
-    def self.[](key)
+    def self.[](u,key)
       It.new
     end
     
-    def self.view(q,r)
+    def self.view(u,q,r)
       r.body = %w(items1 items2 items3)
     end
     
@@ -46,16 +46,16 @@ end
 
 class TestDispatch < Test::Unit::TestCase
   def test_single
-    r = Req.new('items/foo/2007/12-01/bob.jpg')
+    r = Req.new('items/foo/2007/12-01/bob.jpg',{},{})
     rv = MuryuDispatch.dispatch(r)
-    assert_equal(rv.body, 'items')
-    r = Req.new('tile_info/x0.38y1.29z39w38h39')
+    assert_equal('items', rv.body)
+    r = Req.new('tile_info/x0y1z39',{},{})
     rv = MuryuDispatch.dispatch(r)
-    assert_equal(rv.body, 'tile_info')
+    assert_equal('tile_info', rv.body)
   end
   
   def test_list
-    r = Req.new('items/')
+    r = Req.new('items/',{},{})
     rv = MuryuDispatch.dispatch(r)
     assert_equal(rv.body, %w(items1 items2 items3))
   end
@@ -70,7 +70,7 @@ end
 
 class TestMuryuQuery < Test::Unit::TestCase
   def mq(*args)
-    MuryuQuery.new(Req.new(*args))
+    MuryuQuery.new(Req.new(*args),nil)
   end
 
   class MockFile < Hash
@@ -96,7 +96,7 @@ class TestMuryuQuery < Test::Unit::TestCase
     assert_equal(q.path, 'items/foo/2007/12-01/bob.jpg/json')
     assert_equal(q.method, 'json')
     assert_equal(q.list_query, false)
-    assert_equal(q.get, nil)
+    assert_equal(q.get, '')
     assert_equal(q.post, nil)
     assert_equal(q.key, 'foo/2007/12-01/bob.jpg')
     assert_equal(q.type, 'items')
@@ -110,10 +110,10 @@ class TestMuryuQuery < Test::Unit::TestCase
     assert_equal(q.get, '')
     assert_equal(q.key, nil)
     assert_equal(q.type, 'items')
-    q = mq('items/delete', '')
+    q = mq('items/delete', nil, '')
     assert_equal(q.method, 'delete')
     assert_equal(q.list_query, true)
-    assert_equal(q.get, '')
+    assert_equal(q.post, '')
     assert_equal(q.key, nil)
     assert_equal(q.type, 'items')
     q = mq('items', '')
@@ -132,24 +132,21 @@ class TestMuryuQuery < Test::Unit::TestCase
   
   def test_no_list_query
     assert_raise(MuryuQuery::NoListQuery){
-      q = mq('users/', '')
+      q = mq('tile/', '')
     }
     assert_raise(MuryuQuery::NoListQuery){
-      q = mq('users', '')
+      q = mq('tile', '')
     }
     assert_raise(MuryuQuery::NoListQuery){
-      q = mq('users/view', '')
+      q = mq('tile/view', '')
     }
-    assert_raise(MuryuQuery::NoListQuery){
-      q = mq('users/json', '')
-    }
-    q = mq('users/bob/json', '')
-    assert_equal(q.path, 'users/bob/json')
-    assert_equal(q.method, 'json')
+    q = mq('tile/x0y0z0', '')
+    assert_equal(q.path, 'tile/x0y0z0')
+    assert_equal(q.method, 'view')
     assert_equal(q.list_query, false)
     assert_equal(q.get, '')
-    assert_equal(q.key, 'bob')
-    assert_equal(q.type, 'users')
+    assert_equal(q.key, 'x0y0z0')
+    assert_equal(q.type, 'tile')
   end
   
   def test_bad_type
@@ -165,7 +162,7 @@ class TestMuryuQuery < Test::Unit::TestCase
   end
   
   def test_good_verb
-    MuryuQuery.type_methods['users'].each{|m|
+    MuryuQuery.type_method_get_validators['users'].each{|m,v|
       q = mq('users/bob/'+m, '')
       assert_equal(q.path, 'users/bob/'+m)
       assert_equal(q.method, m)
@@ -199,10 +196,10 @@ class TestMuryuQuery < Test::Unit::TestCase
       mq('tile_info/x0y0z0w0h0')
     }
     assert_raise(MuryuQuery::BadKey){
-      mq('tile_info/x0.0y0z0.0w0h0')
+      mq('tile_info/x0y0z0.0')
     }
     assert_raise(MuryuQuery::BadKey){
-      mq('tile/x0.0y0.0z0w0.0h0')
+      mq('tile/x0y0.0z0')
     }
     assert_raise(MuryuQuery::BadKey){
       mq('tile/jbobjoakim')
@@ -211,7 +208,7 @@ class TestMuryuQuery < Test::Unit::TestCase
       mq('tile/x0.gyn.0z00.0h0')
     }
     assert_raise(MuryuQuery::BadKey){
-      mq('files/x0.0y0.0z0w0.0h0')
+      mq('files/x0.0y0z0')
     }
     assert_raise(MuryuQuery::BadKey){
       mq('files/039485')
@@ -245,10 +242,10 @@ class TestMuryuQuery < Test::Unit::TestCase
     mq('groups/adamuk-08227')
     mq('groups/b-zark')
     mq('groups/inter_worship')
-    mq('tile/x0.0y0.0z10w256h256')
-    mq('tile/x1.25y5.375z5w256h256')
-    mq('tile_info/x0.0y0.0z10w256h256')
-    mq('tile_info/x1.25y5.375z10w256h256')
+    mq('tile/x0y0z10')
+    mq('tile/x25y375z5')
+    mq('tile_info/x0y0z10')
+    mq('tile_info/x1y375z10')
   end
   
   def test_good_items_get
@@ -276,14 +273,14 @@ class TestMuryuQuery < Test::Unit::TestCase
     mq('items/foo/2007/10-10/bob.jpg/view', {})
     mq('items/foo/2007/10-10/bob.jpg/thumbnail', {})
     mq('items/foo/2007/10-10/bob.jpg/file', {})
-    mq('files/foo/2007/10-10/bob.jpg')
+    mq('files/foo/2007/10-10/bob.jpg', {})
     mq('files/', {
       'q' => 'set:bank user:bob account details'
     })
   end
 
   def test_good_items_post
-    mq('items/upload', nil, {
+    mq('items/create', nil, {
     })
     mq('items/foo/2007/10-10/bob.jpg/edit', nil, {
     })
@@ -294,7 +291,7 @@ class TestMuryuQuery < Test::Unit::TestCase
     mq('items/foo/2007/10-10/bob.jpg/purge', nil, {
       'password' => 'oi9825jau'
     })
-    mq('items/upload', nil, {
+    mq('items/create', nil, {
       'local_file' => MockFile.new,
       'local_archive' => MockFile.new,
     })
@@ -325,12 +322,12 @@ class TestMuryuQuery < Test::Unit::TestCase
         'badamuk' => 'badaluk'})
     }
     assert_raise(MuryuQuery::BadPost){
-      mq('items/upload', nil, {
+      mq('items/create', nil, {
         'local_file' => 'bababad'
       })
     }
     assert_raise(MuryuQuery::BadPost){
-      mq('items/upload', nil, {
+      mq('items/create', nil, {
         'local_archive' => 'bababad'
       })
     }
@@ -422,18 +419,18 @@ class TestMuryuQuery < Test::Unit::TestCase
   end
 
   def test_good_tile_get
-    mq('tile/x1.25y5.375z10w256h256', {
+    mq('tile/x1y5z10', {
       'q' => 'set:bank user:bob account details'
     })
-    mq('tile_info/x1.25y5.375z10w256h256', {
+    mq('tile_info/x1y5z10', {
       'q' => 'set:bank user:bob account details',
       'columns' => 'metadata,owner'
     })
-    mq('tile_info/x1.25y5.375z10w256h256', {
+    mq('tile_info/x1y5z10', {
       'q' => 'set:bank user:bob account details',
       'columns' => 'all'
     })
-    mq('tile_info/x1.25y5.375z10w256h256', {
+    mq('tile_info/x1y5z10', {
       'q' => 'set:bank user:bob account details'
     })
   end

@@ -106,7 +106,7 @@ Suture.make = function(w, index, query){
     fillWindow: true,
     index: index,
     query: query,
-    listURL : '/items',
+    listURL : '/items/json',
     filePrefix : '/files/',
     window: w
   })
@@ -151,7 +151,7 @@ Suture.prototype = {
   query : null,
   infos : {},
   itemCount : 0,
-  listURL : '/items',
+  listURL : '/items/json',
   filePrefix : '/files/',
   frameTime : 20,
   requestedIndex : null,
@@ -242,6 +242,7 @@ Suture.prototype = {
       this.newQuery = false
       new Ajax.Request(this.listURL, {
         parameters : params,
+        method : 'get',
         onSuccess : function(res) {
           this.loadingIndicator.style.visibility = "hidden"
           var infos = res.responseText.evalJSON()
@@ -301,7 +302,7 @@ Suture.prototype = {
   searchKeyHandler : function(e) {
     if ((e.charCode | e.keyCode) == 13) {
       var sv = this.search.value
-      if (this.previousSearchValue != sv || e.shiftKey || this.images.length < this.allImages.length) {
+      if (this.previousSearchValue != sv || e.shiftKey) {
         if (this.liveSearchTimeout) clearTimeout(this.liveSearchTimeout)
         this.previousSearchValue = sv
         this.submitImageSearch(!e.shiftKey)
@@ -869,6 +870,8 @@ FaderDiv = function(div) {
       this.canvas.style.borderTop = '1px solid #1A1A1A'
       this.canvas.style.borderRight = '1px solid #161616'
       this.canvas.style.borderBottom = '0px'
+      this.scratchCanvasA = E('canvas')
+      this.scratchCanvasB = E('canvas')
     }
   }
   this.shadow = document.createElement("div")
@@ -918,8 +921,42 @@ FaderDiv.prototype = {
       this.canvas.style.left = Math.ceil((dw - w) / 2) + 'px'
       this.canvas.width = Math.ceil(w)
       this.canvas.height = Math.ceil(h)
-      var c = this.canvas.getContext('2d')
-      c.drawImage(f,0,0,Math.ceil(w),Math.ceil(h))
+      if (w > 0 && w < fw / 2) {
+      // hacky multi-level downscaling that produces marginally better results
+      // than a single bi-linear downscale (but still craps out with 1px glows
+      // surrounding linework (i.e. high amplitude&freq line: -^_-))
+        var a = this.scratchCanvasA
+        var b = this.scratchCanvasB
+        var tmp
+        var sw = fw * 0.6
+        var sh = fh * 0.6
+        a.width = Math.ceil(sw)
+        a.height = Math.ceil(sh)
+        var ac = a.getContext('2d')
+        var bc = b.getContext('2d')
+        ac.clearRect(0,0,a.width,a.height)
+        ac.drawImage(f,0,0,sw,sh)
+        while (w < sw * 0.5) {
+          sw *= 0.6
+          sh *= 0.6
+          b.width = Math.ceil(sw)
+          b.height = Math.ceil(sh)
+          bc.clearRect(0,0,b.width,b.height)
+          bc.drawImage(a,0,0,sw,sh)
+          tmp = a
+          a = b
+          b = tmp
+          tmp = ac
+          ac = bc
+          bc = tmp
+        }
+        var c = this.canvas.getContext('2d')
+        c.drawImage(a,0,0,Math.ceil(w),Math.ceil(h))
+        a.width = a.height = b.width = b.height = 0
+      } else {
+        var c = this.canvas.getContext('2d')
+        c.drawImage(f,0,0,Math.ceil(w),Math.ceil(h))
+      }
       this.setElementOpacity(this.canvas, this.opacity)
     } else if (this.canvas.parentNode) {
       $(this.canvas).detachSelf()

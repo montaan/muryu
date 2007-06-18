@@ -9,7 +9,7 @@ Metadata = {
 }
 
 Tr.addTranslations('en-US', {
-  'Item.DateObject' : function(d){
+  'Date' : function(d){
     weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     return (weekdays[d.getDay()] + ', ' + months[d.getMonth()] + ' ' +
@@ -81,7 +81,7 @@ Tr.addTranslations('en-US', {
   'WindowGroup.other' : 'others'
 })
 Tr.addTranslations('en-GB', {
-  'Item.DateObject' : function(d){
+  'Date' : function(d){
     weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     return (weekdays[d.getDay()] + ', ' + d.getDate() + ' ' +
@@ -93,7 +93,7 @@ Tr.addTranslations('en-GB', {
   }
 })
 Tr.addTranslations('fi-FI', {
-  'Item.DateObject' : function(d){
+  'Date' : function(d){
     weekdays = ['su', 'ma', 'ti', 'ke', 'to', 'pe', 'la']
     months = ['tammi', 'helmi', 'maalis', 'huhti', 'touko', 'kesä', 'heinä', 'elo', 'syys', 'loka', 'marras', 'joulu']
     return (weekdays[d.getDay()] + ' ' + d.getDate() + '. ' +
@@ -304,7 +304,7 @@ Mimetype = {
         by.appendChild(E('a', Tr("Item.referrer"), null, 'infoDivLink', null,
                                   {href:info.referrer}))
       }
-      by.appendChild(T(" | " + Tr('Item.DateObject', info.created_at)))
+      by.appendChild(T(" | " + Tr('Date', info.created_at)))
       infoDiv.appendChild(by)
       if (info.writable && !hide_edit_link) {
         var t = this
@@ -372,7 +372,7 @@ Mimetype = {
             var dc = tuples['Date and Time'].split(/[^0-9]/)
             var d = new Date(dc[0], dc[1], dc[2], dc[3], dc[4], dc[5])
             exifdata.push(Tr("Item.date_taken", ": " +
-                                        Tr("Item.DateObject", d)))
+                                        Tr("Date", d)))
           }
           if (tuples.Manufacturer)
             exifdata.push(Tr("Item.camera", ": " + tuples.Model +
@@ -776,11 +776,6 @@ Mimetype = {
       obj = new Object()
       var d = E('span')
       d.style.display = 'block'
-      d.style.position = 'relative'
-      d.style.width = '100%'
-      d.style.height = Math.max(parseInt(editor.style.height),
-                                parseInt($(editor).getComputedStyle().minHeight)) - 64 + 'px'
-      d.style.overflow = 'auto'
       var tb = E('table')
       tb.width = "100%"
       d.appendChild(tb)
