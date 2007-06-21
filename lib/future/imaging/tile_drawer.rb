@@ -304,7 +304,7 @@ class TileDrawer
     @max_cache_size = 1_000_000
     @raw_cache_level = 4
     @jpeg_cache_level = 7
-    init_sw
+    init_sw unless $NO_TILE_DRAWING
   end
 
   def draw_tile(bgcolor, indexes, palette, layouter_name, x, y, zoom, w, h, bgimage=nil)
@@ -370,6 +370,7 @@ class TileDrawer
       cpalette = []
     end
     puts "#{Thread.current.telapsed} for palette generation" if $PRINT_QUERY_PROFILE
+    init_sw unless @@sw_init
     @@draw_mutex.synchronize do
       draw_query(indexes[0], indexes[1], cpalette, x, y, z,
         @image_cache.thumb_size_at_zoom(z), bgcolor.pack("CCC").reverse! << 255,
@@ -381,7 +382,6 @@ class TileDrawer
   @@draw_mutex = Mutex.new
 
   def init_sw
-    return if $NO_TILE_DRAWING
     @@init_mutex.synchronize do
       return if @@sw_init
       @@sw_init = true
