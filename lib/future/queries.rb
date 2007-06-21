@@ -1,7 +1,7 @@
 
 module Future
 
-require 'future/query_grammar'
+require 'future/search/search_query'
 
 class QueryGenerator
   DISCRETE_FIELDS = {

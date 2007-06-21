@@ -71,6 +71,7 @@ class MuryuQuery
   self.type_methods = {
     'items' => %w(create json edit delete undelete purge view thumbnail file make_public make_private),
     'files' => %w(view item),
+    'subfiles' => %w(view),
     'sets' => %w(create json edit delete undelete view),
     'users' => %w(create register login logout json edit delete purge view set_preferences delete_preferences clear_preferences create_workspace delete_workspace set_workspace),
     'groups' => %w(create json edit delete undelete view),
@@ -112,6 +113,7 @@ class MuryuQuery
   self.type_keys = {
     'items' => e(itemkey),
     'files' => e(relative_path),
+    'subfiles' => e(relative_path+"(/[0-9A-Za-z._-]*)?"),
     'sets' => e(setkey),
     'users' => e(username),
     'groups' => e(groupname),
@@ -181,6 +183,9 @@ class MuryuQuery
     'files' => {
       'view' => up,
       'item' => up
+    },
+    'subfiles' => {
+      'view' => up
     },
     'sets' => {
       'view' => up,

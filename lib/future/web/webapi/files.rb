@@ -3,7 +3,7 @@ module MuryuDispatch
   module Files
   include Handler
   extend self
-
+  
     ### PROPERTIES
   
     def view(u,q,res)
@@ -21,8 +21,13 @@ module MuryuDispatch
           res.status = 304
         else
           res['Last-Modified-At'] = lm
-          res.body = File.open(@target.internal_path, 'rb')
-          res.content_type = @target.mimetype
+          if @target.mimetype == 'text/html'
+            res.status = 302
+            res['Location'] = "/subfiles/#{q.key}/data"
+          else
+            res.body = File.open(@target.internal_path, 'rb')
+            res.content_type = @target.mimetype
+          end
         end
       end
 
@@ -33,6 +38,62 @@ module MuryuDispatch
       
     end
     self.single_handler = ItemFile
+  end
+
+
+  module Subfiles
+  include Handler
+  extend self
+
+    class SubfilesHandler < SingleHandler
+  
+      def view(req, res)
+        spl = req.key.split("/")
+        path = spl[0,4].join("/")
+        rest = spl[4..-1].join("/")
+        item = Future::Items.rfind(user, :path => path)
+        if item
+          ip = File.split(item.internal_path).first
+          sp = rest.gsub(/\A\.*\/|(\/\.\.\/)|(\/\.\.\Z)/, '')
+          fn = File.join(ip, sp)
+          if fn.index(File.dirname(ip)) == 0 and File.exist?(fn)
+            if sp.empty?
+              res.status = 302
+              res['Location'] = "/subfiles/#{req.key}/data"
+            elsif fn == File.join(ip, 'data')
+              if req['If-None-Match'] == item.sha1_hash
+                res.status = 304
+              else
+                res.content_type = item.mimetype + "; charset=" + item.charset.to_s
+                res['ETag'] = item.sha1_hash
+                res.body = File.open(fn)
+              end
+            elsif File.directory?(fn)
+              res.status = 403
+              res.body = "<html><body> No directory listings </body></html>"
+            else
+              mtime = File.mtime(fn).httpdate
+              if req['If-Modified-Since'] == mtime
+                res.status = 304
+              else
+                res['Last-Modified'] = mtime
+                res.content_type = MimeInfo.get(sp).to_s
+                res.body = File.open(fn)
+              end
+            end
+          else
+            res.status = 404
+            res.body = "<html><body> File not found </body></html>"
+          end
+        else
+          res.status = 404
+          res.body = "<html><body> File not found </body></html>"
+        end
+      end
+
+    end
+    self.single_handler = SubfilesHandler
+  
   end
 
 end

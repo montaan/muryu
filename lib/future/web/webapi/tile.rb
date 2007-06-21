@@ -37,8 +37,9 @@ module MuryuDispatch
       end
       puts "#{Thread.current.telapsed} for memcache get" if $PRINT_QUERY_PROFILE
       tile = nil
+      res['ETag'] = time_key
       if false #time
-        if req['If-None-Match'] == time_key && req['If-Modified-Since'] == time
+        if req['If-None-Match'] == time_key || req['If-Modified-Since'] == time
           res.status = 304
           return
         else

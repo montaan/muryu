@@ -64,9 +64,10 @@ class MozSnapshooter < Gtk::Window
   
 end
 
+# Xvfb :15 -ac -screen 0 1280x1024x24
 File.open('/tmp/.moz-snapshooter.lock','w') {|f|
   f.flock(File::LOCK_EX)
-  Thread.new{ sleep 10; exit }
+  Thread.new{ sleep 30; exit }
   begin
     MozSnapshooter.new ARGV[0], ARGV[1]
     Gtk.main
