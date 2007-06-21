@@ -80,7 +80,7 @@ Applets.Session = function(wm) {
   password.type = 'password'
   loginform.appendChild(password)
   var submit = E('input', null, null, 'taskbarSubmitInput')
-  submit.value = Tr('Log in')
+  submit.value = Tr('Applets.Session.LogIn')
   submit.type = 'submit'
   loginform.appendChild(submit)
   

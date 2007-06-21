@@ -70,7 +70,7 @@ end
 
 class TestMuryuQuery < Test::Unit::TestCase
   def mq(*args)
-    MuryuQuery.new(Req.new(*args),nil)
+    MuryuQuery.new(Req.new(*args))
   end
 
   class MockFile < Hash

@@ -345,7 +345,7 @@ class TileDrawer
 
   def tile_info(indexes, layouter_name, x, y, zoom, w, h, *layouter_args)
     layouter = LAYOUTERS[layouter_name.to_s]
-    raise ArgumentError, "Bad layouter_name: #{layouter_name.inspect}" unless layouter
+    raise ArgumentError, "Bad layouter_name: #{layouter_name.to_s}" unless layouter
     sz = @image_cache.thumb_size_at_zoom(zoom)
     layouter.each(indexes, x, y, sz, w, h, *layouter_args) do |i, ix, iy|
       yield(i, ix, iy, sz)
@@ -354,7 +354,7 @@ class TileDrawer
 
   def dimensions(indexes, layouter_name)
     layouter = LAYOUTERS[layouter_name.to_s]
-    raise ArgumentError, "Bad layouter_name: #{layouter_name.inspect}" unless layouter
+    raise ArgumentError, "Bad layouter_name: #{layouter_name.to_s}" unless layouter
     layouter.dimensions(indexes)
   end
 

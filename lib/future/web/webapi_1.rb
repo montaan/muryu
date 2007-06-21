@@ -62,8 +62,9 @@ class MuryuQuery
   class BadPost < MuryuError
   end
   
-  attr_reader(:path, :type, :method, :key, :list_query, :get, :post, :cookies, :query, :session_id)
-
+  attr_reader(:path, :type, :method, :key, :list_query, :get, :post, :cookies, :request_method, :query)
+  attr_accessor(:session_id)
+  
   class << self
     attr_accessor(:type_methods, :type_list_query, :type_keys, :type_method_get_validators, :type_method_post_validators)
   end
@@ -194,7 +195,8 @@ class MuryuQuery
     'users' => {
       'logout' => up,
       'view' => up,
-      'json' => up
+      'json' => up,
+      'register' => {}
     },
     'groups' => {
       'view' => up,
@@ -304,11 +306,10 @@ class MuryuQuery
     }
   }
   
-  def initialize(req,session_id)
+  def initialize(req)
     @get = req.get
     @post = req.post
     @request_method = req.request_method
-    @session_id = session_id
     @query = @request_method == 'POST' ? @post : @get
     @headers = req.headers
     @cookies = req.cookies
@@ -450,8 +451,8 @@ module MuryuDispatch
   end
 
   def self.authenticate(req, res)
-    un = req.post['username'] || req.get['username']
-    pw = req.post['password'] || req.get['password']
+    un = req.query['username']
+    pw = req.query['password']
     cookies = req.cookies['future_session_id']
     cookies = [cookies].compact unless cookies.is_a?(Array)
     user = cookie = session_id = nil
@@ -541,10 +542,11 @@ module MuryuDispatch
     r.body = ''
     r.headers = {}
     begin
-      u,sid = authenticate(req,r)
-      t0 = time(t0, "authenticated")
-      q = MuryuQuery.new(req, sid)
+      q = MuryuQuery.new(req)
       t0 = time(t0, "parsed")
+      u,sid = authenticate(q,r)
+      t0 = time(t0, "authenticated")
+      q.session_id = sid
       handler = get_handler(q.type)
       t0 = time(t0, "got_handler")
       if not q.key

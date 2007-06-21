@@ -68,8 +68,8 @@ module MuryuDispatch
       pw = req.query['password']
       if un and pw
         user.logout if user
-        if (not find(:name => un)) and user = register(un, pw)
-          user_auth(req, res)
+        if (not Future::Users.find(:name => un)) and user = Future::Users.register(un, pw)
+          MuryuDispatch.authenticate(req,res)
           res.body = Builder::XmlMarkup.new.html do |b|
             b.head { b.title("Registered new account!") }
             b.body {

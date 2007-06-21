@@ -1467,6 +1467,7 @@ extend FutureServlet
     def do_json(req,res)
       if servlet_user != Users.anonymous
         res['Content-type'] = 'text/plain'
+        p servlet_user
         name = servlet_user.name
         workspace = servlet_user.workspace.name
         workspaces = servlet_user.workspaces.map{|w| w.name }
