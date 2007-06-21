@@ -123,6 +123,16 @@ class MuryuQuery
     /\A\s*((#{r})\s*,\s*)*(#{r})\s*\Z/
   }
 
+  json_array_of = lambda{|r, *a|
+    count = a[0]
+    if count
+      "\\s*\\[\\s*((#{r})\\s*,\\s*){#{count-1}}(#{r})\\s*\\]\\s*"
+    else
+      "\\s*\\[\\s*((#{r})\\s*,\\s*)*(#{r})\\s*\\]\\s*"
+    end
+  }
+
+
   field_names = %w(image_index owner path deleted sha1_hash size source referrer created_at modified_at sets tags groups mimetype metadata all).join("|")
 
   up = {
@@ -199,7 +209,8 @@ class MuryuQuery
         'color' => e(boolean),
         'time' => e(uint),
         'columns' => list_of[field_names],
-        'bgcolor' => e(color)
+        'bgcolor' => e(color),
+        'tiles' => e(json_array_of[json_array_of[uint,3]])
       }.merge(up)
     }
   }
@@ -275,6 +286,16 @@ class MuryuQuery
       }.merge(up),
       'delete' => up,
       'undelete' => up
+    },
+    'tile_info' => {
+      'view' => {
+        'q' => e(string),
+        'color' => e(boolean),
+        'time' => e(uint),
+        'columns' => list_of[field_names],
+        'bgcolor' => e(color),
+        'tiles' => e(json_array_of[json_array_of[uint,3]])
+      }.merge(up)
     }
   }
   
@@ -322,11 +343,13 @@ class MuryuQuery
   end
 
   def supports_get?
-    self.class.type_method_get_validators[@type][@method]
+    a = self.class.type_method_get_validators[@type]
+    a and a[@method]
   end
 
   def supports_post?
-    self.class.type_method_post_validators[@type][@method]
+    a = self.class.type_method_post_validators[@type]
+    a and a[@method]
   end
 
   def validate(t, key, vals)
@@ -374,7 +397,7 @@ class MuryuQuery
       bp = @post.find_all{|k,v| !valid_post?(k, v) }
       raise(BadPost, "Bad POST query arguments for #@type/#@method (#{
         @list_query ? 'list query' : "target: #{@key or 'new'}"
-      }): "+bp.map{|k,v| k + " => " + v.join(",") }.join(", ")) unless bp.empty?
+      }): "+bp.map{|k,v| k + "=" + v.join(",") }.join(", ")) unless bp.empty?
     elsif @request_method == 'GET' and supports_get?
       bg = @get.find_all{|k,v| !valid_get?(k, v) }
       raise(BadGet, "Bad GET query arguments for #@type/#@method (#{
@@ -527,15 +550,19 @@ module MuryuDispatch
       t0 = time(t0, "handled")
     rescue MuryuQuery::BadMethod => e
       r.status = 405
+      r.content_type = 'text/html'
       r.body = error(e,r.status.to_s+" Unsupported method")
     rescue MuryuQuery::BadKey, MuryuQuery::BadGet, MuryuQuery::BadPost => e
       r.status = 400
+      r.content_type = 'text/html'
       r.body = error(e,r.status.to_s+" Bad request")
     rescue MuryuQuery::NoListQuery, MuryuQuery::UnknownType, MuryuQuery::NotFound => e
       r.status = 404
+      r.content_type = 'text/html'
       r.body = error(e,r.status.to_s+" File not found")
     rescue => e
       r.status = 500
+      r.content_type = 'text/html'
       r.body = error(e,r.status.to_s, true)
     end
     if r.content_type == 'application/json'

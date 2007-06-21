@@ -1,6 +1,9 @@
 #!/usr/bin/env ruby
 Thread.abort_on_exception = true
 
+$MEMCACHE_USE_POOL = true
+$DB_USE_POOL = true
+
 def load_and_update(fn)
   mtime = File.mtime(fn)
   load fn

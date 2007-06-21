@@ -1873,7 +1873,7 @@ Loader.prototype = {
   totalCompletes : 0,
 
   loads : 0,
-  maxLoads : 2,
+  maxLoads : 8,
   tileSize : 0.125, // in Mbps
   bandwidthLimit : -0.3, // in Mbps, negative values for no limit
 

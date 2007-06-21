@@ -65,22 +65,28 @@ module Future
   class MemCacheLocal
     def initialize(servers, size=16)
       @server = MemCache.new(servers)
-
+      @mutex = Mutex.new
     end
 
     def get(a)
-      r = @server.get(a) rescue false
-      r
+      @mutex.synchronize do
+        r = @server.get(a) rescue false
+        r
+      end
     end
 
     def set(*a)
-      r = @server.set(*a) rescue false
-      r
+      @mutex.synchronize do
+        r = @server.set(*a) rescue false
+        r
+      end
     end
 
     def delete(a)
-      r = @server.delete(a) rescue false
-      r
+      @mutex.synchronize do
+        r = @server.delete(a) rescue false
+        r
+      end
     end
   end
 

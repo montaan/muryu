@@ -118,8 +118,8 @@ extend self
         key = "indexes::" + user.id.to_s + "::" + sanitize_query(query)
         puts "#{Thread.current.telapsed} for generating key" if $PRINT_QUERY_PROFILE
         unless $indexes_changed
-          if $memcache
-            t = $memcache.get(key)
+          if Future.memcache
+            t = Future.memcache.get(key)
           else
             t = @@indexes[key]
           end
@@ -133,8 +133,8 @@ extend self
             [ii, mi]
           }
           t = [nidxs, nidxs.transpose.map{|ix| ix.map.pack("I*") }]
-          if $memcache
-            $memcache.set(key, t, 300)
+          if Future.memcache
+            Future.memcache.set(key, t, 300)
           else
             @@indexes[key] = t
           end
@@ -226,8 +226,8 @@ extend self
         t = nil
         key = ["info", user.id.to_s, time, sanitize_query(query)].join("::")
         if $CACHE_INFO and not $info_changed
-          if $memcache
-            t = $memcache.get(key)
+          if Future.memcache
+            t = Future.memcache.get(key)
           else
             t = @@infos[key]
           end
@@ -257,8 +257,8 @@ extend self
           puts "#{Thread.current.telapsed} for mangling info" if $PRINT_QUERY_PROFILE
           t = [idxs, iidxs]
           if $CACHE_INFO
-            if $memcache
-              $memcache.set(key, t, 300)
+            if Future.memcache
+              Future.memcache.set(key, t, 300)
             else
               @@infos[key] = t
             end
