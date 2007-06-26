@@ -52,7 +52,7 @@ iframe {
   font-size: 13px;
   font-weight: bold;
   margin-left: 2px;
-  margin-top: 1px;
+  margin-top: 0px;
   margin-bottom: 0px;
   margin-right: 4px;
   float: left;
@@ -421,9 +421,10 @@ iframe {
   font-family: Trebuchet MS, Arial, Sans-Serif;
 }
 li.MenuItem {
-  padding: 2px;
-  padding-left: 8px;
-  padding-right: 4px;
+  padding-top: 0.5ex;
+  padding-bottom: 0.333ex;
+  padding-left: 1.333ex;
+  padding-right: 0.666ex;
 }
 li.MenuItem:hover {
   background: #ffc840;
@@ -446,7 +447,8 @@ li.MenuItem:hover {
 }
 .MenuItem img {
   vertical-align: top;
-  margin-right: 4px;
+  margin-right: 0.666ex;
+  margin-top: -0.25ex;
 }
 .MenuTitle h4 {
   margin: 0px;

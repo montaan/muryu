@@ -64,6 +64,7 @@ Tr.addTranslations('en-US', {
   'Item.click_to_edit_title' : 'Click to edit item title',
   'Item.click_to_edit_author' : 'Click to edit item author',
   'Item.item' : 'item',
+  'Item.organization' : 'organization',
   'Item.metadata' : 'metadata',
   
   'Item.Editing' : 'Editing ',
@@ -147,6 +148,7 @@ Tr.addTranslations('fi-FI', {
   'Item.click_to_edit_title' : 'Napsauta muokataksesi nimekettä',
   'Item.click_to_edit_author' : 'Napsauta muokataksesi tekijän nimeä',
   'Item.item' : 'kohde',
+  'Item.organization' : 'järjestely',
   'Item.metadata' : 'sisältö',
   
   'Item.Editing' : function(name) {
@@ -750,7 +752,10 @@ Mimetype = {
     itemKeys : [
       {name:'source', type:['url']},
       {name:'referrer', type:['url']},
-      {name:'tags', type:['autoComplete', 'tags']},
+      {name:'tags', type:['autoComplete', 'tags']}
+    ],
+
+    orgKeys : [
       {name:'sets', type:['listOrNew', 'sets', true]},
       {name:'groups', type:['listOrNew', 'groups', true]}
     ],
@@ -778,16 +783,18 @@ Mimetype = {
       d.style.display = 'block'
       var tb = E('table')
       tb.width = "100%"
+      tb.style.minWidth = '768px'
       d.appendChild(tb)
       var tr = E('tr')
       tr.vAlign = 'top'
       tb.appendChild(tr)
       var td = E('td')
-      td.width = "50%"
+      td.width = "33%"
       tr.appendChild(td)
       td.appendChild(E('h4', Tr('Item.item')))
       var dd = E('div')
       td.appendChild(dd)
+      dd.appendChild(E("img", null, null, null, {display:'block'}, {src:Map.__itemPrefix + info.path+'/thumbnail'}))
       dd.appendChild(E("h5", Tr('Item.filename')))
       dd.appendChild(E("input", null,null,null,null,
         { type: 'text',
@@ -798,9 +805,23 @@ Mimetype = {
         var args = i.type.slice(1)
         var ed
         dd.appendChild(E("h5", Tr('Item.'+i.name)))
-        if (i.name == 'tags') {
+        if (i.name == 'tags')
           ed = Editors[i.type[0]](i.name, info[i.name].join(", "), args)
-        } else if (i.type[0] == 'list' || i.type[0] == 'listOrNew') {
+        else
+          ed = Editors[i.type[0]](i.name, info[i.name], args)
+        dd.appendChild(ed)
+      })
+      td = E('td')
+      td.width = "33%"
+      tr.appendChild(td)
+      td.appendChild(E('h4', Tr('Item.organization')))
+      dd = E('div')
+      td.appendChild(dd)
+      this.orgKeys.each(function(i) {
+        var args = i.type.slice(1)
+        var ed
+        dd.appendChild(E("h5", Tr('Item.'+i.name)))
+        if (i.name == 'groups') {
           var list_name = args.shift()
           ed = E('span')
           new Ajax.Request('/'+list_name+'/json', {
@@ -809,7 +830,51 @@ Mimetype = {
             try {
               var items = res.responseText.evalJSON()
               var list_parse = function(it){
-                return ((typeof it == 'string') ? it : it.name + ':' + it.namespace)
+                return {title: it.name + ' (owner: ' + it.owner + ')', value: it.name }
+              }
+              var poss_vals = items.map(list_parse)
+              var values = info[i.name]
+              var my_groups = []
+              var admin_groups = []
+              var item_groups = []
+              var rest = []
+              for(var j=0;j<items.length;j++) {
+                var a = items[j]
+                if (values.include(list_parse(a).value)) {
+                  item_groups.push(a)
+                } else if (a.owner == Session.storage.info.name) {
+                  my_groups.push(a)
+                } else if (a.writable) {
+                  admin_groups.push(a)
+                } else {
+                  rest.push(a)
+                }
+              }
+              if (my_groups.length > 0)
+                my_groups = [{title:'My groups'}].concat(my_groups.map(list_parse).sort())
+              if (admin_groups.length > 0)
+                admin_groups = [{title:'Groups that I administer'}].concat(admin_groups.map(list_parse).sort())
+              if (item_groups.length > 0)
+                item_groups = [{title:"Item's groups"}].concat(item_groups.map(list_parse).sort())
+              if (rest.length > 0)
+                rest = [{title:'Groups that I am a member of'}].concat(rest.map(list_parse).sort())
+              args = [item_groups.concat([{separator:true}]).concat(my_groups).concat(admin_groups).concat(rest)].concat(args)
+              ed.appendChild(Editors[i.type[0]](i.name, values, args))
+            } catch(e) {
+              console.log(e)
+            }
+            }
+          })
+        } else if (i.name == 'sets') {
+          var list_name = args.shift()
+          ed = E('span')
+          new Ajax.Request('/'+list_name+'/json', {
+            method : 'get',
+            onSuccess: function(res){
+            try {
+              var items = res.responseText.evalJSON()
+              var list_parse = function(it){
+                return (it.namespace + '/' + it.name )
               }
               var poss_vals = items.map(list_parse)
               var values = ((typeof info[i.name] == 'string') ?
@@ -821,20 +886,32 @@ Mimetype = {
             }
             }
           })
-        } else {
-          ed = Editors[i.type[0]](i.name, info[i.name], args)
-        }
-        if (i.type[0] == 'location') {
-          ed.mapAttachNode = editor
-          ed.mapTop = $(editor).getComputedStyle().top
-          ed.mapLeft = (parseInt($(editor).getComputedStyle().left) +
-              Math.max(parseInt($(editor).getComputedStyle().width),
-                        parseInt($(editor).getComputedStyle().minWidth)) + 'px')
+        } else if (i.type[0] == 'list' || i.type[0] == 'listOrNew') {
+          var list_name = args.shift()
+          ed = E('span')
+          new Ajax.Request('/'+list_name+'/json', {
+            method : 'get',
+            onSuccess: function(res){
+            try {
+              var items = res.responseText.evalJSON()
+              var list_parse = function(it){
+                return ((typeof it == 'string') ? it : it.namespace + '/' + it.name )
+              }
+              var poss_vals = items.map(list_parse)
+              var values = ((typeof info[i.name] == 'string') ?
+                            info[i.name] : info[i.name].map(list_parse))
+              args = [poss_vals].concat(args)
+              ed.appendChild(Editors[i.type[0]](i.name, values, args))
+            } catch(e) {
+              console.log(e)
+            }
+            }
+          })
         }
         dd.appendChild(ed)
       })
       td = E('td')
-      td.width = "50%"
+      td.width = "33%"
       tr.appendChild(td)
       td.appendChild(E('h4', Tr('Item.metadata')))
       dd = E('div')
@@ -851,7 +928,7 @@ Mimetype = {
             onSuccess: function(res){
             try {
               var items = res.responseText.evalJSON()
-              var list_parse = function(it){ return it.name + ':' + it.namespace }
+              var list_parse = function(it){ return it.name }
               var poss_vals = items.map(list_parse)
               var values = info.metadata[i.name].map(list_parse)
               args = [values, poss_vals].concat(args)

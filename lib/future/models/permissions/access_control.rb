@@ -116,7 +116,7 @@ extend AccessControlClass
     qs = parse_query(h)
     qs = qs.split(/\n/)
     qs[2].sub!("FROM", "FROM users_groups ug,")
-    ws = "WHERE (groups.public OR (ug.user_id = #{user.id}
+    ws = "WHERE (groups.owner_id = #{user.id} OR groups.public OR (ug.user_id = #{user.id}
             AND ug.group_id = groups.id)) "
     set = false
     qs.each do |line|
@@ -133,7 +133,7 @@ extend AccessControlClass
   rescue
     log_debug("BAD QUERY")
     log_debug(h.inspect)
-    log_debug(qs.join("\n"))
+    log_debug(qs.join("\n")) if qs
     raise
   end
 
@@ -180,10 +180,11 @@ extend AccessControlClass
   end
 
   def readable_by(user)
-    public or UsersGroups.find(:user => user, :group => self)
+    public or owner_id == user.id or UsersGroups.find(:user => user, :group => self)
   end
 
   def writable_by(user)
+    owner_id == user.id or
     UsersGroups.find(:user => user, :group => self, :can_modify => true)
   end
 
@@ -193,16 +194,12 @@ extend AccessControlClass
     end
   end
 
-  def add_member(user, new_user, can_modify=false)
-    write(user) do
-      UsersGroups.find_or_create(:user_id => new_user.id, :group_id => id, :can_modify => can_modify)
-    end
+  def add_member(new_user, can_modify=false)
+    UsersGroups.find_or_create(:user_id => new_user.id, :group_id => id, :can_modify => can_modify)
   end
 
-  def remove_member(user, removed_user)
-    write(user) do
-      UsersGroups.delete(:user_id => removed_user.id, :group_id => id)
-    end
+  def remove_member(removed_user)
+    UsersGroups.delete(:user_id => removed_user.id, :group_id => id)
   end
 
 end
@@ -244,10 +241,6 @@ extend AccessControlClass
     h = h.clone
     dh = {:deleted => false}
     dh.delete(:deleted) if h[:limit] == 1
-    dh[:namespace] = []
-    dh[:namespace] << "public" if h[:public] != false
-    dh[:namespace] << "user:#{user.name}" if h[:public] != true
-    h.delete :public
     dh.merge(h)
   end
 
@@ -255,6 +248,14 @@ extend AccessControlClass
     dh = {:deleted => false}
     dh[:namespace] = h[:public] ? "public" : "user:#{h[:owner].name}"
     dh.merge(h)
+  end
+
+  def add_group(group, can_modify=false)
+    SetsGroups.find_or_create(:group_id => group, :set_id => id, :can_modify => can_modify)
+  end
+
+  def remove_group(group)
+    SetsGroups.delete(:group_id => group, :set_id => id)
   end
 
 end

@@ -32,11 +32,15 @@ module MuryuDispatch
         @user = user
         @key = key
         if table
-          @target = table.rfind(@user, key_column => key)
+          @target = get_target
           unless @target
-            raise(MuryuQuery::NotFound, "Target not found or you (#{@user.name}) have no access permissions: #{key}")
+            raise(MuryuQuery::NotFound, "Target not found or you (#{@user.name}) have no access permissions to: #{key}")
           end
         end
+      end
+
+      def get_target
+        table.rfind(@user, key_column => @key)
       end
 
       def key_column

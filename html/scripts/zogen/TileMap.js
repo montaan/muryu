@@ -86,12 +86,22 @@ ItemArea = {
   defaultAction : function() {
     var ext = this.getExt()
     if (['jpeg','jpg','png','gif'].include(ext)) {
-      this.viewInSlideshow()
-    } else if ( MusicPlayer && ext == 'mp3' ) {
+      this.open()
+//       this.viewInSlideshow()
+    } else if ( MusicPlayer && MusicPlayer.sound && ext == 'mp3' ) {
       MusicPlayer.addToPlaylist(this.href)
       MusicPlayer.goToIndex(MusicPlayer.playlist.length - 1)
     } else if (ext == 'html') {
       window.open(this.href, '_tab')
+    } else {
+      this.open()
+    }
+  },
+
+  secondaryAction : function() {
+    var ext = this.getExt()
+    if (['jpeg','jpg','png','gif'].include(ext)) {
+      this.viewInSlideshow()
     } else {
       this.open()
     }
@@ -203,9 +213,11 @@ ItemArea = {
       ) {
         this.Xdown = this.Ydown = undefined
         if (ev.ctrlKey) {
-          this.toggleSelect()
+          return
         } else if (ev.shiftKey) {
-          this.getMap().selection.spanTo(this)
+          this.toggleSelect()
+        } else if (ev.altKey) {
+          return
         } else {
           this.defaultAction()
         }
@@ -255,7 +267,7 @@ ItemArea = {
           (Math.abs(this.downX - e.clientX) < 3 &&
            Math.abs(this.downY - e.clientY) < 3   )
       ) {
-        if (e.ctrlKey) {
+        if (e.shiftKey) {
           this.item.toggleSelect()
         } else {
           this.selection.clear()
@@ -790,7 +802,7 @@ TileMap.prototype = {
       if (obj)
         window.lastFocusedMap = obj.map
       if (Event.isLeftClick(ev)) {
-        if (ev.ctrlKey) {
+        if (ev.shiftKey) {
           t.selecting = true
           t.selectX = ev.pageX - t.container.offsetLeft
           t.selectY = ev.pageY - t.container.offsetTop
@@ -1906,12 +1918,12 @@ Loader.prototype = {
       if (this.bandwidthLimit > 0) {
         setTimeout(function(){
           if (lt.tile.load)
-            lt.tile.load(t.rotateServers(), t.tileInfoManager)
+            lt.tile.load(t.rotateServers(lt.tile.X, lt.tile.Y, lt.layer.z), t.tileInfoManager)
         }, 1000 * ((this.tileSize * this.maxLoads) / this.bandwidthLimit))
       } else {
         setTimeout(function(){
           if (lt.tile.load)
-            lt.tile.load(t.rotateServers(), t.tileInfoManager)
+            lt.tile.load(t.rotateServers(lt.tile.X, lt.tile.Y, lt.layer.z), t.tileInfoManager)
         }, 0)
         // hack to make zooming out a bit less of a pain
         // if zooming out and answering queries instantly from cache
@@ -1920,9 +1932,9 @@ Loader.prototype = {
     }
   },
 
-  rotateServers : function() {
-    this.servers.push(this.servers.shift())
-    return this.servers[0]
+  rotateServers : function(x,y,z) {
+    var i = Math.floor(Math.abs(z + x + y)) % this.servers.length
+    return this.servers[i]
   },
 
   cancel : function(layer, tile) {
@@ -1969,6 +1981,7 @@ TileInfoManager.prototype = {
   },
 
   getCachedInfo : function(x,y,z) {
+    if (x < 0 || y < 0) return []
     var zc = this.cache[z]
     var c = zc && zc[x+':'+y]
     if (c) {

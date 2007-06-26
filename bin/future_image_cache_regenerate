@@ -1,6 +1,13 @@
 #!/usr/bin/ruby
 
+$NO_TILE_DRAWING = true
 require 'future/imaging'
 
 ic = Future::ImageCache.new
-ic.regenerate!
+
+raw = !ARGV.delete("--no-raw")
+jpeg = !ARGV.delete("--no-jpeg")
+tiles = !ARGV.delete("--no-tiles")
+from = ARGV.shift.to_i
+
+ic.regenerate!(from, raw, jpeg, tiles)

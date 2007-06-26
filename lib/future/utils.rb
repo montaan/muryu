@@ -55,6 +55,20 @@ module Kernel
 end
 
 
+class Thread
+  attr_accessor :last_time
+
+  def telapsed
+    t = self.last_time
+    self.last_time = Time.now.to_f
+    t ||= self.last_time
+    ms = (self.last_time - t) * 1000
+    "[#{("#"*((ms*2).round)).rjust(16)[0,16]}] %.3fms" % [ms]
+  end
+  
+end
+
+
 class Symbol
 
   def to_proc

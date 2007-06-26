@@ -24,6 +24,12 @@ Suture = function(config) {
   
   this.loadingIndicator = el.$("slideshow-loading")
   this.nameElement = el.$("slide-name")
+  this.nameElement.addEventListener("click", function(ev) {
+    if (Event.isLeftClick(ev)) {
+      Event.stop(ev)
+      new Desk.Window(this.href.replace("files", "items")+"/json")
+    }
+  }, false)
   this.indexElement = el.$("slideshow-index")
   this.searchIndexElement = el.$("slideshow-search-index")
 
@@ -33,16 +39,20 @@ Suture = function(config) {
 
   this.slideDelayElement = el.$("slideshow-slidedelay")
   this.setAutoProgressDelay(this.autoProgressDelay)
+  this.slideDelayElement.addEventListener("mousedown", function(ev){ Event.stop(ev) }, false)
   this.slideDelayElement.addEventListener("mouseup", this.bind('autoProgressDelayClickHandler'), false)
 
   this.slideDelayMinusElement = el.$("slideshow-slidedelay-minus")
+  this.slideDelayMinusElement.addEventListener("mousedown", function(ev){ Event.stop(ev) }, false)
   this.slideDelayMinusElement.addEventListener("mouseup", this.bind( 'rotateAutoProgressDelay', -1), false)
   this.slideDelayPlusElement = el.$("slideshow-slidedelay-plus")
+  this.slideDelayPlusElement.addEventListener("mousedown", function(ev){ Event.stop(ev) }, false)
   this.slideDelayPlusElement.addEventListener("mouseup", this.bind( 'rotateAutoProgressDelay', 1), false)
 
   this.slideReverseElement = el.$("slideshow-play-reverse")
   this.setReverseProgress(this.reverseProgress)
   this.setRandomProgress(this.randomProgress)
+  this.slideReverseElement.addEventListener("mousedown", function(ev){ Event.stop(ev) }, false)
   this.slideReverseElement.addEventListener("click", this.bind('toggleDirection'), false)
 
   this.prevHundredElement = el.$("slideshow-prev-100")
@@ -540,7 +550,7 @@ Suture.prototype = {
     this.randomProgress = rp
     if (this.window)
       this.window.parameters.randomProgress = rp
-    this.slideReverseElement.innerHTML = (this.randomProgress ? "shuffle" :
+    this.slideReverseElement.innerHTML = (this.randomProgress ? "&harr;" :
       (this.reverseProgress ? "&larr;" : "&rarr;")
     )
   },
@@ -549,7 +559,7 @@ Suture.prototype = {
     this.reverseProgress = rp
     if (this.window)
       this.window.parameters.reverseProgress = rp
-    this.slideReverseElement.innerHTML = (this.reverseProgress ? "backward" : "forward")
+    this.slideReverseElement.innerHTML = (this.reverseProgress ? "&larr;" : "&rarr;")
   },
 
   setAutoProgressDelay : function(seconds) {

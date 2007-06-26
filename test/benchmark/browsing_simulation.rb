@@ -1,9 +1,9 @@
-$cookie = "future_session_id=b59b85385faa89c349754c23397d486e"
+$cookie = "future_session_id=8516282a2b031156040b99f3344e73cc"
 
 def url(x,y,z,i)
   rx = (z*x + i%5)*256
   ry = (z*y + i/5)*256
-  "http://manifold.fhtr.org:2000/tile/x#{rx}y#{ry}z#{z}"
+  "http://manifold.fhtr.org:8080/tile/x#{rx}y#{ry}z#{z}"
 end
 
 def fetch(n, x, y, z, threads=2)
@@ -21,7 +21,7 @@ def fetch(n, x, y, z, threads=2)
   [sizes, times]
 end
 
-def pattern_browse(time=30, zooms=4, lateral_nav=2)
+def pattern_browse(time=60, zooms=20, lateral_nav=2)
   z = 4
   x = 0
   y = 0

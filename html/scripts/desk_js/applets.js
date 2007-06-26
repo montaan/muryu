@@ -138,6 +138,9 @@ Applets.Session = function(wm) {
       Session.save()
     }
   }
+  c.unloadSaveSession = function() {
+    if (this.autosave) this.saveSession()
+  }
   c.clearSession = function(){
     if (this.loggedIn) {
       this.sessionChanged = false
@@ -168,7 +171,7 @@ Applets.Session = function(wm) {
     c.signalSessionChange()
   })
   c.autosaveInterval = setInterval(c.autosaveSession.bind(c), 5*60*1000) 
-  window.addEventListener('unload', c.saveSession.bind(c), false)
+  window.addEventListener('unload', c.unloadSaveSession.bind(c), false)
   c.menu = new Desk.Menu()
   c.menu.addTitle(Tr('Applets.Session'))
   c.menu.addItem(Tr('Applets.Session.save'), c.saveSession.bind(c))
@@ -731,4 +734,78 @@ Applets.MusicPlayer.loadSession = function(data) {
   mp.savedSeek = data.seek || 0
   mp.goToIndex(data.currentIndex, false)
   return mp
+}
+
+
+Applets.Groups = function(wm) {
+ if (!wm) wm = Desk.Windows
+  var c = E('span', null,null, 'taskbarApplet Groups')
+  c.dumpSession = function(){
+    return {loader: 'Applets.Groups', data: ''}
+  }
+  var title = E('h4', 'Groups', null, 'windowGroupTitle')
+  var f = E('form', null,null, 'taskbarForm')
+  var t = E('input',null,null,'taskbarTextInput',null,
+    {type:'text'})
+  var s = E('input',null,null,'taskbarSubmitInput',null,
+    {type:'submit', value:'Create'})
+  c.appendChild(title)
+  c.appendChild(f)
+  f.appendChild(t)
+  f.appendChild(s)
+  new Ajax.Request('/groups/json', {
+    method : 'get',
+    onSuccess: function(res){
+      var items = res.responseText.evalJSON()
+      var d = E('ul')
+      c.appendChild(d)
+      items.each(function(it) {
+        d.appendChild(E('li', it.name + ' (' + it.owner + ')'))
+      })
+    }
+  })
+  c.menu = new Desk.Menu()
+  Applets.bakeAppletMenu(c)
+  return c
+}
+Applets.Groups.loadSession = function(dump) {
+  return Applets.Groups()
+}
+
+Applets.Sets = function(wm) {
+ if (!wm) wm = Desk.Windows
+  var c = E('span', null,null, 'taskbarApplet Sets')
+  c.dumpSession = function(){
+    return {loader: 'Applets.Sets', data: ''}
+  }
+  var title = E('h4', 'Sets', null, 'windowGroupTitle')
+  var f = E('form', null,null, 'taskbarForm')
+  var t = E('input',null,null,'taskbarTextInput',null,
+    {type:'text'})
+  var s = E('input',null,null,'taskbarSubmitInput',null,
+    {type:'submit', value:'Create'})
+  c.appendChild(title)
+  c.appendChild(f)
+  f.appendChild(t)
+  f.appendChild(s)
+  new Ajax.Request('/sets/json', {
+    method : 'get',
+    onSuccess: function(res){
+      var items = res.responseText.evalJSON()
+      var d = E('ul')
+      c.appendChild(d)
+      items.each(function(it) {
+        d.appendChild(E('li', it.namespace + '/' + it.name + ' (' + it.owner + ')'))
+      })
+    }
+  })
+  c.menu = new Desk.Menu()
+  Applets.bakeAppletMenu(c)
+  return c
+}
+Applets.Sets.loadSession = function(dump) {
+  return Applets.Sets()
+}
+
+Applets.SelectionEditor = function(wm) {
 }

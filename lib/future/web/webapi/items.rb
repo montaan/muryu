@@ -1,3 +1,5 @@
+require 'future/upload'
+
 module MuryuDispatch
 
   module Items
@@ -55,7 +57,7 @@ module MuryuDispatch
           :public => req.query['public'],
           :sets => req.query['sets'],
           :tags => req.query['tags'],
-          :referrer => req.header['referer']
+          :referrer => req.headers['Referer']
         }
         common_fields.delete_if{|k,v| v.nil? or v.empty? }
         common_fields[:user] = user
@@ -64,23 +66,24 @@ module MuryuDispatch
           'compressed', 'remote_compressed',
           'source', 'referrer'
           ].map{|pat| req.query.keys.grep(/^#{pat}[0-9]*$/).
-                      find_all{|k| req.query[k] and not req.query[k].empty? } }
+                      find_all{|k| req.query[k] and not req.query[k][0].empty? } }
         )
+        p req.query
         unless [urls, texts, uploads, compressed, compressed_urls].all?{|k| k.empty?}
           urls.each{|u|
             num = u.scan(/[0-9]+/)[0]
             referrer = referrers.find{|r| r.scan(/[0-9]+/)[0] == num }
             f = {}
-            f[:source] = req.query[u]
-            f[:referrer] = req.query[referrer] if referrer
+            f[:source] = req.query[u][0]
+            f[:referrer] = req.query[referrer][0] if referrer
             Future::Uploader.upload(common_fields.merge(f))
           }
           compressed_urls.each{|u|
             num = u.scan(/[0-9]+/)[0]
             referrer = referrers.find{|r| r.scan(/[0-9]+/)[0] == num }
             f = {}
-            f[:source] = req.query[u]
-            f[:referrer] = req.query[referrer] if referrer
+            f[:source] = req.query[u][0]
+            f[:referrer] = req.query[referrer][0] if referrer
             Future::Uploader.upload_archive(common_fields.merge(f))
           }
           texts.each{|u|
@@ -88,9 +91,9 @@ module MuryuDispatch
             source = sources.find{|r| r.scan(/[0-9]+/)[0] == num }
             referrer = referrers.find{|r| r.scan(/[0-9]+/)[0] == num }
             f = {}
-            f[:text] = req.query[u]
-            f[:source] = req.query[source] if source
-            f[:referrer] = req.query[referrer] if referrer
+            f[:text] = req.query[u][0]
+            f[:source] = req.query[source][0] if source
+            f[:referrer] = req.query[referrer][0] if referrer
             Future::Uploader.upload(common_fields.merge(f))
           }
           uploads.each{|u|
@@ -98,10 +101,16 @@ module MuryuDispatch
             source = sources.find{|r| r.scan(/[0-9]+/)[0] == num }
             referrer = referrers.find{|r| r.scan(/[0-9]+/)[0] == num }
             f = {}
-            f[:filename] = File.basename(req.query[u].filename)
-            f[:io] = req.query[u]
-            f[:source] = req.query[source] if source
-            f[:referrer] = req.query[referrer] if referrer
+            f[:filename] = File.basename(req.query[u][0][:filename])
+            f[:io] = req.query[u][0][:tempfile]
+            next if f[:io].size == 0
+            fd = f[:io]
+            def fd.filename
+              @filename
+            end
+            fd.instance_variable_set("@filename", f[:filename])
+            f[:source] = req.query[source][0] if source
+            f[:referrer] = req.query[referrer][0] if referrer
             Future::Uploader.upload(common_fields.merge(f))
           }
           compressed.each{|u|
@@ -109,10 +118,16 @@ module MuryuDispatch
             source = sources.find{|r| r.scan(/[0-9]+/)[0] == num }
             referrer = referrers.find{|r| r.scan(/[0-9]+/)[0] == num }
             f = {}
-            f[:filename] = 'unnamed'
-            f[:io] = req.query[u]
-            f[:source] = req.query[source] if source
-            f[:referrer] = req.query[referrer] if referrer
+            f[:filename] = File.basename(req.query[u][0][:filename])
+            f[:io] = req.query[u][0][:tempfile]
+            next if f[:io].size == 0
+            fd = f[:io]
+            def fd.filename
+              @filename
+            end
+            fd.instance_variable_set("@filename", f[:filename])
+            f[:source] = req.query[source][0] if source
+            f[:referrer] = req.query[referrer][0] if referrer
             Future::Uploader.upload_archive(common_fields.merge(f))
           }
           changed
@@ -187,6 +202,11 @@ module MuryuDispatch
 
     ### helpers
 
+    def changed
+      $indexes_changed = true
+      $info_changed = true
+    end
+
     def get_matching_items(user, q, cols = :all)
       search_query = parse_search_query(user, q.query['q'].to_s)
       limit = 100
@@ -201,7 +221,7 @@ module MuryuDispatch
     end
 
     def parse_search_query(user, q)
-      puts "#{telapsed} for rest of handle_request" if $PRINT_QUERY_PROFILE
+      puts "#{Thread.current.telapsed} for rest of handle_request" if $PRINT_QUERY_PROFILE
       parser = QueryStringParser.new
       default_query = if user.name == 'anonymous'
         "sort:date"
@@ -209,9 +229,9 @@ module MuryuDispatch
         "user:#{user.name} sort:date"
       end
       query = parser.parse((q && !q.empty?) ? q : default_query)
-      puts "#{telapsed} for search query parsing" if $PRINT_QUERY_PROFILE
+      puts "#{Thread.current.telapsed} for search query parsing" if $PRINT_QUERY_PROFILE
       search_query = make_query_hash(query)
-      puts "#{telapsed} for making a dbconn hash out of the AST" if $PRINT_QUERY_PROFILE
+      puts "#{Thread.current.telapsed} for making a dbconn hash out of the AST" if $PRINT_QUERY_PROFILE
       search_query
     end
 
@@ -366,7 +386,7 @@ module MuryuDispatch
         sq[:columns] ||= []
         sq[:columns] << 'path'
         sq[:columns] << 'deleted'
-        puts "#{telapsed} for tile_info init" if $PRINT_QUERY_PROFILE
+        puts "#{Thread.current.telapsed} for tile_info init" if $PRINT_QUERY_PROFILE
         items = Future::Tiles.info(
           user, sq,
           :rawlist, first, last, 0, 0, 0
@@ -374,9 +394,9 @@ module MuryuDispatch
           {:index => info[:index], :path => info[:path], :deleted => info[:deleted]}
         end.sort_by{|h| h[:index] }
         info = {:items => items, :itemCount => Future::Tiles.item_count(user, sq)}
-        puts "#{telapsed} for fetching tile info" if $PRINT_QUERY_PROFILE
+        puts "#{Thread.current.telapsed} for fetching tile info" if $PRINT_QUERY_PROFILE
         jinfo = info.to_json
-        puts "#{telapsed} for tile info jsonification" if $PRINT_QUERY_PROFILE
+        puts "#{Thread.current.telapsed} for tile info jsonification" if $PRINT_QUERY_PROFILE
         Future.memcache.set(key, jinfo, 300) if $CACHE_INFO
       end
       jinfo
@@ -410,7 +430,7 @@ module MuryuDispatch
       end
       
       def edit(req, res)
-        if req.query.has_key?('filename')
+        unless req.query['filename'].to_s.empty?
           fn = req.query['filename'].to_s
           target.write(user) do
             parts = target.path.split("/")
@@ -423,21 +443,21 @@ module MuryuDispatch
           end
         end
         if req.query.has_key?('tags')
-          tags = req.query['tags'].to_s.split(",").map{|t|t.strip}
+          tags = req.query['tags'].join(",").split(",").map{|t|t.strip}
           unless tags.empty?
             target.rset_tags(user, tags)
           end
         end
-        if req.query.has_key?('groups')
-          gs = req.query['groups']
+        if req.query.has_key?('groups') or req.query.has_key?('groups.new')
+          gs = req.query['groups'] || []
           target.rset_groups(user, gs)
         end
-        if req.query.has_key?('sets')
-          gs = req.query['sets']
+        if req.query.has_key?('sets') or req.query.has_key?('sets.new')
+          gs = req.query['sets'] || []
           target.rset_sets(user, gs)
         end
         if req.query.has_key?('groups.new')
-          gs = req.query['groups.new'].to_s.split(",")
+          gs = req.query['groups.new'].join(",").split(",")
           unless gs.empty?
             target.write(user) do
               gs.each do |g|
@@ -447,7 +467,7 @@ module MuryuDispatch
           end
         end
         if req.query.has_key?('sets.new')
-          gs = req.query['sets.new'].to_s.split(",")
+          gs = req.query['sets.new'].join(",").split(",")
           unless gs.empty?
             target.write(user) do
               gs.each do |g|
@@ -467,10 +487,10 @@ module MuryuDispatch
           }
           DB.transaction do
             edits = metadata_fields.find_all{|k,v|
-              target.metadata[k].to_s != v
+              target.metadata[k].to_s != v[0]
             }
             edits.each{|k,v|
-              target.metadata[k] = v
+              target.metadata[k] = v[0]
             }
             target[:modified_at] = Time.now.to_s
           end
@@ -575,8 +595,8 @@ module MuryuDispatch
         target = @target
         h = target.to_hash
         %w(mimetype_id owner_id metadata_id internal_path).each{|k| h.delete(k)}
-        h[:groups] = target.groups.map{|g| g.name if g.namespace != 'users' }.compact
-        h[:sets] = target.sets.map{|g| g.name }
+        h[:groups] = target.groups.map{|g| g.name }
+        h[:sets] = target.sets.map{|g| g.namespace+"/"+g.name }
         h[:tags] = target.tags.map{|g| g.name }
         h[:owner] = target.owner.name
         h[:metadata] = target.metadata.to_hash.reject{|k,v| v.nil? }

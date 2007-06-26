@@ -69,7 +69,7 @@ module Mimetype
   #   pdf.create_tiles    # (256, 1024, [3,4]){|pg,x,y| "#{pg}_#{y}_#{x}.png" }
   #
   def thumbnail(filename, thumb_filename, thumb_size=128, page=nil, crop='0x0+0+0')
-    puts "called thumbnail for #{filename} (#{to_s})"
+#     puts "called thumbnail for #{filename} (#{to_s})"
     if to_s =~ /video/
       page ||= 5.7
       video_thumbnail(filename, thumb_filename, thumb_size, page, crop)
@@ -133,27 +133,30 @@ module Mimetype
         nimg.delete!(true)
       end
     else
-      puts "going to non-image fork"
+#       puts "going to non-image fork"
       original_filename = filename
       filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.object_id}-src#{tfn.extname}"
-      FileUtils.ln_s(original_filename.to_s, filename.to_s)
-      filename.mimetype = self
-      dims = filename.dimensions
-      return false unless dims[0] and dims[1]
-      scale_fac = 1
-      if dims.min < thumb_size
-        scale_fac = thumb_size / dims.min.to_f
-      elsif dims.max > thumb_size
-        scale_fac = thumb_size / dims.max.to_f
+      begin
+        FileUtils.ln_s(original_filename.to_s, filename.to_s)
+        filename.mimetype = self
+        dims = filename.dimensions
+        return false unless dims[0] and dims[1]
+        scale_fac = 1
+        if dims.min < thumb_size
+          scale_fac = thumb_size / dims.min.to_f
+        elsif dims.max > thumb_size
+          scale_fac = thumb_size / dims.max.to_f
+        end
+        density = scale_fac * 72
+        args = ["-density", density.to_s,
+                "#{filename}[#{page}]",
+                "-scale", "#{thumb_size}x#{thumb_size}",
+                "-crop", crop.to_s,
+                tmp_filename.to_s]
+        system("convert", *args)
+      ensure
+        filename.unlink if filename.exist?
       end
-      density = scale_fac * 72
-      args = ["-density", density.to_s,
-              "#{filename}[#{page}]",
-              "-scale", "#{thumb_size}x#{thumb_size}",
-              "-crop", crop.to_s,
-              tmp_filename.to_s]
-      system("convert", *args)
-      filename.unlink if filename.exist?
     end
     if tmp_filename.exist?
       tmp_filename.rename(tfn)

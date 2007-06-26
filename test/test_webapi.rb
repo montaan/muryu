@@ -321,16 +321,6 @@ class TestMuryuQuery < Test::Unit::TestCase
       mq('items/foo/2007/10-10/bob.jpg/edit', nil, {
         'badamuk' => 'badaluk'})
     }
-    assert_raise(MuryuQuery::BadPost){
-      mq('items/create', nil, {
-        'local_file' => 'bababad'
-      })
-    }
-    assert_raise(MuryuQuery::BadPost){
-      mq('items/create', nil, {
-        'local_archive' => 'bababad'
-      })
-    }
   end
   
   def test_good_sets_get

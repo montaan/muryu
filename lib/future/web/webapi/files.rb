@@ -25,6 +25,7 @@ module MuryuDispatch
             res.status = 302
             res['Location'] = "/subfiles/#{q.key}/data"
           else
+            res['Expires'] = (Time.now+86400*365).httpdate
             res.body = File.open(@target.internal_path, 'rb')
             res.content_type = @target.mimetype
           end
@@ -66,6 +67,7 @@ module MuryuDispatch
               else
                 res.content_type = item.mimetype + "; charset=" + item.charset.to_s
                 res['ETag'] = item.sha1_hash
+                res['Expires'] = (Time.now+86400*365).httpdate
                 res.body = File.open(fn)
               end
             elsif File.directory?(fn)
@@ -77,6 +79,7 @@ module MuryuDispatch
                 res.status = 304
               else
                 res['Last-Modified'] = mtime
+                res['Expires'] = (Time.now+86400*365).httpdate
                 res.content_type = MimeInfo.get(sp).to_s
                 res.body = File.open(fn)
               end

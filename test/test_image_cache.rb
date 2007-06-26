@@ -31,45 +31,45 @@ include Future
     end
   end
 
-  def test_multiple_threads
-    cache_setup 'threads'
-    ts = []
-    (0..10).each do |i|
-      ts << Thread.new do
-        @image_cache.update_cache_at(
-          i % 11,
-          item(File.join(File.dirname(__FILE__), "data/images/#{i % 11}.png"), false)
-        )
-      end
-    end
-    (0..10).each do |i|
-      ts << Thread.new do
-        @image_cache.update_cache_at(
-          i % 11,
-          item(File.join(File.dirname(__FILE__), "data/images/#{10-(i % 11)}.png"), false)
-        )
-      end
-    end
-    ts.each{|t| t.join }
-  end
+#   def test_multiple_threads
+#     cache_setup 'threads'
+#     ts = []
+#     (0..10).each do |i|
+#       ts << Thread.new do
+#         @image_cache.update_cache_at(
+#           i % 11,
+#           item(File.join(File.dirname(__FILE__), "data/images/#{i % 11}.png"), false)
+#         )
+#       end
+#     end
+#     (0..10).each do |i|
+#       ts << Thread.new do
+#         @image_cache.update_cache_at(
+#           i % 11,
+#           item(File.join(File.dirname(__FILE__), "data/images/#{10-(i % 11)}.png"), false)
+#         )
+#       end
+#     end
+#     ts.each{|t| t.join }
+#   end
 
-  def test_update_image
-    cache_setup 'update'
-    @image_cache.batch do
-      (0..10).each do |i|
-        @image_cache.update_cache_at(
-          i,
-          item(File.join(File.dirname(__FILE__), "data/images/#{i}.png"), false)
-        )
-      end
-      (0..10).each do |i|
-        @image_cache.update_cache_at(
-          i,
-          item(File.join(File.dirname(__FILE__), "data/images/#{10-i}.png"), false)
-        )
-      end
-    end
-  end
+#   def test_update_image
+#     cache_setup 'update'
+#     @image_cache.batch do
+#       (0..10).each do |i|
+#         @image_cache.update_cache_at(
+#           i,
+#           item(File.join(File.dirname(__FILE__), "data/images/#{i}.png"), false)
+#         )
+#       end
+#       (0..10).each do |i|
+#         @image_cache.update_cache_at(
+#           i,
+#           item(File.join(File.dirname(__FILE__), "data/images/#{10-i}.png"), false)
+#         )
+#       end
+#     end
+#   end
 
   def test_delete_image
     cache_setup 'delete'

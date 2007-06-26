@@ -112,10 +112,12 @@ if __FILE__ == $0
   default_port = $SWIFTIPLY ? 30000 : 3000
   port = (ARGV.shift || default_port).to_i
   processes = (ARGV.shift || 1).to_i
+  $SERVER_ID = (ARGV.shift || 0).to_i
   procs = (2..processes).map{|i|
+    sid = i-1
     i = 1 if $SWIFTIPLY
     Thread.new{
-      system("ruby -Ilib bin/muryu_rack #{port+i-1} 1")
+      system("ruby -Ilib bin/muryu_rack #{port+i-1} 1 #{sid}")
     }
   }
   Rack::Handler::Mongrel.run(

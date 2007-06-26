@@ -1,27 +1,18 @@
 require 'future/imaging/image_cache'
+require 'future/web/memcachepool'
+require 'future/database'
+require 'future/models'
 require 'digest/sha1'
 require 'inline'
 
 require 'fastthread'
-
-class Thread
-  attr_accessor :last_time
-
-  def telapsed
-    t = self.last_time
-    self.last_time = Time.now.to_f
-    t ||= self.last_time
-    ms = (self.last_time - t) * 1000
-    "[#{("#"*((ms*2).round)).rjust(16)[0,16]}] %.3fms" % [ms]
-  end
-  
-end
 
 class Struct
   def to_json
     "{#{ members.map{|m| m.dump << ":" << self[m].to_json}.join(",") }}"
   end
 end
+
 
 $imlib_mutex ||= Mutex.new
 $PRINT_QUERY_PROFILE = false if $PRINT_QUERY_PROFILE.nil?
@@ -96,7 +87,26 @@ extend self
     @@tile_drawer
   end
 
+  @@read_count = 0
+
   def read(user, query, *tile_args)
+    if $NO_TILE_DRAWING
+      require 'dipus'
+      return DIPUS.open_address("tile_drawer.*.*.#{$SERVER_ID}") do |conn|
+        conn.write(
+          Marshal.dump([user,query]+tile_args)
+        )
+        conn.close_write
+        conn.read
+      end
+    end
+    if @@read_count >= 10
+      @@read_count = 0
+      GC.enable
+      GC.start
+    end
+    @@read_count += 1
+    GC.disable
     bad_tile = (tile_args[1] < 0 or tile_args[2] < 0)
     indexes = nil
     r,x,y,z,w,h,colors,bgcolor,bgimage = *tile_args
@@ -225,6 +235,10 @@ extend self
         puts "#{Thread.current.telapsed} for info init" if $PRINT_QUERY_PROFILE
         t = nil
         key = ["info", user.id.to_s, time, sanitize_query(query)].join("::")
+        rkey = q[:columns].join("_").capitalize
+        unless TileDrawer.constants.include?(rkey)
+          eval("TileDrawer::#{rkey} = Struct.new(:index, #{q[:columns].map{|c|":#{c}"}.join(",")})")
+        end
         if $CACHE_INFO and not $info_changed
           if Future.memcache
             t = Future.memcache.get(key)
@@ -236,10 +250,6 @@ extend self
           result = Items.rfind_all(user, q.merge(:as_array => true))
           puts "#{Thread.current.telapsed} for info db query" if $PRINT_QUERY_PROFILE
           cidxs = q[:columns].zip((0...q[:columns].size).to_a).to_hash
-          rkey = q[:columns].join("_").capitalize
-          unless TileDrawer.constants.include?(rkey)
-            eval("TileDrawer::#{rkey} = Struct.new(:index, #{q[:columns].map{|c|":#{c}"}.join(",")})")
-          end
           rstr = TileDrawer.const_get(rkey)
           ii_c = cidxs[:image_index]
           idxs = []
@@ -340,7 +350,9 @@ class TileDrawer
       end
     end
     print_time_draw
-    tile
+    d = tile.data
+    $imlib_mutex.synchronize{ tile.delete! }
+    d
   end
 
   def tile_info(indexes, layouter_name, x, y, zoom, w, h, *layouter_args)
@@ -358,6 +370,8 @@ class TileDrawer
     layouter.dimensions(indexes)
   end
 
+  @@tiles_drawn = 0
+  
   def draw_tile_sw(bgcolor, indexes, palette, x, y, z, bgimage=nil)
     if palette
       pmax = palette.keys.max
@@ -374,10 +388,11 @@ class TileDrawer
     @@draw_mutex.synchronize do
       draw_query(indexes[0], indexes[1], cpalette, x, y, z,
         @image_cache.thumb_size_at_zoom(z), bgcolor.pack("CCC").reverse! << 255,
-        bgimage)
+        bgimage, @@scratchpad)
     end
   end
 
+  @@scratchpad = "\000\000\000\000"*(256*256) # temp tile image
   @@sw_init = false
   @@draw_mutex = Mutex.new
 
@@ -385,13 +400,44 @@ class TileDrawer
     @@init_mutex.synchronize do
       return if @@sw_init
       @@sw_init = true
-      puts "#{Time.now.to_f}: Reading #{@image_cache.max_index+1} thumbs of cache to RAM."
-      init_image_cache(
-        @max_cache_size, @raw_cache_level, @jpeg_cache_level,
-        @image_cache.max_index
-      )
-      puts "#{Time.now.to_f}: Cache init done."
+      if $USE_DIPUS_IMAGE_CACHE or $NO_TILE_DRAWING
+        require 'dipus'
+        init_liboil
+      else
+        puts "#{Time.now.to_f}: Reading #{@image_cache.max_index+1} thumbs of cache to RAM."
+        init_liboil
+        init_mem_image_cache
+        GC.enable
+        GC.start
+        puts "#{Time.now.to_f}: Cache init done."
+      end
     end
+  end
+
+  def init_mem_image_cache
+    init_image_cache(
+      @max_cache_size, @raw_cache_level, @jpeg_cache_level,
+      @image_cache.max_index
+    )
+  end
+
+  def reload_image_cache
+    delete_image_cache
+    init_mem_image_cache
+  end
+
+  def fetch_texture(z, index_int_string)
+    d = if ($USE_DIPUS_IMAGE_CACHE or $NO_TILE_DRAWING) and defined? DIPUS
+      DIPUS.open_address('image_cache'){|conn|
+        conn.write([z].pack("I"))
+        conn.write(index_int_string)
+        conn.close_write
+        conn.read
+      }
+    else
+      build_texture(z, index_int_string)
+    end
+    d
   end
 
   @@init_mutex = Mutex.new
@@ -722,6 +768,7 @@ class TileDrawer
           thumbs[i+1] = (thumbs[i+1]*thumbs[i+3]) >> 8;
           thumbs[i+2] = (thumbs[i+2]*thumbs[i+3]) >> 8;
         }
+
         /* color the thumbs */
         for (i=0; i<colors_length; i++) {
           if (colors[i] == 0) continue;
@@ -896,9 +943,11 @@ class TileDrawer
       }
 
 
+
       VALUE draw_software
       (
         VALUE self,
+        VALUE rimage,
         VALUE riindexes,
         VALUE riindex_colors,
         VALUE palette,
@@ -910,16 +959,16 @@ class TileDrawer
         int *indexes = NULL;
         char *thumbs = NULL, *final_render = NULL;
         int indexes_length;
-        int *iindexes = NULL;
+        int *iindexes = NULL, *cropped_indexes = NULL, *cropped_iindexes = NULL;
         int *iindex_colors = NULL, *colors = NULL;
-        int iindexes_length;
+        int iindexes_length, cropped_indexes_length;
         int *coords = NULL;
         int tx, ty, tsz, tsz4, offset_y, offset_x;
         int *gl_palette = NULL;
         VALUE *qptr = NULL;
-        int i, j, plen, sz24, sz4;
-        VALUE rimage = rb_str_new(NULL, 256*256*4);
-        
+        int i, j, plen, sz24, sz4, index;
+        VALUE thumb_tex, fetch;
+
         sz24 = sz*sz*4;
         sz4 = sz*4;
         final_render = StringValuePtr(rimage);
@@ -953,27 +1002,40 @@ class TileDrawer
           goto exit;
         }
         rb_funcall(self, rb_intern("print_time_layout"), 0);
-        thumbs = setup_texture(self, iindexes, iindexes_length, z, sz, 
-                               indexes, indexes_length);
-        if (thumbs == NULL) {
-          goto exit;
+        
+        cropped_indexes = (int*)malloc(sizeof(int) * indexes_length);
+        cropped_iindexes = (int*)malloc(sizeof(int) * indexes_length);
+        for (i=0,j=0; i<indexes_length; i++) {
+          index = indexes[i];
+          if (index < iindexes_length) {
+            cropped_indexes[j] = index;
+            cropped_iindexes[j] = iindexes[index];
+            j++;
+          }
         }
+        cropped_indexes_length = j;
 
-        colors = (int*)malloc(sizeof(int) * indexes_length);
+
+        fetch = rb_str_new(NULL, cropped_indexes_length * sizeof(int));
+        memcpy(StringValuePtr(fetch), cropped_iindexes, cropped_indexes_length * sizeof(int));
+        thumb_tex = rb_funcall(
+          self, rb_intern("fetch_texture"), 2, INT2FIX(z), fetch
+        );
+        thumbs = StringValuePtr(thumb_tex);
+        rb_funcall(self, rb_intern("print_time_texture"), 0);
+        
+        colors = (int*)malloc(sizeof(int) * cropped_indexes_length);
         if (colors == NULL) {
           rb_raise(rb_eRuntimeError, "Failed to allocate colors");
           goto exit;
         }
-        for (i=0; i<indexes_length; i++) {
-          j = indexes[i];
-          if (j < iindexes_length) {
-            colors[i] = gl_palette[iindex_colors[j]];
-          } else {
-            colors[i] = 0;
-          }
+        for (i=0; i<cropped_indexes_length; i++) {
+          index = cropped_indexes[i];
+          
+          colors[i] = gl_palette[iindex_colors[index]];
         }
-        
-        colorize(self, (unsigned char*)thumbs, colors, indexes_length, sz);
+
+        colorize(self, (unsigned char*)thumbs, colors, cropped_indexes_length, sz);
         rb_funcall(self, rb_intern("print_time_colors"), 0);
 
         ((int*)final_render)[0] = bgcolor;
@@ -989,7 +1051,7 @@ class TileDrawer
           rb_funcall(self, rb_intern("print_time_draw_bg"), 0);
         }
 
-        for(i=0; i<indexes_length; i++) {
+        for(i=0,index=0; i<indexes_length; i++) {
           if (indexes[i] >= iindexes_length) continue;
           tx = coords[i<<1];
           ty = coords[(i<<1)+1];
@@ -1008,21 +1070,22 @@ class TileDrawer
           } else if (ty > 256-sz) {
             tsz += (256-sz - ty);
           }
-
+          
           for (j=offset_y; j<tsz; j++) {
             oil_composite_over_argb(
                    &((uint32_t*)final_render)[((ty+j)<<8) + tx],
-                   &((uint32_t*)thumbs)[(i<<(z<<1)) + (j<<z) + offset_x],
+                   &((uint32_t*)thumbs)[(index<<(z<<1)) + (j<<z) + offset_x],
                    tsz4);
           }
+          index++;
         }
         rb_funcall(self, rb_intern("print_time_draw"), 0);
 
-          
         exit:
         free(coords);
-        free(thumbs);
         free(indexes);
+        free(cropped_indexes);
+        free(cropped_iindexes);
         free(gl_palette);
         free(colors);
         
@@ -1101,7 +1164,7 @@ class TileDrawer
       int jpeg_cache_level_fill
       (VALUE image_cache, int level, int first_idx, int last_idx)
       {
-        int span_sz, span_end, j, k, l;
+        int span_sz, span_end, j, k, l, total_allocation=0;
         char *span = NULL;
         VALUE thumb_str;
         
@@ -1116,7 +1179,9 @@ class TileDrawer
           span = StringValuePtr(thumb_str);
           for(k=0,l=0; k<RSTRING(thumb_str)->len; l++)
             k += add_cache_leaf(level, j+l, &span[k]);
+          total_allocation += k;
         }
+        printf("allocated %d bytes (%d items) for jpeg cache level %d\\n", total_allocation, last_idx-first_idx+1);
         return 0;
       }
 
@@ -1139,9 +1204,7 @@ class TileDrawer
         printf("raw cache fill done\\n");
         printf("jpeg cache fill start, caching levels %d-%d\\n",
                icache_levels, icache_jpeg_levels-1);
-        printf("On second thought, let's not cache jpegs. It is a silly place.\\n");
         for(i=icache_levels; i < icache_jpeg_levels; i++) {
-          continue;
           if (0 == jpeg_cache_level_fill(image_cache, i, first_idx, last_idx))
             printf("level %d cached\\n", i);
           else
@@ -1156,14 +1219,123 @@ class TileDrawer
     builder.c_raw <<-EOF
       VALUE draw_query(int argc, VALUE *argv, VALUE self)
       {
-        if (argc != 9) {
+        if (argc != 10) {
           rb_raise(rb_eArgError, "Wrong number of args");
           return Qundef;
         }
         return draw_software(self,
-          argv[0], argv[1], argv[2],
+          argv[9], argv[0], argv[1], argv[2],
           *((int*)StringValuePtr(argv[7])), argv[8],
           FIX2INT(argv[3]),FIX2INT(argv[4]),FIX2INT(argv[5]),FIX2INT(argv[6]));
+      }
+    EOF
+
+    builder.c <<-EOF
+      VALUE decompress_rgb_alpha_jpeg(VALUE jpeg, int w, int h)
+      {
+        VALUE dec = rb_str_new(NULL, w*h*4);
+        load_cache_jpeg(StringValuePtr(dec), StringValuePtr(jpeg), w*4);
+        return dec;
+      }
+    EOF
+
+    builder.c_raw <<-EOF
+      VALUE build_texture
+      (
+        int argc, VALUE *argv, VALUE self
+      )
+      {
+        VALUE image_cache, thumb_data;
+        VALUE read_imgs;
+        char *thumb_ptr=NULL;
+        unsigned char *pixels=NULL;
+        int *iindexes=NULL;
+        int i, j, sz24, sz4, len, k, z, iindexes_length, sz;
+        int index=0;
+        VALUE *ptr=NULL;
+        VALUE rtex;
+
+        z = FIX2INT(argv[0]);
+        sz = 1 << z;
+        iindexes = (int*)StringValuePtr(argv[1]);
+        iindexes_length = RSTRING(argv[1])->len / sizeof(int);
+
+        sz24 = sz*sz*4;
+        sz4 = sz*4;
+        image_cache = rb_ivar_get(self, rb_intern("@image_cache"));
+
+        rtex = rb_str_new(NULL, sz24*iindexes_length);
+        pixels = (unsigned char*)StringValuePtr(rtex);
+
+        /* raw textures don't need zeroing, jpeg textures do */
+        if (z >= icache_levels) {
+          oil_splat_u32_ns((uint32_t*)pixels, (uint32_t*)&index, sz*sz*iindexes_length);
+        }
+
+        /* collect all uncached images to read_imgs */
+        read_imgs = rb_ary_new();
+        for (i=0; i<iindexes_length; i++) {
+          if (z >= icache_jpeg_levels || icache[z][iindexes[i]] == NULL)
+          {
+            rb_funcall(read_imgs, rb_intern("push"), 1, INT2FIX(iindexes[i]));
+          }
+        }
+
+        
+        if (RARRAY(read_imgs)->len > 0) {
+          if (z >= icache_levels && z < icache_jpeg_levels) {
+          
+          /* read in missing jpegs */
+            thumb_data = rb_funcall(image_cache,
+                                    rb_intern("read_images_as_jpeg"), 2,
+                                    INT2FIX(z), read_imgs);
+            len = RARRAY(read_imgs)->len;
+            ptr = RARRAY(read_imgs)->ptr;
+            thumb_ptr = (char*)StringValuePtr(thumb_data);
+            for(i=0,k=0; i<len; i++)
+              k += add_cache_leaf(z, FIX2INT(ptr[i]), &(thumb_ptr[k]));
+
+          } else {
+          /* read in missing raws */
+            thumb_data = rb_funcall(image_cache,
+                                    rb_intern("read_images_as_string"), 2,
+                                    INT2FIX(z), read_imgs);
+            len = RARRAY(read_imgs)->len;
+            ptr = RARRAY(read_imgs)->ptr;
+            thumb_ptr = (char*)StringValuePtr(thumb_data);
+            if (z < icache_levels) { /* and cache them */
+              for(i=0,k=0; i<len; i++)
+                k += add_cache_leaf(z, FIX2INT(ptr[i]), &(thumb_ptr[k]));
+            } else { /* or read straight into pixels */
+              for(i=0; i<iindexes_length; i++) {
+                memcpy(pixels+(sz24*i), &(thumb_ptr[i*sz24]), sz24);
+                j++;
+              }
+              /* and we're done here */
+              return rtex;
+            }
+          }
+        }
+        
+        if (z < icache_levels) { /* raws are easy, just memcpy to pixels */
+          if (z == 0) { /* int[i] = blaat */
+            for(i=0; i<iindexes_length; i++) {
+              ((int*)pixels)[i] = *((int*)icache[z][iindexes[i]]);
+            }
+          } else {
+            for(i=0; i<iindexes_length; i++) {
+              oil_memcpy(pixels+(sz24*i), icache[z][iindexes[i]], sz24);
+            }
+          }
+
+        } else if (z < icache_jpeg_levels) { /* jpegs need decompressing */
+          for(i=0; i<iindexes_length; i++) {
+            thumb_ptr = icache[z][iindexes[i]];
+            load_cache_jpeg(&pixels[sz24*i], (unsigned char*)thumb_ptr, sz4);
+          }
+        }
+        
+        return rtex;
       }
     EOF
 
@@ -1203,27 +1375,44 @@ class TileDrawer
     EOF
 
     builder.c <<-EOF
+      void init_liboil()
+      {
+        oil_init();
+      }
+    EOF
+
+    builder.c <<-EOF
+      void delete_image_cache()
+      {
+        destroy_image_cache();
+      }
+    EOF
+
+    builder.c <<-EOF
       void init_image_cache
       (
         int cache_size, int cache_levels, int cache_jpeg_levels, int max_index
       )
       {
         int i,j,sz24;
+        int total_header_sz = 0;
         char **c;
         int e;
-        oil_init();
         if (icache != NULL) destroy_image_cache();
         icache_size = (int)cache_size;
         icache_levels = (int)cache_levels + 1;
         icache_jpeg_levels = (int)cache_jpeg_levels + 1;
         icache = (char***)malloc(sizeof(char**) * icache_jpeg_levels);
+        total_header_sz += sizeof(char**) * icache_jpeg_levels;
         if (icache == NULL) {
           rb_raise(rb_eRuntimeError, "Failed to allocate icache");
           goto fail;
         }
         for(i=0; i < icache_jpeg_levels; i++) {
           // with an extra for the slab at c[icache_size]
-          c = (char**)malloc(sizeof(char*) * icache_size + 1);
+          c = (char**)malloc(sizeof(char*) * (icache_size + 1));
+          total_header_sz += sizeof(char*) * (icache_size + 1);
+          printf("allocated %d bytes (%d entries) of cache index for level %d\\n", sizeof(char*) * (icache_size + 1), icache_size, i);
           if (c == NULL) {
             rb_raise(rb_eRuntimeError, "Failed to allocate icache level");
             destroy_image_cache();
@@ -1243,10 +1432,12 @@ class TileDrawer
               destroy_image_cache();
               goto fail;
             }
+            total_header_sz += (max_index+1) * sz24;
             for (j=0; j<=max_index; j++) c[j] = c[icache_size] + sz24*j;
           }
           icache[i] = c;
         }
+        printf("pre-allocated %d bytes of cache headers (max_index: %d)\\n", total_header_sz, max_index);
         cache_fill(self, 0, max_index);
         fail:
       }

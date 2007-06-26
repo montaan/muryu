@@ -66,7 +66,8 @@ class Items < DB::Tables::Items
       new_sets = []
       DB.transaction do
         new_sets = new_set_names.uniq.map{|t|
-          Sets.rfind_or_create(user, :name => t)
+          ns,n = t.split("/",2)
+          Sets.rfind_or_create(user, :name => n, :namespace => ns)
         }
       end
       DB.transaction do
@@ -130,6 +131,7 @@ class Items < DB::Tables::Items
   end
 
   def remove_group(group)
+    return if (group.namespace == 'users' and group.owner_id == owner_id)
     ItemsGroups.delete_all(:item => self, :group => group)
     remove_instance_variable(:@groups) rescue nil
     remove_instance_variable(:@items_groups) rescue nil

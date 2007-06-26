@@ -68,9 +68,16 @@ module Future
       @mutex = Mutex.new
     end
 
-    def get(a)
+    def get(*a)
       @mutex.synchronize do
-        r = @server.get(a) rescue false
+        r = @server.get(*a) rescue false
+        r
+      end
+    end
+
+    def get_multi(*a)
+      @mutex.synchronize do
+        r = @server.get_multi(*a) rescue false
         r
       end
     end

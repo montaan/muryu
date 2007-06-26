@@ -62,23 +62,12 @@ class MuryuQuery
   class BadPost < MuryuError
   end
   
-  attr_reader(:path, :type, :method, :key, :list_query, :get, :post, :cookies, :request_method, :query)
+  attr_reader(:path, :type, :method, :key, :list_query, :get, :post, :cookies, :request_method, :query, :headers)
   attr_accessor(:session_id)
   
   class << self
     attr_accessor(:type_methods, :type_list_query, :type_keys, :type_method_get_validators, :type_method_post_validators)
   end
-  
-  self.type_methods = {
-    'items' => %w(create json edit delete undelete purge view thumbnail file make_public make_private),
-    'files' => %w(view item),
-    'subfiles' => %w(view),
-    'sets' => %w(create json edit delete undelete view),
-    'users' => %w(create register login logout json edit delete purge view set_preferences delete_preferences clear_preferences create_workspace delete_workspace set_workspace),
-    'groups' => %w(create json edit delete undelete view),
-    'tile' => %w(view),
-    'tile_info' => %w(view)
-  }
 
   uint = '(0|([1-9][0-9]*))'
   int = "((-|\\+)?#{uint})"
@@ -93,7 +82,7 @@ class MuryuQuery
   password = '(.+)'
   tagname = '(\S+)'
   setkey = "(#{username}/#{setname})"
-  groupname = '([0-9A-Za-z._-]+)'
+  groupname = '([^/]+)'
   tile = "(x#{uint}y#{uint}z#{uint})"
   boolean = '(true|false)'
   url = '(.*)'
@@ -111,6 +100,11 @@ class MuryuQuery
     Regexp.new('\A'+pattern+'\Z')
   end
   
+  def self.ee(pattern)
+    Regexp.new('\A('+pattern+')?\Z')
+  end
+  
+
   self.type_keys = {
     'items' => e(itemkey),
     'files' => e(relative_path),
@@ -124,6 +118,9 @@ class MuryuQuery
 
   list_of = lambda{|r|
     /\A\s*((#{r})\s*,\s*)*(#{r})\s*\Z/
+  }
+  elist_of = lambda{|r|
+    /\A\s*(((#{r})\s*,\s*)*(#{r}))?\s*\Z/
   }
 
   json_array_of = lambda{|r, *a|
@@ -164,7 +161,10 @@ class MuryuQuery
       'owner' => e(username)
     },
     'users' => {},
-    'groups' => false,
+    'groups' => {
+      'name' => e(groupname),
+      'owner' => e(username)
+    },
     'tile' => false,
     'tile_info' => {
       'q' => e(items_query),
@@ -225,30 +225,33 @@ class MuryuQuery
 
   item_edit = up.merge({
     'filename' => e(string),
-    'source' => e(url),
-    'referrer' => e(url),
-    'sets' => list_of[setname],
-    'groups' => list_of[groupname],
-    'tags' => list_of[tagname],
-    'title' => e(string),
-    'description' => e(string),
-    'publish_time' => e(date),
-    'publisher' => e(string),
-    'author' => e(string),
-    'album_art' => e(string),
-    'genre' => e(string),
-    'album' => e(string),
-    'tracknum' => e(int),
-    'location' => e(location)
+    'source' => ee(url),
+    'referrer' => ee(url),
+    'sets' => ee(setname),
+    'sets.new' => elist_of[setname],
+    'groups' => ee(groupname),
+    'groups.new' => elist_of[groupname],
+    'tags' => elist_of[tagname],
+    'year' => ee(string),
+    'month' => ee(string),
+    'day' => ee(string),
+    'hour' => ee(string),
+    'minute' => ee(string),
+    'second' => ee(string),
+    'metadata.title' => ee(string),
+    'metadata.description' => ee(string),
+    'metadata.publish_time' => ee(date),
+    'metadata.publisher' => ee(string),
+    'metadata.author' => ee(string),
+    'metadata.album_art' => ee(string),
+    'metadata.genre' => ee(string),
+    'metadata.album' => ee(string),
+    'metadata.tracknum' => ee(int),
+    'metadata.location' => ee(location)
   })
   self.type_method_post_validators = {
     'items' => {
-      'create' => item_edit.merge({
-        'remote_file' => e(url),
-        'remote_archive' => e(url),
-        'local_file' => file,
-        'local_archive' => file
-      }),
+      'create' => any,
       'edit' => item_edit,
       'make_public' => up,
       'make_private' => up,
@@ -264,6 +267,13 @@ class MuryuQuery
       'edit' => {
         'name' => e(setname)
       }.merge(up),
+      'add_group' => {
+        'name' => e(groupname),
+        'can_modify' => e(boolean)
+      },
+      'remove_group' => {
+        'name' => e(groupname)
+      },
       'delete' => up,
       'undelete' => up
     },
@@ -291,6 +301,13 @@ class MuryuQuery
         'name' => e(string),
         'public' => e(boolean)
       }.merge(up),
+      'add_member' => {
+        'name' => e(username),
+        'admin' => e(boolean)
+      },
+      'remove_member' => {
+        'name' => e(username)
+      },
       'delete' => up,
       'undelete' => up
     },
@@ -320,20 +337,19 @@ class MuryuQuery
     @headers[k]
   end
   
-  def valid_methods
-    self.class.type_methods[@type]
-  end
-  
   def valid_key_pattern
     self.class.type_keys[@type]
   end
   
   def valid_method?(name)
-    valid_methods.include?(name)
+    gv = self.class.type_method_get_validators[@type]
+    pv = self.class.type_method_post_validators[@type]
+    (gv and gv[name]) or (pv and pv[name])
   end
     
   def valid_type?
-    self.class.type_methods.has_key?(@type)
+    self.class.type_method_get_validators.has_key?(@type) or
+    self.class.type_method_post_validators.has_key?(@type)
   end
   
   def valid_key?(key)
@@ -438,7 +454,7 @@ end
 
 $PRINT_QUERY_PROFILE = false
 $CACHE_INFO = true
-$CACHE_TILES = true
+$CACHE_TILES = false
 
 module MuryuDispatch
 
@@ -471,7 +487,7 @@ module MuryuDispatch
         user
       }
       if cookie
-        if !user or req.post['logout'] or req.get['logout']
+        if !user or req.query['logout']
           if user
             user.logout
             user = nil
@@ -499,17 +515,9 @@ module MuryuDispatch
     end
     cookies.delete_at(cookies.index(cookie)) if cookies.index(cookie)
     if user and new_cookie
-      res["Set-Cookie"] = "future_session_id=#{new_cookie}; Path=/; Max-Age=#{86400*7}; Version=1"
-    elsif cookies.size > 0
+      res["Set-Cookie"] = "future_session_id=#{new_cookie};Domain=.fhtr.org;Path=/;Max-Age=#{86400*7};Version=1"
+    elsif not user
       session_id = nil
-    end
-    if cookies.size > 0
-      dc = cookies.map{|c| "future_session_id=#{c}; Path=/; Max-Age=0; Version=1" }.join(",")
-      if res["Set-Cookie"]
-        res["Set-Cookie"] += ","+dc
-      else
-        res["Set-Cookie"] = dc
-      end
     end
     [(user or Future::Users.anonymous), session_id]
   end
@@ -527,15 +535,13 @@ module MuryuDispatch
     md5.hexdigest
   end
   
-  def self.time(t0, msg)
-    return t0 unless $PRINT_QUERY_PROFILE
-    t1 = Time.now.to_f
-    puts " #{(t1-t0) * 1000}\t: #{msg}"
-    t1
+  def self.time(msg)
+    puts "#{Thread.current.telapsed} #{msg}"
   end
   
   def self.dispatch_request(req)
-    t0 = time(0, "dispatch start")
+    Thread.current.telapsed
+    time("dispatch start")
     r = MuryuResponse.new
     r.status = 200
     r.content_type = 'text/html'
@@ -543,18 +549,18 @@ module MuryuDispatch
     r.headers = {}
     begin
       q = MuryuQuery.new(req)
-      t0 = time(t0, "parsed")
+      time("parsed")
       u,sid = authenticate(q,r)
-      t0 = time(t0, "authenticated")
+      time("authenticated")
       q.session_id = sid
       handler = get_handler(q.type)
-      t0 = time(t0, "got_handler")
+      time("got_handler")
       if not q.key
         handler.__send__(q.method, u, q, r)
       else
         handler[u, q.key].__send__(q.method, q, r)
       end
-      t0 = time(t0, "handled")
+      time("handled")
     rescue MuryuQuery::BadMethod => e
       r.status = 405
       r.content_type = 'text/html'

@@ -47,7 +47,7 @@ Editors = {
   intInput : function(name, value) {
     var inp = E('input', null, null, 'intInput',
       {width: Math.max(value.toString().length, 2) * 0.75 + 'em'},
-      {type:"text", size: value.toString().length, "name": name, "value": value})
+      {type:"text", size: (value || '').toString().length, "name": name, "value": value})
     inp.addEventListener('change', function(e){
       if (inp.validator && !inp.validator(inp.value)) {
         inp.value = value
@@ -68,7 +68,7 @@ Editors = {
     var inp = E('input', null, null, 'limitedIntInput',
       {width: Math.max(value.toString().length, 2) * 0.75 + 'em'},
       { type:"text", size: value.toString().length,
-        "name": name, "value": value.toString().rjust(padding, '0'),
+        "name": name, "value": (value || '').toString().rjust(padding, '0'),
         "low": low, "high": high
       })
     inp.addEventListener('change', function(e){
@@ -80,14 +80,14 @@ Editors = {
       }
       var v = Math.max(inp.low, Math.min(inp.high, parseInt(inp.value)))
       if (isNaN(v)) v = value
-      inp.value = v.toString().rjust(padding, '0')
+      inp.value = (value || '').toString().rjust(padding, '0')
     }, true)
     return inp
   },
 
   hiddenInput : function(name, value) {
     var inp = E('input', null, null, null, null,
-      {type:"hidden", "name": name, "value": value})
+      {type:"hidden", "name": name, "value": value || ''})
     return inp
   },
 
@@ -101,7 +101,7 @@ Editors = {
   // String
   string : function(name, value) {
     var inp = E('input', null, null, 'stringEditor', null,
-      {type:"text", "name": name, "value": value})
+      {type:"text", "name": name, "value": value || ''})
     return inp
   },
 
@@ -115,13 +115,27 @@ Editors = {
       var ul = E('ul')
       list_values.each(function(lv){
         var d = E('li')
-        var opt = E('input')
-        opt.type = 'checkbox'
-        opt.name = name
-        opt.value = lv
-        if (value) opt.checked = value.include(lv)
-        d.appendChild(opt)
-        d.appendChild(T(lv))
+        if (typeof lv == 'string') {
+          var opt = E('input')
+          opt.type = 'checkbox'
+          opt.name = name
+          opt.value = lv
+          if (value) opt.checked = value.include(lv)
+          d.appendChild(opt)
+          d.appendChild(T(lv))
+        } else if (lv.separator) {
+          d.appendChild(E('hr'))
+        } else if (lv.value) {
+          var opt = E('input')
+          opt.type = 'checkbox'
+          opt.name = name
+          opt.value = lv.value
+          if (value) opt.checked = value.include(lv.value)
+          d.appendChild(opt)
+          d.appendChild(T(lv.title))
+        } else {
+          d.appendChild(E('h5',lv.title))
+        }
         ul.appendChild(d)
       })
       list.appendChild(ul)
@@ -149,7 +163,7 @@ Editors = {
   // Autocompleting text field
   autoComplete : function(name, value, complete_values) {
     var inp = E('input', null, null, 'autoCompleteEditor', null,
-      {type:"text", "name": name, "value": value})
+      {type:"text", "name": name, "value": (value || '')})
     return inp
   },
 
@@ -157,7 +171,7 @@ Editors = {
   location : function(name, value) {
     var loc = E('div', null, null, 'locationEditor')
     var hid = E('input', null, null, null, null,
-      {type:"hidden", "name": name, "value": value})
+      {type:"hidden", "name": name, "value": (value || '')})
     loc.appendChild(hid)
     if (typeof GBrowserIsCompatible != 'undefined' && GBrowserIsCompatible()) {
       var txt = E('span', value || '(-,-)')
@@ -223,7 +237,7 @@ Editors = {
   // Valid URL
   url : function(name, value) {
     var inp = E('input', null, null, 'urlEditor', null,
-      {type:"text", "name": name, "value": value})
+      {type:"text", "name": name, "value": value || ''})
     return inp
   }
 }

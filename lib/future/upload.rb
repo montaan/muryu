@@ -274,8 +274,9 @@ class Uploader
     else
       filename = compressed.path
     end
-    ext = File.extname(path)
+    ext = File.extname(compressed.filename)
     ziptemp = tempdir
+    p ext, path
     case ext
     when ".zip"
       `unzip -qq -d #{ziptemp.dump} #{filename.dump}`
