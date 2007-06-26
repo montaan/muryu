@@ -183,7 +183,7 @@ class Items < DB::Tables::Items
     Future.thumbnail_dir.join(*sha1_hash.scan(/(..)(..)(.*)/)[0]) + "fullsize.jpg"
   end
 
-  def update_thumbnail
+  def update_thumbnail(update_image_cache_too=true)
     tn = thumbnail
     full_res = full_size_image
     unless tn.exist? and full_res.exist?
@@ -192,8 +192,12 @@ class Items < DB::Tables::Items
       if mimetype == "text/html" and source and not source.empty?
         src = URI.parse(source)
         if ['http','https'].include?( src.scheme.downcase )
-          Mimetype["text/html"].web_thumbnail(src, full_res.to_s) rescue Exception false
-          created = (Mimetype["image/jpeg"].thumbnail(full_res.to_s, tn.to_s) rescue Exception false)
+          begin
+            Mimetype["text/html"].web_thumbnail(src, full_res.to_s)
+            Mimetype["image/jpeg"].thumbnail(full_res.to_s, tn.to_s)
+            created = true
+          rescue Exception => e
+          end
         end
       end
       unless created
@@ -202,7 +206,7 @@ class Items < DB::Tables::Items
       end
     end
     p full_res.dimensions
-    update_image_cache
+    update_image_cache if update_image_cache_too
   end
 
   def update_image_cache

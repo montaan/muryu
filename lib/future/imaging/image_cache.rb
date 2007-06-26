@@ -112,7 +112,16 @@ class ImageCache
         thumb.fill_rectangle(0,0,2**@max_zoom, 2**@max_zoom,
                              Imlib2::Color::TRANSPARENT)
       else
-        thumb = Imlib2::Image.load(item.thumbnail)
+        retried = false
+        begin
+          thumb = Imlib2::Image.load(item.thumbnail)
+        rescue Exception
+          unless retried
+            retried = true
+            item.update_thumbnail(false)
+            retry
+          end
+        end
         init_ctx
       end
       larger = [thumb.width, thumb.height].max
@@ -160,6 +169,8 @@ class ImageCache
       end
       $imlib_mutex.synchronize do
         img.has_alpha = true
+        ctx = Imlib2::Context.get
+        ctx.blend = true
         image.blend!(img, 0, 0, img.width, img.height,
                           x, y, img.width, img.height)
         img.delete!
@@ -535,8 +546,8 @@ class JPEGPyramid
 
   def read_images_as_imlib(level, indexes)
     read_images(level, indexes).map{|rgb_alpha_jpeg|
-      d = Tiles.tile_drawer.decompress_rgb_alpha_jpeg(rgb_alpha_jpeg, 2**level, 2**level)
-      $imlib_mutex.synchronize{ Imlib2::Image.create_using_data(2**level, 2**level, d) }
+      bgra = Tiles.tile_drawer.decompress_rgb_alpha_jpeg(rgb_alpha_jpeg, 2**level, 2**level)
+      $imlib_mutex.synchronize{ Imlib2::Image.create_using_data(2**level, 2**level, bgra) }
     }
   end
 

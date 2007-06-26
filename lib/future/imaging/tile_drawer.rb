@@ -147,13 +147,9 @@ extend self
       deleted_color = (query['deleted'] ? [0,0,0,0] : vbgcolor)
       puts "#{Thread.current.telapsed} for fetching indexes" if $PRINT_QUERY_PROFILE
       pal = palette(colors, deleted_color)
-p 'before draw'
-GC.start
       tile = tile_drawer.draw_tile(vbgcolor, indexes, pal, r,x,y,z,w,h, bgimage)
     end
     if tile
-p 'after draw, before sanitize'
-GC.start
       qtext = sanitize_query(query)
       quality = case z
                 when 0: 65
@@ -169,8 +165,6 @@ GC.start
                 end
       quality += 10 if colors
       quality = 90 if quality > 90
-p 'after draw, before jpeg'
-GC.start
       if tile.is_a? String
         retval = string_to_jpeg(tile, 256, 256, quality)
       else
@@ -189,8 +183,6 @@ GC.start
       end
       retval = imlib_to_jpeg(img)
     end
-p 'after jpeg'
-GC.start
     retval
   end
 
@@ -331,8 +323,6 @@ class TileDrawer
     puts "#{Thread.current.telapsed} for tile init" if $PRINT_QUERY_PROFILE
     tile = draw_tile_sw(bgcolor, indexes[1], palette, x, y, zoom, bgimage) if zoom <= @jpeg_cache_level && layouter_name.to_s == 'rows'
     if tile
-p 'after draw, before return from draw_tile'
-GC.start
       return tile
     end
     tile = nil
@@ -347,8 +337,12 @@ GC.start
       end
     end
     layouter.each(indexes[0], x, y, sz, w, h) do |i, ix, iy|
+      if zoom > @raw_cache_level and zoom <= @jpeg_cache_level
+        $imlib_mutex.synchronize do
+        end
+      end
       @image_cache.draw_image_at(i[0], zoom, tile, ix, iy)
-      if palette and palette[i[1]][3] == 255
+      if palette and zoom < 6
         $imlib_mutex.synchronize do
           tile.fill_rectangle(ix, iy, sz, sz,
             Imlib2::Color::RgbaColor.new(palette[i[1]]))
@@ -395,8 +389,6 @@ GC.start
       tile = draw_query(indexes[0], indexes[1], cpalette, x, y, z,
         @image_cache.thumb_size_at_zoom(z), bgcolor.pack("CCC").reverse! << "\377",
         bgimage)
-p 'after draw, before return from draw_tile_sw'
-GC.start
       tile
     end
   end
@@ -433,8 +425,6 @@ GC.start
   end
 
   def fetch_texture(z, index_int_string)
-p 'after layout, before fetch'
-GC.start
     d = if ($USE_DIPUS_IMAGE_CACHE or $NO_TILE_DRAWING) and defined? DIPUS
       DIPUS.open_address('image_cache'){|conn|
         conn.write([z].pack("I"))
@@ -445,8 +435,6 @@ GC.start
     else
       build_texture(z, index_int_string)
     end
-p 'after fetch'
-GC.start
     d
   end
 
@@ -470,20 +458,14 @@ GC.start
 
   def print_time_colors
     puts "#{Thread.current.telapsed} for coloring texture" if $PRINT_QUERY_PROFILE
-p 'after colors'
-GC.start
   end
 
   def print_time_layout
     puts "#{Thread.current.telapsed} for layout" if $PRINT_QUERY_PROFILE
-p 'after layout'
-GC.start
   end
 
   def print_time_draw
     puts "#{Thread.current.telapsed} for drawing" if $PRINT_QUERY_PROFILE
-p 'after draw'
-GC.start
   end
 
   def print_time_draw_zero
@@ -764,7 +746,7 @@ GC.start
 
         sz24 = sz*sz*4;
 
-        /* premultiply the thumbs */
+        /* premultiply the thumbs
         for (i=0; i<colors_length*sz24-16; i+=16) {
           thumbs[i+14] = (thumbs[i+14]*thumbs[i+15]) >> 8;
           thumbs[i  ] = (thumbs[i  ]*thumbs[i+3]) >> 8;
@@ -778,8 +760,8 @@ GC.start
           thumbs[i+10] = (thumbs[i+10]*thumbs[i+11]) >> 8;
           thumbs[i+12] = (thumbs[i+12]*thumbs[i+15]) >> 8;
           thumbs[i+13] = (thumbs[i+13]*thumbs[i+15]) >> 8;
-        }
-        for (i=colors_length*sz24-16; i<colors_length*sz24; i+=4) {
+        } */
+        for (i=0; i<colors_length*sz24; i+=4) {
           thumbs[i  ] = (thumbs[i  ]*thumbs[i+3]) >> 8;
           thumbs[i+1] = (thumbs[i+1]*thumbs[i+3]) >> 8;
           thumbs[i+2] = (thumbs[i+2]*thumbs[i+3]) >> 8;
@@ -992,7 +974,7 @@ GC.start
         iindexes_length = RSTRING(riindexes)->len / sizeof(int);
         iindexes = (int*)StringValuePtr(riindexes);
         iindex_colors = (int*)StringValuePtr(riindex_colors);
-        
+
         plen = RARRAY(palette)->len;
         qptr = RARRAY(palette)->ptr;
         if (plen == 0) {
@@ -1053,9 +1035,8 @@ GC.start
         colorize(self, (unsigned char*)thumbs, colors, cropped_indexes_length, sz);
         rb_funcall(self, rb_intern("print_time_colors"), 0);
 
-        ((int*)final_render)[0] = bgcolor;
-        for(i=4; i<256*256*4; i*=2)
-          memcpy(final_render+i, final_render, i);
+        for(i=0; i<256*256; i++)
+          ((int*)final_render)[i] = bgcolor;
         rb_funcall(self, rb_intern("print_time_draw_zero"), 0);
 
         if (bgimage != Qnil) {
@@ -1248,7 +1229,12 @@ GC.start
     builder.c <<-EOF
       VALUE decompress_rgb_alpha_jpeg(VALUE jpeg, int w, int h)
       {
+        int i;
+        int *str = NULL;
         VALUE dec = rb_str_new(NULL, w*h*4);
+        str = (int*)StringValuePtr(dec);
+        for(i=0; i<w*h; i++)
+          str[i] = 0;
         load_cache_jpeg(StringValuePtr(dec), StringValuePtr(jpeg), w*4);
         return dec;
       }
