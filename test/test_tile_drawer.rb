@@ -21,7 +21,7 @@ include Future
 
   def test_photographs
     cache_setup 'photos'
-    photos = Dir[File.join(File.dirname(__FILE__), "data/images/*.JPG")]
+    photos = Dir[File.join(File.dirname(__FILE__), "data/images/*.png")].sort.reverse
     @image_cache.batch do
       photos.each_with_index do |photo, i|
         @image_cache.update_cache_at(
@@ -54,6 +54,12 @@ include Future
         end
       }
     }
+    t = @image_cache.instance_variable_get("@jpeg_tiles")
+    data = t.load_tile_at(1, 0, 0, 0)
+    img = Imlib2::Image.create_using_data(256,256,data)
+    img.has_alpha = true
+    img.save(pn + "_8_0_cache.png")
+    img.delete!(true)
   end
 
 end

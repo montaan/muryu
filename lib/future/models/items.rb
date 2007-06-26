@@ -164,7 +164,8 @@ class Items < DB::Tables::Items
   def purge
     if self.class.find_all(:sha1_hash => sha1_hash).size == 1
       File.unlink(internal_path) if File.exist?(internal_path)
-      File.unlink(thumbnail) if File.exist?(internal_path)
+      File.unlink(thumbnail) if File.exist?(thumbnail)
+      File.unlink(full_size_image) if File.exist?(full_size_image)
     end
     self.sha1_hash = nil
     self.deleted = true
@@ -172,26 +173,35 @@ class Items < DB::Tables::Items
     self.referrer = nil
   end
 
-  def thumbnail(sz=256)
+  def thumbnail
     return nil unless sha1_hash
-    Future.thumbnail_dir.join(*sha1_hash.scan(/(..)(..)(.*)/)[0]) + "#{sz}.png"
+    Future.thumbnail_dir.join(*sha1_hash.scan(/(..)(..)(.*)/)[0]) + "256.png"
+  end
+
+  def full_size_image
+    return nil unless sha1_hash
+    Future.thumbnail_dir.join(*sha1_hash.scan(/(..)(..)(.*)/)[0]) + "fullsize.jpg"
   end
 
   def update_thumbnail
-    tn = thumbnail(256)
-    unless tn.exist?
+    tn = thumbnail
+    full_res = full_size_image
+    unless tn.exist? and full_res.exist?
       tn.dirname.mkdir_p
+      created = false
       if mimetype == "text/html" and source and not source.empty?
         src = URI.parse(source)
         if ['http','https'].include?( src.scheme.downcase )
-          Mimetype["text/html"].web_thumbnail(src, tn.to_s, 256) rescue false
-        else
-          false
+          Mimetype["text/html"].web_thumbnail(src, full_res.to_s) rescue Exception false
+          created = (Mimetype["image/jpeg"].thumbnail(full_res.to_s, tn.to_s) rescue Exception false)
         end
-      else
-        false
-      end or Mimetype[mimetype.to_s].thumbnail(internal_path, tn.to_s, 256)
+      end
+      unless created
+        Mimetype[mimetype.to_s].thumbnail(internal_path, full_res.to_s)
+        Mimetype[mimetype.to_s].thumbnail(internal_path, tn.to_s, 256)
+      end
     end
+    p full_res.dimensions
     update_image_cache
   end
 

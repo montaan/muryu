@@ -1,5 +1,6 @@
 require 'future/metadata/mp3info'
 require 'future/metadata/mime_info'
+require 'imlib2'
 require 'iconv'
 require 'time'
 require 'future/base'
@@ -123,8 +124,16 @@ extend self
   alias_method(:application_x_flash_video, :video)
 
   def image(fname, charset)
-    id_out = `identify #{fname.dump}`
-    w,h = id_out.scan(/[0-9]+x[0-9]+/)[0].split("x",2)
+    begin
+      img = Imlib2::Image.load(fname.to_s)
+      w = img.width
+      h = img.height
+      id_out = ""
+      img.delete!
+    rescue Exception
+      id_out = `identify #{fname.dump}`
+      w,h = id_out.scan(/[0-9]+x[0-9]+/)[0].split("x",2)
+    end
     exif = extract_exif(fname)
     info = {
       :width => parse_val(w),

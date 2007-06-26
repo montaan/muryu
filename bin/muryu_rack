@@ -17,7 +17,7 @@ require 'future/utils'
 
 def update_loaded_features
   files = $LOADED_FEATURES.map{|fn|
-    lp = $LOAD_PATH.find{|pt| File.exist?(File.join(pt,fn)) }
+    lp = $LOAD_PATH.find{|pt| File.exist?(File.join(pt,fn)) and pt =~ /\.rb$/ }
     if lp
       File.join(lp,fn)
     else

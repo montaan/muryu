@@ -68,7 +68,7 @@ module Mimetype
   #   pdf = 'gsp0606.pdf'.to_pn
   #   pdf.create_tiles    # (256, 1024, [3,4]){|pg,x,y| "#{pg}_#{y}_#{x}.png" }
   #
-  def thumbnail(filename, thumb_filename, thumb_size=128, page=nil, crop='0x0+0+0')
+  def thumbnail(filename, thumb_filename, thumb_size=nil, page=nil, crop='0x0+0+0')
 #     puts "called thumbnail for #{filename} (#{to_s})"
     if to_s =~ /video/
       page ||= 5.7
@@ -82,11 +82,11 @@ module Mimetype
     end or icon_thumbnail(filename, thumb_filename, thumb_size, crop)
   end
 
-  def icon_thumbnail(filename, thumb_filename, thumb_size=128, crop='0x0+0+0')
+  def icon_thumbnail(filename, thumb_filename, thumb_size, crop='0x0+0+0')
     Mimetype['image/png'].image_thumbnail(icon(thumb_size), thumb_filename, thumb_size, 0, crop)
   end
 
-  def icon(thumb_size)
+  def icon(thumb_size=128)
     ancestors.map do |klass|
       Future.icon_dir + (klass.to_s.downcase.gsub(/\//, '-')+".png")
     end.find{|pn| pn.exist? }
@@ -102,6 +102,7 @@ module Mimetype
         larger = [ow, oh].max
         wr = img.width.to_f / larger
         hr = img.height.to_f / larger
+        thumb_size ||= larger
         sr = larger / thumb_size.to_f
         w,h,x,y = crop.scan(/[+-]?[0-9]+/).map{|i|i.to_i}
         w = thumb_size * wr if w == 0
@@ -130,7 +131,7 @@ module Mimetype
         nimg.save(tmp_filename.to_s)
       ensure
         img.delete!
-        nimg.delete!(true)
+        nimg.delete!(true) if nimg
       end
     else
 #       puts "going to non-image fork"
@@ -142,6 +143,7 @@ module Mimetype
         dims = filename.dimensions
         return false unless dims[0] and dims[1]
         scale_fac = 1
+        thumb_size ||= 2048
         if dims.min < thumb_size
           scale_fac = thumb_size / dims.min.to_f
         elsif dims.max > thumb_size

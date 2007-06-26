@@ -413,7 +413,7 @@
         this.uuid = TileNode.uuid++
         this.children = []
         this.setParent(parent)
-        this.tilePath = 'x'+this.tileX  +  'y'+this.tileY  +  'z'+z + map.queryString
+        this.tilePath = 'x'+this.tileX  +  'y'+this.tileY  +  'z'+z + map.queryString + "&color=false"
       }
       TileNode.uuid = 0
       TileNode.prototype = {

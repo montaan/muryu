@@ -536,7 +536,7 @@ module MuryuDispatch
   end
   
   def self.time(msg)
-    puts "#{Thread.current.telapsed} #{msg}"
+    puts "#{Thread.current.telapsed} #{msg}" if $PRINT_QUERY_PROFILE
   end
   
   def self.dispatch_request(req)

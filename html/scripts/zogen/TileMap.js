@@ -536,7 +536,7 @@ TileMap.prototype = {
 
   minZoom : -5, // min zoom of the map (to avoid "oh where did my files go :(")
                 // also javascript hang when zoomed to -20 or so
-  maxZoom : 10, // max zoom of the map (should get from the server)
+  maxZoom : 16, // max zoom of the map (should get from the server)
 
   pointerX : 0,
   pointerY : 0,

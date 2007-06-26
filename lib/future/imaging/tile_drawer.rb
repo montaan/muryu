@@ -15,7 +15,6 @@ end
 
 
 $imlib_mutex ||= Mutex.new
-$PRINT_QUERY_PROFILE = false if $PRINT_QUERY_PROFILE.nil?
 
 module Future
 
@@ -100,13 +99,6 @@ extend self
         conn.read
       end
     end
-    if @@read_count >= 10
-      @@read_count = 0
-      GC.enable
-      GC.start
-    end
-    @@read_count += 1
-    GC.disable
     bad_tile = (tile_args[1] < 0 or tile_args[2] < 0)
     indexes = nil
     r,x,y,z,w,h,colors,bgcolor,bgimage = *tile_args
@@ -155,9 +147,13 @@ extend self
       deleted_color = (query['deleted'] ? [0,0,0,0] : vbgcolor)
       puts "#{Thread.current.telapsed} for fetching indexes" if $PRINT_QUERY_PROFILE
       pal = palette(colors, deleted_color)
+p 'before draw'
+GC.start
       tile = tile_drawer.draw_tile(vbgcolor, indexes, pal, r,x,y,z,w,h, bgimage)
     end
     if tile
+p 'after draw, before sanitize'
+GC.start
       qtext = sanitize_query(query)
       quality = case z
                 when 0: 65
@@ -173,10 +169,12 @@ extend self
                 end
       quality += 10 if colors
       quality = 90 if quality > 90
+p 'after draw, before jpeg'
+GC.start
       if tile.is_a? String
-        string_to_jpeg(tile, 256, 256, quality)
+        retval = string_to_jpeg(tile, 256, 256, quality)
       else
-        imlib_to_jpeg(tile, quality)
+        retval = imlib_to_jpeg(tile, quality)
       end
     else
       img = nil
@@ -189,8 +187,11 @@ extend self
           bg.delete!(true)
         end
       end
-      imlib_to_jpeg(img)
+      retval = imlib_to_jpeg(img)
     end
+p 'after jpeg'
+GC.start
+    retval
   end
 
   def imlib_to_jpeg(tile, quality=50, delete=true)
@@ -328,7 +329,12 @@ class TileDrawer
     end
     return false if empty_tile
     puts "#{Thread.current.telapsed} for tile init" if $PRINT_QUERY_PROFILE
-    return draw_tile_sw(bgcolor, indexes[1], palette, x, y, zoom, bgimage) if zoom <= 7 && layouter_name.to_s == 'rows'
+    tile = draw_tile_sw(bgcolor, indexes[1], palette, x, y, zoom, bgimage) if zoom <= @jpeg_cache_level && layouter_name.to_s == 'rows'
+    if tile
+p 'after draw, before return from draw_tile'
+GC.start
+      return tile
+    end
     tile = nil
     $imlib_mutex.synchronize do
       tile = Imlib2::Image.new(w,h)
@@ -386,13 +392,15 @@ class TileDrawer
     puts "#{Thread.current.telapsed} for palette generation" if $PRINT_QUERY_PROFILE
     init_sw unless @@sw_init
     @@draw_mutex.synchronize do
-      draw_query(indexes[0], indexes[1], cpalette, x, y, z,
-        @image_cache.thumb_size_at_zoom(z), bgcolor.pack("CCC").reverse! << 255,
-        bgimage, @@scratchpad)
+      tile = draw_query(indexes[0], indexes[1], cpalette, x, y, z,
+        @image_cache.thumb_size_at_zoom(z), bgcolor.pack("CCC").reverse! << "\377",
+        bgimage)
+p 'after draw, before return from draw_tile_sw'
+GC.start
+      tile
     end
   end
 
-  @@scratchpad = "\000\000\000\000"*(256*256) # temp tile image
   @@sw_init = false
   @@draw_mutex = Mutex.new
 
@@ -407,8 +415,6 @@ class TileDrawer
         puts "#{Time.now.to_f}: Reading #{@image_cache.max_index+1} thumbs of cache to RAM."
         init_liboil
         init_mem_image_cache
-        GC.enable
-        GC.start
         puts "#{Time.now.to_f}: Cache init done."
       end
     end
@@ -427,6 +433,8 @@ class TileDrawer
   end
 
   def fetch_texture(z, index_int_string)
+p 'after layout, before fetch'
+GC.start
     d = if ($USE_DIPUS_IMAGE_CACHE or $NO_TILE_DRAWING) and defined? DIPUS
       DIPUS.open_address('image_cache'){|conn|
         conn.write([z].pack("I"))
@@ -437,6 +445,8 @@ class TileDrawer
     else
       build_texture(z, index_int_string)
     end
+p 'after fetch'
+GC.start
     d
   end
 
@@ -460,14 +470,20 @@ class TileDrawer
 
   def print_time_colors
     puts "#{Thread.current.telapsed} for coloring texture" if $PRINT_QUERY_PROFILE
+p 'after colors'
+GC.start
   end
 
   def print_time_layout
     puts "#{Thread.current.telapsed} for layout" if $PRINT_QUERY_PROFILE
+p 'after layout'
+GC.start
   end
 
   def print_time_draw
     puts "#{Thread.current.telapsed} for drawing" if $PRINT_QUERY_PROFILE
+p 'after draw'
+GC.start
   end
 
   def print_time_draw_zero
@@ -947,7 +963,6 @@ class TileDrawer
       VALUE draw_software
       (
         VALUE self,
-        VALUE rimage,
         VALUE riindexes,
         VALUE riindex_colors,
         VALUE palette,
@@ -968,6 +983,7 @@ class TileDrawer
         VALUE *qptr = NULL;
         int i, j, plen, sz24, sz4, index;
         VALUE thumb_tex, fetch;
+        VALUE rimage = rb_str_new(NULL, 256*256*4);
 
         sz24 = sz*sz*4;
         sz4 = sz*4;
@@ -1023,7 +1039,7 @@ class TileDrawer
         );
         thumbs = StringValuePtr(thumb_tex);
         rb_funcall(self, rb_intern("print_time_texture"), 0);
-        
+
         colors = (int*)malloc(sizeof(int) * cropped_indexes_length);
         if (colors == NULL) {
           rb_raise(rb_eRuntimeError, "Failed to allocate colors");
@@ -1031,7 +1047,6 @@ class TileDrawer
         }
         for (i=0; i<cropped_indexes_length; i++) {
           index = cropped_indexes[i];
-          
           colors[i] = gl_palette[iindex_colors[index]];
         }
 
@@ -1079,8 +1094,7 @@ class TileDrawer
           }
           index++;
         }
-        rb_funcall(self, rb_intern("print_time_draw"), 0);
-
+        
         exit:
         free(coords);
         free(indexes);
@@ -1088,7 +1102,8 @@ class TileDrawer
         free(cropped_iindexes);
         free(gl_palette);
         free(colors);
-        
+        rb_funcall(self, rb_intern("print_time_draw"), 0);
+
         return rimage;
       }
 
@@ -1219,12 +1234,12 @@ class TileDrawer
     builder.c_raw <<-EOF
       VALUE draw_query(int argc, VALUE *argv, VALUE self)
       {
-        if (argc != 10) {
+        if (argc != 9) {
           rb_raise(rb_eArgError, "Wrong number of args");
           return Qundef;
         }
         return draw_software(self,
-          argv[9], argv[0], argv[1], argv[2],
+          argv[0], argv[1], argv[2],
           *((int*)StringValuePtr(argv[7])), argv[8],
           FIX2INT(argv[3]),FIX2INT(argv[4]),FIX2INT(argv[5]),FIX2INT(argv[6]));
       }

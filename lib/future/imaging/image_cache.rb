@@ -16,14 +16,14 @@ class ImageCache
   attr_reader :max_thumbnail_size, :max_zoom, :raw_pyramid
 
   def initialize(cache_dir = Future.cache_dir + 'image_cache',
-                 max_thumbnail_size = 256, max_raw_size = 16)
+                 max_thumbnail_size = 128, max_raw_size = 16)
     @max_thumbnail_size = max_thumbnail_size
     @cache_dir = cache_dir
     @max_zoom = (Math.log(max_thumbnail_size) / Math.log(2)).to_i
     @max_raw_zoom = (Math.log(max_raw_size) / Math.log(2)).to_i
     @raw_pyramid = RawPyramid.new(@cache_dir+'raw_pyramid', 2**27, @max_raw_zoom)
     @jpeg_pyramid = JPEGPyramid.new(@cache_dir+'jpeg_pyramid', 2**27, @max_raw_zoom+1, @max_zoom)
-    @jpeg_tiles = JPEGTileStore.new(@cache_dir+'jpeg_tiles', max_thumbnail_size)
+    @jpeg_tiles = JPEGTileStore.new(@cache_dir+'jpeg_tiles')
     @batch_ops = nil
     @total_data_read = 0
   end
@@ -87,7 +87,8 @@ class ImageCache
       else
         mipmap = mipmap(item)
         @raw_pyramid.update_cache_at(index, mipmap) if raw
-        @jpeg_pyramid.update_cache_at(index, mipmap.map{|bgra| bgra_to_rgb_alpha_jpeg(bgra) } ) if jpeg
+        i = -1
+        @jpeg_pyramid.update_cache_at(index, mipmap.map{|bgra| i+=1; crop_and_jpeg(bgra,i) } ) if jpeg
         @jpeg_tiles.update_cache_at(index, item) if tiles
       end
     else
@@ -157,9 +158,12 @@ class ImageCache
       else
         img = @raw_pyramid.read_images_as_imlib(zoom, [index])[0]
       end
-      image.blend!(img, 0, 0, img.width, img.height,
-                        x, y, img.width, img.height)
-      img.delete!
+      $imlib_mutex.synchronize do
+        img.has_alpha = true
+        image.blend!(img, 0, 0, img.width, img.height,
+                          x, y, img.width, img.height)
+        img.delete!
+      end
     end
   end
 
@@ -193,44 +197,6 @@ class ImageCache
     d
   end
 
-  def bgra_to_rgb_alpha_jpeg(bgra)
-    sz = Math.sqrt(bgra.size / 4).to_i
-    img = $imlib_mutex.synchronize{ Imlib2::Image.create_using_data(sz, sz, bgra) }
-    a = ""
-    a << Tiles.imlib_to_gray_jpeg(img, 75) if img.has_alpha?
-    rgb = Tiles.imlib_to_jpeg(img, 75)
-    rgba = [rgb.size].pack("I") << rgb << [a.size].pack("I") << a
-    [rgba.size].pack("I") << rgba
-  end
-
-  def crop_and_jpeg(bgra, lvl)
-    sz = 2**lvl
-    i = 0
-    w = 0
-    while i < sz && w < sz
-      nw = (bgra[i*sz*4,sz*4].index(/(\000\000\000\000)+\Z/) || (sz * 4)) / 4
-      w = nw if nw > w
-      i+=1
-    end
-    raise "BUG in width, #{w} > #{sz}" if w > sz
-    if w == 0
-      ""
-    else
-      h = ((bgra.index(/(\000\000\000\000)+\Z/) || sz*sz*4.0) / (sz*4.0)).ceil
-      raise "BUG in height, #{h} > #{sz}" if h > sz
-      img = nil
-      $imlib_mutex.synchronize do
-        img = Imlib2::Image.create_using_data(sz, sz, bgra)
-        img.has_alpha = (bgra[3,1] == "\000")
-        img.crop!(0,0,w,h)
-      end
-      a = ""
-      a << Tiles.imlib_to_gray_jpeg(img, 75) if img.has_alpha?
-      rgb = Tiles.imlib_to_jpeg(img, 75)
-      [rgb.size].pack("I") << rgb << [a.size].pack("I") << a
-    end
-  end
-
   # Executes editing ops in batch, saving edited images only after
   # processing everything. 
   # 
@@ -258,6 +224,63 @@ class ImageCache
         img.delete!
       end
       @batch_ops = false
+    end
+  end
+
+  def bgra_to_rgb_alpha_jpeg(bgra)
+    self.class.bgra_to_rgb_alpha_jpeg(bgra)
+  end
+
+  def imlib_to_rgb_alpha_jpeg(img)
+    self.class.imlib_to_rgb_alpha_jpeg(img)
+  end
+
+  def crop_and_jpeg(bgra, lvl)
+    self.class.crop_and_jpeg(bgra, lvl)
+  end
+
+  class << self
+    def bgra_to_rgb_alpha_jpeg(bgra)
+      sz = Math.sqrt(bgra.size / 4).to_i
+      img = $imlib_mutex.synchronize{ Imlib2::Image.create_using_data(sz, sz, bgra) }
+      imlib_to_rgb_alpha_jpeg(img)
+    end
+
+    def imlib_to_rgb_alpha_jpeg(img)
+      a = ""
+      a << Tiles.imlib_to_gray_jpeg(img, 75) if img.has_alpha?
+      rgb = Tiles.imlib_to_jpeg(img, 75)
+      rgba = [rgb.size].pack("I") << rgb << [a.size].pack("I") << a
+      [rgba.size].pack("I") << rgba
+    end
+
+    def crop_and_jpeg(bgra, lvl)
+      sz = 2**lvl
+      i = 0
+      w = 0
+      while i < sz && w < sz
+        nw = (bgra[i*sz*4,sz*4].index(/(\000\000\000\000)+\Z/) || (sz * 4)) / 4
+        w = nw if nw > w
+        i+=1
+      end
+      raise "BUG in width, #{w} > #{sz}" if w > sz
+      if w == 0
+        rgba = ""
+      else
+        h = ((bgra.index(/(\000\000\000\000)+\Z/) || sz*sz*4.0) / (sz*4.0)).ceil
+        raise "BUG in height, #{h} > #{sz}" if h > sz
+        img = nil
+        $imlib_mutex.synchronize do
+          img = Imlib2::Image.create_using_data(sz, sz, bgra)
+          img.has_alpha = (bgra[3,1] == "\000")
+          img.crop!(0,0,w,h)
+        end
+        a = ""
+        a << Tiles.imlib_to_gray_jpeg(img, 75) if img.has_alpha?
+        rgb = Tiles.imlib_to_jpeg(img, 75)
+        rgba = [rgb.size].pack("I") << rgb << [a.size].pack("I") << a
+      end
+      [rgba.size].pack("I") << rgba
     end
   end
 
@@ -442,7 +465,7 @@ class JPEGPyramid
           begin
             str << f.read(end_idx-f.pos)
           rescue => e
-            log_debug([:error, start, last, end_idx, ipl, f.pos, sz].inspect)
+            log_error([:error, start, last, end_idx, ipl, f.pos, sz].inspect)
             raise
           end
         }
@@ -498,7 +521,7 @@ class JPEGPyramid
           result[j] = s[k,sz+4]
           k += sz+4
         rescue
-          log_debug([:error_unpack, k, sz, i, j, s.size, is, is.size].inspect)
+          log_error([:error_unpack, k, sz, i, j, s.size, is, is.size].inspect)
           raise
         end
       }
@@ -513,7 +536,7 @@ class JPEGPyramid
   def read_images_as_imlib(level, indexes)
     read_images(level, indexes).map{|rgb_alpha_jpeg|
       d = Tiles.tile_drawer.decompress_rgb_alpha_jpeg(rgb_alpha_jpeg, 2**level, 2**level)
-      Imlib2::Image.create_using_data(2**level, 2**level, d)
+      $imlib_mutex.synchronize{ Imlib2::Image.create_using_data(2**level, 2**level, d) }
     }
   end
 
@@ -592,38 +615,41 @@ class JPEGTileStore
     # starvation possible here (get mutex, other thread gets mutex, locks)
     tmm[0].synchronize do
       tmm[1] -= 1
-      yield
+      rv = yield
       @init_mutex.synchronize do
         if tmm[1] == 0 # no other threads waiting
           @update_mutexes.delete(index)
         end
       end
+      rv
     end
   end
 
   def update_cache_at(index, item)
     synchronize(index) do
-      pn = (item.internal_path || item.thumbnail).to_pn
-      pn.mimetype = Mimetype[item.mimetype || pn.mimetype.to_s]
-      if ['application/pdf','application/postscript'].include?(pn.mimetype.to_s)
+      if item.respond_to?(:full_size_image) and item.full_size_image.exist?
+        pn = item.full_size_image
+        pn.mimetype = Mimetype['image/jpeg']
         w,h = pn.dimensions
-        larger = [w,h].max
-        scale_to = 2048.0
-        fac = (scale_to / larger)
-        w = (w * fac).round
-        h = (h * fac).round
       else
-        w,h,z = pn.dimensions
+        pn = (item.internal_path || item.thumbnail).to_pn
+        pn.mimetype = Mimetype[item.mimetype || pn.mimetype.to_s]
+        w,h = pn.dimensions
         if !w or !h
           pn = item.thumbnail.to_pn
           pn.mimetype = Mimetype['image/png']
           w,h = pn.dimensions
         end
-        larger = [w,h].max
-        w = w || item.metadata.width  || 0
-        h = h || item.metadata.height || 0
+        if ['application/pdf','application/postscript'].include?(pn.mimetype.to_s)
+          larger = [w,h].max
+          scale_to = 2048.0
+          fac = (scale_to / larger)
+          w = (w * fac).round
+          h = (h * fac).round
+        end
       end
-      bound = 2**(Math.log(larger) / Math.log(2)).ceil
+      larger = [w,h].max
+      bound = [2**(Math.log(larger) / Math.log(2)).ceil, tile_size].max
       bfac = bound / larger.to_f
       w = (w * bfac).round
       h = (h * bfac).round
@@ -631,7 +657,17 @@ class JPEGTileStore
       log_debug([:levels, levels, w, h].inspect)
       if w > 0 and h > 0
         dirname = get_dirname(index)
-        temp = File.join(dirname, "tmp-#{Process.pid}-#{Thread.current.object_id}-temp.jpg")
+        image = if pn.mimetype.to_s =~ /^image/
+          begin
+            Imlib2::Image.load(pn.to_s)
+          rescue Exception => e
+          end
+        end
+        if not image
+          temp = File.join(dirname, "temp-#{Process.pid}-#{Thread.object_id}.png")
+          $imlib_mutex.synchronize{ pn.thumbnail(temp, larger, 0) }
+          image = Imlib2::Image.load(temp)
+        end
         begin
           pages = 1 # pn.pages or item.metadata.pages
           tn_sz = bound.to_i
@@ -646,13 +682,13 @@ class JPEGTileStore
               pages.times do |page|
                 (0 ... (height / tile_size.to_f).ceil).each do |y|
                   (0 ... (width / tile_size.to_f).ceil).each do |x|
-                    pn.thumbnail(temp, tn_sz, page,
-                                "256x256+#{x*256}+#{y*256}")
-                    rgb = File.read(temp)
-                    alpha = ""
-                    rgb_alpha_jpeg = [rgb.size].pack("I") << rgb <<
-                                     [alpha.size].pack("I") << alpha
-                    tile = [rgb_alpha_jpeg.size].pack("I") << rgb_alpha_jpeg
+                    img = image_thumbnail(image, tn_sz, page,
+                      "#{tile_size}x#{tile_size}+#{x*tile_size}+#{y*tile_size}"
+                    )
+                    if (img.width != tile_size || img.height != tile_size)
+                      raise "Bad tile size! Got #{img.width}x#{img.height}, should be #{tile_size}x#{tile_size}"
+                    end 
+                    tile = ImageCache.imlib_to_rgb_alpha_jpeg(img)
                     f.write(tile)
                     header << header.last+tile.size
                   end
@@ -671,10 +707,48 @@ class JPEGTileStore
             tn_sz /= 2
           end
         ensure
-          File.unlink(temp)
+          $imlib_mutex.synchronize{ image.delete!(true) } if image
+          File.unlink(temp) if temp and File.exist?(temp)
         end
       end
     end
+  end
+
+  def image_thumbnail(img, thumb_size, page=0, crop='0x0+0+0')
+  $imlib_mutex.synchronize do
+    begin
+      ow, oh = img.width, img.height
+      larger = [ow, oh].max
+      wr = img.width.to_f / larger
+      hr = img.height.to_f / larger
+      sr = larger / thumb_size.to_f
+      w,h,x,y = crop.scan(/[+-]?[0-9]+/).map{|i|i.to_i}
+      w = thumb_size * wr if w == 0
+      h = thumb_size * hr if h == 0
+      rx,ry,rw,rh = [x,y,w,h].map{|i| i * sr }
+      ctx = Imlib2::Context.get
+      ctx.blend = false
+      ctx.color = Imlib2::Color::TRANSPARENT
+      ctx.op = Imlib2::Op::COPY
+      if rx > ow or ry > oh
+        nimg = Imlib2::Image.new(w, h)
+        nimg.has_alpha = true
+        nimg.fill_rectangle([0, 0, w, h])
+      else
+        nimg = img.crop_scaled(rx,ry,rw,rh, w, h)
+        nimg.has_alpha = true
+        if rx+rw > ow
+          d = rx+rw - ow
+          nimg.fill_rectangle([w - d / sr, 0, w, h])
+        elsif ry+rh > oh
+          d = ry+rh - oh
+          nimg.fill_rectangle([0, h - d / sr, w, h])
+        end
+      end
+      ctx.blend = true
+    end
+    nimg
+  end
   end
 
   def clear_cache_at(index)
@@ -689,6 +763,7 @@ class JPEGTileStore
       level = zoom - (Math.log(tile_size) / Math.log(2)).to_i
       log_debug([:wanted_zoom_and_level, zoom, level].inspect)
       levels = Dir[dir+"/*"].map{|i| i.split("/").last.to_i }
+      return if levels.empty?
       max = levels.max
       min = levels.min
       tsz = tile_size
@@ -714,7 +789,7 @@ class JPEGTileStore
         cols = (w / tile_size.to_f).ceil
         rows = (h / tile_size.to_f).ceil
         offsets = f.read(cols * rows * 4).unpack("N*")
-        log_debug([filename, w,h,cols,rows, offsets].inspect)
+        log_debug([filename, w,h,cols,rows].inspect)
         y_range.each_with_index{|ty,i|
           next if ty < 0 or ty >= rows
           row_data = row_offsets = nil
@@ -726,7 +801,6 @@ class JPEGTileStore
               sof = offsets[start_idx]
               eof = offsets[end_idx]
               row_offsets = offsets[start_idx...end_idx].map{|idx| idx-sof }
-              log_debug([sof, eof, offsets, f.stat.size].inspect)
               f.seek(sof)
               row_data = eof ? f.read(eof-sof) : f.read
               row_offsets.push(row_data.size)
@@ -738,19 +812,46 @@ class JPEGTileStore
               raise "Bad RGB-Alpha JPEG header! Got #{image_data[0,4].unpack("I")[0]}, expected #{image_data.size-4}."
             end
             data = Tiles.tile_drawer.decompress_rgb_alpha_jpeg(image_data, tile_size, tile_size)
-            img = $imlib_mutex.synchronize do
-              Imlib2::Image.create_using_data(tile_size, tile_size, data)
-            end
-            ix = x + tx * tsz
-            iy = y + ty * tsz
-            log_debug([:blending, ix, iy, tsz].inspect)
             $imlib_mutex.synchronize do
+              ctx = Imlib2::Context.get
+              ctx.blend = true
+              ctx.color = Imlib2::Color::TRANSPARENT
+              ctx.op = Imlib2::Op::COPY
+              img = Imlib2::Image.create_using_data(tile_size, tile_size, data)
+              img.has_alpha = true
+              ix = x + tx * tsz
+              iy = y + ty * tsz
+              log_debug([:blending, ix, iy, tsz].inspect)
               image.blend!(img, 0,  0,  img.width, img.height,
                                 ix, iy, tsz, tsz)
               img.delete!(true)
             end
           }
         }
+      }
+    end
+  end
+
+  def load_tile_at(index, level, x, y)
+    synchronize(index) do
+      dir = get_dirname(index)
+      filename = File.join(dir, level.to_s)
+      File.open(filename, 'rb'){|f|
+        w,h = f.read(8).unpack("NN")
+        cols = (w / tile_size.to_f).ceil
+        rows = (h / tile_size.to_f).ceil
+        raise ArgumentError, "Coords out of bounds" if x < 0 or y < 0 or x >= cols or y >= rows
+        offsets = f.read(cols * rows * 4).unpack("N*")
+        start_idx = y*cols+x
+        end_idx = start_idx+1
+        sof = offsets[start_idx]
+        eof = offsets[end_idx]
+        f.seek(sof)
+        image_data = eof ? f.read(eof-sof) : f.read
+        if image_data[0,4].unpack("I")[0] != image_data.size-4
+          raise "Bad RGB-Alpha JPEG header! Got #{image_data[0,4].unpack("I")[0]}, expected #{image_data.size-4}."
+        end
+        data = Tiles.tile_drawer.decompress_rgb_alpha_jpeg(image_data, tile_size, tile_size)
       }
     end
   end
