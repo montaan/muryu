@@ -1,0 +1,26 @@
+#!/usr/bin/ruby
+
+require 'future/imaging/tile_drawer'
+require 'dipus'
+
+socket = DIPUS.create_service("image_cache", "/image_index_array/to/image_array")
+
+while c = socket.accept
+  Thread.new(c){|conn|
+    begin
+      Thread.current.telapsed
+      z = conn.read(4).unpack("I")[0]
+      req = conn.read
+      puts "#{Thread.current.telapsed}: read request"
+      tex = Future::Tiles.tile_drawer.build_texture(z, req)
+      puts "#{Thread.current.telapsed}: built texture"
+      conn.write(tex)
+      puts "#{Thread.current.telapsed}: sent texture"
+      puts
+    rescue => e
+      puts e, e.backtrace
+    ensure
+      conn.close
+    end
+  }
+end

@@ -1,0 +1,37 @@
+#!/usr/bin/ruby
+
+$USE_DIPUS_IMAGE_CACHE = true
+$PRINT_QUERY_PROFILE = true
+
+count = ARGV[0].to_i
+
+pids = (0...count).map do
+  fork do
+    require 'future/imaging'
+    require 'dipus'
+
+    socket = DIPUS.create_service("tile_drawer", "/tile_args/to/tile")
+
+    while conn = socket.accept
+      begin
+        Thread.current.telapsed
+        args = Marshal.load(conn.read)
+        puts "#{Thread.current.telapsed} for reading tile request" if $PRINT_QUERY_PROFILE
+        data = Future::Tiles.read(*args)
+        puts "#{Thread.current.telapsed} for JPEG compression" if $PRINT_QUERY_PROFILE
+        conn.write(data)
+        puts "#{Thread.current.telapsed} for writing tile JPEG" if $PRINT_QUERY_PROFILE
+        puts if $PRINT_QUERY_PROFILE
+      rescue Exception => e
+        log_error("#{e.class}: #{e.message}\n#{e.backtrace.join("\n")}")
+      ensure
+        conn.close
+      end
+    end
+    
+    exit
+  end
+end
+
+
+pids.each{|pid| Process.wait(pid) }
