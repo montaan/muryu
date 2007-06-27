@@ -78,14 +78,14 @@ class ImageCache
   #
   # Indexes start from 0.
   #
-  def update_cache_at(index, item = item_at(index), raw=true, jpeg=true, tiles=true)
+  def update_cache_at(index, item = item_at(index), raw=true, jpeg=true, tiles=true, force=false)
     if item
       if item.deleted and not item.thumbnail
         @raw_pyramid.clear_at(index) if raw
         @jpeg_pyramid.clear_at(index) if jpeg
         @jpeg_tiles.clear_at(index) if tiles
       else
-        mipmap = mipmap(item)
+        mipmap = mipmap(item, force)
         @raw_pyramid.update_cache_at(index, mipmap) if raw
         i = -1
         @jpeg_pyramid.update_cache_at(index, mipmap.map{|bgra| i+=1; crop_and_jpeg(bgra,i) } ) if jpeg
@@ -103,7 +103,7 @@ class ImageCache
     ctx.op = Imlib2::Op::COPY
   end
   
-  def mipmap(item)
+  def mipmap(item, force_update=false)
     $imlib_mutex.synchronize do
       if item.deleted and not item.thumbnail
         thumb = Imlib2::Image.new(2**@max_zoom, 2**@max_zoom)
@@ -112,16 +112,8 @@ class ImageCache
         thumb.fill_rectangle(0,0,2**@max_zoom, 2**@max_zoom,
                              Imlib2::Color::TRANSPARENT)
       else
-        retried = false
-        begin
-          thumb = Imlib2::Image.load(item.thumbnail)
-        rescue Exception
-          unless retried
-            retried = true
-            item.update_thumbnail(false)
-            retry
-          end
-        end
+        item.update_thumbnail(false, force_update) if item.respond_to?(:update_thumbnail)
+        thumb = Imlib2::Image.load(item.thumbnail)
         init_ctx
       end
       larger = [thumb.width, thumb.height].max

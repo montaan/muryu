@@ -21,7 +21,7 @@ include Future
 
   def test_photographs
     cache_setup 'photos'
-    photos = Dir[File.join(File.dirname(__FILE__), "data/images/*.png")].sort.reverse
+    photos = Dir[File.join(File.dirname(__FILE__), "data/images/*")].sort
     @image_cache.batch do
       photos.each_with_index do |photo, i|
         @image_cache.update_cache_at(
@@ -33,7 +33,7 @@ include Future
     td = TileDrawer.new(@image_cache)
     td.reload_image_cache
     rindexes = (0...photos.size).to_a.map{|i| [i,0]}
-    indexes = [rindexes, rindexes.transpose.map{|ix| ix.pack("I*") }]
+    indexes = [rindexes.size].pack("N") + rindexes.transpose.map{|ix| ix.pack("I*") }.join
     palette = {0=>[0,0,0,0]}
     x,y,w,h = 0, 0, 256, 256
     pn = Pathname.new(File.dirname(__FILE__)).join("data", "tile_drawer_output")

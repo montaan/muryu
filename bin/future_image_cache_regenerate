@@ -8,6 +8,7 @@ ic = Future::ImageCache.new
 raw = !ARGV.delete("--no-raw")
 jpeg = !ARGV.delete("--no-jpeg")
 tiles = !ARGV.delete("--no-tiles")
+force_thumbnail_update = !!ARGV.delete("--regen-thumbs")
 from = ARGV.shift.to_i
 
-ic.regenerate!(from, raw, jpeg, tiles)
+ic.regenerate!(from, raw, jpeg, tiles, force_thumbnail_update)

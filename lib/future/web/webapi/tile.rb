@@ -23,7 +23,7 @@ module MuryuDispatch
       tile_start = Time.now.to_f
       res.content_type = 'image/jpeg'
       x,y,z,w,h = MuryuDispatch::Tile.parse_tile_geometry(req.key)
-      return if z.to_i > 15 || z.to_i < 0
+      return if z > 15 or z.to_i < 0
       color = (req.query['color'].to_s != 'false')
       bgcolor = (req.query.has_key?('bgcolor') ?
                   req.query['bgcolor'].to_s[0,6] : false)

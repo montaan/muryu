@@ -183,10 +183,10 @@ class Items < DB::Tables::Items
     Future.thumbnail_dir.join(*sha1_hash.scan(/(..)(..)(.*)/)[0]) + "fullsize.jpg"
   end
 
-  def update_thumbnail(update_image_cache_too=true)
+  def update_thumbnail(update_image_cache_too=true, force_update=false)
     tn = thumbnail
     full_res = full_size_image
-    unless tn.exist? and full_res.exist?
+    if force_update or not (tn.exist? and full_res.exist?)
       tn.dirname.mkdir_p
       created = false
       if mimetype == "text/html" and source and not source.empty?

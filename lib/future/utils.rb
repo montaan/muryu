@@ -121,8 +121,21 @@ end
 
 class Range
 
+  def length
+    size
+  end
+
+  def size
+    self.end - self.begin + (exclude_end? ? 0 : 1)
+  end
+  
   def [](i)
-    self.begin + i
+    i = self.end - i if i<0
+    if i < self.end + (exclude_end? ? 0 : 1)
+      self.begin + i
+    else
+      nil
+    end
   end
 
 end

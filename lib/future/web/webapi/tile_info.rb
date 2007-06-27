@@ -17,7 +17,7 @@ module MuryuDispatch
         res.body = {
           "dimensions" => Future::Tiles.dimensions(user, sq, :rows),
           "itemCount" => Future::Tiles.item_count(user, sq),
-          "maxZoom" => 10,
+          "maxZoom" => 15,
           "title" => req.query['q'].to_s
         }.to_json
       end

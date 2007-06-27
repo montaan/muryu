@@ -121,7 +121,7 @@ extend self
         puts "#{Thread.current.telapsed} for generating key" if $PRINT_QUERY_PROFILE
         unless $indexes_changed
           if Future.memcache
-            t = Future.memcache.get(key)
+            t = Future.memcache.get(key, true)
           else
             t = @@indexes[key]
           end
@@ -134,9 +134,10 @@ extend self
             mi = (i[2] == tr ? MIMETYPE_DELETED : Integer(i[1]) + 1)
             [ii, mi]
           }
-          t = [nidxs, nidxs.transpose.map{|ix| ix.map.pack("I*") }]
+          t = [nidxs.size].pack("N")
+          t << nidxs.transpose.map{|ix| ix.pack("I*") }.join
           if Future.memcache
-            Future.memcache.set(key, t, 300)
+            Future.memcache.set(key, t, 300, true)
           else
             @@indexes[key] = t
           end
@@ -298,6 +299,7 @@ extend self
 end
 
 
+
 class TileDrawer
 
   LAYOUTERS = {}
@@ -310,19 +312,23 @@ class TileDrawer
     init_sw unless $NO_TILE_DRAWING
   end
 
-  def draw_tile(bgcolor, indexes, palette, layouter_name, x, y, zoom, w, h, bgimage=nil)
+  def draw_tile(bgcolor, index_string, palette, layouter_name, x, y, zoom, w, h, bgimage=nil)
     layouter = LAYOUTERS[layouter_name.to_s]
     raise ArgumentError, "Bad layouter_name: #{layouter_name.inspect}" unless layouter
     sz = @image_cache.thumb_size_at_zoom(zoom)
+    indexes_sz = index_string[0,4].unpack("N")[0]
     empty_tile = true
-    layouter.each(indexes[0], x, y, sz, w, h) do |i, ix, iy|
+    layouter.each((0...indexes_sz), x, y, sz, w, h) do |i, ix, iy|
       empty_tile = false
       break
     end
     return false if empty_tile
     puts "#{Thread.current.telapsed} for tile init" if $PRINT_QUERY_PROFILE
-    tile = draw_tile_sw(bgcolor, indexes[1], palette, x, y, zoom, bgimage) if zoom <= @jpeg_cache_level && layouter_name.to_s == 'rows'
-    if tile
+    if zoom <= @jpeg_cache_level && layouter_name.to_s == 'rows'
+      c_indexes = [index_string[4,indexes_sz*4],
+                 index_string[4+indexes_sz*4,indexes_sz*4]
+                ]
+      tile = draw_tile_sw(bgcolor, c_indexes, palette, x, y, zoom, bgimage)
       return tile
     end
     tile = nil
@@ -336,16 +342,14 @@ class TileDrawer
         bg.delete!
       end
     end
-    layouter.each(indexes[0], x, y, sz, w, h) do |i, ix, iy|
-      if zoom > @raw_cache_level and zoom <= @jpeg_cache_level
-        $imlib_mutex.synchronize do
-        end
-      end
-      @image_cache.draw_image_at(i[0], zoom, tile, ix, iy)
-      if palette and zoom < 6
+    layouter.each((0...indexes_sz), x, y, sz, w, h) do |idx, ix, iy|
+      i = index_string[4*(idx+1),4].unpack("I")[0]
+      c = index_string[4*(idx+indexes_sz+1),4].unpack("I")[0]
+      @image_cache.draw_image_at(i, zoom, tile, ix, iy)
+      if palette and (zoom < 6 or palette[c][3] == 255)
         $imlib_mutex.synchronize do
           tile.fill_rectangle(ix, iy, sz, sz,
-            Imlib2::Color::RgbaColor.new(palette[i[1]]))
+            Imlib2::Color::RgbaColor.new(palette[c]))
         end
       end
     end
