@@ -6,6 +6,8 @@ module Future
   MEMCACHE_SERVERS = ['127.0.0.1:11211']
 
   class MemCachePool
+    attr_reader :local_cache
+    
     def initialize(servers, size=16)
       @queue = Queue.new
       size.times{ @queue.push(MemCache.new(servers)) }
@@ -14,22 +16,22 @@ module Future
       start_timeout_monitor
     end
 
-    def get(a)
+    def get(a, raw=false)
       lc = @local_cache[a]
       return lc if lc
       s = @queue.shift
-      r = s.get(a) rescue false
+      r = s.get(a,raw) rescue false
       if r
-        local_cache_set(a,r,60)
+        local_cache_set(a,r,300)
       end
       @queue.push(s)
       r
     end
 
-    def set(*a)
-      local_cache_set(*a)
+    def set(k,v,timeout,raw=false)
+      local_cache_set(k,v,timeout)
       s = @queue.shift
-      r = s.set(*a)
+      r = s.set(k,v,timeout,raw)
       @queue.push(s)
       r
     end
@@ -43,7 +45,7 @@ module Future
     end
 
     private
-    def local_cache_set(k, v, timeout=60)
+    def local_cache_set(k, v, timeout=300)
       @timeouts[k] = timeout
       @local_cache[k] = v
     end

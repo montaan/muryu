@@ -1,0 +1,34 @@
+#!/usr/bin/ruby
+
+$USE_DIPUS_IMAGE_CACHE = true
+$USE_DIPUS_TILE_INFO = false
+$PRINT_QUERY_PROFILE = true
+$NO_TILE_DRAWING = true
+$MEMCACHE_USE_POOL = true
+$CACHE_INFO = true
+
+require 'future/imaging/tile_drawer'
+require 'dipus'
+
+socket = DIPUS.create_service("tile_info", "/tile_args/to/tile_info")
+
+while c = socket.accept
+  Thread.new(c) do |conn|
+    begin
+      Thread.current.telapsed
+      args = Marshal.load(conn.read)
+      puts "#{Thread.current.telapsed} for reading tile request" if $PRINT_QUERY_PROFILE
+      data = Future::Tiles.query_info(*args)
+      puts "#{Thread.current.telapsed} for getting info" if $PRINT_QUERY_PROFILE
+      conn.write(Marshal.dump(data))
+      puts "#{Thread.current.telapsed} for writing info" if $PRINT_QUERY_PROFILE
+      puts if $PRINT_QUERY_PROFILE
+    rescue Exception => e
+      log_error("#{e.class}: #{e.message}\n#{e.backtrace.join("\n")}")
+    ensure
+      conn.close
+    end
+  end
+end
+
+

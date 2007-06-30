@@ -171,7 +171,7 @@ module DB
 
     "bool" => lambda{|i| i == 't'},
 
-    "timestamp" => lambda{|i| Time.parse(i) rescue StandardDateTime.parse(i) },
+    "timestamp" => lambda{|i| StandardDateTime.parse(i) },
 
     :default => lambda{|i|i}
   }
@@ -192,7 +192,7 @@ module DB
         when Time, StandardDateTime
           i.to_s
         else
-          (Time.parse(i) rescue StandardDateTime.parse(i)).to_s
+          StandardDateTime.parse(i).to_s
         end
       )
     },

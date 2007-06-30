@@ -251,6 +251,7 @@
       .editor textarea {
         width: 100%;
         background-color: #DDDDDD;
+        color: black;
         border: 0px;
         height: 10em;
         padding: 2px;
@@ -417,6 +418,7 @@
             return this
           }
         }
+
         Session.storage = {
           load : function() {
             var t = this
@@ -449,6 +451,27 @@
         }
         Session.storage.load()
         var loggedIn = (Session.storage.info.name && Session.storage.info.name != 'anonymous')
+        if (loggedIn) {
+          if (Session.storage.info.preferences.language)
+            Tr.language = Session.storage.info.preferences.language
+          Ajax.Request.prototype.initialize = function(url, options) {
+            this.transport = Ajax.getTransport()
+            if (!options.method || options.method.toLowerCase() == 'post') {
+              var secret = {secret : Session.storage.info.secret}
+              if (options.parameters) {
+                if (typeof options.parameters == 'object') {
+                  Object.extend(options.parameters, secret)
+                } else {
+                  options.parameters = options.parameters.toString()+"&secret="+secret.secret
+                }
+              } else {
+                options.parameters = secret
+              }
+            }
+            this.setOptions(options)
+            this.request(url)
+          }
+        }
         
         var qvars = document.location.search.slice(1).split("&")
         var query = {}
@@ -484,7 +507,7 @@
           'Make note' : 'Tee muistiinpano',
           'Session' : 'Istunto',
           'Save Session' : 'Tallenna istunto',
-          'Clear Session' : 'Pyyhi istunto',
+          'Clear Session' : 'Nollaa asetukset',
           'Note' : 'Muistiinpano ',
           'help.html' : 'help.html',
           'help' : 'Apua'
@@ -549,6 +572,7 @@
         menu.addTitle(Tr('Session'))
 //         menu.addItem(Tr('Save Session'), function(){ Session.save() })
         menu.addItem(Tr('Clear Session'), function(){ Session.clear() })
+        menu.addItem(Tr('Applets.Session.LogOut'), function(){ location.href = '/users/logout' })
         menu.bind(Desk.Windows.windowContainer)
         if (!Session.load()) {
           Map = new TileMap({
@@ -584,6 +608,8 @@
           var topPanel = new Desk.Panel('left', {movable : false})
           topPanel.addApplet(Applets.Session())
           topPanel.addApplet(Applets.MusicPlayer())
+          topPanel.addApplet(Applets.Sets())
+          topPanel.addApplet(Applets.Groups())
           topPanel.addApplet(Applets.Taskbar())
           new Desk.Window(Tr('help.html'), {x: 800, y: 10, group: Tr('help')})
         }

@@ -184,7 +184,7 @@ extend AccessControlClass
   end
 
   def writable_by(user)
-    owner_id == user.id or
+    (user != Users.anonymous and owner_id == user.id) or
     UsersGroups.find(:user => user, :group => self, :can_modify => true)
   end
 
@@ -277,8 +277,8 @@ extend AccessControlClass
     self == user and self != self.class.anonymous
   end
 
-  def self.rfind_all(user, *query)
-    [user]
+  def self.rfind_all(user, query)
+    find_all(query)
   end
 
   def self.rdelete(user, h={})

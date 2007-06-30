@@ -86,8 +86,8 @@ ItemArea = {
   defaultAction : function() {
     var ext = this.getExt()
     if (['jpeg','jpg','png','gif'].include(ext)) {
-      this.open()
-//       this.viewInSlideshow()
+//       this.open()
+      this.viewInSlideshow()
     } else if ( MusicPlayer && MusicPlayer.sound && ext == 'mp3' ) {
       MusicPlayer.addToPlaylist(this.href)
       MusicPlayer.goToIndex(MusicPlayer.playlist.length - 1)
@@ -101,7 +101,8 @@ ItemArea = {
   secondaryAction : function() {
     var ext = this.getExt()
     if (['jpeg','jpg','png','gif'].include(ext)) {
-      this.viewInSlideshow()
+      this.open()
+//       this.viewInSlideshow()
     } else {
       this.open()
     }
@@ -644,7 +645,7 @@ TileMap.prototype = {
      - on zoom level z, zero being most zoomed out
   */
   coordinateMapper : function(x, y, z) {
-    if (x < 0 || y < 0 || x >= (1 << z) || y >= (1 << z))
+    if (x < 0 || y < 0 || x >= (1 << z) || y >= 2*(1 << z))
       return 'x-256y-256z0'
     else
       return 'x'+(x*256)+'y'+(y*256)+'z'+z
@@ -657,7 +658,7 @@ TileMap.prototype = {
   */
   init : function() {
     if (this.isSubmap) {
-      this.titleElem = E('h3', this.title || this.query, null, 'mapTitle', {
+      this.titleElem = E('h3', E('span', this.title || this.query), null, 'mapTitle', {
         position: 'absolute',
         top: (this.element.top - 20) + 'px',
         left: this.element.left + 'px',
@@ -667,8 +668,9 @@ TileMap.prototype = {
         cursor: 'move',
         whiteSpace: 'nowrap'
       })
-      this.titleElem.title = Tr('TileMap.DblClickToEditTitle')
+      this.titleElem.firstChild.title = Tr('TileMap.DblClickToEditTitle')
       this.titleElem.map = this
+      this.titleElem.appendChild(E('span'))
     }
     var t = this
     this.targetZ = this.z
@@ -755,7 +757,7 @@ TileMap.prototype = {
           function(val) {
             this.style.minWidth = '0px'
             this.innerHTML = val
-            this.map.setQuery(val)
+            t.setQuery(val)
           }.bind(this),
           function() {
             this.style.minWidth = '0px'
@@ -764,13 +766,13 @@ TileMap.prototype = {
       }
     }
     if (this.titleElem) {
-      this.titleElem.ondblclick = this.titleEdit
+      this.titleElem.firstChild.ondblclick = this.titleEdit
       this.titleElem.onmousedown = this.titleDragStart
       document.addEventListener('mouseup', this.titleDragEnd.bind(this.titleElem), false)
       document.addEventListener('mousemove', this.titleDrag.bind(this.titleElem), false)
       this.titleMenu = new Desk.Menu()
       this.titleMenu.addTitle(Tr('TileMap'))
-      this.titleMenu.addItem(Tr('TileMap.EditTitle'), this.titleEdit.bind(this.titleElem))
+      this.titleMenu.addItem(Tr('TileMap.EditTitle'), this.titleEdit.bind(this.titleElem.firstChild))
       this.titleMenu.addItem(Tr('TileMap.ShowColors'), function(){
         if (this.color != 'false') {
           this.titleMenu.uncheckItem(Tr('TileMap.ShowColors'))
@@ -1148,6 +1150,7 @@ TileMap.prototype = {
           if (this.isSubmap) {
             this.width = obj.dimensions.width
             this.height = obj.dimensions.height
+            this.titleElem.lastChild.innerHTML = " ("+obj.itemCount+" items)"
             if (this.parent != this) {
               this.parent.submapLayer.zoom(this.parent.z,0,0)
             }

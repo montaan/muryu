@@ -1,0 +1,9 @@
+#!/usr/bin/ruby
+
+$NO_TILE_DRAWING = true
+require 'future/imaging'
+
+ic = Future::ImageCache.new
+ic.jpeg_pyramid.verify
+
+puts "JPEG pyramid OK"

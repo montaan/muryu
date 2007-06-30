@@ -184,6 +184,19 @@ Desk.ElementUtils = {
       return elem.appendChild(elem, obj)
   },
 
+  append : function(elem) {
+    var objs = $A(arguments).slice(1)
+    for (var i=0; i<objs.length; i++) {
+      var obj = objs[i]
+      if (typeof obj == 'string' || typeof obj == 'number') {
+        elem.appendChild(T(obj.toString()))
+      } else {
+        elem.appendChild(obj)
+      }
+    }
+    return elem
+  },
+
   detachSelf : function(elem, obj) {
     if (elem.parentNode)
       return elem.parentNode.removeChild(elem)

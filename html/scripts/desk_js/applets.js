@@ -1,10 +1,11 @@
 Tr.addTranslations('en-US', {
   'Applets.Applet' : 'Applet',
+  'Applets.Collapsed' : 'Collapsed',
   'Applets.Remove' : 'Remove applet',
   'Applets.Session' : 'Session',
   'Applets.Session.save' : 'Save session now',
   'Applets.Session.autosave' : 'Autosave',
-  'Applets.Session.clear' : 'Clear session',
+  'Applets.Session.clear' : 'Reset session',
   'Applets.Session.Welcome' : function(name) { return 'Welcome, '+name+'!' },
   'Applets.Session.LogOut' : 'Log out',
   'Applets.Session.LogIn' : 'Log in',
@@ -18,15 +19,19 @@ Tr.addTranslations('en-US', {
   'Applets.Session.BackgroundColor' : 'Background color',
   'Button.Applets.Session.ToggleColors' : 'Toggle colors',
   'Applets.MusicPlayer' : 'Player',
-  'Applets.MusicPlayer.Playlist' : 'Playlist'
+  'Applets.MusicPlayer.Playlist' : 'Playlist',
+  'Applets.Sets' : 'Sets',
+  'Applets.Groups' : 'People',
+  'Applets.Tags' : 'Tags'
 })
 Tr.addTranslations('fi-FI', {
   'Applets.Applet' : 'Sovelma',
+  'Applets.Collapsed' : 'Piilotettu',
   'Applets.Remove' : 'Poista sovelma',
   'Applets.Session' : 'Istunto',
   'Applets.Session.save' : 'Tallenna istunto',
   'Applets.Session.autosave' : 'Automaattinen tallennus',
-  'Applets.Session.clear' : 'Pyyhi istunto',
+  'Applets.Session.clear' : 'Nollaa asetukset',
   'Applets.Session.Welcome' : function(name) { return 'Tervetuloa, '+name+'!' },
   'Applets.Session.LogOut' : 'Kirjaudu ulos',
   'Applets.Session.LogIn' : 'Kirjaudu sisään',
@@ -40,26 +45,79 @@ Tr.addTranslations('fi-FI', {
   'Applets.Session.BackgroundColor' : 'Taustaväri',
   'Button.Applets.Session.ToggleColors' : 'Värien näyttö',
   'Applets.MusicPlayer' : 'Soitin',
-  'Applets.MusicPlayer.Playlist' : 'Soittolista'
+  'Applets.MusicPlayer.Playlist' : 'Soittolista',
+  'Applets.Sets' : 'Joukot',
+  'Applets.Groups' : 'Ihmiset',
+  'Applets.Tags' : 'Tagit'
 })
 
 
 
 Applets = {
-  bakeAppletMenu: function(applet) {
-    applet.menu.addTitle(Tr('Applets.Applet'))
+  create: function(name) {
+    var applet = E('span', null,null, 'taskbarApplet '+name)
+    applet.dumpSession = function(){
+      return {loader: 'Applets', data: {name: name, collapsed: this.collapsed}}
+    }
+    var title = E('h4', Tr('Applets.'+name), null, 'windowGroupTitle')
+    applet.titleElem = title
+    applet.appendChild(applet.titleElem)
+    applet.contentElem = E('div', null, null, 'taskbarAppletContent')
+    applet.appendChild(applet.contentElem)
+    Object.extend(applet, EventListener)
+    applet.collapsed = false
+    applet.setCollapsed = function(c) {
+      this.collapsed = c
+      if (applet.contentElem) {
+        if (c)
+          applet.contentElem.style.display = 'none'
+        else
+          applet.contentElem.style.display = 'inherit'
+      }
+      this.newEvent('collapseChange', { value: this.collapsed })
+    }
+    applet.toggleCollapsed = function(){ this.setCollapsed(!this.collapsed) }
+    title.addEventListener('mousedown', function(ev){
+      Event.stop(ev)
+    }, false)
+    title.addEventListener('dblclick', function(ev){
+      if (Event.isLeftClick(ev)) {
+        Event.stop(ev)
+        applet.toggleCollapsed()
+      }
+    }, false)
+    applet.menu = new Desk.Menu()
+    applet.menu.addTitle(Tr('Applets.'+name))
+    applet.menu.addItem(Tr('Applets.Collapsed'), function(){
+      applet.toggleCollapsed()
+    })
+    applet.addListener('collapseChange', function(ev) {
+      if (ev.value)
+        applet.menu.checkItem(Tr('Applets.Collapsed'))
+      else
+        applet.menu.uncheckItem(Tr('Applets.Collapsed'))
+    })
+    applet.setCollapsed(false)
+    applet.menu.addSeparator()
+/*    applet.menu.addTitle(Tr('Applets.Applet'))
     applet.menu.addItem(Tr('Applets.Remove'), function(){
       applet.panel.removeApplet(applet)
-    }, 'icons/Remove.png')
+    }, 'icons/Remove.png')*/
     applet.menu.bind(applet)
+    return applet
+  },
+
+  loadSession : function(data){
+    var applet = this[data.name]()
+    applet.setCollapsed(data.collapsed)
+    return applet
   }
 }
 
 
 Applets.Session = function(wm) {
   if (!wm) wm = Desk.Windows
-  var c = E('span', null, null, 'taskbarApplet Session')
-  var title = E('h4', Tr('Applets.Session'), null, 'windowGroupTitle')
+  var c = Applets.create('Session')
   var controls = E('div')
 
   var logout = E('p', A('/users/logout', Tr('Applets.Session.LogOut')))
@@ -112,8 +170,7 @@ Applets.Session = function(wm) {
   colorToggles.appendChild(T(' ]'))
   controls.appendChild(colorToggles)
   
-  c.appendChild(title)
-  c.appendChild(controls)
+  c.contentElem.appendChild(controls)
 
   c.session = null
   c.autosave = true
@@ -149,9 +206,6 @@ Applets.Session = function(wm) {
       document.location.reload()
     }
   }
-  c.dumpSession = function(){
-    return {loader: 'Applets.Session', data: ''}
-  }
   c.signalSessionChange = function() {
     c.sessionChanged = true
   }
@@ -170,39 +224,33 @@ Applets.Session = function(wm) {
     }
     c.signalSessionChange()
   })
-  c.autosaveInterval = setInterval(c.autosaveSession.bind(c), 5*60*1000) 
-  window.addEventListener('unload', c.unloadSaveSession.bind(c), false)
-  c.menu = new Desk.Menu()
-  c.menu.addTitle(Tr('Applets.Session'))
-  c.menu.addItem(Tr('Applets.Session.save'), c.saveSession.bind(c))
-  c.menu.addItem(Tr('Applets.Session.autosave'), c.toggleAutosave.bind(c))
-  c.menu.checkItem(Tr('Applets.Session.autosave'))
-  c.menu.addSeparator()
-  c.menu.addItem(Tr('Applets.Session.clear'), c.clearSession.bind(c))
-  Applets.bakeAppletMenu(c)
+  if (c.loggedIn) {
+    c.autosaveInterval = setInterval(c.autosaveSession.bind(c), 5*60*1000) 
+    window.addEventListener('unload', c.unloadSaveSession.bind(c), false)
+    c.menu.addItem(Tr('Applets.Session.save'), c.saveSession.bind(c))
+    c.menu.addItem(Tr('Applets.Session.autosave'), c.toggleAutosave.bind(c))
+    c.menu.checkItem(Tr('Applets.Session.autosave'))
+    c.menu.addSeparator()
+    c.menu.addItem(Tr('Applets.Session.clear'), c.clearSession.bind(c))
+    c.menu.addItem(Tr('Applets.Session.LogOut'), function(){
+      c.autosaveSession()
+      location.href = '/users/logout'
+    })
+  }
 
   return c
-}
-Applets.Session.loadSession = function(dump) {
-  return Applets.Session()
 }
 
 
 Applets.OpenURL = function(wm) {
   if (!wm) wm = Desk.Windows
-  var c = E('span', null,null, 'taskbarApplet OpenURL')
-  c.dumpSession = function(){
-    return {loader: 'Applets.OpenURL', data: ''}
-  }
+  var c = Applets.create('OpenURL')
   var f = E('form', null,null, 'taskbarForm')
-  var title = E('h4', 'Open URL', null, 'windowGroupTitle')
-//   Draggable.makeDraggable(title)
   var t = E('input',null,null,'taskbarTextInput',null,
     {type:'text'})
   var s = E('input',null,null,'taskbarSubmitInput',null,
     {type:'submit', value:'Open'})
-  c.appendChild(title)
-  c.appendChild(f)
+  c.contentElem.appendChild(f)
   f.appendChild(t)
   f.appendChild(s)
   c.openURL = function(new_src) {
@@ -227,12 +275,7 @@ Applets.OpenURL = function(wm) {
     Event.stop(e)
     c.openURL(new_src)
   }, false)
-  c.menu = new Desk.Menu()
-  Applets.bakeAppletMenu(c)
   return c
-}
-Applets.OpenURL.loadSession = function(dump) {
-  return Applets.OpenURL()
 }
 
 
@@ -269,12 +312,9 @@ Desk.Slider = function(callback) {
 
 MusicPlayer = null
 Applets.MusicPlayer = function() {
-  var c = E('span', null,null, 'taskbarApplet MusicPlayer')
-  var title = E('h4', Tr('Applets.MusicPlayer'), null, 'windowGroupTitle')
-  c.appendChild(title)
+  var c = Applets.create('MusicPlayer')
   MusicPlayer = c
 
-  Object.extend(c, EventListener)
   c.playlist = []
   c.currentIndex = 0
   c.position = 0
@@ -344,8 +384,8 @@ Applets.MusicPlayer = function() {
     if (v != this.shuffling)
       this.shuffleButton.toggle()
     this.shuffling = v
-    if (this.shuffling) this.menu.checkItem('Shuffle')
-    else this.menu.uncheckItem('Shuffle')
+    if (this.shuffling) this.menu.checkItem(Tr('Applets.MusicPlayer.Shuffle'))
+    else this.menu.uncheckItem(Tr('Applets.MusicPlayer.Shuffle'))
   }
   
   c.repeat = function(){
@@ -356,8 +396,8 @@ Applets.MusicPlayer = function() {
     if (v != this.repeating)
       this.repeatButton.toggle()
     this.repeating = v
-    if (this.repeating) this.menu.checkItem('Repeat Song')
-    else this.menu.uncheckItem('Repeat Song')
+    if (this.repeating) this.menu.checkItem(Tr('Applets.MusicPlayer.RepeatSong'))
+    else this.menu.uncheckItem(Tr('Applets.MusicPlayer.RepeatSong'))
   }
   
   c.play = function(){
@@ -616,22 +656,22 @@ Applets.MusicPlayer = function() {
 
   c.volumeElem = E('span', c.volume.toString(), null, 'Volume')
   
-  c.appendChild(c.prevButton)
-  c.appendChild(c.playButton)
-  c.appendChild(c.nextButton)
-  c.appendChild(c.shuffleButton)
-  c.appendChild(c.repeatButton)
-  c.appendChild(c.playlistButton)
-  c.appendChild(c.volumeDownButton)
-  c.appendChild(c.volumeUpButton)
-  c.appendChild(c.volumeElem)
+  c.contentElem.appendChild(c.prevButton)
+  c.contentElem.appendChild(c.playButton)
+  c.contentElem.appendChild(c.nextButton)
+  c.contentElem.appendChild(c.shuffleButton)
+  c.contentElem.appendChild(c.repeatButton)
+  c.contentElem.appendChild(c.playlistButton)
+  c.contentElem.appendChild(c.volumeDownButton)
+  c.contentElem.appendChild(c.volumeUpButton)
+  c.contentElem.appendChild(c.volumeElem)
 
 
   c.seekElem = Desk.Slider(function(val) { c.seekToPct(val) })
-  c.appendChild(c.seekElem)
+  c.contentElem.appendChild(c.seekElem)
 
   c.infoElem = E('div', null, null, 'SongInfo')
-  c.appendChild(c.infoElem)
+  c.contentElem.appendChild(c.infoElem)
   
   c.indexElem = E('span', null, null, 'CurrentIndex')
   c.infoElem.appendChild(c.indexElem)
@@ -702,24 +742,21 @@ Applets.MusicPlayer = function() {
       }
     }
   }
-  c.menu = new Desk.Menu()
-  c.menu.addTitle('Music player')
-  c.menu.addItem('Play', c.play.bind(c))
-  c.menu.addItem('Pause', c.pause.bind(c))
-  c.menu.addItem('Stop', c.stop.bind(c))
-  c.menu.addItem('Previous', c.previous.bind(c))
-  c.menu.addItem('Next', c.next.bind(c))
+  c.menu.addItem(Tr('Applets.MusicPlayer.Play'), c.play.bind(c))
+  c.menu.addItem(Tr('Applets.MusicPlayer.Pause'), c.pause.bind(c))
+  c.menu.addItem(Tr('Applets.MusicPlayer.Stop'), c.stop.bind(c))
+  c.menu.addItem(Tr('Applets.MusicPlayer.Previous'), c.previous.bind(c))
+  c.menu.addItem(Tr('Applets.MusicPlayer.Next'), c.next.bind(c))
   c.menu.addSeparator()
-  c.menu.addItem('Repeat Song', c.repeat.bind(c))
-  if (c.repeating) c.menu.checkItem('Repeat Song')
-  else c.menu.uncheckItem('Repeat Song')
-  c.menu.addItem('Shuffle', c.shuffle.bind(c))
-  if (c.shuffling) c.menu.checkItem('Shuffle')
-  else c.menu.uncheckItem('Shuffle')
+  c.menu.addItem(Tr('Applets.MusicPlayer.RepeatSong'), c.repeat.bind(c))
+  if (c.repeating) c.menu.checkItem(Tr('Applets.MusicPlayer.RepeatSong'))
+  else c.menu.uncheckItem(Tr('Applets.MusicPlayer.RepeatSong'))
+  c.menu.addItem(Tr('Applets.MusicPlayer.Shuffle'), c.shuffle.bind(c))
+  if (c.shuffling) c.menu.checkItem(Tr('Applets.MusicPlayer.Shuffle'))
+  else c.menu.uncheckItem(Tr('Applets.MusicPlayer.Shuffle'))
   c.menu.addSeparator()
-  c.menu.addItem('Clear playlist')
-  Applets.bakeAppletMenu(c)
-  
+  c.menu.addItem(Tr('Applets.MusicPlayer.ClearPlaylist'))
+
   c.newEvent('songChanged', {value: ''})
 
   return c
@@ -739,72 +776,58 @@ Applets.MusicPlayer.loadSession = function(data) {
 
 Applets.Groups = function(wm) {
  if (!wm) wm = Desk.Windows
-  var c = E('span', null,null, 'taskbarApplet Groups')
-  c.dumpSession = function(){
-    return {loader: 'Applets.Groups', data: ''}
-  }
-  var title = E('h4', 'Groups', null, 'windowGroupTitle')
-  var f = E('form', null,null, 'taskbarForm')
-  var t = E('input',null,null,'taskbarTextInput',null,
-    {type:'text'})
-  var s = E('input',null,null,'taskbarSubmitInput',null,
-    {type:'submit', value:'Create'})
-  c.appendChild(title)
-  c.appendChild(f)
-  f.appendChild(t)
-  f.appendChild(s)
+  var c = Applets.create('Groups')
+  var d = E('ul', null, null, 'setList')
+  c.contentElem.appendChild(d)
   new Ajax.Request('/groups/json', {
     method : 'get',
     onSuccess: function(res){
       var items = res.responseText.evalJSON()
-      var d = E('ul')
-      c.appendChild(d)
       items.each(function(it) {
-        d.appendChild(E('li', it.name + ' (' + it.owner + ')'))
+        var li = E('li')
+        var key = '/groups/'+it.name
+        li.append(
+          A(key, it.name),
+          ' ( ', A('/users/'+it.owner, it.owner), ' )'
+        )
+        if (it.writable) {
+          li.append(
+            E('br'), '- ', A(key, 'edit')
+          )
+        }
+        d.appendChild(li)
       })
     }
   })
-  c.menu = new Desk.Menu()
-  Applets.bakeAppletMenu(c)
   return c
-}
-Applets.Groups.loadSession = function(dump) {
-  return Applets.Groups()
 }
 
 Applets.Sets = function(wm) {
  if (!wm) wm = Desk.Windows
-  var c = E('span', null,null, 'taskbarApplet Sets')
-  c.dumpSession = function(){
-    return {loader: 'Applets.Sets', data: ''}
-  }
-  var title = E('h4', 'Sets', null, 'windowGroupTitle')
-  var f = E('form', null,null, 'taskbarForm')
-  var t = E('input',null,null,'taskbarTextInput',null,
-    {type:'text'})
-  var s = E('input',null,null,'taskbarSubmitInput',null,
-    {type:'submit', value:'Create'})
-  c.appendChild(title)
-  c.appendChild(f)
-  f.appendChild(t)
-  f.appendChild(s)
+  var c = Applets.create('Sets')
+  var d = E('ul', null, null, 'setList')
+  c.contentElem.appendChild(d)
   new Ajax.Request('/sets/json', {
     method : 'get',
     onSuccess: function(res){
       var items = res.responseText.evalJSON()
-      var d = E('ul')
-      c.appendChild(d)
       items.each(function(it) {
-        d.appendChild(E('li', it.namespace + '/' + it.name + ' (' + it.owner + ')'))
+        var li = E('li')
+        var key = '/sets/'+it.namespace+'/'+it.name
+        li.append(
+          A(key, it.name),
+          ' ( ', A('/users/'+it.owner, it.owner), ' )'
+        )
+        if (it.writable) {
+          li.append(
+            E('br'), '- ', A(key, 'edit')
+          )
+        }
+        d.appendChild(li)
       })
     }
   })
-  c.menu = new Desk.Menu()
-  Applets.bakeAppletMenu(c)
   return c
-}
-Applets.Sets.loadSession = function(dump) {
-  return Applets.Sets()
 }
 
 Applets.SelectionEditor = function(wm) {

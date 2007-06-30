@@ -149,6 +149,7 @@ module MuryuDispatch
       if user != Future::Users.anonymous
         res.content_type = 'application/json'
         name = user.name
+        secret = user.sessions.find{|s| s.session_id == req.session_id }.secret
         workspace = user.workspace.name
         workspaces = user.workspaces.map{|w| w.name }
         preferences = user.workspace.preferences.map{|pr|
@@ -156,6 +157,7 @@ module MuryuDispatch
         }.to_hash
         res.body = {
           'name' => name,
+          'secret' => secret,
           'workspace' => workspace,
           'workspaces' => workspaces,
           'preferences' => preferences
@@ -212,6 +214,21 @@ module MuryuDispatch
         b.input(:type => 'submit', :value => 'Log in')
       }
     end
+
+    class UserHandler < SingleHandler
+      self.table = Future::Users
+      self.key_column = 'name'
+
+      def invisible_columns
+        super | ['password', 'workspace_id']
+      end
+
+      def uneditable_columns
+        super | ['name']
+      end
+      
+    end
+    self.single_handler = UserHandler
     
   end
 

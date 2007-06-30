@@ -193,9 +193,6 @@ class TestMuryuQuery < Test::Unit::TestCase
       mq('users/bob/foo.jpg')
     }
     assert_raise(MuryuQuery::BadKey){
-      mq('tile_info/x0y0z0w0h0')
-    }
-    assert_raise(MuryuQuery::BadKey){
       mq('tile_info/x0y0z0.0')
     }
     assert_raise(MuryuQuery::BadKey){

@@ -9,6 +9,14 @@ raw = !ARGV.delete("--no-raw")
 jpeg = !ARGV.delete("--no-jpeg")
 tiles = !ARGV.delete("--no-tiles")
 force_thumbnail_update = !!ARGV.delete("--regen-thumbs")
-from = ARGV.shift.to_i
+from = ARGV.shift
 
-ic.regenerate!(from, raw, jpeg, tiles, force_thumbnail_update)
+if from and not from =~ /\A[0-9]+\Z/
+  items = Future::Items.find_all(:path => /#{from}/, :order_by => [['image_index', :asc]])
+  items.each{|it|
+    puts "Updating image cache at #{it.image_index} (#{it.path})"
+    ic.update_cache_at(it.image_index, it, raw, jpeg, tiles, force_thumbnail_update)
+  }
+else
+  ic.regenerate!(from.to_i, raw, jpeg, tiles, force_thumbnail_update)
+end

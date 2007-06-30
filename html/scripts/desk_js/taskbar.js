@@ -4,7 +4,9 @@ Tr.addTranslations('en-US', {
   'Applets.Taskbar.collapsed' : 'Collapsed',
   'Applets.Taskbar.rename' : 'Rename',
   'Applets.Taskbar.duplicate' : 'Duplicate',
-  'Applets.Taskbar.close_all' : 'Close all'
+  'Applets.Taskbar.close_all' : 'Close all',
+  'Applets.Taskbar.collapse_all' : 'Collapse all groups',
+  'Applets.Taskbar.expand_all' : 'Expand all groups'
 })
 Tr.addTranslations('fi-FI', {
   'Applets.Taskbar' : 'Ikkunalista',
@@ -12,29 +14,41 @@ Tr.addTranslations('fi-FI', {
   'Applets.Taskbar.collapsed' : 'Piilotettu',
   'Applets.Taskbar.rename' : 'Uudelleennimeä',
   'Applets.Taskbar.duplicate' : 'Monista',
-  'Applets.Taskbar.close_all' : 'Sulje kaikki'
+  'Applets.Taskbar.close_all' : 'Sulje kaikki',
+  'Applets.Taskbar.collapse_all' : 'Piilota kaikki ryhmät',
+  'Applets.Taskbar.expand_all' : 'Laajenna kaikki ryhmät'
 })
 
 Applets.Taskbar = function(wm) {
-  var el = E('div', null, null, 'taskbar')
+  var el = Applets.create('Taskbar')
   Object.extend(el, Applets.Taskbar.prototype)
   el.windowGroups = new Hash()
   el.init()
   el.setWindowManager(wm || Desk.Windows)
   return el
 }
-Applets.Taskbar.loadSession = function(data) {
-  return Applets.Taskbar()
-}
 Applets.Taskbar.prototype = {
   init : function() {
     this.element = this
     this.taskbar = this
-    this.titleElement = E('h4', Tr('Windows'), null, 'windowGroupTitle')
-    this.element.appendChild(this.titleElement)
-    this.dumpSession = function() {
-      return { loader: 'Applets.Taskbar', data: '' }
-    }
+    this.titleElem.innerHTML = Tr('Windows')
+    this.titleElement = this.titleElem
+    this.menu.addItem(
+      Tr('Applets.Taskbar.collapse_all'),
+      function(){ this.setCollapsedForAll(true) }.bind(this),
+      'icons/CollapseAllGroups.png'
+    )
+    this.menu.addItem(
+      Tr('Applets.Taskbar.expand_all'),
+      function(){ this.setCollapsedForAll(false) }.bind(this),
+      'icons/ExpandAllGroups.png'
+    )
+    this.menu.addSeparator()
+    this.menu.addItem(
+      Tr('Applets.Taskbar.close_all'),
+      this.closeAll.bind(this),
+      'icons/Remove.png'
+    )
 //     this.formElement = E('form', null, null, 'taskbarForm')
 //     this.formTitleElement = E('h5', 'Create window group', null, 'taskbarFormTitle')
 //     this.formElement.appendChild(this.formTitleElement)
@@ -60,15 +74,18 @@ Applets.Taskbar.prototype = {
     this.onWindowAdded = this.onWindowAddHandler.bind(this)
     this.onWindowRemoved = this.onWindowRemoveHandler.bind(this)
     this.onWindowGroupChanged = this.onWindowGroupChangeHandler.bind(this)
-    this.menu = new Desk.Menu()
-    this.menu.addTitle(Tr('Applets.Taskbar'))
-    Applets.bakeAppletMenu(this)
     this.createWindowGroup('default')
   },
 
   setCollapsedForAll : function(new_value) {
     this.windowGroups.each(function(kv, i){
       kv[1].setCollapsed(new_value) // prototype.js ... some days
+    })
+  },
+
+  closeAll : function() {
+    this.windowGroups.each(function(kv, i){
+      kv[1].close()
     })
   },
 
@@ -154,17 +171,17 @@ Applets.Taskbar.prototype = {
       if (!this.windowGroups[e.value])
         this.windowGroups[e.value] = e.target
       else
-        this.element.removeChild(e.target.element)
+        this.contentElem.removeChild(e.target.element)
     }.bind(this))
     this.windowGroups[name] = wg
-    this.element.appendChild(wg.element)
+    this.contentElem.appendChild(wg.element)
     return wg
   },
 
   removeWindowGroup : function(name) {
     if (name == 'default') return
     var wg = this.windowGroups[name]
-    this.element.removeChild(wg.element)
+    this.contentElem.removeChild(wg.element)
     delete this.windowGroups[name]
   }
 
@@ -229,7 +246,7 @@ Object.extend(Applets.Taskbar.WindowGroup.prototype, {
     this.menu.addSeparator()
     this.menu.addItem(Tr('Applets.Taskbar.rename'), this.makeEditable.bind(this))
     this.menu.addSeparator()
-    this.menu.addItem(Tr('Applets.Taskbar.duplicate'), this.duplicate.bind(this))
+//     this.menu.addItem(Tr('Applets.Taskbar.duplicate'), this.duplicate.bind(this))
     this.menu.addItem(Tr('Applets.Taskbar.close_all'), this.close.bind(this), 'icons/Remove.png')
     this.menu.bind(this.titleElement)
   },

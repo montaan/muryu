@@ -227,7 +227,7 @@ module MuryuDispatch
                   end
                 }
               }
-              b.p { b.input(:type => 'submit', :value => 'Save changes' )}
+              b.p { b.input(:type => 'submit', :value => 'Save changes' )} if @target.writable_by(user)
             }
             b.p { b.a("Edit", :id => 'edit_link', :href => File.join('/', req.path, "edit")) }
           }

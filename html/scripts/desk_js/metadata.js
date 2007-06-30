@@ -387,8 +387,11 @@ Mimetype = {
         }
       }
       if (info.metadata.description && !hide_description) {
-        var desc = E('p')
-        desc.appendChild(T(info.metadata.description))
+        var desc = E('div')
+        var lines = info.metadata.description.split("\n")
+        lines.each(function(l){
+          desc.appendChild(E('p', l))
+        })
         infoDiv.appendChild(desc)
       }
       if (info.metadata.exif && info.metadata.exif.length > 0) {
@@ -793,6 +796,7 @@ Mimetype = {
       tr.appendChild(td)
       td.appendChild(E('h4', Tr('Item.item')))
       var dd = E('div')
+      dd.style.minWidth = "256px"
       td.appendChild(dd)
       dd.appendChild(E("img", null, null, null, {display:'block'}, {src:Map.__itemPrefix + info.path+'/thumbnail'}))
       dd.appendChild(E("h5", Tr('Item.filename')))

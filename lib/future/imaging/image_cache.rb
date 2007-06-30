@@ -12,8 +12,8 @@ module Future
 #
 class ImageCache
 
-  attr_accessor :cache_dir
-  attr_reader :max_thumbnail_size, :max_zoom, :raw_pyramid
+  attr_accessor :cache_dir, :use_db
+  attr_reader :max_thumbnail_size, :max_zoom, :raw_pyramid, :jpeg_pyramid, :jpeg_tiles
 
   def initialize(cache_dir = Future.cache_dir + 'image_cache',
                  max_thumbnail_size = 128, max_raw_size = 16)
@@ -26,10 +26,11 @@ class ImageCache
     @jpeg_tiles = JPEGTileStore.new(@cache_dir+'jpeg_tiles')
     @batch_ops = nil
     @total_data_read = 0
+    @use_db = true
   end
 
   def max_index
-    if Future.constants.include?("Items")
+    if @use_db and Future.constants.include?("Items")
       item = Items.find(:order_by => [[:image_index, :desc]])
       return 0 unless item
       item.image_index
@@ -43,20 +44,14 @@ class ImageCache
   end
 
   def regenerate!(start_idx=0, *a)
-    items = Items.count
-    start_count = ((start_idx / 100)+1)*100 - start_idx
-    batch do
-      Items.find_all(:order_by => [['image_index', :asc]],
-                  :columns => [:deleted, :path],
-                  :offset => start_idx, :limit => start_count).each{|i|
-        puts "updating cache at #{i.image_index}"
-        update_cache_at(i.image_index, i, *a)
-      }
-    end
-    ((start_idx / 100)+1 .. items / 100).each do |batch_idx|
+    item = Items.find(:order_by => [[:image_index, :desc]])
+    max = item.image_index
+    return if max < start_idx
+    (0 .. (max-start_idx) / 100).each do |batch_idx|
       batch do
         Items.find_all(:order_by => [['image_index', :asc]],
                    :columns => [:deleted, :path],
+                   :image_index => [:>=, start_idx],
                    :offset => batch_idx*100, :limit => 100).each{|i|
           puts "updating cache at #{i.image_index}"
           update_cache_at(i.image_index, i, *a)
@@ -81,19 +76,22 @@ class ImageCache
   def update_cache_at(index, item = item_at(index), raw=true, jpeg=true, tiles=true, force=false)
     if item
       if item.deleted and not item.thumbnail
-        @raw_pyramid.clear_at(index) if raw
-        @jpeg_pyramid.clear_at(index) if jpeg
-        @jpeg_tiles.clear_at(index) if tiles
+        clear_cache_at(index, raw, jpeg, tiles, force)
       else
         mipmap = mipmap(item, force)
-        @raw_pyramid.update_cache_at(index, mipmap) if raw
-        i = -1
-        @jpeg_pyramid.update_cache_at(index, mipmap.map{|bgra| i+=1; crop_and_jpeg(bgra,i) } ) if jpeg
+        @raw_pyramid.update_cache_at(index, mipmap.map{|im| im.data_for_reading_only }) if raw
+        @jpeg_pyramid.update_cache_at(index, mipmap.map{|im| imlib_to_rgb_alpha_jpeg(im) }) if jpeg
         @jpeg_tiles.update_cache_at(index, item) if tiles
       end
     else
-      raise ArgumentError, 'Invalid index, should be a valid continuous_index for item.'
+      raise ArgumentError, 'Invalid index, should be a valid image_index for item.'
     end
+  end
+
+  def clear_cache_at(index, raw=true, jpeg=true, tiles=true, force=false)
+    @raw_pyramid.clear_at(index) if raw
+    @jpeg_pyramid.clear_at(index) if jpeg
+    @jpeg_tiles.clear_at(index) if tiles
   end
 
   def init_ctx
@@ -137,9 +135,7 @@ class ImageCache
         image.fill_rectangle(0,0, sz, sz, Imlib2::Color::TRANSPARENT)
         image.blend!(thumb, 0, 0, thumb.width, thumb.height,
                             0, 0, sz, sz)
-        px = image.data
-        image.delete!
-        px
+        image
       }.reverse
       thumb.delete!
       levels
@@ -174,14 +170,24 @@ class ImageCache
     read_images_as_string(z, [index])
   end
 
+  def read_image_as_imlib(lvl, index)
+    if lvl <= @max_raw_zoom
+      @raw_pyramid.read_images_as_imlib(lvl, [index])[0]
+    elsif lvl <= @max_zoom
+      @jpeg_pyramid.read_images_as_imlib(lvl, [index])[0]
+    else
+      raise "Level #{lvl} not in pyramids."
+    end
+  end
+
   def read_images_as_string(lvl, indexes)
     raise "No raw mipmap at that level." if lvl < 0 or lvl > @max_raw_zoom
     @raw_pyramid.read_images_as_string(lvl, indexes)
   end
 
-  def read_span_as_string(lvl, start, length)
+  def read_span_as_string(lvl, start, last)
     raise "No raw mipmap at that level." if lvl < 0 or lvl > @max_raw_zoom
-    d = @raw_pyramid.read_span_as_string(lvl, start, length)
+    d = @raw_pyramid.read_span_as_string(lvl, start, last)
     @total_data_read += d.size
     log_debug([:total_data_read, @total_data_read].inspect)
     d
@@ -192,9 +198,9 @@ class ImageCache
     @jpeg_pyramid.read_images_as_string(lvl, indexes)
   end
   
-  def read_span_as_jpeg(lvl, start, length)
+  def read_span_as_jpeg(lvl, start, last)
     raise "No JPEG mipmap at that level." if lvl < 0 or lvl > @max_zoom
-    d = @jpeg_pyramid.read_span_as_string(lvl, start, length)
+    d = @jpeg_pyramid.read_span_as_string(lvl, start, last)
     @total_data_read += d.size
     log_debug([:total_data_read, @total_data_read].inspect)
     d
@@ -257,6 +263,10 @@ class ImageCache
       [rgba.size].pack("I") << rgba
     end
 
+    def imlib_to_gray_jpeg(img)
+      Tiles.imlib_to_gray_jpeg(img, 75)
+    end
+
     def crop_and_jpeg(bgra, lvl)
       sz = 2**lvl
       i = 0
@@ -313,7 +323,7 @@ class JPEGPyramid
     @parallel_reads = 8
     @indexes_per_level = {}
     @levels.each{|lvl|
-      @indexes_per_level[lvl] = @cachefile_size / (2**(2*lvl) * 4)
+      @indexes_per_level[lvl] = 2048 # @cachefile_size / (2**(2*lvl) * 4)
     }
     @update_mutex = Mutex.new
     @access_mutex = Mutex.new
@@ -321,13 +331,43 @@ class JPEGPyramid
 
   def max_index
     dirname = File.join(@cache_dir, @levels.end.to_s)
-    maxdir = Dir[dirname + "/*"].map{|n| File.split(n).last.to_i }.max
-    maxfile = Dir[File.join(dirname, maxdir.to_s, "*")].map{|n| File.split(n).last.to_i }.max
+    maxdir = Dir[dirname + "/*"].map{|n| File.basename(n).to_i }.max
+    maxfile = Dir[File.join(dirname, maxdir.to_s, "*")].map{|n| File.basename(n).to_i }.max
     maxfile ||= 0
-    ipl = @indexes_per_level.last
+    ipl = @indexes_per_level[@levels.end]
     ipl * (maxfile+1) - 1
   end
 
+
+  def verify
+    max = max_index
+    @levels.each do |lvl|
+      ipl = @indexes_per_level[lvl]
+      (0..(max_index / ipl.to_f).ceil).each{|i|
+        open_at(lvl, i*ipl, 'rb'){|f,sz|
+          len = f.stat.size
+          f.seek(0)
+          header = f.read(ipl*4).unpack("N*")
+          prev = header.shift
+          if ipl*4 != prev
+            raise "#{ipl*4} != #{prev}, first index should be at end of header in file #{lvl}/#{i}."
+          end
+          idx = ipl*i
+          until header.empty?
+            f.seek(prev)
+            jlen = f.read(4).unpack("I")[0]
+            nxt = header.shift || len
+            if nxt-prev != jlen+4 and jlen != 0
+              raise "#{nxt-prev} != #{jlen+4} in file #{lvl}/#{i}, at index #{idx}."
+            end
+            prev = nxt
+            idx += 1
+          end
+        }
+      }
+    end
+  end
+  
   def update_cache_at(index, data_levels)
   @update_mutex.synchronize do
     @levels.each{|lvl|
@@ -342,10 +382,8 @@ class JPEGPyramid
   def clear_at(index)
   @update_mutex.synchronize do
     @levels.each{|lvl|
-      open_at(lvl, index, 'rb+'){|f,sz|
-        if sz > 0
-          f.write("\000"*sz)
-        end
+      open_at(lvl, index, 'rb+', true){|f,sz|
+        f.write([0].pack("I"))
       }
     }
   end
@@ -354,9 +392,14 @@ class JPEGPyramid
   # creates cache file with header, every entry pointing to a zero
   def create_cache_file(filename, level)
     File.open(filename, 'wb'){|f|
-      ipl = @indexes_per_level[level]
-      f.write((0...ipl).map{|i| (i + ipl)*4 }.pack("N*"))
-      f.write("\000\000\000\000"*ipl)
+      f.flock(File::LOCK_EX)
+      begin
+        ipl = @indexes_per_level[level]
+        f.write((0...ipl).map{|i| (i + ipl)*4 }.pack("N*"))
+        f.write("\000\000\000\000"*ipl)
+      ensure
+        f.flock(File::LOCK_UN)
+      end
     }
     log_debug([:created_jpeg_cache, level, File.size(filename), filename].inspect)
   end
@@ -374,46 +417,80 @@ class JPEGPyramid
     end
     rel_idx = index % ipl
     File.open(filename, mode){|f|
-      log_debug([:seek_and_get_header, rel_idx, f.stat.size, f.pos].inspect)
-      f.seek(rel_idx*4)
-      header = f.read(4 + (rel_idx == ipl-1 ? 0 : 4))
-      seek = header[0,4].unpack("N")[0]
-      if update_header # update header with new index and seek to end of file
-        f.truncate(seek)
-        sz = 0
-        log_debug([:truncated_to, seek].inspect)
-      else
-        nxt = (header[4,4] || "").unpack("N")[0]
-        if nxt
-          sz = nxt - seek
+      f.flock(File::LOCK_EX)
+      begin
+        log_debug([:seek_and_get_header, rel_idx, f.stat.size, f.pos].inspect)
+        f.seek(rel_idx*4)
+        header = f.read(4 + (rel_idx == ipl-1 ? 0 : 4))
+        seek,nxt = header.unpack("NN")
+        if update_header # update header with new index and seek to end of file
+          if nxt
+            f.seek(nxt)
+            tail = f.read
+          else
+            tail = ""
+          end
+          sz = 0
+          f.seek(seek)
+          f.truncate(seek)
         else
-          sz = f.stat.size - seek
+          if nxt
+            sz = nxt - seek
+          else
+            sz = f.stat.size - seek
+          end
+          f.seek(seek)
         end
+        log_debug([:seek, seek, :sz, sz].inspect)
+        res = yield(f, sz)
+        if update_header
+        #
+        #
+        # v
+        # 4 5 6 7 | A B C D      -> 4 5
+        #             v
+        # 4 5 6 7 | A B C D      -> B C D
+        #          v
+        # 4 5 6 7 |              <- A A A
+        #                v
+        # 4 5 6 7 | A A A        <- B C D
+        #                      v
+        # 4 5 6 7 | A A A B C D
+        #   v
+        # 4 5 6 7 | A A A B C D  <- 7 8 9
+        #           v
+        # 4 7 8 9 | A A A B C D
+        #
+          start = f.pos
+          f.write(tail)
+          if nxt
+            f.seek(rel_idx*4+4)
+            tail_header = f.read((ipl-1-rel_idx)*4).unpack("N*")
+            offset = start - tail_header[0]
+          else
+            tail_header = []
+            offset = 0
+          end
+          new_tail_header = tail_header.map{|i| offset+i }.pack("N*")
+          if new_tail_header.size != (ipl-1-rel_idx)*4
+            raise "Bad tail header size! Got #{new_tail_header.size}, expected #{(ipl-1-rel_idx)*4}."
+          end
+          f.seek(rel_idx*4+4)
+          f.write(new_tail_header) # update tail header
+          f.seek(0)
+          header = f.read(ipl*4).unpack("N*")
+          if header[rel_idx] != seek
+            raise "Botched header, should have #{seek} but has #{header[rel_idx]}"
+          elsif header[rel_idx+1] and header[rel_idx+1] != start
+            raise "Botched header tail, should start with #{start} but starts with #{header[rel_idx]}"
+          elsif (not new_tail_header.empty?) and new_tail_header[-4,4].unpack("N")[0] != header.last
+            raise "Botched header tail, should end with #{new_tail_header[-4,4].unpack("N")[0]} but ends with #{header.last}"
+          end
+        end
+        res
+      ensure
+        f.flock(File::LOCK_UN)
       end
-      log_debug([:seek, seek, :sz, sz].inspect)
-      f.seek(seek)
-      res = yield(f, sz)
-      if update_header
-        f.seek(0, IO::SEEK_END)
-        start = f.pos
-        f.write("\000\000\000\000"*(ipl-1-rel_idx)) # zero the tail
-        f.seek(rel_idx*4+4)
-        new_tail_header = (0...(ipl-1-rel_idx)).map{|i| start + i*4 }.pack("N*")
-        if new_tail_header.size != (ipl-1-rel_idx)*4
-          raise "Bad tail header size! Got #{new_tail_header.size}, expected #{(ipl-1-rel_idx)*4}."
-        end
-        f.write(new_tail_header) # update tail header
-        f.seek(0)
-        header = f.read(ipl*4).unpack("N*")
-        if header[rel_idx] != seek
-          raise "Botched header, should have #{seek} but has #{header[rel_idx]}"
-        elsif header[rel_idx+1] and header[rel_idx+1] != start
-          raise "Botched header tail, should start with #{start} but starts with #{header[rel_idx]}"
-        elsif (not new_tail_header.empty?) and new_tail_header[-4,4].unpack("N")[0] != header.last
-          raise "Botched header tail, should end with #{new_tail_header[-4,4].unpack("N")[0]} but ends with #{header.last}"
-        end
-      end
-      res
     }
   end
   end
@@ -433,10 +510,15 @@ class JPEGPyramid
       return nil
     else
       File.open(filename, 'rb'){|f|
+      f.flock(File::LOCK_EX)
+      begin
         f.seek((rel_idx+1)*4)
         header = f.read(4)
         log_debug([:next_seek, header.unpack("N")].inspect)
         header.unpack("N")[0]
+      ensure
+        f.flock(File::LOCK_UN)
+      end
       }
     end
   end
@@ -463,6 +545,7 @@ class JPEGPyramid
     if level_end_idx == level_start_idx
       end_idx = get_next_seek(level, last)
       if end_idx
+    log_debug( [:one_file_to_end_idx, start, last].inspect )
         open_at(level, start, 'rb'){|f,sz|
           log_debug([:reading_from, f.pos, :to, end_idx].inspect)
           begin
@@ -473,22 +556,30 @@ class JPEGPyramid
           end
         }
       else
+    log_debug( [:one_file_to_end, start].inspect )
         open_at(level, start, 'rb'){|f,sz|
           str << f.read
         }
       end
       return str
     else
-      open_at(level, start, 'rb'){|f,sz| str << f.read }
+      open_at(level, start, 'rb'){|f,sz|
+    log_debug( [:first_file_to_end, start, f.pos, f.stat.size-f.pos].inspect )
+        str << f.read
+      }
     end
     full_level_files.each{|lf|
-      open_at(level, lf * ipl, 'rb'){|f| str << f.read }
+      open_at(level, lf * ipl, 'rb'){|f,sz|
+    log_debug( [:full_file, lf*ipl, f.pos, f.stat.size-f.pos].inspect )
+        str << f.read
+      }
     }
     if level_end_idx != level_start_idx
       open_at(level, last, 'rb'){|f,sz|
         rsz = f.pos
         f.seek(ipl*4) # beginning of data
-        str << f.read(rsz+sz)
+    log_debug( [:last_file, last, ipl*4, rsz, sz, (rsz-ipl*4)+sz].inspect )
+        str << f.read((rsz-ipl*4)+sz)
       }
     end
     str
@@ -502,11 +593,11 @@ class JPEGPyramid
     result = indexes.dup
     spans = reads.inject([]){|s, (idx,j)|
       if s.last.nil? or s.last.first.end < idx-stream_limit
-        s << [(idx..idx), [[0, j]]]
+        s << [(idx..idx), {0 => j}]
       else
         r,is = s.last
         s.last[0] = (r.begin..idx)
-        is << [idx-r.begin, j]
+        is[idx-r.begin] = j
       end
       s
     }
@@ -518,16 +609,15 @@ class JPEGPyramid
       log "reading span #{span}"
       s = read_span_as_string(level, span.begin, span.end)
       k = 0
-      is.each{|i,j|
+      i = 0
+      while k < s.size
         sz = s[k,4].unpack("I")[0]
-        begin
-          result[j] = s[k,sz+4]
-          k += sz+4
-        rescue
-          log_error([:error_unpack, k, sz, i, j, s.size, is, is.size].inspect)
-          raise
+        if is[i]
+          result[is[i]] = s[k, sz+4]
         end
-      }
+        k += sz+4
+        i += 1
+      end
     }
     result
   end
@@ -599,8 +689,13 @@ class JPEGTileStore
       index_count = (width / tile_size.to_f).ceil * (height / tile_size.to_f).ceil
       log_debug([:new_header, index, lvl, width, height, index_count].inspect)
       File.open(File.join(dirname, lvl.to_s), 'wb') {|f|
+      f.flock(File::LOCK_EX)
+      begin
         f.write([width,height].pack("NN"))
         f.write(([0].pack("N"))*index_count)
+      ensure
+        f.flock(File::LOCK_UN)
+      end
       }
       log_debug([:wrote_header, File.size(File.join(dirname, lvl.to_s))].inspect)
       width = (width / 2.0).ceil
@@ -631,8 +726,14 @@ class JPEGTileStore
   def update_cache_at(index, item)
     synchronize(index) do
       if item.respond_to?(:full_size_image) and item.full_size_image.exist?
-        pn = item.full_size_image
-        pn.mimetype = Mimetype['image/jpeg']
+        if item.respond_to?(:mimetype) and
+        ["image/png","image/gif","image/jpg","image/tga"].include?(item.mimetype)
+          pn = item.internal_path.to_pn
+          pn.mimetype = Mimetype[item.mimetype]
+        else
+          pn = item.full_size_image.to_pn
+          pn.mimetype = Mimetype['image/jpeg']
+        end
         w,h = pn.dimensions
       else
         pn = (item.internal_path || item.thumbnail).to_pn
@@ -679,6 +780,8 @@ class JPEGTileStore
           levels.downto(0) do |level|
             log_debug([:w_h_tn_sz, width, height, tn_sz].inspect)
             File.open(File.join(dirname, level.to_s), 'rb+') {|f|
+            f.flock(File::LOCK_EX)
+            begin
               header = [f.stat.size] # header size
               log_debug([level, header].inspect)
               f.seek(0, IO::SEEK_END)
@@ -690,7 +793,7 @@ class JPEGTileStore
                     )
                     if (img.width != tile_size || img.height != tile_size)
                       raise "Bad tile size! Got #{img.width}x#{img.height}, should be #{tile_size}x#{tile_size}"
-                    end 
+                    end
                     tile = ImageCache.imlib_to_rgb_alpha_jpeg(img)
                     f.write(tile)
                     header << header.last+tile.size
@@ -704,6 +807,9 @@ class JPEGTileStore
                 raise "Bad header size! Got #{packed_header.size}, expected #{header[0]}."
               end
               f.write(packed_header)
+            ensure
+              f.flock(File::LOCK_UN)
+            end
             }
             height /= 2
             width /= 2
@@ -719,37 +825,43 @@ class JPEGTileStore
 
   def image_thumbnail(img, thumb_size, page=0, crop='0x0+0+0')
   $imlib_mutex.synchronize do
-    begin
-      ow, oh = img.width, img.height
-      larger = [ow, oh].max
-      wr = img.width.to_f / larger
-      hr = img.height.to_f / larger
-      sr = larger / thumb_size.to_f
-      w,h,x,y = crop.scan(/[+-]?[0-9]+/).map{|i|i.to_i}
-      w = thumb_size * wr if w == 0
-      h = thumb_size * hr if h == 0
-      rx,ry,rw,rh = [x,y,w,h].map{|i| i * sr }
-      ctx = Imlib2::Context.get
-      ctx.blend = false
-      ctx.color = Imlib2::Color::TRANSPARENT
-      ctx.op = Imlib2::Op::COPY
-      if rx > ow or ry > oh
-        nimg = Imlib2::Image.new(w, h)
+    ow, oh = img.width, img.height
+    larger = [ow, oh].max
+    wr = img.width.to_f / larger
+    hr = img.height.to_f / larger
+    sr = larger / thumb_size.to_f
+    w,h,x,y = crop.scan(/[+-]?[0-9]+/).map{|i|i.to_i}
+    w = thumb_size * wr if w == 0
+    h = thumb_size * hr if h == 0
+    rx,ry,rw,rh = [x,y,w,h].map{|i| i * sr }
+    ctx = Imlib2::Context.get
+    ctx.blend = false
+    ctx.color = Imlib2::Color::TRANSPARENT
+    ctx.op = Imlib2::Op::COPY
+    if rx > ow or ry > oh
+      nimg = Imlib2::Image.new(w, h)
+      nimg.has_alpha = true
+      nimg.fill_rectangle([0, 0, w, h])
+    else
+      nimg = Imlib2::Image.new(w,h)
+      nimg.has_alpha = true
+      nimg.fill_rectangle([0,0,w,h])
+      tmp = img.crop_scaled(rx,ry,rw,rh, w, h)
+      nimg.blend!(tmp,0,0,tmp.width,tmp.height,0,0,tmp.width,tmp.height)
+      tmp.delete!(true)
+      if rx+rw > ow
         nimg.has_alpha = true
-        nimg.fill_rectangle([0, 0, w, h])
-      else
-        nimg = img.crop_scaled(rx,ry,rw,rh, w, h)
+        d = rx+rw - ow
+        nimg.fill_rectangle([w - d / sr, 0, w, h])
+      elsif ry+rh > oh
         nimg.has_alpha = true
-        if rx+rw > ow
-          d = rx+rw - ow
-          nimg.fill_rectangle([w - d / sr, 0, w, h])
-        elsif ry+rh > oh
-          d = ry+rh - oh
-          nimg.fill_rectangle([0, h - d / sr, w, h])
-        end
+        d = ry+rh - oh
+        nimg.fill_rectangle([0, h - d / sr, w, h])
+      elsif !img.has_alpha
+        nimg.has_alpha = false
       end
-      ctx.blend = true
     end
+    ctx.blend = true
     nimg
   end
   end
@@ -788,6 +900,8 @@ class JPEGTileStore
       y_range = (first_y_tile..last_y_tile)
       filename = File.join(dir, level.to_s)
       File.open(filename, 'rb'){|f|
+      f.flock(File::LOCK_EX)
+      begin
         w,h = f.read(8).unpack("NN")
         cols = (w / tile_size.to_f).ceil
         rows = (h / tile_size.to_f).ceil
@@ -831,6 +945,9 @@ class JPEGTileStore
             end
           }
         }
+      ensure
+        f.flock(File::LOCK_UN)
+      end
       }
     end
   end
@@ -840,6 +957,8 @@ class JPEGTileStore
       dir = get_dirname(index)
       filename = File.join(dir, level.to_s)
       File.open(filename, 'rb'){|f|
+      f.flock(File::LOCK_EX)
+      begin
         w,h = f.read(8).unpack("NN")
         cols = (w / tile_size.to_f).ceil
         rows = (h / tile_size.to_f).ceil
@@ -855,6 +974,9 @@ class JPEGTileStore
           raise "Bad RGB-Alpha JPEG header! Got #{image_data[0,4].unpack("I")[0]}, expected #{image_data.size-4}."
         end
         data = Tiles.tile_drawer.decompress_rgb_alpha_jpeg(image_data, tile_size, tile_size)
+      ensure
+        f.flock(File::LOCK_UN)
+      end
       }
     end
   end
@@ -915,12 +1037,22 @@ class RawPyramid
     filename = File.join(dirname, level_idx.to_s)
     unless File.exist?(filename)
       File.open(filename, 'wb'){|f|
+      f.flock(File::LOCK_EX)
+      begin
         f.truncate(@cachefile_size)
+      ensure
+        f.flock(File::LOCK_UN)
+      end
       }
     end
     File.open(filename, mode){|f|
+    f.flock(File::LOCK_EX)
+    begin
       f.seek((index % ipl) * 2**(2*level) * 4)
       yield(f)
+    ensure
+      f.flock(File::LOCK_UN)
+    end
     }
   end
 

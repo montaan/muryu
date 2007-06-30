@@ -8,15 +8,15 @@ module MuryuDispatch
       search_query = MuryuDispatch::Items.parse_search_query(user, req.query['q'].to_s)
       sq = search_query.clone
       res.content_type = 'application/json'
+      time = req.query['time'].to_s
       if req.query.has_key?('tiles')
         tiles = JSON.parse(req.query['tiles'][0])
-        time = req.query['time'].to_s
         tile_array = '[' + tiles.map{|x,y,z| get_tile_info(user, sq, x, y, z, 256, 256, time) }.join(",") + ']'
         res.body = tile_array
       else
         res.body = {
-          "dimensions" => Future::Tiles.dimensions(user, sq, :rows),
-          "itemCount" => Future::Tiles.item_count(user, sq),
+          "dimensions" => Future::Tiles.dimensions(user, sq, time, :rows),
+          "itemCount" => Future::Tiles.item_count(user, sq, time),
           "maxZoom" => 15,
           "title" => req.query['q'].to_s
         }.to_json
@@ -39,7 +39,7 @@ module MuryuDispatch
         end
         puts "#{Thread.current.telapsed} for tile_info init" if $PRINT_QUERY_PROFILE
         info = Future::Tiles.info(
-          user, sq,
+          user, sq, time,
           :rows, x, y, z, w, h
         ).to_a.map do |iind,((x,y,sz), info)|
           {:index => info[:index], :x => x, :y => y, :sz => sz, :path => info[:path], :deleted => info[:deleted]}
@@ -58,8 +58,7 @@ module MuryuDispatch
         sq = MuryuDispatch::Items.parse_search_query(user, req.query['q'].to_s)
         res.content_type = 'application/json'
         x,y,z,w,h = MuryuDispatch::Tile.parse_tile_geometry(req.key)
-        res.body = TileInfo.get_tile_info(user, sq, x,y,z,256,256,req.query['time'])
-        puts "Total tile_info time: #{"%.3fms" % [1000 * (Time.now.to_f - request_time)]}" if $PRINT_QUERY_PROFILE
+        res.body = TileInfo.get_tile_info(user, sq, x,y,z,256,256,req.query['time'].to_s)
       end
 
     end

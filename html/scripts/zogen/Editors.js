@@ -24,11 +24,11 @@ Editors = {
     var min = Editors.limitedIntInput('minute', value.getMinutes(), [0, 59, 2])
     var s = Editors.limitedIntInput('second', value.getSeconds(), [0, 59, 2])
     var hid = Editors.hiddenInput(name)
-    var tz = ({value: value.getTimezoneOffset() / 60})
+    var tz = ({value: value.getTimezoneOffset()})
     var updater = function(){
       hid.value = ([y.value, m.value, d.value].join("-") + ' ' +
                    [h.value, min.value, s.value].join(":") + ' ' +
-                   (tz.value < 0 ? tz.value : '+'+tz.value))
+                   Editors.formatTimezone(tz.value))
     }
     if (nullVal) {
       hid.value = ''
@@ -42,6 +42,13 @@ Editors = {
     })
     cont.appendChild(hid)
     return cont
+  },
+
+  formatTimezone : function(tz) {
+    var h = parseInt(Math.abs(tz) / 60).toString().rjust(2,'0')
+    var min = parseInt(Math.abs(tz) % 60).toString().rjust(2, '0')
+    var prefix = tz < 0 ? '-' : '+'
+    return prefix + h + min
   },
 
   intInput : function(name, value) {
@@ -72,15 +79,14 @@ Editors = {
         "low": low, "high": high
       })
     inp.addEventListener('change', function(e){
-      if (inp.validator && !inp.validator(inp.value)) {
-        inp.value = value.toString().rjust(padding, '0')
-        e.preventDefault()
-        e.stopPropagation()
-        return
+      if (this.validator && !this.validator(this.value)) {
+        this.value = value.toString().rjust(padding, '0')
+        Event.stop(e)
+      } else {
+        var v = Math.max(this.low, Math.min(this.high, parseInt(this.value)))
+        if (isNaN(v)) v = value
+        this.value = v.toString().rjust(padding, '0')
       }
-      var v = Math.max(inp.low, Math.min(inp.high, parseInt(inp.value)))
-      if (isNaN(v)) v = value
-      inp.value = (value || '').toString().rjust(padding, '0')
     }, true)
     return inp
   },

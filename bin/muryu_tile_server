@@ -29,7 +29,7 @@ pids = (0...count).map do
       end
     end
     
-    exit
+    exit!(0)
   end
 end
 

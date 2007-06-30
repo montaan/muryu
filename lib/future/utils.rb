@@ -96,6 +96,12 @@ class StandardDateTime < DateTime
   def to_json(*a)
     strftime("new Date(\"%m/%d/%Y %H:%M:%S %z\")")
   end
+
+  def httpdate
+    offset = (zone[1,2].to_i * 60 + zone[3,2].to_i)
+    gmt = (self - (offset.to_f / (60*24)))
+    gmt.strftime("%a, %d %b %Y %H:%M:%S GMT")
+  end
 end
 
 class Time

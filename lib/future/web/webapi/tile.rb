@@ -11,8 +11,8 @@ module MuryuDispatch
     x = ts['x'].to_i
     y = ts['y'].to_i
     z = ts['z'].to_i
-    w = (ts['w'] || 256).to_i
-    h = (ts['h'] || 256).to_i
+    w = [1, [1024, (ts['w'] || 256).to_i].min].max
+    h = [1, [1024, (ts['h'] || 256).to_i].min].max
     [x,y,z,w,h]
   end
     
@@ -55,7 +55,8 @@ module MuryuDispatch
         else
           bgimage = nil
         end
-        tile = Future::Tiles.read(user, search_query, :rows, x, y, z, w, h,
+        layouter = (req.query['layout'] || 'rows').to_s.to_sym
+        tile = Future::Tiles.read(user, search_query, req.query['time'], layouter, x, y, z, w, h,
                                   color, bgcolor, bgimage)
         time = Time.now.httpdate
         puts "#{Thread.current.telapsed} for creating tile" if $PRINT_QUERY_PROFILE

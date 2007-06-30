@@ -52,6 +52,7 @@ module MuryuDispatch
       h.delete("owner_id")
       h.delete("id")
       h["writable"] = !!set.writable_by(user)
+      h["namespace"] = h["namespace"].split(":",2).last
       h["owner"] = set.owner.name
       h
     end
@@ -64,6 +65,10 @@ module MuryuDispatch
         super | ['namespace', 'owner_id', 'deleted']
       end
 
+      def invisible_columns
+        super | ['namespace', 'deleted']
+      end
+
       def get_target
         username, name = @key.split("/")
         table.rfind(@user, :name => name, :namespace => "user:#{username}")
@@ -72,7 +77,6 @@ module MuryuDispatch
       def json(req,res)
         res.content_type = 'application/json'
         h = MuryuDispatch::Sets.hashify_set(@user, @target)
-        h["members"] = @target.users.map{|u| u.name }
         res.body = h.to_json
       end
 

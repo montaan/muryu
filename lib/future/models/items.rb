@@ -205,7 +205,6 @@ class Items < DB::Tables::Items
         Mimetype[mimetype.to_s].thumbnail(internal_path, tn.to_s, 256)
       end
     end
-    p full_res.dimensions
     update_image_cache if update_image_cache_too
   end
 

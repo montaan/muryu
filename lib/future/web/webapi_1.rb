@@ -73,7 +73,7 @@ class MuryuQuery
   int = "((-|\\+)?#{uint})"
   ufloat = "((#{uint}(\.[0-9])?|0\.[0-9])[0-9]*)"
   float = "((-|\\+)?#{ufloat})"
-  relative_path = '([0-9A-Za-z._-]+/[0-9]{4}/[0-9]{2}-[0-9]{2}/[0-9A-Za-z._-]+)'
+  relative_path = '([0-9A-Za-z._-]+/[0-9]{4}/[0-9]{2}-[0-9]{2}/[^/]+)'
   items_query = '(.*)'
   itemkey = "(#{uint}|#{relative_path})"
   filename = '(\S+)'
@@ -83,13 +83,13 @@ class MuryuQuery
   tagname = '(\S+)'
   setkey = "(#{username}/#{setname})"
   groupname = '([^/]+)'
-  tile = "(x#{uint}y#{uint}z#{uint})"
+  tile = "(x#{uint}y#{uint}z#{uint}(w#{uint}h#{uint})?)"
   boolean = '(true|false)'
   url = '(.*)'
   string = '(.*)'
   location = "(\\(#{float},#{float}\\))"
   mimetype = '([a-z]+/[0-9a-z._-]+)'
-  date = '(-?[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})'
+  date = '(-?[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} ([+-][0-9]{4})?)'
   color = '([0-9a-fA-F]{6})'
   file = Matcher.new(:[]){|o|
     o.is_a?(Hash) and o[:filename] and o[:tempfile]
@@ -97,11 +97,11 @@ class MuryuQuery
   any = Hash.new(Matcher.new{ true })
   
   def self.e(pattern)
-    Regexp.new('\A'+pattern+'\Z')
+    Regexp.new('\A'+pattern+'\Z', Regexp::MULTILINE, 'U')
   end
   
   def self.ee(pattern)
-    Regexp.new('\A('+pattern+')?\Z')
+    Regexp.new('\A('+pattern+')?\Z', Regexp::MULTILINE, 'U')
   end
   
 
@@ -206,6 +206,7 @@ class MuryuQuery
       'view' => {
         'q' => e(string),
         'color' => e(boolean),
+        'layout' => e(string),
         'time' => e(int),
         'bgcolor' => e(color)
       }.merge(up)
@@ -361,7 +362,7 @@ class MuryuQuery
   end
   
   def valid_post?(key, val)
-    validate('post', key, val)
+    key == 'secret' or validate('post', key, val)
   end
 
   def supports_get?
@@ -453,8 +454,9 @@ class MuryuResponse
 end
 
 $PRINT_QUERY_PROFILE = false
-$CACHE_INFO = true
+$CACHE_INFO = false
 $CACHE_TILES = false
+$USE_DIPUS_TILE_INFO = true
 
 module MuryuDispatch
 
@@ -471,18 +473,18 @@ module MuryuDispatch
     pw = req.query['password']
     cookies = req.cookies['future_session_id']
     cookies = [cookies].compact unless cookies.is_a?(Array)
-    user = cookie = session_id = nil
+    user = cookie = session_id = secret = nil
     if cookies.size > 0
       cookie = cookies.find{|c|
         session_id = c
         user = nil
-        user_id, user_name = Future.memcache.get("session-#{session_id}")
+        user_id, user_name, secret = Future.memcache.get("session-#{session_id}")
         if user_id
           user = Future::Users.new(user_id)
           user.instance_variable_set(:@name, user_name) if user_name
         else
           user = Future::Users.continue_session(session_id)
-          Future.memcache.set("session-#{session_id}", [user.id, user.name], 3600) if user
+          Future.memcache.set("session-#{session_id}", [user.id, user.name, user.session.secret], 3600) if user
         end
         user
       }
@@ -496,7 +498,7 @@ module MuryuDispatch
         end
       end
     end
-    if un and pw
+    if un and pw and un != 'anonymous'
       if user
         user.logout
       end
@@ -518,6 +520,11 @@ module MuryuDispatch
       res["Set-Cookie"] = "future_session_id=#{new_cookie};Domain=.fhtr.org;Path=/;Max-Age=#{86400*7};Version=1"
     elsif not user
       session_id = nil
+    elsif req.request_method.downcase == 'post' and
+    not (['users','items'].include?(req.type) and req.method == 'create') and
+    not ((secret || (user.session && user.session.secret)) == req.post['secret'].to_s)
+      p user
+      raise(MuryuQuery::BadPost, "Invalid POST secret.")
     end
     [(user or Future::Users.anonymous), session_id]
   end

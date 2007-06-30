@@ -37,7 +37,7 @@ class MozSnapshooter < Gtk::Window
 
     self.show_all
   end
-  
+
   def on_net_stop
     Gtk::timeout_add(1000) do
       @countdown -= 1
@@ -51,7 +51,7 @@ class MozSnapshooter < Gtk::Window
     end
   end
   
-  def screenshot(target)
+  def screenshot(target=@target)
     gdkw = self.child.parent_window
     x, y, width, height, depth = gdkw.geometry
     width -= 16
@@ -67,9 +67,14 @@ end
 # Xvfb :15 -ac -screen 0 1280x1024x24
 File.open('/tmp/.moz-snapshooter.lock','w') {|f|
   f.flock(File::LOCK_EX)
-  Thread.new{ sleep 30; exit }
+  puts "MozSnapshooter called with #{ARGV.join(" ")}"
   begin
-    MozSnapshooter.new ARGV[0], ARGV[1]
+    ms = MozSnapshooter.new ARGV[0], ARGV[1]
+    Thread.new{ 
+      sleep(ARGV[0] =~ /^file:/ ? 15 : 30)
+      ms.screenshot
+      exit 
+    }
     Gtk.main
   ensure
     f.flock(File::LOCK_UN)

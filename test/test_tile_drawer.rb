@@ -5,6 +5,7 @@ require 'future/config'
 require "future/imaging/tile_drawer"
 require 'ostruct'
 
+$PRINT_QUERY_PROFILE = false
 
 class TileDrawerTest < Test::Unit::TestCase
 include Future
@@ -20,6 +21,7 @@ include Future
   end
 
   def test_photographs
+  return
     cache_setup 'photos'
     photos = Dir[File.join(File.dirname(__FILE__), "data/images/*")].sort
     @image_cache.batch do
@@ -55,11 +57,16 @@ include Future
       }
     }
     t = @image_cache.instance_variable_get("@jpeg_tiles")
-    data = t.load_tile_at(1, 0, 0, 0)
+    data = t.load_tile_at(15, 0, 0, 0)
     img = Imlib2::Image.create_using_data(256,256,data)
     img.has_alpha = true
-    img.save(pn + "_8_0_cache.png")
+    img.save(pn + "_8_1_cache.png")
     img.delete!(true)
+    8.times{|i|
+      img = @image_cache.read_image_as_imlib(i, 15)
+      img.save(pn + "_#{i}_1_cache.png")
+      img.delete!(true)
+    }
   end
 
 end

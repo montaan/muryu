@@ -293,7 +293,7 @@ module MuryuDispatch
         h[column_key(query.key)] = collect_query(query.values)
       when String
         if h
-          h[:path] ||= []
+          h[:path] ||= +[]
           h[:path] << /#{query}/i
         end
         query
@@ -306,12 +306,12 @@ module MuryuDispatch
       when 'modified'
         column = 'modified_at'
       when 'created'
-        column = 'created_at'
+        column = 'image_index'
       when 'new'
-        column = 'created_at'
+        column = 'image_index'
         dir_f *= -1
       when 'old'
-        column = 'created_at'
+        column = 'image_index'
       when 'date'
         column = 'image_index'
       when 'big'
@@ -388,12 +388,12 @@ module MuryuDispatch
         sq[:columns] << 'deleted'
         puts "#{Thread.current.telapsed} for tile_info init" if $PRINT_QUERY_PROFILE
         items = Future::Tiles.info(
-          user, sq,
+          user, sq, time,
           :rawlist, first, last, 0, 0, 0
         ).to_a.map do |iind,(_, info)|
           {:index => info[:index], :path => info[:path], :deleted => info[:deleted]}
         end.sort_by{|h| h[:index] }
-        info = {:items => items, :itemCount => Future::Tiles.item_count(user, sq)}
+        info = {:items => items, :itemCount => Future::Tiles.item_count(user, sq, time)}
         puts "#{Thread.current.telapsed} for fetching tile info" if $PRINT_QUERY_PROFILE
         jinfo = info.to_json
         puts "#{Thread.current.telapsed} for tile info jsonification" if $PRINT_QUERY_PROFILE
@@ -450,14 +450,14 @@ module MuryuDispatch
         end
         if req.query.has_key?('groups') or req.query.has_key?('groups.new')
           gs = req.query['groups'] || []
-          target.rset_groups(user, gs)
+          target.rset_groups(user, gs.find_all{|g|g.strip.length > 0})
         end
         if req.query.has_key?('sets') or req.query.has_key?('sets.new')
           gs = req.query['sets'] || []
-          target.rset_sets(user, gs)
+          target.rset_sets(user, gs.find_all{|g|g.strip.length > 0})
         end
         if req.query.has_key?('groups.new')
-          gs = req.query['groups.new'].join(",").split(",")
+          gs = req.query['groups.new'].join(",").split(",").find_all{|g|g.strip.length > 0}
           unless gs.empty?
             target.write(user) do
               gs.each do |g|

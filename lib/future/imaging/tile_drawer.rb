@@ -88,12 +88,12 @@ extend self
 
   @@read_count = 0
 
-  def read(user, query, *tile_args)
+  def read(user, query, time, *tile_args)
     if $NO_TILE_DRAWING
       require 'dipus'
       return DIPUS.open_address("tile_drawer.*.*.#{$SERVER_ID}") do |conn|
         conn.write(
-          Marshal.dump([user,query]+tile_args)
+          Marshal.dump([user,query,time]+tile_args)
         )
         conn.close_write
         conn.read
@@ -117,7 +117,7 @@ extend self
       @@mutex.synchronize do
         ### FIXME do a quick C layout, get key and indexes based on that
         ###
-        key = "indexes::" + user.id.to_s + "::" + sanitize_query(query)
+        key = "indexes::" + user.id.to_s + "::" + sanitize_query(query) + "::" + time.to_s
         puts "#{Thread.current.telapsed} for generating key" if $PRINT_QUERY_PROFILE
         unless $indexes_changed
           if Future.memcache
@@ -167,7 +167,7 @@ extend self
       quality += 10 if colors
       quality = 90 if quality > 90
       if tile.is_a? String
-        retval = string_to_jpeg(tile, 256, 256, quality)
+        retval = string_to_jpeg(tile, w, h, quality)
       else
         retval = imlib_to_jpeg(tile, quality)
       end
@@ -209,9 +209,10 @@ extend self
 
   @@column_structs = {}
 
-  def info(user, query, *tile_args)
+  def info(user, query, time, *tile_args)
     return {} if tile_args[1] < 0 or tile_args[2] < 0
-    indexes, iindexes = query_info(user, query)
+    s = query_info(user, query, time)
+    indexes, iindexes = (s.is_a?(String) ? Marshal.load(s) : s)
     infos = {}
     tile_drawer.tile_info(indexes, *tile_args){|i, *a| 
       infos[i] = [a, iindexes[i]]
@@ -220,66 +221,72 @@ extend self
     infos
   end
 
-  def query_info(user, query, time=(Time.now.to_f / 300).floor)
+  def query_info(user, query, time)
     q = query.clone
     q[:columns] ||= []
     q[:columns] |= [:image_index]
     indexes = iindexes = nil
     @@mutex.synchronize do
-        puts "#{Thread.current.telapsed} for info init" if $PRINT_QUERY_PROFILE
-        t = nil
-        key = ["info", user.id.to_s, time, sanitize_query(query)].join("::")
-        rkey = q[:columns].join("_").capitalize
-        unless TileDrawer.constants.include?(rkey)
-          eval("TileDrawer::#{rkey} = Struct.new(:index, #{q[:columns].map{|c|":#{c}"}.join(",")})")
+      puts "#{Thread.current.telapsed} for info init" if $PRINT_QUERY_PROFILE
+      t = nil
+      rkey = q[:columns].join("_").capitalize
+      unless TileDrawer.constants.include?(rkey)
+        eval("TileDrawer::#{rkey} = Struct.new(:index, #{q[:columns].map{|c|":#{c}"}.join(",")})")
+      end
+      if $USE_DIPUS_TILE_INFO
+        require 'dipus'
+        d = DIPUS.open_address("tile_info") do |conn|
+          conn.write(
+            Marshal.dump([user,query,time])
+          )
+          conn.close_write
+          conn.read
         end
-        if $CACHE_INFO and not $info_changed
-          if Future.memcache
-            t = Future.memcache.get(key)
-          else
-            t = @@infos[key]
-          end
-        end
-        unless t
-          result = Items.rfind_all(user, q.merge(:as_array => true))
-          puts "#{Thread.current.telapsed} for info db query" if $PRINT_QUERY_PROFILE
-          cidxs = q[:columns].zip((0...q[:columns].size).to_a).to_hash
-          rstr = TileDrawer.const_get(rkey)
-          ii_c = cidxs[:image_index]
-          idxs = []
-          iidxs = {}
-          GC.disable
-          j = 0
-          result.each{|r|
-            h = rstr.new(j,*r)
-            ii = h.image_index.to_i
-            iidxs[ii] = h
-            idxs << ii
-            j += 1
+        return Marshal.load(d)
+      end
+      key = ["info", user.id, time, sanitize_query(query)].join("::")
+      if $CACHE_INFO
+        t = Future.memcache.get(key)
+        puts "#{Thread.current.telapsed} for memcache get #{key}" if $PRINT_QUERY_PROFILE
+      end
+      unless t
+        result = Items.rfind_all(user, q.merge(:as_array => true))
+        puts "#{Thread.current.telapsed} for info db query" if $PRINT_QUERY_PROFILE
+        cidxs = q[:columns].zip((0...q[:columns].size).to_a).to_hash
+        rstr = TileDrawer.const_get(rkey)
+        ii_c = cidxs[:image_index]
+        idxs = []
+        iidxs = {}
+        GC.disable
+        j = 0
+        result.each{|r|
+          h = rstr.new(j,*r)
+          ii = h.image_index.to_i
+          iidxs[ii] = h
+          idxs << ii
+          j += 1
+        }
+        GC.enable
+        puts "#{Thread.current.telapsed} for mangling info" if $PRINT_QUERY_PROFILE
+        t = [idxs, iidxs]
+        if $CACHE_INFO
+          Thread.new {
+            Thread.current.telapsed
+            Future.memcache.set(key, t, 300, true)
+            puts "#{Thread.current.telapsed} for memcache set" if $PRINT_QUERY_PROFILE
           }
-          GC.enable
-          puts "#{Thread.current.telapsed} for mangling info" if $PRINT_QUERY_PROFILE
-          t = [idxs, iidxs]
-          if $CACHE_INFO
-            if Future.memcache
-              Future.memcache.set(key, t, 300)
-            else
-              @@infos[key] = t
-            end
-            $info_changed = false
-          end
         end
-        indexes, iindexes = t
+      end
+      return t
     end
-    [indexes, iindexes]
   end
   
-  def item_count(user, query)
-    query_info(user, query).first.size
+  def item_count(user, query, time)
+    query_info(user, query, time).first.size
   end
 
-  def dimensions(user, query, layouter)
-    indexes, iindexes = query_info(user, query)
+  def dimensions(user, query, time, layouter)
+    indexes, iindexes = query_info(user, query, time)
     tile_drawer.dimensions(indexes, layouter)
   end
 
@@ -324,7 +331,7 @@ class TileDrawer
     end
     return false if empty_tile
     puts "#{Thread.current.telapsed} for tile init" if $PRINT_QUERY_PROFILE
-    if zoom <= @jpeg_cache_level && layouter_name.to_s == 'rows'
+    if zoom <= @jpeg_cache_level && layouter_name.to_s == 'rows' && w == 256 && h == 256
       c_indexes = [index_string[4,indexes_sz*4],
                  index_string[4+indexes_sz*4,indexes_sz*4]
                 ]
@@ -818,7 +825,7 @@ class TileDrawer
               c = data[j];
               data[j] = data[j+2];
               data[j+2] = c;
-              data[j+3] = (a_data[j/4]>>4)<<4; /* toss out noise */
+              data[j+3] = a_data[j>>2];
             }
             stbi_image_free(a_data);
           } else {
@@ -869,10 +876,15 @@ class TileDrawer
         read_imgs = rb_ary_new();
         for (i=0; i<indexes_length; i++) {
           index = indexes[i];
-          if (index < iindexes_length && (z >= icache_jpeg_levels ||
-              icache[z][iindexes[index]] == NULL))
-          {
-            rb_funcall(read_imgs, rb_intern("push"), 1, INT2FIX(iindexes[index]));
+          if (index < iindexes_length) {
+            if (iindexes[index] >= icache_size) {
+              rb_raise(rb_eRuntimeError, "Texture index out of cache bounds");
+              return NULL;
+            }
+            if (z >= icache_jpeg_levels || icache[z][iindexes[index]] == NULL)
+            {
+              rb_funcall(read_imgs, rb_intern("push"), 1, INT2FIX(iindexes[index]));
+            }
           }
         }
         
@@ -913,7 +925,7 @@ class TileDrawer
             }
           }
         }
-        
+
         if (z < icache_levels) { /* raws are easy, just memcpy to pixels */
           if (z == 0) { /* int[i] = blaat */
             for(i=0; i<indexes_length; i++) {
@@ -1123,6 +1135,10 @@ class TileDrawer
       {
         int len;
         char *tmp;
+        if (index >= icache_size) {
+          rb_raise(rb_eRuntimeError, "Cache leaf index out of bounds");
+          return -1;
+        }
         if (level < icache_levels)
           len = 1 << (2*level+2); // 2^level * 4
         else
@@ -1352,9 +1368,9 @@ class TileDrawer
         JSAMPLE *data = (JSAMPLE*)StringValuePtr(str);
         JSAMPLE *rgb_data = malloc(w*h*3);
         for(i=0,j=0; i<sz24; i+=4,j+=3) {
-          rgb_data[j+0] = data[i+2];
+          rgb_data[j] = data[i+2];
           rgb_data[j+1] = data[i+1];
-          rgb_data[j+2] = data[i+0];
+          rgb_data[j+2] = data[i];
         }
         rb_funcall(self, rb_intern("print_time_shuffle"), 0);
         retval = compress_jpeg(rgb_data, w, h, quality);
@@ -1465,9 +1481,9 @@ class TileDrawer
     end
 
     def each(indexes, x, y, sz, w, h,
-                  row_offset = sz / 2, columns = 200, rows = 5)
+                  row_offset = sz / 2.0, columns = 200, rows = 5)
       return false if x < 0 or y < 0
-      row_offset ||= sz / 2
+      row_offset ||= sz / 2.0
       bigrow_height = (rows*sz) + row_offset
       bigrow_img_count = columns * rows
       
@@ -1476,13 +1492,13 @@ class TileDrawer
       
       all_rows = bigrows * rows
       
-      first_bigrow_in_view = y / bigrow_height
-      last_bigrow_in_view = (y+h) / bigrow_height
+      first_bigrow_in_view = (y / bigrow_height).floor
+      last_bigrow_in_view = ((y+h) / bigrow_height).floor
       first_bigrow_offset = row_offset * first_bigrow_in_view
       last_bigrow_offset = row_offset * last_bigrow_in_view
       
-      first_row_in_view = (y-first_bigrow_offset) / sz
-      last_row_in_view = (y+h-last_bigrow_offset) / sz
+      first_row_in_view = ((y-first_bigrow_offset) / sz).floor
+      last_row_in_view = ((y+h-last_bigrow_offset) / sz).floor
       
       first_row_y = first_row_in_view * sz + first_bigrow_offset
       y_offset = y - first_row_y
