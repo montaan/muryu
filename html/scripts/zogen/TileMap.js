@@ -2024,7 +2024,7 @@ TileInfoManager.prototype = {
   bundleRequest : function(req) {
     this.request_bundle.push(req)
     if (this.requestTimeout) clearTimeout(this.requestTimeout)
-    this.requestTimeout = setTimeout(this.sendBundle, 10)
+    this.requestTimeout = setTimeout(this.sendBundle, 200)
   },
 
   bundleSender : function() {

@@ -121,7 +121,9 @@ Applets.Session = function(wm) {
   var controls = E('div')
 
   var logout = E('p', A('/users/logout', Tr('Applets.Session.LogOut')))
-  logout.onclick = function(){ c.autosaveSession() }
+  logout.onclick = function(){
+    c.unloadSaveSession()
+  }
 
   var loginform = E('form')
   loginform.method='POST'
@@ -233,8 +235,8 @@ Applets.Session = function(wm) {
     c.menu.addSeparator()
     c.menu.addItem(Tr('Applets.Session.clear'), c.clearSession.bind(c))
     c.menu.addItem(Tr('Applets.Session.LogOut'), function(){
-      c.autosaveSession()
-      location.href = '/users/logout'
+      c.unloadSaveSession()
+      document.location.href = '/users/logout'
     })
   }
 

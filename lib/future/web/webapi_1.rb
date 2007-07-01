@@ -523,7 +523,6 @@ module MuryuDispatch
     elsif req.request_method.downcase == 'post' and
     not (['users','items'].include?(req.type) and req.method == 'create') and
     not ((secret || (user.session && user.session.secret)) == req.post['secret'].to_s)
-      p user
       raise(MuryuQuery::BadPost, "Invalid POST secret.")
     end
     [(user or Future::Users.anonymous), session_id]

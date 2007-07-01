@@ -30,8 +30,8 @@ module MuryuDispatch
         return '[]'
       end
       key = Digest::MD5.hexdigest([user.id, "x#{x}y#{y}z#{z}w#{w}h#{h}", sq, time].join("::"))
-      jinfo = Future.memcache.get(key) if $CACHE_INFO and not $info_changed
-      unless jinfo
+      zjinfo = Future.memcache.get(key, true) if $CACHE_INFO and not $info_changed
+      unless zjinfo
         if z >= 4
           sq[:columns] ||= []
           sq[:columns] << 'path'
@@ -46,8 +46,11 @@ module MuryuDispatch
         end
         puts "#{Thread.current.telapsed} for fetching tile info" if $PRINT_QUERY_PROFILE
         jinfo = info.to_json
+        zjinfo = Zlib::Deflate.deflate(jinfo, 9)
         puts "#{Thread.current.telapsed} for tile info jsonification" if $PRINT_QUERY_PROFILE
-        Future.memcache.set(key, jinfo, 300) if $CACHE_INFO
+        Future.memcache.set(key, zjinfo, 300, true) if $CACHE_INFO
+      else
+        jinfo = Zlib::Inflate.inflate(zjinfo)
       end
       jinfo
     end

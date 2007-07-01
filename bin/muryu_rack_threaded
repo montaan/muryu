@@ -15,10 +15,6 @@ $PRINT_QUERY_PROFILE = true
 $NO_TILE_DRAWING = true
 $USE_DIPUS_TILE_INFO = false
 
-MuryuQuery.type_method_get_validators.delete_if{|k,v| k != 'tile_info' }
-MuryuQuery.type_method_post_validators.delete_if{|k,v| k != 'tile_info' }
-MuryuQuery.type_list_query.delete_if{|k,v| k != 'tile_info' }
-
 class Rack::Request
   def headers
     @headers ||= (
@@ -90,7 +86,7 @@ if __FILE__ == $0
   procs = (2..processes).map{|i|
     sid = i-1
     Thread.new{
-      system("ruby -Ilib bin/muryu_rack_tile_info #{port+i-1} 1 #{sid}")
+      system("ruby -Ilib bin/muryu_rack_threaded #{port+i-1} 1 #{sid}")
     }
   }
   Rack::Handler::Mongrel.run(

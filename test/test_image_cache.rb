@@ -32,7 +32,6 @@ include Future
   end
 
   def test_multiple_threads
-  return
     cache_setup 'threads'
     ts = []
     @image_cache.batch do

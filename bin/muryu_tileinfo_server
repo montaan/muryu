@@ -10,6 +10,7 @@ $CACHE_INFO = true
 require 'future/imaging/tile_drawer'
 require 'dipus'
 
+Future.memcache
 socket = DIPUS.create_service("tile_info", "/tile_args/to/tile_info")
 
 while c = socket.accept

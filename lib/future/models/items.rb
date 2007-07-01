@@ -67,6 +67,10 @@ class Items < DB::Tables::Items
       DB.transaction do
         new_sets = new_set_names.uniq.map{|t|
           ns,n = t.split("/",2)
+          unless n
+            n = ns
+            ns = user.name
+          end
           Sets.rfind_or_create(user, :name => n, :namespace => ns)
         }
       end

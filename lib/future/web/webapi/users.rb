@@ -63,12 +63,23 @@ module MuryuDispatch
       res.body = 'OK'
     end
 
+    def valid_name?(name)
+      (not Future::Users.find(:name => name)) and
+      (not methods.include?(name))
+    end
+
+    def valid_password?(password)
+      password.size >= 6
+    end
+
     def create(user,req,res)
-      un = req.query['username']
-      pw = req.query['password']
+      un = req.query['username'].to_s.strip
+      pw = req.query['password'].to_s.strip
       if un and pw
         user.logout if user
-        if (not Future::Users.find(:name => un)) and user = Future::Users.register(un, pw)
+        vn = valid_name?(un)
+        vp = valid_password?(pw)
+        if vn and vp and user = Future::Users.register(un, pw)
           MuryuDispatch.authenticate(req,res)
           res.body = Builder::XmlMarkup.new.html do |b|
             b.head { b.title("Registered new account!") }
@@ -82,8 +93,14 @@ module MuryuDispatch
             b.head { b.title("Registration failed") }
             b.body {
               b.h1 { print_navigation_path(req, b) }
-              b.h2("Failed to register account, someone is already using '#{un}'.")
-              b.h2("Please try another name.")
+              if not vn
+                b.h2("Failed to register account, someone is already using '#{un}'.")
+                b.h2("Please try another name.")
+              end
+              if not vp
+                b.h2("Failed to register account, password too short.")
+                b.h2("Please make sure that your password is six characters or longer.")
+              end
               registration_form(b)
             }
           end
@@ -129,8 +146,11 @@ module MuryuDispatch
 
     def logout(user,req,res)
       if user != Future::Users.anonymous
+        user.sessions.each{|s|
+          Future.memcache.delete("session-#{s.session_id}")
+        }
         user.logout
-        Future.memcache.delete("session-#{req.session_id}")
+        Future.memcache.get("session-#{req.session_id}")
       end
       res.status = 302
       res['Location'] = '/'

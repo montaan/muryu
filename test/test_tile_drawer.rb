@@ -21,7 +21,6 @@ include Future
   end
 
   def test_photographs
-  return
     cache_setup 'photos'
     photos = Dir[File.join(File.dirname(__FILE__), "data/images/*")].sort
     @image_cache.batch do

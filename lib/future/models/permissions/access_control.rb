@@ -246,7 +246,7 @@ extend AccessControlClass
 
   def self.create_parse_args(h)
     dh = {:deleted => false}
-    dh[:namespace] = h[:public] ? "public" : "user:#{h[:owner].name}"
+    dh[:namespace] = h[:public] ? "public" : "#{h[:owner].name}"
     dh.merge(h)
   end
 

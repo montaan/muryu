@@ -881,8 +881,7 @@ Mimetype = {
                 return (it.namespace + '/' + it.name )
               }
               var poss_vals = items.map(list_parse)
-              var values = ((typeof info[i.name] == 'string') ?
-                            info[i.name] : info[i.name].map(list_parse))
+              var values = info[i.name]
               args = [poss_vals].concat(args)
               ed.appendChild(Editors[i.type[0]](i.name, values, args))
             } catch(e) {
