@@ -41,7 +41,7 @@ Tr.addTranslations('en-US', {
   'Item.referrer' : 'Referrer',
   'Item.sets' : 'Folders',
   'Item.groups' : 'Groups',
-  'Item.tags' : 'Content',
+  'Item.tags' : 'Tags',
   'Item.mimetype' : 'File type',
   'Item.deleted' : 'Deleted',
   'Item.title' : 'Title',

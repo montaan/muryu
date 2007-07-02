@@ -73,7 +73,9 @@ module MuryuDispatch
       def json(req,res)
         res.content_type = 'application/json'
         h = MuryuDispatch::Groups.hashify_group(@user, @target)
-        h["members"] = @target.users.map{|u| u.name }
+        if @target.namespace != 'global'
+          h["members"] = @target.users.map{|u| u.name }
+        end
         res.body = h.to_json
       end
 

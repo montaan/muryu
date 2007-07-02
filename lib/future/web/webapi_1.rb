@@ -393,7 +393,7 @@ class MuryuQuery
     @path = path
     @type, rest = path.split("/", 2)
     raise(UnknownType, "Unknown type: #@type.") unless valid_type?
-    parts = rest.to_s.split("/").reject{|s| s.empty? }
+    parts = CGI.unescape(rest.to_s).split("/").reject{|s| s.empty? }
     @list_query = false
     if parts.length > 1
       if valid_method?(parts.last)

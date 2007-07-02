@@ -197,6 +197,7 @@ module MuryuDispatch
                 actions.each{|name, href|
                   b.li {
                     b.form(:method=>'POST', :action=>href){
+                      b.input(:type => 'hidden', :name=> 'secret', :value => Future::Sessions.find(:session_id => req.session_id).secret)
                       b.input(:type=>'submit', :value=>name)
                     }
                   }
@@ -227,7 +228,10 @@ module MuryuDispatch
                   end
                 }
               }
-              b.p { b.input(:type => 'submit', :value => 'Save changes' )} if @target.writable_by(user)
+              if @target.writable_by(user)
+                b.input(:type => 'hidden', :name=> 'secret', :value => Future::Sessions.find(:session_id => req.session_id).secret)
+                b.p { b.input(:type => 'submit', :value => 'Save changes' )}
+              end
             }
             b.p { b.a("Edit", :id => 'edit_link', :href => File.join('/', req.path, "edit")) }
           }

@@ -160,47 +160,121 @@ ItemArea = {
       })
     }
   },
+
+  setSets : function(sets, created) {
+    var params = {'sets' : sets, 'sets.new' : created}
+    this.editItem(params)
+  },
+
+  setGroups : function(groups, created) {
+    var params = {'groups' : groups, 'groups.new' : created}
+    this.editItem(params)
+  },
+
+  editItem : function(params) {
+    new Ajax.Request(this.itemHREF.replace(/json$/,'edit'), {
+      method: 'post',
+      parameters : params,
+      onSuccess : function(res) {
+        if (params['sets.new'] && params['sets.new'].length > 0)
+          Sets.update()
+        if (params['groups.new'] && params['groups.new'].length > 0)
+          Groups.update()
+        this.info = res.responseText.evalJSON()
+      }.bind(this)
+    })
+  },
   
   fillSetMenu : function(menu) {
-    menu.addTitle(Tr('Item.sets'))
-    new Ajax.Request('/sets/json', {
-      method : 'get',
-      onSuccess : function(res) {
-        var obj = res.responseText.evalJSON()
-        for (var i=0; i<obj.length; i++) {
-          var n = obj[i].name + ' ('+obj[i].namespace+')'
-          menu.addItem(n, function(ev){
-            this.toggle()
-            menu.skipHide = true
-            Event.stop(ev)
-          })
+    if (this.info.sets) {
+      if (menu.element.firstChild)
+        menu.element.removeChild(menu.element.firstChild)
+      menu.addTitle(Tr('Item.sets'))
+      for (var i=0; i<Sets.length; i++) {
+        var n = Sets[i].name + ' ('+Sets[i].namespace+')'
+        menu.addItem(n, function(ev){
+          this.toggle()
+          menu.skipHide = true
+          Event.stop(ev)
+        }, null, Sets[i].namespace + '/' + Sets[i].name)
+        if (this.info.sets.include(Sets[i].namespace + '/' + Sets[i].name))
+          menu.checkItem(n)
+        else
           menu.uncheckItem(n)
-          if (!obj[i].writable)
-            menu.disableItem(n)
-        }
+        if (!Sets[i].writable)
+          menu.disableItem(n)
+      }
+      menu.addTitle(Tr('New Folder(s)'))
+      this.addSubMenuCallback(menu, this.setSets.bind(this))
+    } else {
+      menu.addTitle(Tr('Loading'))
+      this.addInfoCallback(this.fillSetMenu, menu)
+    }
+    if (!this.loadingInfo)
+      this.loadInfo()
+  },
+
+  fillGroupMenu : function(menu) {
+    if (this.info.groups) {
+      if (menu.element.firstChild)
+        menu.element.removeChild(menu.element.firstChild)
+      menu.addTitle(Tr('Item.groups'))
+      for (var i=0; i<Groups.length; i++) {
+        var n = Groups[i].name + ' ('+Groups[i].owner+')'
+        menu.addItem(n, function(ev){
+          this.toggle()
+          menu.skipHide = true
+          Event.stop(ev)
+        }, null, Groups[i].name)
+        if (this.info.groups.include(Groups[i].name))
+          menu.checkItem(n)
+        else
+          menu.uncheckItem(n)
+      }
+      menu.addTitle(Tr('New Group(s)'))
+      this.addSubMenuCallback(menu, this.setGroups.bind(this))
+    } else {
+      menu.addTitle(Tr('Loading'))
+      this.addInfoCallback(this.fillGroupMenu, menu)
+    }
+    if (!this.loadingInfo)
+      this.loadInfo()
+  },
+
+  addSubMenuCallback : function(menu, callback) {
+    var newInput = E('input', null, null, null, {
+      display : 'block', marginLeft : '1ex', marginRight : '1ex'
+    }, {
+      type : 'text'
+    })
+    $(menu.element).append(newInput)
+    var oldItems = menu.checkedItems().pluck('itemValue')
+    menu.addListener('hide', function(){
+      var newItems = menu.checkedItems().pluck('itemValue')
+      var created = newInput.value
+      if (!oldItems.equals(newItems) || created.length > 0) {
+        callback(newItems, created)
+      }
+    })
+  },
+
+  loadInfo : function() {
+    this.loadingInfo = true
+    new Ajax.Request(this.itemHREF, {
+      method: 'get',
+      onSuccess : function(res) {
+        this.info = res.responseText.evalJSON()
+        if (this.infoCallbacks)
+          for (var i=0; i<this.infoCallbacks.length; i++)
+            this.infoCallbacks[i][0].apply(this, this.infoCallbacks[i].slice(1))
       }.bind(this)
     })
   },
 
-  fillGroupMenu : function(menu) {
-    menu.addTitle(Tr('Item.groups'))
-    new Ajax.Request('/groups/json', {
-      method : 'get',
-      onSuccess : function(res) {
-        var obj = res.responseText.evalJSON()
-        for (var i=0; i<obj.length; i++) {
-          var n = obj[i].name + ' ('+obj[i].owner+')'
-          menu.addItem(n, function(ev){
-            this.toggle()
-            menu.skipHide = true
-            Event.stop(ev)
-          })
-          menu.uncheckItem(n)
-          if (!obj[i].writable)
-            menu.disableItem(n)
-        }
-      }.bind(this)
-    })
+  addInfoCallback : function() {
+    if (!this.infoCallbacks)
+      this.infoCallbacks = []
+    this.infoCallbacks.push($A(arguments))
   },
 
   oncontextmenu : function(ev) {
@@ -220,10 +294,10 @@ ItemArea = {
       menu.addSeparator()
       menu.addItem(Tr('Button.Item.edit'), this.edit.bind(this))
       menu.addSeparator()
-      menu.addItem(Tr('Item.makePublic'), this.makePublic.bind(this))
-      menu.addItem(Tr('Item.makePrivate'), this.makePrivate.bind(this))
       menu.addSubMenu(Tr('Item.sets'), this.fillSetMenu.bind(this))
       menu.addSeparator()
+      menu.addItem(Tr('Item.makePublic'), this.makePublic.bind(this))
+      menu.addItem(Tr('Item.makePrivate'), this.makePrivate.bind(this))
       menu.addSubMenu(Tr('Item.groups'), this.fillGroupMenu.bind(this))
       menu.addSeparator()
       if (this.info.deleted == 't')
@@ -866,7 +940,7 @@ TileMap.prototype = {
     if (this.isSubmap) return
     this.onmousedown = function(ev) {
       if (!t.validEventTarget(ev)) return
-      if (t.previousTarget)
+      if (t.previousTarget && t.previousTarget.blur)
         t.previousTarget.blur()
       window.focus()
       document.focusedMap = this
@@ -917,7 +991,7 @@ TileMap.prototype = {
               t.animatedZoom(crop_z)
             }
           }
-        } else if (t.targetZ < 3) {
+        } else if (t.targetZ < 2) {
           t.animatedZoom(t.targetZ + 4)
         } else {
           t.animatedZoom(0)
@@ -2151,7 +2225,7 @@ TileInfoManager.prototype = {
   bundleRequest : function(req) {
     this.request_bundle.push(req)
     if (this.requestTimeout) clearTimeout(this.requestTimeout)
-    this.requestTimeout = setTimeout(this.sendBundle, 100)
+    this.requestTimeout = setTimeout(this.sendBundle, 150)
   },
 
   bundleSender : function() {

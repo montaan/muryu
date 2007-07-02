@@ -35,7 +35,7 @@ extend self
   MIMETYPE_DELETED = 0
   DEFAULT_BGCOLOR = [14, 35, 56, 255]
 
-  BLUE    = [ 13,   7, 255, 127]
+  BLUE    = [ 64,  77, 127, 127]
   RED     = [178,   0,   0, 127]
   GREEN   = [ 42, 224,   0, 127]
   MAGENTA = [227,  73, 255, 127]
@@ -180,13 +180,23 @@ extend self
   @@column_structs = {}
 
   def info(user, query, time, *tile_args)
-    return {} if tile_args[1] < 0 or tile_args[2] < 0
+    return [] if tile_args[1] < 0 or tile_args[2] < 0
     s = query_info(user, query, time)
     infos = []
+    indexes = []
+    h = {}
     tile_drawer.tile_info(s, *tile_args){|image_index, query_index, deleted, x, y, sz|
-      infos << [image_index, query_index, deleted, x, y, sz]
+      infos << (h[image_index] = [image_index, query_index, deleted, x, y, sz, nil])
+      indexes << image_index
     }
     puts "#{Thread.current.telapsed} for info layout" if $PRINT_QUERY_PROFILE
+    paths = Items.find_all(:image_index => indexes, :columns => ['image_index','path'], :as_array => true)
+    i = 0
+    while i < infos.size
+      iidx,path = paths[i]
+      h[iidx.to_i][6] = path
+      i += 1
+    end
     infos
   end
 

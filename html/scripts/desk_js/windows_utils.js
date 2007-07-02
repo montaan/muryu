@@ -167,6 +167,15 @@ Tr.addTranslations('fi-FI', {
 })
 
 
+Array.prototype.equals = function(other) {
+  if (this.length != other.length) return false
+  for (var i=0; i<this.length; i++) {
+    if (this[i] != other[i])
+      return false
+  }
+  return true
+}
+
 
 Desk.ElementUtils = {
   getComputedStyle : function(elem) {
@@ -482,6 +491,7 @@ Plane.prototype = Object.extend(Object.extend({}, Vector.prototype), {
 
 
 Desk.Menu = function() {
+  Object.extend(this, EventListener)
   this.element = E('ul', null, null, 'Menu')
   this.element.addEventListener('contextmenu', function(ev) {
     if (!Event.isLeftClick(ev) && !(ev.ctrlKey))
@@ -515,7 +525,7 @@ Desk.Menu.prototype = {
     }.bind(this), false)
   },
   
-  addItem : function(name, callback, icon) {
+  addItem : function(name, callback, icon, value) {
     if (!icon) icon = this.emptyIcon
     var li = E('li', null, null, 'MenuItem')
     var iconImg = E('img')
@@ -530,6 +540,7 @@ Desk.Menu.prototype = {
     iconImg.src = icon
     li.appendChild(iconImg)
     li.appendChild(T(name))
+    li.itemValue = value
     li.enabled = true
     li.checked = null
     if (callback) {
@@ -625,6 +636,7 @@ Desk.Menu.prototype = {
     this.element.style.top = y + 'px'
     window.addEventListener('mouseup', this.hideHandler, false)
     this.element.style.visibility = null
+    this.newEvent('show', {value: [x,y]})
   },
   
   hide : function(skippable) {
@@ -634,15 +646,28 @@ Desk.Menu.prototype = {
       if (this.element.parentNode)
         this.element.parentNode.removeChild(this.element)
       window.removeEventListener('mouseup', this.hideHandler, false)
+      this.newEvent('hide', {})
     }
   },
   
   isVisible : function() {
     return this.element.parentNode != undefined
   },
+
+  checkedItems : function() {
+    return $A(this.element.childNodes).findAll(function(c){
+      return c.checked
+    })
+  },
   
+  uncheckedItems : function() {
+    return $A(this.element.childNodes).findAll(function(c){
+      return !c.checked
+    })
+  },
+
   findItems : function(name) {
-    return this.element.childNodes.findAll(function(c){
+    return $A(this.element.childNodes).findAll(function(c){
       return c.lastChild && c.lastChild.data == name
     })
   },

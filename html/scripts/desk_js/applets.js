@@ -781,25 +781,75 @@ Applets.Groups = function(wm) {
   var c = Applets.create('Groups')
   var d = E('ul', null, null, 'setList')
   c.contentElem.appendChild(d)
-  new Ajax.Request('/groups/json', {
-    method : 'get',
-    onSuccess: function(res){
-      var items = res.responseText.evalJSON()
-      items.each(function(it) {
-        var li = E('li')
-        var key = '/groups/'+it.name
-        li.append(
-          A(key, it.name),
-          ' ( ', A('/users/'+it.owner, it.owner), ' )'
-        )
-        if (it.writable) {
-          li.append(
-            E('br'), '- ', A(key, 'edit')
-          )
-        }
-        d.appendChild(li)
+  if (!window.Groups) {
+    Groups = []
+    Object.extend(Groups, EventListener)
+    Groups.update = function() {
+      new Ajax.Request('/groups/json', {
+        method : 'get',
+        onSuccess: function(res){
+          var items = res.responseText.evalJSON()
+          this.clear()
+          for (var i=0; i<items.length; i++)
+            this.push(items[i])
+          this.newEvent('update', {value:items})
+        }.bind(this)
       })
     }
+    Groups.editor = function(win) {
+      var group = win.parameters
+      win.setTitle(Tr('Item.Editing', group.name + ' ('+ group.owner+')'))
+      win.setContent('Loading...')
+      new Ajax.Request('/groups/'+group.name+'/json', {
+        method: 'get',
+        onSuccess : function(res) {
+          win.setContent(res.responseText)
+        }
+      })
+    }
+    Groups.viewer = function(win) {
+      var group = win.parameters
+      win.setTitle(Tr('Item.Editing', group.name + ' ('+ group.owner+')'))
+      win.setContent('Loading...')
+      new Ajax.Request('/groups/'+group.name+'/json', {
+        method: 'get',
+        onSuccess : function(res) {
+          win.setContent(res.responseText)
+        }
+      })
+    }
+    Groups.update()
+  }
+  Groups.addListener('update', function(ev){
+    while (d.firstChild) d.removeChild(d.firstChild)
+    Groups.each(function(it){
+      var li = E('li')
+      var key = '/groups/'+it.name
+      var itemLink = A(key, it.name)
+      itemLink.onclick = function(ev) {
+        if (Event.isLeftClick(ev)) {
+          Event.stop(ev)
+          new Desk.Window('app:Groups.viewer', {parameters : it})
+        }
+      }
+      var userLink = A('/users/'+it.owner, it.owner)
+      li.append(
+        itemLink,' ( ', userLink, ' )'
+      )
+      if (it.writable) {
+        var editLink = A(key, 'edit')
+        editLink.onclick = function(ev) {
+          if (Event.isLeftClick(ev)) {
+            Event.stop(ev)
+            new Desk.Window('app:Groups.editor', {parameters : it})
+          }
+        }
+        li.append(
+          E('br'), '- ', editLink
+        )
+      }
+      d.appendChild(li)
+    })
   })
   return c
 }
@@ -809,25 +859,63 @@ Applets.Sets = function(wm) {
   var c = Applets.create('Sets')
   var d = E('ul', null, null, 'setList')
   c.contentElem.appendChild(d)
-  new Ajax.Request('/sets/json', {
-    method : 'get',
-    onSuccess: function(res){
-      var items = res.responseText.evalJSON()
-      items.each(function(it) {
-        var li = E('li')
-        var key = '/sets/'+it.namespace+'/'+it.name
-        li.append(
-          A(key, it.name),
-          ' ( ', A('/users/'+it.owner, it.owner), ' )'
-        )
-        if (it.writable) {
-          li.append(
-            E('br'), '- ', A(key, 'edit')
-          )
-        }
-        d.appendChild(li)
+  if (!window.Sets) {
+    Sets = []
+    Object.extend(Sets, EventListener)
+    Sets.update = function() {
+      new Ajax.Request('/sets/json', {
+        method : 'get',
+        onSuccess: function(res){
+          var items = res.responseText.evalJSON()
+          this.clear()
+          for (var i=0; i<items.length; i++)
+            this.push(items[i])
+          this.newEvent('update', {value:items})
+        }.bind(this)
       })
     }
+    Sets.editor = function(win) {
+      var set = win.parameters
+      win.setTitle(Tr('Item.Editing', set.name + ' ('+ set.owner+')'))
+      win.setContent(Object.toJSON(set))
+    }
+    Sets.viewer = function(win) {
+      var set = win.parameters
+      win.setTitle(Tr('Set ', set.name + ' ('+ set.owner+')'))
+      win.setContent(Object.toJSON(set))
+    }
+    Sets.update()
+  }
+  Sets.addListener('update', function(ev){
+    while (d.firstChild) d.removeChild(d.firstChild)
+    Sets.each(function(it){
+      var li = E('li')
+      var key = '/sets/'+it.namespace+'/'+it.name
+      var itemLink = A(key, it.name)
+      itemLink.onclick = function(ev) {
+        if (Event.isLeftClick(ev)) {
+          Event.stop(ev)
+          new Desk.Window('app:Sets.viewer', {parameters : it})
+        }
+      }
+      var userLink = A('/users/'+it.owner, it.owner)
+      li.append(
+        itemLink,' ( ', userLink, ' )'
+      )
+      if (it.writable) {
+        var editLink = A(key, 'edit')
+        editLink.onclick = function(ev) {
+          if (Event.isLeftClick(ev)) {
+            Event.stop(ev)
+            new Desk.Window('app:Sets.editor', {parameters : it})
+          }
+        }
+        li.append(
+          E('br'), '- ', editLink
+        )
+      }
+      d.appendChild(li)
+    })
   })
   return c
 }

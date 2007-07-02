@@ -71,7 +71,7 @@ module MuryuDispatch
 
       def get_target
         username, name = @key.split("/")
-        table.rfind(@user, :name => name, :namespace => "user:#{username}")
+        table.rfind(@user, :name => name, :namespace => "#{username}")
       end
 
       def json(req,res)
