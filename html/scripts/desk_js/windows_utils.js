@@ -535,8 +535,8 @@ Desk.Menu.prototype = {
     if (callback) {
       var t = this
       li.addEventListener('mouseup', function(e){
-        if (this.enabled) t.hide()
-        if (this.enabled) return callback(e)
+        if (this.enabled) callback.apply(this, [e])
+        if (this.enabled) t.hide(true)
       }, false)
       li.addEventListener('mousedown', function(e) {
         Event.stop(e)
@@ -560,6 +560,10 @@ Desk.Menu.prototype = {
       iconImg.src = this.uncheckedIcon
       li.className = li.className.replace(/\s(un)?checked\b|$/, ' unchecked')
     }.bind(this)
+    li.toggle = function(){
+      if (this.checked) this.uncheck()
+      else this.check()
+    }
     this.element.appendChild(li)
   },
   
@@ -580,20 +584,22 @@ Desk.Menu.prototype = {
   addSubMenu : function(title, submenuCreator) {
     var li = E('li', null, null, 'MenuItem SubMenu')
     var iconImg = E('img')
+    var t = this
     iconImg.src = this.emptyIcon
     li.appendChild(iconImg)
     li.appendChild(T(title))
     li.submenuCreator = submenuCreator
     li.addEventListener('mouseup', function(e){
+      t.skipHide = true
       if (this.subMenu && this.subMenu.isVisible()) {
         this.subMenu.hide()
         this.subMenu = null
       } else {
         this.subMenu = new Desk.Menu()
-        this.submenuCreator(this.subMenu)
-        this.subMenu.show(Event.pointerX(e), Event.pointerY(e))
+        this.submenuCreator(this.subMenu, e)
+        this.subMenu.show(e)
+        this.subMenu.skipHide = true
       }
-      Event.stop(e)
     }.bind(li), false)
     this.element.appendChild(li)
   },

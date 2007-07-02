@@ -113,7 +113,7 @@ ItemArea = {
   },
 
   getTitle : function() {
-    return Tr('Item.click_to_inspect', this.info.path.split("/").last())
+    return Tr('Item.click_to_inspect', this.info.path.toString().split("/").last())
   },
 
   toggleSelect : function() {
@@ -160,6 +160,48 @@ ItemArea = {
       })
     }
   },
+  
+  fillSetMenu : function(menu) {
+    menu.addTitle(Tr('Item.sets'))
+    new Ajax.Request('/sets/json', {
+      method : 'get',
+      onSuccess : function(res) {
+        var obj = res.responseText.evalJSON()
+        for (var i=0; i<obj.length; i++) {
+          var n = obj[i].name + ' ('+obj[i].namespace+')'
+          menu.addItem(n, function(ev){
+            this.toggle()
+            menu.skipHide = true
+            Event.stop(ev)
+          })
+          menu.uncheckItem(n)
+          if (!obj[i].writable)
+            menu.disableItem(n)
+        }
+      }.bind(this)
+    })
+  },
+
+  fillGroupMenu : function(menu) {
+    menu.addTitle(Tr('Item.groups'))
+    new Ajax.Request('/groups/json', {
+      method : 'get',
+      onSuccess : function(res) {
+        var obj = res.responseText.evalJSON()
+        for (var i=0; i<obj.length; i++) {
+          var n = obj[i].name + ' ('+obj[i].owner+')'
+          menu.addItem(n, function(ev){
+            this.toggle()
+            menu.skipHide = true
+            Event.stop(ev)
+          })
+          menu.uncheckItem(n)
+          if (!obj[i].writable)
+            menu.disableItem(n)
+        }
+      }.bind(this)
+    })
+  },
 
   oncontextmenu : function(ev) {
     if (!ev.ctrlKey) {
@@ -177,8 +219,12 @@ ItemArea = {
       }
       menu.addSeparator()
       menu.addItem(Tr('Button.Item.edit'), this.edit.bind(this))
+      menu.addSeparator()
       menu.addItem(Tr('Item.makePublic'), this.makePublic.bind(this))
       menu.addItem(Tr('Item.makePrivate'), this.makePrivate.bind(this))
+      menu.addSubMenu(Tr('Item.sets'), this.fillSetMenu.bind(this))
+      menu.addSeparator()
+      menu.addSubMenu(Tr('Item.groups'), this.fillGroupMenu.bind(this))
       menu.addSeparator()
       if (this.info.deleted == 't')
         menu.addItem(Tr('Button.Item.undelete_item'), this.undelete.bind(this))
@@ -220,7 +266,32 @@ ItemArea = {
         } else if (ev.altKey) {
           return
         } else {
-          this.defaultAction()
+          Event.stop(ev)
+//           this.defaultAction()
+        }
+      }
+      Event.stop(ev)
+    }
+  },
+
+  ondblclick : function(ev) {
+    if (Event.isLeftClick(ev)) {
+      var m = this.getMap()
+      var t = m.root
+      var maps_per_container = Math.min(t.width/m.width, t.height/m.height)
+      var crop_z = Math.floor(Math.log(maps_per_container) / Math.log(2))
+      var full_z = Math.floor(Math.log(Math.min(t.width, t.height)) / Math.log(2))
+      t.pointerX = ev.pageX - t.container.offsetLeft
+      t.pointerY = ev.pageY - t.container.offsetTop
+      if (crop_z > t.targetZ) {
+        t.animatedZoom(crop_z)
+      } else {
+        if (t.targetZ < 7) {
+          t.animatedZoom(7)
+        } else if (t.targetZ < full_z) {
+          t.animatedZoom(full_z)
+        } else {
+          t.animatedZoom(7)
         }
       }
       Event.stop(ev)
@@ -609,7 +680,8 @@ TileMap.prototype = {
         'f' : function(){ this.panRight() },
         'e' : function(){ this.panUp() },
         's' : function(){ this.panLeft() },
-        'd' : function(){ this.panDown() }
+        'd' : function(){ this.panDown() },
+        'v' : function(){ this.resetZoom() }
       }
       var kh = this.keyHandlers
       kh[Event.KEY_RIGHT] = function(){ this.panRight() }
@@ -822,6 +894,37 @@ TileMap.prototype = {
         Event.stop(ev)
       }
     }
+    this.ondblclick = function(ev) {
+      if (Event.isLeftClick(ev) && !ev.ctrlKey && !ev.shiftKey && !ev.altKey) {
+        var obj = ev.target
+        while (obj && !obj.map) {
+          obj = obj.parentNode
+        }
+        if (obj && obj.map != t) {
+          var maps_per_container = t.width / Math.max(obj.map.width,obj.map.height)
+          var crop_z = Math.floor(Math.log(maps_per_container) / Math.log(2))
+          var full_z = Math.floor(Math.log(Math.min(t.width, t.height)) / Math.log(2))
+          t.pointerX = ev.pageX - t.container.offsetLeft
+          t.pointerY = ev.pageY - t.container.offsetTop
+          if (crop_z > t.targetZ) {
+            t.animatedZoom(crop_z)
+          } else {
+            if (t.targetZ < 7) {
+              t.animatedZoom(7)
+            } else if (ev.target.style.cursor == 'wait') {
+              t.animatedZoom(full_z)
+            } else {
+              t.animatedZoom(crop_z)
+            }
+          }
+        } else if (t.targetZ < 3) {
+          t.animatedZoom(t.targetZ + 4)
+        } else {
+          t.animatedZoom(0)
+        }
+        Event.stop(ev)
+      }
+    }
     this.onmouseup = function(ev) {
       t.previousTarget = ev.target
       t.panning = false
@@ -871,6 +974,7 @@ TileMap.prototype = {
       t.previousTarget = ev.target
       if (!t.validEventTarget(ev)) return
       if (document.focusedMap == this && !ev.ctrlKey) {
+        if (ev.charCode == 0) return
         var c = ev.keyCode | ev.charCode | ev.which
         var cs = String.fromCharCode(c).toLowerCase()
         var keyHandlers = t.getKeyHandlers()
@@ -882,6 +986,7 @@ TileMap.prototype = {
     this.onkeydown = function(ev) {
       if (!t.validEventTarget(ev)) return
       if (document.focusedMap == this && !ev.ctrlKey) {
+        if (ev.charCode == 0) return
         var c = ev.keyCode | ev.charCode | ev.which
         var cs = String.fromCharCode(c).toLowerCase()
         var keyHandlers = t.getKeyDownHandlers()
@@ -894,6 +999,7 @@ TileMap.prototype = {
       this.zoomKeyDown = 0
       if (!t.validEventTarget(ev)) return
       if (document.focusedMap == this && !ev.ctrlKey) {
+        if (ev.charCode == 0) return
         var c = ev.keyCode | ev.charCode | ev.which
         var cs = String.fromCharCode(c).toLowerCase()
         var keyHandlers = t.getKeyUpHandlers()
@@ -906,6 +1012,7 @@ TileMap.prototype = {
       t.unload()
     }
     this.element.addEventListener("mousedown", this.onmousedown, false)
+    this.element.addEventListener("dblclick", this.ondblclick, false)
     window.addEventListener("mouseup", this.onmouseup, false)
     window.addEventListener("blur", this.onmouseup, false)
     this.element.addEventListener("mousemove", this.onmousemove, false)
@@ -932,6 +1039,7 @@ TileMap.prototype = {
   */
   removeEventListeners : function() {
     this.element.removeEventListener("mousedown", this.onmousedown, false)
+    this.element.removeEventListener("dblclick", this.ondblclick, false)
     document.removeEventListener("mouseup", this.titleDragEnd, false)
     document.removeEventListener("mousemove", this.titleDrag, false)
     window.removeEventListener("mouseup", this.onmouseup, false)
@@ -1259,6 +1367,18 @@ TileMap.prototype = {
   },
 
   /**
+    Resets zoom to 0 and pans to 60,100.
+   */
+  resetZoom : function() {
+    this.panBy(-this.x, -this.y)
+    this.targetZ = 0
+    this.z = 0
+    this.zoom(0, 0, 0)
+    this.panBy(60, 100)
+    this.updateTiles(this.pointerX, this.pointerY, 0, false)
+  },
+
+  /**
    Does a single zoom animation step, calling this.zoom with the
    current zoom level, and updateTiles at the end of the zoom.
   */
@@ -1472,6 +1592,13 @@ SubmapLayer.prototype = {
   },
 
   zoom : function(outer_z, pointer_x, pointer_y) {
+    var d = E('div','T')
+    d.style.position = 'absolute'
+    d.style.fontSize = '3.33ex'
+    d.style.visibility = 'hidden'
+    document.body.appendChild(d)
+    var f = (d.offsetHeight / 26)
+    document.body.removeChild(d)
     this.rx = (-this.x + pointer_x) * this.rfac
     this.ry = (-this.y + pointer_y) * this.rfac
     var fac = Math.pow(2, outer_z)
@@ -1493,7 +1620,7 @@ SubmapLayer.prototype = {
       d.style.width = d.width + 'px'
       d.style.height = d.height + 'px'
       m.titleElem.style.left = d.style.left
-      m.titleElem.style.top = (d.top - Math.min(36, 15 * fac)) + 'px'
+      m.titleElem.style.top = (d.top - Math.min(36*f, 15*f * fac)) + 'px'
       m.titleElem.style.fontSize = Math.min(20, (9 * fac)) + 'px'
 /*      if (
         d.left > -m.root.x + m.root.width ||
@@ -2024,7 +2151,7 @@ TileInfoManager.prototype = {
   bundleRequest : function(req) {
     this.request_bundle.push(req)
     if (this.requestTimeout) clearTimeout(this.requestTimeout)
-    this.requestTimeout = setTimeout(this.sendBundle, 200)
+    this.requestTimeout = setTimeout(this.sendBundle, 100)
   },
 
   bundleSender : function() {
@@ -2048,10 +2175,11 @@ TileInfoManager.prototype = {
         this.callbackHandler(req)
       }
     }
-    reqs = reqs.uniq()
+    if (reqs.length == 0) return
     var t = this
     var parameters = {}
-    parameters.tiles = Object.toJSON(reqs)
+    parameters.tiles = '[' + reqs.invoke('toJSON').uniq().join(",") + ']'
+    reqs = parameters.tiles.evalJSON()
     if (this.map.query)
       parameters.q = this.map.query
     if (this.map.time)

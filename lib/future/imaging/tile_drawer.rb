@@ -114,37 +114,7 @@ extend self
       vbgcolor = DEFAULT_BGCOLOR
     end
     if not bad_tile
-      @@mutex.synchronize do
-        ### FIXME do a quick C layout, get key and indexes based on that
-        ###
-        key = "indexes::" + user.id.to_s + "::" + sanitize_query(query) + "::" + time.to_s
-        puts "#{Thread.current.telapsed} for generating key" if $PRINT_QUERY_PROFILE
-        unless $indexes_changed
-          if Future.memcache
-            t = Future.memcache.get(key, true)
-          else
-            t = @@indexes[key]
-          end
-        end
-        unless t
-          idxs = Items.rfind_all(user, query.merge(:columns => [:image_index, :mimetype_id, :deleted], :as_array => true))
-          tr = 't'
-          nidxs = idxs.map{|i|
-            ii = Integer(i[0])
-            mi = (i[2] == tr ? MIMETYPE_DELETED : Integer(i[1]) + 1)
-            [ii, mi]
-          }
-          t = [nidxs.size].pack("N")
-          t << nidxs.transpose.map{|ix| ix.pack("I*") }.join
-          if Future.memcache
-            Future.memcache.set(key, t, 300, true)
-          else
-            @@indexes[key] = t
-          end
-          $indexes_changed = false
-        end
-        indexes = t
-      end
+      indexes = query_info(user, query, time)
       deleted_color = (query['deleted'] ? [0,0,0,0] : vbgcolor)
       puts "#{Thread.current.telapsed} for fetching indexes" if $PRINT_QUERY_PROFILE
       pal = palette(colors, deleted_color)
@@ -212,82 +182,52 @@ extend self
   def info(user, query, time, *tile_args)
     return {} if tile_args[1] < 0 or tile_args[2] < 0
     s = query_info(user, query, time)
-    indexes, iindexes = (s.is_a?(String) ? Marshal.load(s) : s)
-    infos = {}
-    tile_drawer.tile_info(indexes, *tile_args){|i, *a| 
-      infos[i] = [a, iindexes[i]]
+    infos = []
+    tile_drawer.tile_info(s, *tile_args){|image_index, query_index, deleted, x, y, sz|
+      infos << [image_index, query_index, deleted, x, y, sz]
     }
     puts "#{Thread.current.telapsed} for info layout" if $PRINT_QUERY_PROFILE
     infos
   end
 
   def query_info(user, query, time)
-    q = query.clone
-    q[:columns] ||= []
-    q[:columns] |= [:image_index]
-    indexes = iindexes = nil
     @@mutex.synchronize do
-      puts "#{Thread.current.telapsed} for info init" if $PRINT_QUERY_PROFILE
-      t = nil
-      rkey = q[:columns].join("_").capitalize
-      unless TileDrawer.constants.include?(rkey)
-        eval("TileDrawer::#{rkey} = Struct.new(:index, #{q[:columns].map{|c|":#{c}"}.join(",")})")
-      end
-      if $USE_DIPUS_TILE_INFO
-        require 'dipus'
-        d = DIPUS.open_address("tile_info") do |conn|
-          conn.write(
-            Marshal.dump([user,query,time])
-          )
-          conn.close_write
-          conn.read
-        end
-        return Marshal.load(d)
-      end
-      key = ["info", user.id, time, sanitize_query(query)].join("::")
-      if $CACHE_INFO
-        t = Future.memcache.get(key)
-        puts "#{Thread.current.telapsed} for memcache get #{key}" if $PRINT_QUERY_PROFILE
+      ### FIXME do a quick C layout, get key and indexes based on that
+      ###
+      key = "indexes::" + user.id.to_s + "::" + sanitize_query(query) + "::" + time.to_s
+      puts "#{Thread.current.telapsed} for generating key" if $PRINT_QUERY_PROFILE
+      if Future.memcache
+        t = Future.memcache.get(key, true)
+      else
+        t = @@indexes[key]
       end
       unless t
-        result = Items.rfind_all(user, q.merge(:as_array => true))
-        puts "#{Thread.current.telapsed} for info db query" if $PRINT_QUERY_PROFILE
-        cidxs = q[:columns].zip((0...q[:columns].size).to_a).to_hash
-        rstr = TileDrawer.const_get(rkey)
-        ii_c = cidxs[:image_index]
-        idxs = []
-        iidxs = {}
-        GC.disable
-        j = 0
-        result.each{|r|
-          h = rstr.new(j,*r)
-          ii = h.image_index.to_i
-          iidxs[ii] = h
-          idxs << ii
-          j += 1
+        idxs = Items.rfind_all(user, query.merge(:columns => [:image_index, :mimetype_id, :deleted], :as_array => true))
+        tr = 't'
+        nidxs = idxs.map{|i|
+          ii = Integer(i[0])
+          mi = (i[2] == tr ? MIMETYPE_DELETED : Integer(i[1]) + 1)
+          [ii, mi]
         }
-        GC.enable
-        puts "#{Thread.current.telapsed} for mangling info" if $PRINT_QUERY_PROFILE
-        t = [idxs, iidxs]
-        if $CACHE_INFO
-          Thread.new {
-            Thread.current.telapsed
-            Future.memcache.set(key, t, 300, true)
-            puts "#{Thread.current.telapsed} for memcache set" if $PRINT_QUERY_PROFILE
-          }
+        t = [nidxs.size].pack("N")
+        t << nidxs.transpose.map{|ix| ix.pack("I*") }.join
+        if Future.memcache
+          Future.memcache.set(key, t, 300, true)
+        else
+          @@indexes[key] = t
         end
       end
-      return t
+      t
     end
   end
   
   def item_count(user, query, time)
-    query_info(user, query, time).first.size
+    indexes_sz = query_info(user,query,time)[0,4].unpack("N")[0]
   end
 
   def dimensions(user, query, time, layouter)
-    indexes, iindexes = query_info(user, query, time)
-    tile_drawer.dimensions(indexes, layouter)
+    indexes_sz = query_info(user,query,time)[0,4].unpack("N")[0]
+    tile_drawer.dimensions((0...indexes_sz), layouter)
   end
 
   private
@@ -366,12 +306,15 @@ class TileDrawer
     d
   end
 
-  def tile_info(indexes, layouter_name, x, y, zoom, w, h, *layouter_args)
+  def tile_info(index_string, layouter_name, x, y, zoom, w, h, *layouter_args)
     layouter = LAYOUTERS[layouter_name.to_s]
     raise ArgumentError, "Bad layouter_name: #{layouter_name.to_s}" unless layouter
     sz = @image_cache.thumb_size_at_zoom(zoom)
-    layouter.each(indexes, x, y, sz, w, h, *layouter_args) do |i, ix, iy|
-      yield(i, ix, iy, sz)
+    indexes_sz = index_string[0,4].unpack("N")[0]
+    layouter.each((0...indexes_sz), x, y, sz, w, h, *layouter_args) do |idx, ix, iy|
+      i = index_string[4*(idx+1),4].unpack("I")[0]
+      deleted = index_string[4*(idx+indexes_sz+1),4].unpack("I")[0] == Tiles::MIMETYPE_DELETED
+      yield(i, idx, deleted, ix, iy, sz)
     end
   end
 
@@ -757,21 +700,7 @@ class TileDrawer
 
         sz24 = sz*sz*4;
 
-        /* premultiply the thumbs
-        for (i=0; i<colors_length*sz24-16; i+=16) {
-          thumbs[i+14] = (thumbs[i+14]*thumbs[i+15]) >> 8;
-          thumbs[i  ] = (thumbs[i  ]*thumbs[i+3]) >> 8;
-          thumbs[i+1] = (thumbs[i+1]*thumbs[i+3]) >> 8;
-          thumbs[i+2] = (thumbs[i+2]*thumbs[i+3]) >> 8;
-          thumbs[i+4] = (thumbs[i+4]*thumbs[i+7]) >> 8;
-          thumbs[i+5] = (thumbs[i+5]*thumbs[i+7]) >> 8;
-          thumbs[i+6] = (thumbs[i+6]*thumbs[i+7]) >> 8;
-          thumbs[i+8] = (thumbs[i+8]*thumbs[i+11]) >> 8;
-          thumbs[i+9] = (thumbs[i+9]*thumbs[i+11]) >> 8;
-          thumbs[i+10] = (thumbs[i+10]*thumbs[i+11]) >> 8;
-          thumbs[i+12] = (thumbs[i+12]*thumbs[i+15]) >> 8;
-          thumbs[i+13] = (thumbs[i+13]*thumbs[i+15]) >> 8;
-        } */
+        /* premultiply the thumbs */
         for (i=0; i<colors_length*sz24; i+=4) {
           thumbs[i  ] = (thumbs[i  ]*thumbs[i+3]) >> 8;
           thumbs[i+1] = (thumbs[i+1]*thumbs[i+3]) >> 8;
@@ -1423,6 +1352,7 @@ class TileDrawer
         icache_size = (int)cache_size;
         icache_levels = (int)cache_levels + 1;
         icache_jpeg_levels = (int)cache_jpeg_levels + 1;
+        /* 2D-array of strings: icache[level][index] */
         icache = (char***)malloc(sizeof(char**) * icache_jpeg_levels);
         total_header_sz += sizeof(char**) * icache_jpeg_levels;
         if (icache == NULL) {

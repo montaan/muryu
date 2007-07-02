@@ -211,7 +211,7 @@ class TestMuryuQuery < Test::Unit::TestCase
       mq('files/039485')
     }
     assert_raise(MuryuQuery::BadKey){
-      mq('files/39485')
+      mq('subfiles/39485')
     }
     assert_raise(MuryuQuery::BadKey){
       mq('files/bob/200/10-10/foo.jpg')
@@ -225,6 +225,8 @@ class TestMuryuQuery < Test::Unit::TestCase
     mq('items/bob/2005/10-10/Foo.jpg')
     mq('items/38682')
     mq('files/bob/2005/10-10/Foo.jpg')
+    mq('files/38682')
+    mq('subfiles/bob/2005/10-10/Foo.jpg')
     mq('users/bob')
     mq('users/bob-badaluk')
     mq('users/bob_badaluk')

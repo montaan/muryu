@@ -381,7 +381,7 @@ module MuryuDispatch
     def get_info_list(user, search_query, first, last, time)
       sq = search_query.clone
       key = Digest::MD5.hexdigest([user.id, "f#{first}l#{last}", sq, time].join("::"))
-      jinfo = Future.memcache.get(key) if $CACHE_INFO and not $info_changed
+      jinfo = Future.memcache.get(key, true) if $CACHE_INFO and not $info_changed
       unless jinfo
         sq[:columns] ||= []
         sq[:columns] << 'path'
@@ -397,7 +397,7 @@ module MuryuDispatch
         puts "#{Thread.current.telapsed} for fetching tile info" if $PRINT_QUERY_PROFILE
         jinfo = info.to_json
         puts "#{Thread.current.telapsed} for tile info jsonification" if $PRINT_QUERY_PROFILE
-        Future.memcache.set(key, jinfo, 300) if $CACHE_INFO
+        Future.memcache.set(key, jinfo, 300, true) if $CACHE_INFO
       end
       jinfo
     end

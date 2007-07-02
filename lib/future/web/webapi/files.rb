@@ -23,7 +23,10 @@ module MuryuDispatch
           res['Last-Modified-At'] = lm
           if @target.mimetype == 'text/html'
             res.status = 302
-            res['Location'] = "/subfiles/#{q.key}/data"
+            res['Location'] = "/subfiles/#{@target.path}/data"
+          elsif q.key =~ /\A[0-9]+\Z/
+            res.status = 302
+            res['Location'] = "/files/#{@target.path}"
           else
             res['Expires'] = (Time.now+86400*365).httpdate
             res.body = File.open(@target.internal_path, 'rb')

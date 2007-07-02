@@ -20,7 +20,7 @@ Tr.addTranslations('en-US', {
   'Button.Applets.Session.ToggleColors' : 'Toggle colors',
   'Applets.MusicPlayer' : 'Player',
   'Applets.MusicPlayer.Playlist' : 'Playlist',
-  'Applets.Sets' : 'Sets',
+  'Applets.Sets' : 'Folders',
   'Applets.Groups' : 'People',
   'Applets.Tags' : 'Tags'
 })
@@ -46,7 +46,7 @@ Tr.addTranslations('fi-FI', {
   'Button.Applets.Session.ToggleColors' : 'Värien näyttö',
   'Applets.MusicPlayer' : 'Soitin',
   'Applets.MusicPlayer.Playlist' : 'Soittolista',
-  'Applets.Sets' : 'Joukot',
+  'Applets.Sets' : 'Kansiot',
   'Applets.Groups' : 'Ihmiset',
   'Applets.Tags' : 'Tagit'
 })

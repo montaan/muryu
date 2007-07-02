@@ -436,7 +436,7 @@ li.MenuItem {
   padding-top: 0.5ex;
   padding-bottom: 0.333ex;
   padding-left: 1.333ex;
-  padding-right: 0.666ex;
+  padding-right: 1.333ex;
 }
 li.MenuItem:hover {
   background: #ffc840;
@@ -447,11 +447,11 @@ li.MenuItem:hover {
   display:block;
   vertical-align:middle;
   text-align:right;
-  margin-bottom:-19px;
+  margin-bottom:-2.833ex;
 }
 .Menu li.disabled {
   color: white;
-  opacity: 0.5;
+  opacity: 0.3;
 }
 .Menu li.disabled:hover {
   background: none;

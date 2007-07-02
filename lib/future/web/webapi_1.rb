@@ -107,7 +107,7 @@ class MuryuQuery
 
   self.type_keys = {
     'items' => e(itemkey),
-    'files' => e(relative_path),
+    'files' => e(itemkey),
     'subfiles' => e(relative_path+"(/[0-9A-Za-z._-]*)?"),
     'sets' => e(setkey),
     'users' => e(username),
