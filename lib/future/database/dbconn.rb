@@ -96,7 +96,7 @@ module DB
         super(query)
       }
     end
-  
+    
   end
 
 
@@ -143,6 +143,7 @@ module DB
 
   def self.establish_connection(options)
     remove_const(:Conn) if defined? Conn
+    Thread.current.conn = nil
     log_info("Establishing DB connection #{options.inspect}", "dbconn")
     if $DB_USE_POOL
       const_set(:Conn, Pool.new(DBconn, 6, options[:host], options[:port],

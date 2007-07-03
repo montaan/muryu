@@ -1,15 +1,19 @@
-=begin
 require 'test/unit'
 require File.join(File.dirname(__FILE__), "set_include_path.rb")
+
+if $0 == __FILE__
+
+$DB_USE_POOL = false
+
 require 'future/config'
 require "future/database/creator"
 require "future/database/dbconn"
 
 class FinalizeDB
-  def self.finish
+  def self.finish db
     lambda{
       DB::Conn.close
-      `dropdb #{$database}`
+      `dropdb #{db}`
     }
   end
 end
@@ -19,14 +23,18 @@ class DBConnTest < Test::Unit::TestCase
   @@setup_done = nil
 
   def self.setup_db
+    db = 'future_test_dbconn'
+    @@db = db
     if not @@setup_done
-      $database = 'future_test_dbconn'
-      `dropdb #{$database} 2> /dev/null`
-      `createdb #{$database}`
+      `dropdb #{db} 2> /dev/null`
+      `createdb #{db}`
+    end
+    conf = Future.database_configuration
+    @@prev_db = DB::Conn
+    DB.establish_connection(conf.merge(:database => db))
+    if not @@setup_done
       path = File.dirname __FILE__
       c = DB::Creator.new Dir["#{path}/data/test_dbconn/*.rb"]
-      conf = Future.database_configuration
-      DB.establish_connection(conf.merge(:database => $database))
       begin
         stderr = STDERR.clone
         STDERR.reopen("/dev/null")
@@ -34,13 +42,22 @@ class DBConnTest < Test::Unit::TestCase
       ensure
         STDERR.reopen(stderr)
       end
-      ObjectSpace.define_finalizer( self, FinalizeDB.finish )
+      ObjectSpace.define_finalizer( self, FinalizeDB.finish(db) )
       @@setup_done = true
     end
   end
 
   def setup
     self.class.setup_db
+  end
+
+  def teardown
+    DB::Conn.close
+    Thread.current.conn = @@prev_db
+    DB.instance_eval{
+      remove_const('Conn')
+      const_set('Conn', @@prev_db)
+    }
   end
 
   def test_create
@@ -167,7 +184,7 @@ class DBConnTest < Test::Unit::TestCase
 
   def test_transaction
     create_company
-    c = PGconn.new(nil,nil,nil,nil,$database)
+    c = PGconn.new(nil,nil,nil,nil,@@db)
     orig_salary = @emp.find(:first_name => 'Lucy').salary
     DB.transaction do
       @emp.find(:first_name => 'Lucy').salary = 1000
@@ -202,4 +219,5 @@ class DBConnTest < Test::Unit::TestCase
 
 
 end
-=end
+
+end
