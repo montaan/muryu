@@ -76,7 +76,7 @@ module MuryuDispatch
             f = {}
             f[:source] = req.query[u][0]
             f[:referrer] = req.query[referrer][0] if referrer
-            Future::Uploader.upload(common_fields.merge(f))
+            DB::Tables::Downloads.create(:options => Marshal.dump(common_fields.merge(f)))
           }
           compressed_urls.each{|u|
             num = u.scan(/[0-9]+/)[0]
@@ -84,7 +84,7 @@ module MuryuDispatch
             f = {}
             f[:source] = req.query[u][0]
             f[:referrer] = req.query[referrer][0] if referrer
-            Future::Uploader.upload_archive(common_fields.merge(f))
+            DB::Tables::Downloads.create(:options => Marshal.dump(common_fields.merge(f)), :archive => true)
           }
           texts.each{|u|
             num = u.scan(/[0-9]+/)[0]
