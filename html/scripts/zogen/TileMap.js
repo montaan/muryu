@@ -339,9 +339,16 @@ ItemArea = {
           this.toggleSelect()
         } else if (ev.altKey) {
           return
+        } else if (this.actionTimeout) {
+          clearTimeout(this.actionTimeout)
+          delete this.actionTimeout
+          Event.stop(ev)
         } else {
           Event.stop(ev)
-//           this.defaultAction()
+          this.actionTimeout = setTimeout(function(){
+            delete this.actionTimeout
+            this.defaultAction()
+          }.bind(this), 300)
         }
       }
       Event.stop(ev)
@@ -350,6 +357,10 @@ ItemArea = {
 
   ondblclick : function(ev) {
     if (Event.isLeftClick(ev)) {
+      if (this.actionTimeout) {
+        clearTimeout(this.actionTimeout)
+        delete this.actionTimeout
+      }
       var m = this.getMap()
       var t = m.root
       var maps_per_container = Math.min(t.width/m.width, t.height/m.height)

@@ -190,7 +190,7 @@ class Items < DB::Tables::Items
   def update_thumbnail(update_image_cache_too=true, force_update=false)
     tn = thumbnail
     full_res = full_size_image
-    if force_update or not (tn.exist? and full_res.exist?)
+    if force_update or not tn.exist? or not full_res.exist?
       tn.dirname.mkdir_p
       created = false
       if mimetype == "text/html" and source and not source.empty?
@@ -198,7 +198,7 @@ class Items < DB::Tables::Items
         if ['http','https'].include?( src.scheme.downcase )
           begin
             Mimetype["text/html"].web_thumbnail(src, full_res.to_s)
-            Mimetype["image/jpeg"].thumbnail(full_res.to_s, tn.to_s)
+            Mimetype["image/jpeg"].thumbnail(full_res.to_s, tn.to_s, 256)
             created = true
           rescue Exception => e
           end

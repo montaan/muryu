@@ -214,11 +214,16 @@ extend self
       unless t
         idxs = Items.rfind_all(user, query.merge(:columns => [:image_index, :mimetype_id, :deleted], :as_array => true))
         tr = 't'
+        mts = []
         nidxs = idxs.map{|i|
           ii = Integer(i[0])
           mi = (i[2] == tr ? MIMETYPE_DELETED : Integer(i[1]) + 1)
+          mts[mi] ||= mi
           [ii, mi]
         }
+        if palette(true, 0).size != mts.size
+          @@palette = @@transparent_palette = nil
+        end
         t = [nidxs.size].pack("N")
         t << nidxs.transpose.map{|ix| ix.pack("I*") }.join
         if Future.memcache

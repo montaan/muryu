@@ -730,6 +730,9 @@ class JPEGTileStore
         ["image/png","image/gif","image/jpg","image/tga"].include?(item.mimetype)
           pn = item.internal_path.to_pn
           pn.mimetype = Mimetype[item.mimetype]
+        elsif item.full_size_image.to_pn.dimensions.max <= 256
+          pn = item.thumbnail.to_pn
+          pn.mimetype = Mimetype['image/png']
         else
           pn = item.full_size_image.to_pn
           pn.mimetype = Mimetype['image/jpeg']

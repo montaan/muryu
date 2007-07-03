@@ -1,6 +1,6 @@
+=begin
 require 'test/unit'
 require File.join(File.dirname(__FILE__), "set_include_path.rb")
-
 require 'future/config'
 require "future/database/creator"
 require "future/database/dbconn"
@@ -13,8 +13,7 @@ class FinalizeDB
     }
   end
 end
-=begin
-why is this not worksing?
+
 class DBConnTest < Test::Unit::TestCase
 
   @@setup_done = nil

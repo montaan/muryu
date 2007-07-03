@@ -22,6 +22,8 @@ Tr.addTranslations('en-US', {
   'Applets.MusicPlayer.Playlist' : 'Playlist',
   'Applets.Sets' : 'Folders',
   'Applets.Groups' : 'People',
+  'Groups.Editing' : 'Editing group: ',
+  'Sets.Editing' : 'Editing folder: ',
   'Applets.Tags' : 'Tags'
 })
 Tr.addTranslations('fi-FI', {
@@ -48,6 +50,8 @@ Tr.addTranslations('fi-FI', {
   'Applets.MusicPlayer.Playlist' : 'Soittolista',
   'Applets.Sets' : 'Kansiot',
   'Applets.Groups' : 'Ihmiset',
+  'Groups.Editing' : 'Muokkain ryhmälle: ',
+  'Sets.Editing' : 'Muokkain kansiolle: ',
   'Applets.Tags' : 'Tagit'
 })
 
@@ -502,6 +506,8 @@ Applets.MusicPlayer = function() {
     }
     var pl = E('ol', null, 'MusicPlayer_playlist')
     var tlc = E('div', null)
+    tlc.style.width = '100%'
+    tlc.style.height = '100%'
     w.setContent(tlc)
     var t = this
     tlc.appendChild(Desk.Button('RemoveFromPlaylist', function() {
@@ -518,8 +524,6 @@ Applets.MusicPlayer = function() {
 
     var plc = E('div', null, 'MusicPlayer_playlistContainer')
     plc.style.overflow = 'auto'
-    plc.style.width = '100%'
-    plc.style.height = '100%'
     pl.getIndex = function(obj) {
       var c = this.childNodes
       for (var i=0; i<c.length; i++) {
@@ -527,6 +531,12 @@ Applets.MusicPlayer = function() {
       }
       return 0
     }
+    w.addListener('resize', function(){
+      plc.style.height = (tlc.offsetHeight - plc.offsetTop + tlc.offsetTop) + 'px'
+    })
+    w.addListener('containerChange', function(){
+      plc.style.height = (tlc.offsetHeight - plc.offsetTop + tlc.offsetTop) + 'px'
+    })
     pl.updateCurrent = function(val) {
       var idx = t.currentIndex
       var c = this.childNodes
@@ -798,25 +808,37 @@ Applets.Groups = function(wm) {
     }
     Groups.editor = function(win) {
       var group = win.parameters
-      win.setTitle(Tr('Item.Editing', group.name + ' ('+ group.owner+')'))
+      win.setTitle(Tr('Groups.Editing', group.name + ' ('+ group.owner+')'))
       win.setContent('Loading...')
+      win.setGroup(Tr('WindowGroup.editors'))
       new Ajax.Request('/groups/'+group.name+'/json', {
         method: 'get',
         onSuccess : function(res) {
-          win.setContent(res.responseText)
+          var group_info = res.responseText.evalJSON()
+          var editForm = E('form')
+          var nameEditor = E('input')
+          nameEditor.type = 'text'
+          nameEditor.value = group_info.name
+          var accessEditor = Editors.listOrNew('groups', group_info.members, [
+            Groups.pluck('owner').concat(Groups.pluck('name')).uniq(),
+            true
+          ])
+          editForm.append(
+            E('h5', Tr('Name')),
+            nameEditor,
+            E('h5', Tr('Access control')),
+            accessEditor
+          )
+          var div = E('div', null, null, 'editor')
+          div.append(editForm)
+          win.setContent(div)
         }
       })
     }
     Groups.viewer = function(win) {
       var group = win.parameters
-      win.setTitle(Tr('Item.Editing', group.name + ' ('+ group.owner+')'))
-      win.setContent('Loading...')
-      new Ajax.Request('/groups/'+group.name+'/json', {
-        method: 'get',
-        onSuccess : function(res) {
-          win.setContent(res.responseText)
-        }
-      })
+      win.setTitle(Tr('Group ', group.name + ' ('+ group.owner+')'))
+      win.setContent("I'd go to your Groups area into the subarea of this particular group right about now.")
     }
     Groups.update()
   }
@@ -876,13 +898,30 @@ Applets.Sets = function(wm) {
     }
     Sets.editor = function(win) {
       var set = win.parameters
-      win.setTitle(Tr('Item.Editing', set.name + ' ('+ set.owner+')'))
-      win.setContent(Object.toJSON(set))
+      win.setTitle(Tr('Sets.Editing', set.name + ' ('+ set.owner+')'))
+      var editForm = E('form')
+      var nameEditor = E('input')
+      nameEditor.type = 'text'
+      nameEditor.value = set.name
+      var accessEditor = Editors.listOrNew('sets', [], [
+        Groups.map(function(g){ return g.name + ' ('+g.owner+')' }),
+        true
+      ])
+      editForm.append(
+        E('h5', Tr('Name')),
+        nameEditor,
+        E('h5', Tr('Access control')),
+        accessEditor
+      )
+      var div = E('div', null, null, 'editor')
+      div.append(editForm)
+      win.setContent(div)
+      win.setGroup(Tr('WindowGroup.editors'))
     }
     Sets.viewer = function(win) {
       var set = win.parameters
       win.setTitle(Tr('Set ', set.name + ' ('+ set.owner+')'))
-      win.setContent(Object.toJSON(set))
+      win.setContent("I'd go to your Sets area into the subarea of this particular set right about now.")
     }
     Sets.update()
   }

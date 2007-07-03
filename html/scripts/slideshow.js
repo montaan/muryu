@@ -923,7 +923,7 @@ FaderDiv.prototype = {
       w = fw * (dh / fh)
       h = dh
     }
-    if (f.width > w || f.height > h) {
+    if ((fw > w || fh > h) && fw*fh < 3000*4000) { // don't canvas-scale huge images
       this.setElementOpacity(f, 0)
       f.style.zIndex = 2
       f.parentNode.insertAfter(this.canvas, f)

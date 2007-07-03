@@ -127,6 +127,10 @@ module DB
         end
       end
     end
+
+    def close
+      @objects.shift.close until @objects
+    end
   
     def method_missing(*a, &b)
       reserve do |obj|

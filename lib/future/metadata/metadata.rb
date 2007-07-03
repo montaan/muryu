@@ -164,24 +164,36 @@ extend self
   end
 
   def extract_text(filename, mimetype=MimeInfo.get(filename.to_s), charset=nil)
-    return nil
     filename = filename.to_s
     major,minor = mimetype.to_s.gsub("-","_").split("/")
     mn = [major,minor,"_gettext"].join("_")
+    mm = [major,"_gettext"].join("_")
     new_methods = public_methods(false)
     if new_methods.include?( mn )
       __send__ mn, filename, charset
-    elsif new_methods.include?( major )
-      __send__ major, filename, charset
+    elsif new_methods.include?( mm )
+      __send__ mm, filename, charset
     else
-      nil
+      ""
     end
   end
 
   alias_method :[], :extract
 
-  def text_plain__gettext(filename, charset)
+  def text__gettext(filename, charset)
     enc_utf8(File.read(filename), charset)
+  end
+
+  def text_html__gettext(filename, charset)
+    enc_utf8(`unhtml #{filename.dump}`, charset)
+  end
+
+  def application_pdf__gettext(filename, charset)
+    enc_utf8(`pdftotext #{filename.dump} -`, charset)
+  end
+  
+  def application_postscript__gettext(filename, charset)
+    enc_utf8(`ps2ascii #{filename.dump}`, charset)
   end
   
   private

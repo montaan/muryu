@@ -58,14 +58,6 @@ include Future
         )
       end
     end
-#     (0..10).each do |i|
-#       ts << Thread.new do
-#         @image_cache.update_cache_at(
-#           i % 11,
-#           item(File.join(File.dirname(__FILE__), "data/images/#{10-(i % 11)}.png"), false)
-#         )
-#       end
-#     end
     ts.each{|t| t.join }
   end
 
@@ -166,6 +158,10 @@ include Future
     assert_equal(
       Digest::MD5.new(jpegs.join).hexdigest,
       Digest::MD5.new(@image_cache.read_span_as_jpeg(7, 4090, 4100)).hexdigest
+    )
+    assert_equal(
+      Digest::MD5.new(jpegs.join).hexdigest,
+      Digest::MD5.new(@image_cache.read_images_as_jpeg(7, (2040..2044).to_a+(4095..4100).to_a)).hexdigest
     )
     assert_equal(
       Digest::MD5.new(jpegs.join+("\000\000\000\000"*2039)+jpegs.join).hexdigest,

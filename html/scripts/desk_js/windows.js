@@ -31,6 +31,7 @@ Desk.Window = function(content, config){
   if (!this.buttons)
     this.buttons = this.defaultButtons.map()
   this.init()
+  this.setGroup(Tr('WindowGroup.default'))
   if (this.width && this.height)
     this.setSize(this.width, this.height)
   if (typeof content == 'string')
@@ -46,8 +47,8 @@ Desk.Window = function(content, config){
   if (config) {
     if (config.title) this.setTitle(config.title)
     if (config.minimized) this.setMinimized(config.minimized)
+    if (config.group) this.setGroup(config && config.group)
   }
-  this.setGroup(config && config.group)
   this.setWindowManager((this.windowManager || Desk.Windows))
   if (this.shaded) {
     this.shaded = false
@@ -79,7 +80,6 @@ Desk.Window.prototype = {
   movable : true,
   resizable : true,
   defaultButtons : ['Minimize', 'Maximize', 'Close'],
-  group : 'default',
   showInTaskbar : true,
   avoid: false,
   easyMove: false,
@@ -451,7 +451,7 @@ Desk.Window.prototype = {
     if (!ov) ov = 'default'
     var gre = new RegExp('\\b'+ov+'\\b')
     if (this.element.className.match(gre))
-      this.element.className = this.element.className.replace(gre, new_value)
+      this.element.className = this.element.className.toString().replace(gre, new_value)
     else
       this.element.className += ' ' + new_value
     this.group = new_value
