@@ -446,7 +446,7 @@ module MuryuDispatch
         end
         if req.query.has_key?('tags')
           tags = req.query['tags'].join(",").split(",").map{|t|t.strip}
-          unless tags.empty?
+          unless tags.empty? and target.tags.empty?
             target.rset_tags(user, tags)
           end
         end
@@ -498,6 +498,7 @@ module MuryuDispatch
           end
           changed
         end
+        @target.update_volatile_full_text_search
         json(req, res)
       end
 

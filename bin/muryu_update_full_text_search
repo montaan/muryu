@@ -3,6 +3,7 @@
 $NO_TILE_DRAWING = true
 require 'future'
 
+volatile = ARGV.delete("--volatile")
 start = ARGV[0].to_i
 
 c = Future::Items.count
@@ -12,6 +13,10 @@ c = Future::Items.count
     :limit => 100, :offset => i, :columns => :all
   ).each_with_index{|it,j| 
     puts "Updating FTS for #{it.image_index} (##{i+j})"
-    it.update_full_text_search 
+    if volatile 
+      it.update_volatile_full_text_search 
+    else
+      it.update_full_text_search 
+    end
   }
 end

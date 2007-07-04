@@ -172,9 +172,20 @@ class Items < DB::Tables::Items
       File.unlink(full_size_image) if File.exist?(full_size_image)
     end
     self.sha1_hash = nil
+    self.internal_path = '/dev/null'
+    self.size = 0
+    self.mimetype_id = Mimetypes.find_or_create(:major => 'inode', :minor => 'chardevice').id
+    self.path = image_index.to_s
     self.deleted = true
     self.source = nil
     self.referrer = nil
+    self.metadata.to_hash.each{|k,v|
+      self.metadata[k] = nil if k.to_s != 'id'
+    }
+    ItemsTags.delete_all(:item_id => id)
+    ItemsSets.delete_all(:item_id => id)
+    Itemtexts.delete_all(:item_id => id)
+    update_image_cache
   end
 
   def thumbnail
@@ -255,6 +266,8 @@ class Items < DB::Tables::Items
       }.compact.join("\n")
       if metadata.width and metadata.height
         text.last << "\n#{metadata.width}x#{metadata.height}"
+        text.last << "\n#{metadata.width.to_i}x#{metadata.height.to_i}"
+        text.last << "\n#{metadata.width.to_i} #{metadata.height.to_i}"
       end
       text << tags.map{|tag| tag.name }.join(" ")
     end
