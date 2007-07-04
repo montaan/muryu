@@ -231,7 +231,7 @@ extend self
     }
     i = Hash[*ids.flatten]
     if i['page size']
-      w,h = i['page size'].scan(/[0-9]+/)[0,2]
+      w,h = i['page size'].gsub(/[^0-9.]/, ' ').strip.split(/\s+/)
       wmm = w.to_f * 0.3528
       hmm = h.to_f * 0.3528
       i['page size'] = i['page size'].scan(/\(([^)]+)\)/)[0].to_s

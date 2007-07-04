@@ -726,6 +726,8 @@ class JPEGTileStore
   def update_cache_at(index, item)
     synchronize(index) do
       if item.respond_to?(:full_size_image) and item.full_size_image.exist?
+       retried = false
+       begin
         if item.respond_to?(:mimetype) and
         ["image/png","image/gif","image/jpg","image/tga"].include?(item.mimetype)
           pn = item.internal_path.to_pn
@@ -738,6 +740,15 @@ class JPEGTileStore
           pn.mimetype = Mimetype['image/jpeg']
         end
         w,h = pn.dimensions
+       rescue
+         item.full_size_image.unlink if item.full_size_image.exist?
+         unless retried
+           item.update_thumbnail(false)
+           retried = true
+           retry
+         end
+         raise
+       end
       else
         pn = (item.internal_path || item.thumbnail).to_pn
         pn.mimetype = Mimetype[item.mimetype || pn.mimetype.to_s]

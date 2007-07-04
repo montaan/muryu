@@ -13,7 +13,6 @@ class Struct
   end
 end
 
-
 $imlib_mutex ||= Mutex.new
 
 module Future
