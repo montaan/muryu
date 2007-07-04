@@ -14,9 +14,11 @@ module MuryuDispatch
         tile_array = '[' + tiles.map{|x,y,z| get_tile_info(user, sq, x, y, z, 256, 256, time) }.join(",") + ']'
         res.body = tile_array
       else
+        dims = Future::Tiles.dimensions(user, sq, time, :rows)
+        count = Future::Tiles.item_count(user, sq, time)
         res.body = {
-          "dimensions" => Future::Tiles.dimensions(user, sq, time, :rows),
-          "itemCount" => Future::Tiles.item_count(user, sq, time),
+          "dimensions" => dims,
+          "itemCount" => count,
           "maxZoom" => 15,
           "title" => req.query['q'].to_s
         }.to_json

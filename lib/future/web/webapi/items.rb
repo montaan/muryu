@@ -254,6 +254,10 @@ module MuryuDispatch
       unless h[:order_by]
         h[:order_by] = [['image_index', :asc]]
       end
+      if h['itemtexts.fti_vector']
+        h['itemtexts.fti_vector'] = [:'@@',
+          "to_tsquery(#{DB::Table.quote(h['itemtexts.fti_vector'].join("&"))})".raw_sql]
+      end
       h
     end
 
@@ -293,8 +297,8 @@ module MuryuDispatch
         h[column_key(query.key)] = collect_query(query.values)
       when String
         if h
-          h[:path] ||= +[]
-          h[:path] << /#{query}/i
+          h['itemtexts.fti_vector'] ||= []
+          h['itemtexts.fti_vector'] << query
         end
         query
       end

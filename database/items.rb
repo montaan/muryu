@@ -18,7 +18,7 @@ tables["items"] = {
 }
 
 tables["itemtexts"] = {
-  :sha1_hash => ['character(40)', 'unique', 'not null'],
+  :item_id => [['items'], 'unique', 'not null'],
   :text => [:text]
 }
 

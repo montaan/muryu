@@ -212,6 +212,66 @@ class Items < DB::Tables::Items
     update_image_cache if update_image_cache_too
   end
 
+  NON_FTS_METADATA_FIELDS = %w(exif album_art dimensions_unit color_depth frames fps id length pages samplerate vbr words)
+  NON_FTS_METADATA = {}
+  NON_FTS_METADATA_FIELDS.each{|f| NON_FTS_METADATA[f] = true }
+
+  def update_full_text_search
+    str = ""
+    text = []
+    begin
+      text << MetadataExtractor.extract_text(internal_path, mimetype, metadata.charset)
+    rescue => e
+      log_error([e, e.message, e.backtrace].join("\n"))
+    end
+    str = text.join("\n\n")
+    if non_volatile = itemtexts.find{|it| not it.volatile }
+      non_volatile.text = str
+    else
+      Itemtexts.find_or_create(:item_id => id, :text => str, :volatile => false)
+    end
+    update_volatile_full_text_search
+  end
+
+  def update_volatile_full_text_search
+    str = ""
+    text = []
+    begin
+      text << "#{owner.name}"
+      text << [
+        File.basename(path.to_s),
+        File.basename(CGI.unescape(source.to_s)),
+        File.basename(CGI.unescape(referrer.to_s)),
+        tokenize_filename(File.basename(path.to_s)),
+        tokenize_filename(CGI.unescape(source.to_s)),
+        tokenize_filename(CGI.unescape(referrer.to_s)),
+        major, minor].join("\n")
+      text << metadata.to_hash.map{|k,v|
+        if not NON_FTS_METADATA[k.to_s] and v and not v.to_s.empty?
+          v
+        else
+          nil
+        end
+      }.compact.join("\n")
+      if metadata.width and metadata.height
+        text.last << "\n#{metadata.width}x#{metadata.height}"
+      end
+      text << tags.map{|tag| tag.name }.join(" ")
+    end
+    str = text.join("\n\n")
+    if volatile = itemtexts.find{|it| it.volatile }
+      volatile.text = str
+    else
+      Itemtexts.find_or_create(:item_id => id, :text => str, :volatile => true)
+    end
+  end
+
+  def tokenize_filename(fn)
+    fn.gsub(/[a-z]{2,}(?=[A-Z0-9])|[A-Z](?=[0-9])|[0-9](?=[a-zA-Z])/){|m| m + " " }.
+       gsub(/[^a-zA-Z0-9]/, ' ').
+       gsub(/\s+/, ' ')
+  end
+
   def update_image_cache
     Future.image_cache.update_cache_at(image_index, self)
   end
@@ -298,7 +358,7 @@ class Items < DB::Tables::Items
     qs = parse_query(h)
     qs = qs.split(/\n/)
     qs[2].sub!("FROM", "FROM itemtexts itexts,")
-    ws = "WHERE ((itexts.sha1_hash = items.sha1_hash) AND itexts.fti_vector @@ to_tsquery(#{quote(query)}))"
+    ws = "WHERE ((itexts.item_id = items.id) AND itexts.fti_vector @@ to_tsquery(#{quote(query)}))"
     set = false
     qs.each do |line|
       if /^WHERE/ =~ line
@@ -307,7 +367,7 @@ class Items < DB::Tables::Items
         break
       end
     end
-    qs << ws unless set
+    qs = qs.insert(-2, ws) unless set
     q = DB::Conn.exec(qs.join("\n"))
     idx = -1
     q.map{|i| new q, idx+=1 }

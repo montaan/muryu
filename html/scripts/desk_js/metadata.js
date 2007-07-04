@@ -19,6 +19,30 @@ Tr.addTranslations('en-US', {
             d.getSeconds().toString().rjust(2, '0') + ' ' +
             (d.getHours() < 13 ? 'am' : 'pm'))
   },
+  'Time' : function(num) {
+    var str = Object.formatTime(num)
+    var smh = str.split(":").reverse()
+    var nstr = ""
+    var s = smh[0]
+    nstr = s+'s'+nstr
+    var m = smh.length > 1 && smh[1]
+    if (m) nstr = m+'m'+nstr
+    var h = smh.length > 2 && smh[2]
+    if (h) nstr = h+'h'+nstr
+    return nstr.strip()
+  },
+  'FuzzyTime' : function(num) {
+    var str = Object.formatTime(num)
+    var smh = str.split(":").reverse()
+    var nstr = ""
+    var s = smh.length == 0 && smh[0]
+    if (s) return '<1min'
+    var m = smh.length > 1 && smh[1]
+    if (m) nstr = m+'min '+nstr
+    var h = smh.length > 2 && smh[2]
+    if (h) nstr = h+'h '+nstr
+    return '~' + nstr.strip()
+  },
   'Item.welcome' : function(name){
     return 'Welcome, '+name
   },
@@ -27,6 +51,7 @@ Tr.addTranslations('en-US', {
   'Item.sign_out' : 'Log out',
   'Item.username' : 'Account name',
   'Item.password' : 'Password',
+  'Item.words' : 'words',
   'Item.by' : 'by',
   'Item.author' : 'Author',
   'Item.date_taken' : 'Created at',
@@ -111,6 +136,7 @@ Tr.addTranslations('fi-FI', {
   'Item.sign_out' : 'Lopeta',
   'Item.username' : 'Tunnus',
   'Item.password' : 'Salasana',
+  'Item.words' : function(w){ return w.toString() + ' sanaa' },
   'Item.by' : '-',
   'Item.author' : 'Tekijä',
   'Item.date_taken' : 'Luotu',
@@ -122,7 +148,7 @@ Tr.addTranslations('fi-FI', {
   'Button.Item.undelete_item' : 'Tuo takaisin',
   'Item.filename' : 'Tiedostonimi',
   'Item.source' : 'Lähde',
-  'Item.referrer' : 'viittaaja',
+  'Item.referrer' : 'Viittaaja',
   'Item.sets' : 'Kansiot',
   'Item.groups' : 'Ryhmät',
   'Item.tags' : 'Tagit',
@@ -277,8 +303,12 @@ Mimetype = {
           metadata.appendChild(author)
         }
         var mda = []
+        if (info.metadata.words)
+          mda.push(Tr('Item.words', info.metadata.words))
         if (info.metadata.length)
-          mda.push(Object.formatTime(info.metadata.length*1000))
+          mda.push(Tr('Time', info.metadata.length*1000))
+        else if (info.metadata.words)
+          mda.push(Tr('FuzzyTime', (info.metadata.words/5)*1000))
         if (info.metadata.width && info.metadata.height)
           mda.push(info.metadata.width+"x"+info.metadata.height +
                    (info.metadata.dimensions_unit || ""))

@@ -30,8 +30,14 @@ class String
     (DB::TYPECASTS[type] || DB::TYPECASTS[:default])[self]
   end
 
+  def raw_sql
+    RawSQL.new(self)
+  end
+
 end
 
+class RawSQL < String
+end
 
 class NilClass
 
@@ -86,13 +92,13 @@ module DB
   class DBconn < PGconn
 
     def exec(query, log_level = Logger::DEBUG, subsystem = "dbconn")
-      log("DBconn#exec: "+query, subsystem, log_level) {
+      __log__("DBconn#exec: "+query, subsystem, log_level) {
         super(query)
       }
     end
 
     def query(query, log_level = Logger::DEBUG, subsystem = "dbconn")
-      log("DBconn#query: "+query, subsystem, log_level) {
+      __log__("DBconn#query: "+query, subsystem, log_level) {
         super(query)
       }
     end
@@ -356,6 +362,8 @@ module DB
         case n
         when DB::Table
           DBconn.quote n.id
+        when RawSQL
+          n.to_s
         when nil
           "NULL"
         else
@@ -620,6 +628,7 @@ module DB
             vals = [vals] unless vals[0].is_a? Array
             val_comps = []
             vals.each do |val|
+              val = val.clone
               set_predicate = val.predicate
               val_pred = extract_value_predicate(val)
               if set_predicate == "ALL"
@@ -734,7 +743,7 @@ module DB
         parse_from_where_into_sql(from, where)
       end
       
-      VALUE_PREDICATES = [:<, :>, :'=', :'!=', :>=, :<=, :'~', :'~*']
+      VALUE_PREDICATES = [:<, :>, :'=', :'!=', :>=, :<=, :'~', :'~*', :'@@']
       def extract_value_predicate(val)
         if VALUE_PREDICATES.include? val[0]
           val.shift
@@ -770,7 +779,7 @@ module DB
           if foreign_key? name
             foreign_keys[name] || foreign_keys[name+"_id"]
           elsif reverse_foreign_key? name
-            reverse_foreign_keys[name].to_a[0]
+            reverse_foreign_keys[name].values[0]
           elsif join? name
             joins[name]["#{table_name}_#{name}"]
           else # invalid key

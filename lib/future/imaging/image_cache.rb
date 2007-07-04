@@ -606,7 +606,7 @@ class JPEGPyramid
       raise "Bad spans! #{total_span_length} < #{indexes.size}: #{spans.map{|s,i| s}}"
     end
     spans.each{|span,is|
-      log "reading span #{span}"
+      log_debug "reading span #{span}"
       s = read_span_as_string(level, span.begin, span.end)
       k = 0
       i = 0
@@ -1112,7 +1112,7 @@ class RawPyramid
       raise "Bad spans! #{total_span_length} < #{indexes.size}: #{spans.map{|s,i| s}}"
     end
     spans.each{|span,is|
-      log "reading span #{span}"
+      log_debug "reading span #{span}"
       s = read_span_as_string(level, span.begin, span.end)
       is.each{|i,j|
         result[j] = s[i*sz,sz]

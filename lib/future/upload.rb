@@ -491,20 +491,9 @@ class Uploader
             :group_id => group.id,
             :can_modify => cm ? true : false)
         end
-        begin
-        text = []
-        text << "owner: #{owner.name}"
-        text << [:path, :source, :referrer, :mimetype].map{|m| [m, item.__send__(m)].join(": ") }.join("\n")
-        text << metadata.map{|k,v| [k, v].join(": ") unless k == :id}.compact.join("\n")
-        text << MetadataExtractor.extract_text(handle.full_path, mimetype, charset)
-        str = text.join("\n\n")
-        puts str
-        rescue => e
-          puts e, e.message, e.backtrace
-        end
-#         Itemtexts.find_or_create(:sha1_hash => handle.sha1digest, :text => text)
       end
       item.update_thumbnail
+      item.update_full_text_search
     rescue => e
       retry if filename_violation?(e) && (attemps -= 1) > 0
       raise

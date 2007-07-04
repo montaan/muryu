@@ -363,9 +363,11 @@ ItemArea = {
       }
       var m = this.getMap()
       var t = m.root
-      var maps_per_container = Math.min(t.width/m.width, t.height/m.height)
+      var maps_per_container = t.width / Math.max(m.width, m.height)
       var crop_z = Math.floor(Math.log(maps_per_container) / Math.log(2))
-      var full_z = Math.floor(Math.log(Math.min(t.width, t.height)) / Math.log(2))
+      if (crop_z > 4)
+        crop_z = 7
+      var full_z = Math.floor(Math.log(Math.max(t.width, t.height)) / Math.log(2))
       t.pointerX = ev.pageX - t.container.offsetLeft
       t.pointerY = ev.pageY - t.container.offsetTop
       if (crop_z > t.targetZ) {
@@ -988,7 +990,9 @@ TileMap.prototype = {
         if (obj && obj.map != t) {
           var maps_per_container = t.width / Math.max(obj.map.width,obj.map.height)
           var crop_z = Math.floor(Math.log(maps_per_container) / Math.log(2))
-          var full_z = Math.floor(Math.log(Math.min(t.width, t.height)) / Math.log(2))
+          if (crop_z > 4)
+            crop_z = 7
+          var full_z = Math.floor(Math.log(t.width) / Math.log(2))
           t.pointerX = ev.pageX - t.container.offsetLeft
           t.pointerY = ev.pageY - t.container.offsetTop
           if (crop_z > t.targetZ) {

@@ -1,0 +1,17 @@
+#!/usr/bin/ruby
+
+$NO_TILE_DRAWING = true
+require 'future'
+
+start = ARGV[0].to_i
+
+c = Future::Items.count
+
+(start...c).step(100) do |i|
+  Future::Items.find_all(:order_by => [[:image_index, :asc]],
+    :limit => 100, :offset => i, :columns => :all
+  ).each_with_index{|it,j| 
+    puts "Updating FTS for #{it.image_index} (##{i+j})"
+    it.update_full_text_search 
+  }
+end

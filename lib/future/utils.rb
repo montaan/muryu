@@ -13,7 +13,7 @@ require 'json'
 
 require 'logger'
 module Kernel
-  def log(message, subsystem = "", level = Logger::INFO)
+  def __log__(message, subsystem = "", level = Logger::INFO)
     if block_given?
       begin
         t0 = Time.new
@@ -32,7 +32,7 @@ module Kernel
 
   def log_info(message, subsystem = nil, &block)
     subsystem ||= File.basename(caller(1).first[/([^:]+)\.rb:/, 1] || caller(1).first)
-    log(message, subsystem, Logger::INFO, &block) 
+    __log__(message, subsystem, Logger::INFO, &block) 
   end
   
   def log_error(message, subsystem = nil, &block)
@@ -40,12 +40,12 @@ module Kernel
     if message.is_a?(Exception)
       message = "#{e.class}: #{e.message}\n#{e.backtrace.join("\n")}"
     end
-    log(message, subsystem, Logger::ERROR, &block) 
+    __log__(message, subsystem, Logger::ERROR, &block) 
   end
 
   def log_debug(message, subsystem = nil, &block)
     subsystem ||= File.basename(caller(1).first[/([^:]+)\.rb:/, 1] || caller(1).first)
-    log(message, subsystem, Logger::DEBUG, &block)
+    __log__(message, subsystem, Logger::DEBUG, &block)
   end
 
   def pn(str, *args)
