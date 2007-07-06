@@ -31,13 +31,11 @@ class String
   end
 
   def raw_sql
-    RawSQL.new(self)
+    DB::SQLString.new(self)
   end
 
 end
 
-class RawSQL < String
-end
 
 class NilClass
 
@@ -184,6 +182,16 @@ module DB
 
     "timestamp" => lambda{|i| StandardDateTime.parse(i) },
 
+    "bytea" => lambda{|i| 
+      i.gsub(/\\([0-9]{3}|.)/){|b|
+        if b.size == 4
+          b[1,3].to_i(8).chr
+        else
+          b[1,1]
+        end
+      }
+    },
+
     :default => lambda{|i|i}
   }
 
@@ -207,6 +215,8 @@ module DB
         end
       )
     },
+
+    "bytea" => lambda{|i| "'" << PGconn.escape_bytea(i) << "'" },
 
     :default => lambda{|i| DB::Table.quote i}
   }
@@ -362,12 +372,14 @@ module DB
         case n
         when DB::Table
           DBconn.quote n.id
-        when RawSQL
+        when SQLString
           n.to_s
         when nil
           "NULL"
+        when Regexp
+          DBconn.quote((n.inspect+" ").split("/")[1..-2].join("/"))
         else
-          DBconn.quote n.to_s
+          DBconn.quote(n.to_s)
         end
       rescue => e
         raise ArgumentError, "Can't quote #{n.inspect}: #{e} #{e.message}"
@@ -522,7 +534,7 @@ module DB
         sql = %Q[INSERT INTO #{escape table_name}
           (#{h.keys.map{|k| escape ground_column_name(k)}.join(",")})
           VALUES
-          (#{h.values.map{|v| quote(v)}.join(",")})]
+          (#{h.map{|k,v| cast_quote(v, columns[k.to_s.downcase])}.join(",")})]
         conn.exec(sql)
         #id(i)[0]
         new(i)
@@ -689,7 +701,7 @@ module DB
         pre = ""
         set_predicate, pre = pre, set_predicate if set_predicate == "NOT"
         pre, set_predicate = "NOT", "ANY" if set_predicate == "NOT ANY"
-        if values.size == 1 and not values[0].is_a? SQLString
+        if values.size == 1
           set_predicate = ''
         end
         if values.size == 0 && set_predicate == "ANY" || set_predicate == "ALL"
@@ -705,7 +717,7 @@ module DB
           v = v['id'] if v.is_a? DB::Table # replace id with the referred column...
           cast_quote(v, table.columns[col])
         end.join(",")
-        if set_predicate.empty? || values[0].is_a?(SQLString)
+        if set_predicate.empty?
           delimiters = ["", ""]
         else
           delimiters = ["ARRAY[", "]"]
@@ -831,6 +843,8 @@ module DB
         case value
         when nil
           return "NULL"
+        when DB::Table
+          value = value.id
         when SQLString
           return value
         when Regexp

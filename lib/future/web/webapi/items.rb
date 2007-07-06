@@ -74,17 +74,21 @@ module MuryuDispatch
             num = u.scan(/[0-9]+/)[0]
             referrer = referrers.find{|r| r.scan(/[0-9]+/)[0] == num }
             f = {}
-            f[:source] = req.query[u][0]
+            f[:source] = req.query[u][0].strip
             f[:referrer] = req.query[referrer][0] if referrer
-            DB::Tables::Downloads.create(:options => Marshal.dump(common_fields.merge(f)))
+            d = common_fields.merge(f)
+            dump = Marshal.dump(d)
+            DB::Tables::Downloads.create(:options => dump)
           }
           compressed_urls.each{|u|
             num = u.scan(/[0-9]+/)[0]
             referrer = referrers.find{|r| r.scan(/[0-9]+/)[0] == num }
             f = {}
-            f[:source] = req.query[u][0]
+            f[:source] = req.query[u][0].strip
             f[:referrer] = req.query[referrer][0] if referrer
-            DB::Tables::Downloads.create(:options => Marshal.dump(common_fields.merge(f)), :archive => true)
+            d = common_fields.merge(f)
+            dump = Marshal.dump(d)
+            DB::Tables::Downloads.create(:options => dump, :archive => true)
           }
           texts.each{|u|
             num = u.scan(/[0-9]+/)[0]

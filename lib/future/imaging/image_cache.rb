@@ -672,6 +672,10 @@ class JPEGTileStore
     File.join(@cache_dir, (index / 10000).to_s, index.to_s)
   end
 
+  def clear_at(index)
+    create_cache_files(index, 0, 0)
+  end
+
   # Creates the cache files and writes the header struct.
   def create_cache_files(index, width, height)
     larger = [width,height].max
