@@ -41,9 +41,9 @@ module MuryuDispatch
     ### helpers
 
     def get_groups(user, req)
-      groups = Future::Groups.rfind_all(user, :columns => :all)
+      groups = Future::Groups.rfind_all(user, :columns => :all, :order_by => [[:name, :asc]])
       groups.map{|g|
-        next if (g.namespace == 'users')
+        next if g.namespace == 'users'
         hashify_group(user, g)
       }.compact
     end
@@ -52,7 +52,11 @@ module MuryuDispatch
       h = g.to_hash
       h.delete("owner_id")
       h.delete("id")
-      h.delete("namespace")
+      if g.namespace == 'global' and g.name == 'public'
+        h["members"] = []
+      else
+        h["members"] = g.users.map{|u| u.name }
+      end
       h["writable"] = !!g.writable_by(user)
       h["owner"] = g.owner.name
       h
@@ -73,17 +77,32 @@ module MuryuDispatch
       def json(req,res)
         res.content_type = 'application/json'
         h = MuryuDispatch::Groups.hashify_group(@user, @target)
-        if @target.namespace != 'global'
-          h["members"] = @target.users.map{|u| u.name }
-        end
         res.body = h.to_json
       end
 
       def edit(req,res)
-        @target.write(@user) {
+        @target.write(@user) do
           @target.name = req.query['name'].to_s unless req.query['name'].to_s.empty?
           @target.public = req.query['public'].to_s == 'true' unless req.query['public'].to_s.empty?
-        }
+          users = req.query['users'] || []
+          users += req.query['users.new'].to_s.split(",")
+          users.map!{|u| u.to_s.strip }
+          users.delete_if{|u| u.empty? }
+          users.uniq!
+          unless users.empty?
+            removed = @target.users.find_all{|m| !users.include?( m.name ) }
+            removed.each{|m| @target.remove_member(m) if m.id != @target.owner_id }
+            removed_names = removed.map{|m|m.name}
+            new_members = users.map{|u| 
+              if removed_names.include?(u) 
+                nil
+              else
+                Future::Users.find(:name => u)
+              end
+            }
+            new_members.each{|u| @target.add_member(u) }
+          end
+        end
         res.content_type = "text/plain"
         res.body = "OK"
       end

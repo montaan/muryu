@@ -137,6 +137,7 @@ Editors = {
           opt.name = name
           opt.value = lv.value
           if (value) opt.checked = value.include(lv.value)
+          if (lv.disabled) opt.disabled = true
           d.appendChild(opt)
           d.appendChild(T(lv.title))
         } else {

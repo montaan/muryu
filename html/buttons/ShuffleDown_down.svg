@@ -10,19 +10,19 @@
   <rect
      width="2"
      height="6"
-     x="0"
+     x="6"
      y="0"
      style="opacity:1;fill:#ffd600;fill-opacity:1;" />
   <rect
      width="2"
      height="4"
-     x="3"
+     x="0"
      y="2"
      style="opacity:1;fill:#ffd600;fill-opacity:1;" />
   <rect
      width="2"
      height="2"
-     x="6"
+     x="3"
      y="4"
      style="opacity:1;fill:#ffd600;fill-opacity:1;" />
 </svg>

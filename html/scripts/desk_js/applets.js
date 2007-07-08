@@ -24,7 +24,33 @@ Tr.addTranslations('en-US', {
   'Applets.Groups' : 'People',
   'Groups.Editing' : 'Editing group: ',
   'Sets.Editing' : 'Editing folder: ',
-  'Applets.Tags' : 'Tags'
+  'Applets.Tags' : 'Tags',
+  'Button.RemoveFromPlaylist' : 'Remove from playlist',
+  'Applets.MusicPlayer.Play' : 'Play',
+  'Applets.MusicPlayer.Pause' : 'Pause',
+  'Applets.MusicPlayer.Next' : 'Next',
+  'Applets.MusicPlayer.Previous' : 'Previous',
+  'Applets.MusicPlayer.Shuffle' : 'Shuffle',
+  'Applets.MusicPlayer.ShuffleDown' : 'Shuffle',
+  'Applets.MusicPlayer.Repeat' : 'Repeat current song',
+  'Applets.MusicPlayer.RepeatDown' : 'Repeat current song',
+  'Applets.MusicPlayer.Playlist' : 'Playlist',
+  'Applets.MusicPlayer.VolumeUp' : 'Volume up',
+  'Applets.MusicPlayer.VolumeDown' : 'Volume down',
+  'Applets.MusicPlayer.Mute' : 'Mute',
+  'Button.Play' : 'Play',
+  'Button.Pause' : 'Pause',
+  'Button.Next' : 'Next',
+  'Button.Previous' : 'Previous',
+  'Button.Shuffle' : 'Shuffle',
+  'Button.ShuffleDown' : 'Shuffle',
+  'Button.Repeat' : 'Repeat current song',
+  'Button.RepeatDown' : 'Repeat current song',
+  'Button.Playlist' : 'Playlist',
+  'Button.VolumeUp' : 'Volume up',
+  'Button.VolumeDown' : 'Volume down',
+  'Button.Mute' : 'Mute'
+  
 })
 Tr.addTranslations('fi-FI', {
   'Applets.Applet' : 'Sovelma',
@@ -518,9 +544,7 @@ Applets.MusicPlayer = function() {
             i--
           }
         }
-    }, { showText: true, showImage: false }))
-    tlc.appendChild(Desk.Button('SortPlaylist', function(){
-    }, { showText: true, showImage: false }))
+    }, { showText: true, textSide : 'right' }))
 
     var plc = E('div', null, 'MusicPlayer_playlistContainer')
     plc.style.overflow = 'auto'
@@ -550,13 +574,7 @@ Applets.MusicPlayer = function() {
       }
     }
     pl.updatePlaylist = function(val) {
-      if (this.updated) {
-        this.updated = false
-      } else if ($A(this.childNodes).include(this.current)) {
-        this.updated = true
-        t.currentIndex = this.getIndex(this.current)
-        t.playlistChanged()
-      }
+      t.currentIndex = this.getIndex(this.current)
     }
     pl.currentUpdater = pl.updateCurrent.bind(pl)
     pl.playlistUpdater = pl.updatePlaylist.bind(pl)
@@ -658,9 +676,9 @@ Applets.MusicPlayer = function() {
   })
   c.prevButton = Desk.Button('Previous', c.previous.bind(c))
   c.nextButton = Desk.Button('Next', c.next.bind(c))
-  c.shuffleButton = Desk.Button('Shuffle', c.shuffle.bind(c))
+  c.shuffleButton = Desk.Button('Shuffle', c.shuffle.bind(c), {downTitle: 'ShuffleDown'})
   if (c.shuffling) c.shuffleButton.toggle()
-  c.repeatButton = Desk.Button('Repeat', c.repeat.bind(c))
+  c.repeatButton = Desk.Button('Repeat', c.repeat.bind(c), {downTitle: 'RepeatDown'})
   if (c.repeating) c.repeatButton.toggle()
   c.volumeUpButton = Desk.Button('VolumeUp', c.volumeUp.bind(c))
   c.volumeDownButton = Desk.Button('VolumeDown', c.volumeDown.bind(c))
@@ -756,18 +774,18 @@ Applets.MusicPlayer = function() {
   }
   c.menu.addItem(Tr('Applets.MusicPlayer.Play'), c.play.bind(c))
   c.menu.addItem(Tr('Applets.MusicPlayer.Pause'), c.pause.bind(c))
-  c.menu.addItem(Tr('Applets.MusicPlayer.Stop'), c.stop.bind(c))
   c.menu.addItem(Tr('Applets.MusicPlayer.Previous'), c.previous.bind(c))
   c.menu.addItem(Tr('Applets.MusicPlayer.Next'), c.next.bind(c))
   c.menu.addSeparator()
-  c.menu.addItem(Tr('Applets.MusicPlayer.RepeatSong'), c.repeat.bind(c))
-  if (c.repeating) c.menu.checkItem(Tr('Applets.MusicPlayer.RepeatSong'))
-  else c.menu.uncheckItem(Tr('Applets.MusicPlayer.RepeatSong'))
+  c.menu.addItem(Tr('Applets.MusicPlayer.Repeat'), c.repeat.bind(c))
+  if (c.repeating) c.menu.checkItem(Tr('Applets.MusicPlayer.Repeat'))
+  else c.menu.uncheckItem(Tr('Applets.MusicPlayer.Repeat'))
   c.menu.addItem(Tr('Applets.MusicPlayer.Shuffle'), c.shuffle.bind(c))
   if (c.shuffling) c.menu.checkItem(Tr('Applets.MusicPlayer.Shuffle'))
   else c.menu.uncheckItem(Tr('Applets.MusicPlayer.Shuffle'))
   c.menu.addSeparator()
-  c.menu.addItem(Tr('Applets.MusicPlayer.ClearPlaylist'))
+  c.menu.addItem(Tr('Applets.MusicPlayer.VolumeUp'), c.volumeUp.bind(c))
+  c.menu.addItem(Tr('Applets.MusicPlayer.VolumeDown'), c.volumeDown.bind(c))
 
   c.newEvent('songChanged', {value: ''})
 
@@ -786,63 +804,250 @@ Applets.MusicPlayer.loadSession = function(data) {
 }
 
 
+
+Users = []
+Object.extend(Users, EventListener)
+Object.extend(Users, {
+
+  init : function() {
+    Groups.addListener('update', this.update.bind(this))
+    this.update()
+  },
+
+  update : function() {
+    this.clear()
+    for (var i=0; i<Groups.length; i++) {
+      this.add(Groups[i].owner)
+      for (var j=0; j<Groups[i].members.length; j++) {
+        this.add(Groups[i].members[j])
+      }
+    }
+    this.sort()
+    this.newEvent('update')
+  },
+  
+  add : function(n) {
+    if (!this.include(n))
+      this.push(n)
+  }
+
+})
+Session.addListener('init', Users.init.bind(Users))
+
+
+Sets = []
+Object.extend(Sets, EventListener)
+Object.extend(Sets, {
+  
+  init : function() {
+    this.editors = []
+    this.update()
+    Groups.addListener('update', this.updateEditors.bind(this))
+    Users.addListener('update', this.updateEditors.bind(this))
+  },
+
+  update : function() {
+    new Ajax.Request('/sets/json', {
+      method : 'get',
+      onSuccess: function(res){
+        var items = res.responseText.evalJSON()
+        this.clear()
+        for (var i=0; i<items.length; i++)
+          this.push(items[i])
+        this.newEvent('update', {value:items})
+      }.bind(this)
+    })
+  },
+  
+  updateEditors : function(){
+    for (var i=0; i<this.editors.length; i++)
+      this.updateAccessList(this.editors[i])
+  },
+  
+  updateAccessList : function(accessList){
+    var list = []
+    list.push({title:'Users'})
+    list = list.concat( Users.map(
+      function(g){ 
+        return {value: 'users/'+g, title:g, disabled:(g == accessList.owner)}
+      }) 
+    )
+    list.push({title:'Groups'})
+    list = list.concat( Groups.map(
+      function(g){
+        if (g.namespace == 'users') return null
+        return {value:g.namespace+'/'+g.name, title:g.name + ' ('+g.owner+')'}
+      }).compact()
+    )
+    var accessEditor = Editors.listOrNew('groups', accessList.groups, [
+      list,
+      true
+    ])
+    if (accessList.firstChild)
+      $(accessList.firstChild).detachSelf()
+    accessList.append(accessEditor)
+  },
+  
+  editor : function(win) {
+    var set = win.parameters
+    win.setTitle(Tr('Sets.Editing', set.name + ' ('+ set.owner+')'))
+    win.setContent('Loading...')
+    win.setGroup(Tr('WindowGroup.editors'))
+    new Ajax.Request('/sets/'+set.owner+'/'+set.name+'/json', {
+      method: 'get',
+      onSuccess : function(res) {
+        var set_info = res.responseText.evalJSON()
+        var editForm = E('form')
+        editForm.action = '/sets/'+set.owner+'/'+set.name+'/edit'
+        editForm.method = 'POST'
+        editForm.addEventListener('submit', function(ev){
+          Event.stop(ev)
+          $(this).request({
+            onSuccess : function(res){
+              Sets.update()
+              win.close()
+            }
+          })
+        }, false)
+        var nameEditor = E('input')
+        nameEditor.type = 'text'
+        nameEditor.name = 'name'
+        nameEditor.value = set.name
+        var submit = E('input', null, null, null, null, {type:'submit', value: Tr('Item.done')})
+        var accessEditor = E('span')
+        accessEditor.owner = set_info.owner
+        accessEditor.groups = set_info.groups
+        this.editors.push(accessEditor)
+        this.updateAccessList(accessEditor)
+        win.addListener('close', function(){this.editors.deleteFirst(accessEditor)}.bind(this))
+        editForm.append(
+          E('h5', Tr('Name')),
+          nameEditor,
+          E('h5', Tr('Access control')),
+          accessEditor,
+          submit
+        )
+        var div = E('div', null, null, 'editor')
+        div.append(editForm)
+        win.setContent(div)
+      }.bind(this)
+    })
+  },
+  
+  viewer : function(win) {
+    var set = win.parameters
+    win.setTitle(Tr('Set ', set.name + ' ('+ set.owner+')'))
+    win.setContent("I'd go to your Sets area into the subarea of this particular set right about now.")
+  }
+})
+Session.addListener('init', Sets.init.bind(Sets))
+
+
+Groups = []
+Object.extend(Groups, EventListener)
+Object.extend(Groups, {
+  
+  init : function() {
+    this.editors = []
+    this.update()
+    Users.addListener('update', this.updateEditors.bind(this))
+  },
+
+  update : function() {
+    new Ajax.Request('/groups/json', {
+      method : 'get',
+      onSuccess: function(res){
+        var items = res.responseText.evalJSON()
+        this.clear()
+        for (var i=0; i<items.length; i++)
+          this.push(items[i])
+        this.newEvent('update', {value:items})
+      }.bind(this)
+    })
+  },
+  
+  updateEditors : function(){
+    for (var i=0; i<this.editors.length; i++)
+      this.updateAccessList(this.editors[i])
+  },
+  
+  updateAccessList : function(accessList){
+    var accessEditor = Editors.listOrNew('users', accessList.members, [
+      [{title:'Users'}].concat( Users.map(function(u){
+        var d = {value:u, title:u}
+        if (u == accessList.owner)
+          d.disabled = true
+        return d
+      }) ),
+      true
+    ])
+    if (accessList.firstChild)
+      $(accessList.firstChild).detachSelf()
+    accessList.append(accessEditor)
+  },
+  
+  editor : function(win) {
+    var group = win.parameters
+    win.setTitle(Tr('Groups.Editing', group.name + ' ('+ group.owner+')'))
+    win.setContent('Loading...')
+    win.setGroup(Tr('WindowGroup.editors'))
+    new Ajax.Request('/groups/'+group.name+'/json', {
+      method: 'get',
+      onSuccess : function(res) {
+        var group_info = res.responseText.evalJSON()
+        var editForm = E('form')
+        editForm.action = '/groups/'+group.name+'/edit'
+        editForm.method = 'POST'
+        editForm.addEventListener('submit', function(ev){
+          Event.stop(ev)
+          $(this).request({
+            onSuccess : function(res){
+              Groups.update()
+              win.close()
+            }
+          })
+        }, false)
+        var nameEditor = E('input')
+        nameEditor.type = 'text'
+        nameEditor.name = 'name'
+        nameEditor.value = group_info.name
+        var accessEditor = E('span')
+        accessEditor.members = group_info.members
+        accessEditor.owner = group_info.owner
+        this.editors.push(accessEditor)
+        this.updateAccessList(accessEditor)
+        win.addListener('close', function(){this.editors.deleteFirst(accessEditor)}.bind(this))
+        var submit = E('input', null, null, null, null, {type:'submit', value: Tr('Item.done')})
+        editForm.append(
+          E('h5', Tr('Name')),
+          nameEditor,
+          E('h5', Tr('Access control')),
+          accessEditor,
+          submit
+        )
+        var div = E('div', null, null, 'editor')
+        div.append(editForm)
+        win.setContent(div)
+      }.bind(this)
+    })
+  },
+  
+  viewer : function(win) {
+    var group = win.parameters
+    win.setTitle(Tr('Group ', group.name + ' ('+ group.owner+')'))
+    win.setContent("I'd go to your Groups area into the subarea of this particular group right about now.")
+  }
+})
+Session.addListener('init', Groups.init.bind(Groups))
+
+
+
 Applets.Groups = function(wm) {
  if (!wm) wm = Desk.Windows
   var c = Applets.create('Groups')
   var d = E('ul', null, null, 'setList')
   c.contentElem.appendChild(d)
-  if (!window.Groups) {
-    Groups = []
-    Object.extend(Groups, EventListener)
-    Groups.update = function() {
-      new Ajax.Request('/groups/json', {
-        method : 'get',
-        onSuccess: function(res){
-          var items = res.responseText.evalJSON()
-          this.clear()
-          for (var i=0; i<items.length; i++)
-            this.push(items[i])
-          this.newEvent('update', {value:items})
-        }.bind(this)
-      })
-    }
-    Groups.editor = function(win) {
-      var group = win.parameters
-      win.setTitle(Tr('Groups.Editing', group.name + ' ('+ group.owner+')'))
-      win.setContent('Loading...')
-      win.setGroup(Tr('WindowGroup.editors'))
-      new Ajax.Request('/groups/'+group.name+'/json', {
-        method: 'get',
-        onSuccess : function(res) {
-          var group_info = res.responseText.evalJSON()
-          var editForm = E('form')
-          var nameEditor = E('input')
-          nameEditor.type = 'text'
-          nameEditor.value = group_info.name
-          var accessEditor = Editors.listOrNew('groups', group_info.members, [
-            Groups.pluck('owner').concat(Groups.pluck('name')).uniq(),
-            true
-          ])
-          editForm.append(
-            E('h5', Tr('Name')),
-            nameEditor,
-            E('h5', Tr('Access control')),
-            accessEditor
-          )
-          var div = E('div', null, null, 'editor')
-          div.append(editForm)
-          win.setContent(div)
-        }
-      })
-    }
-    Groups.viewer = function(win) {
-      var group = win.parameters
-      win.setTitle(Tr('Group ', group.name + ' ('+ group.owner+')'))
-      win.setContent("I'd go to your Groups area into the subarea of this particular group right about now.")
-    }
-    Groups.update()
-  }
-  Groups.addListener('update', function(ev){
+  c.update = function(){
     while (d.firstChild) d.removeChild(d.firstChild)
     Groups.each(function(it){
       var li = E('li')
@@ -856,7 +1061,7 @@ Applets.Groups = function(wm) {
       }
       var userLink = A('/users/'+it.owner, it.owner)
       li.append(
-        itemLink,' ( ', userLink, ' )'
+        itemLink,' ( ', userLink
       )
       if (it.writable) {
         var editLink = A(key, 'edit')
@@ -867,65 +1072,31 @@ Applets.Groups = function(wm) {
           }
         }
         li.append(
-          E('br'), '- ', editLink
+          ' - ', editLink
         )
       }
+      li.append(' )')
+      it.members.each(function(m){
+        var userLink = A('/users/'+m, m)
+        var p = E('p', null, null, null, {marginLeft: '10px'})
+        p.append('- ', userLink)
+        li.append(p)
+      })
       d.appendChild(li)
     })
-  })
+  }
+  Groups.addListener('update', c.update.bind(c))
+  c.update()
   return c
 }
+
 
 Applets.Sets = function(wm) {
  if (!wm) wm = Desk.Windows
   var c = Applets.create('Sets')
   var d = E('ul', null, null, 'setList')
   c.contentElem.appendChild(d)
-  if (!window.Sets) {
-    Sets = []
-    Object.extend(Sets, EventListener)
-    Sets.update = function() {
-      new Ajax.Request('/sets/json', {
-        method : 'get',
-        onSuccess: function(res){
-          var items = res.responseText.evalJSON()
-          this.clear()
-          for (var i=0; i<items.length; i++)
-            this.push(items[i])
-          this.newEvent('update', {value:items})
-        }.bind(this)
-      })
-    }
-    Sets.editor = function(win) {
-      var set = win.parameters
-      win.setTitle(Tr('Sets.Editing', set.name + ' ('+ set.owner+')'))
-      var editForm = E('form')
-      var nameEditor = E('input')
-      nameEditor.type = 'text'
-      nameEditor.value = set.name
-      var accessEditor = Editors.listOrNew('sets', [], [
-        Groups.map(function(g){ return g.name + ' ('+g.owner+')' }),
-        true
-      ])
-      editForm.append(
-        E('h5', Tr('Name')),
-        nameEditor,
-        E('h5', Tr('Access control')),
-        accessEditor
-      )
-      var div = E('div', null, null, 'editor')
-      div.append(editForm)
-      win.setContent(div)
-      win.setGroup(Tr('WindowGroup.editors'))
-    }
-    Sets.viewer = function(win) {
-      var set = win.parameters
-      win.setTitle(Tr('Set ', set.name + ' ('+ set.owner+')'))
-      win.setContent("I'd go to your Sets area into the subarea of this particular set right about now.")
-    }
-    Sets.update()
-  }
-  Sets.addListener('update', function(ev){
+  c.update = function(){
     while (d.firstChild) d.removeChild(d.firstChild)
     Sets.each(function(it){
       var li = E('li')
@@ -939,7 +1110,7 @@ Applets.Sets = function(wm) {
       }
       var userLink = A('/users/'+it.owner, it.owner)
       li.append(
-        itemLink,' ( ', userLink, ' )'
+        itemLink,' ( ', userLink
       )
       if (it.writable) {
         var editLink = A(key, 'edit')
@@ -950,12 +1121,15 @@ Applets.Sets = function(wm) {
           }
         }
         li.append(
-          E('br'), '- ', editLink
+          ' - ', editLink
         )
       }
+      li.append(' )')
       d.appendChild(li)
     })
-  })
+  }
+  Sets.addListener('update', c.update.bind(c))
+  c.update()
   return c
 }
 

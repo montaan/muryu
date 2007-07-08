@@ -408,220 +408,227 @@
         }
       }
       
-      window.addEventListener("load", function(ev){
-        String.prototype.unfilterJSON = function() {
-          if (this.slice(0,8) == 'while(0)') {
-            return this.slice(9,-1)
-          } else {
-            return this
-          }
+      String.prototype.unfilterJSON = function() {
+        if (this.slice(0,8) == 'while(0)') {
+          return this.slice(9,-1)
+        } else {
+          return this
         }
+      }
 
-        Session.storage = {
-          load : function() {
-            var t = this
-            new Ajax.Request('/users/json', {
-              method : 'get',
-              asynchronous : false,
-              onSuccess : function(res) {
-                t.info = res.responseText.evalJSON()
-              }
-            })
-          },
-          
-          getItem : function(name) {
-            var item = undefined
-            try { item = this.info.preferences[name] } catch(e) {}
-            return (item ? {key: name, value: item} : undefined)
-          },
-          
-          setItem : function(name, value) {
-            var params = {}
-            params[name] = value
-            new Ajax.Request('/users/set_preferences', { asynchronous : false, parameters : params })
-          },
-
-          removeItem : function(name) {
-            var params = {}
-            params[name] = true
-            new Ajax.Request('/users/delete_preferences', { asynchronous : false, parameters : params })
-          }
-        }
-        Session.storage.load()
-        var loggedIn = (Session.storage.info.name && Session.storage.info.name != 'anonymous')
-        if (loggedIn) {
-          if (Session.storage.info.preferences.language)
-            Tr.language = Session.storage.info.preferences.language
-          Ajax.Request.prototype.initialize = function(url, options) {
-            this.transport = Ajax.getTransport()
-            if (!options.method || options.method.toLowerCase() == 'post') {
-              var secret = {secret : Session.storage.info.secret}
-              if (options.parameters) {
-                if (typeof options.parameters == 'object') {
-                  Object.extend(options.parameters, secret)
-                } else {
-                  options.parameters = options.parameters.toString()+"&secret="+secret.secret
-                }
-              } else {
-                options.parameters = secret
-              }
+      Session.storage = {
+        load : function(callback) {
+          var t = this
+          new Ajax.Request('/users/json', {
+            method : 'get',
+            asynchronous : false,
+            onSuccess : function(res) {
+              t.info = res.responseText.evalJSON()
+              callback()
             }
-            this.setOptions(options)
-            this.request(url)
-          }
-        }
-        
-        var qvars = document.location.search.slice(1).split("&")
-        var query = {}
-        qvars.each(function(q){ var p = q.split("="); query[p[0]] = p[1] })
-        var prefs = Session.storage.info.preferences
-        if (prefs && prefs.addons && prefs.addons.length > 0 && (query.disable_addons == undefined)) {
-          var addons = prefs.addons.split(";")
-          for(var i=0; i<addons.length; i++) {
-            Object.require(addons[i])
-          }
-        }
-
-        var map = document.getElementById("map")
-        Desk.Windows.setContainer(map)
-        map.style.width = window.innerWidth + 'px'
-        map.style.height = window.innerHeight + 'px'
-        setInterval(function(){
-          if (window.innerWidth != Desk.Windows.previousInnerWidth ||
-              window.innerHeight != Desk.Windows.previousInnerHeight) {
-            map.style.width = window.innerWidth + 'px'
-            map.style.height = window.innerHeight + 'px'
-            Desk.Windows.previousInnerWidth = window.innerWidth
-            Desk.Windows.previousInnerHeight = window.innerHeight
-          }
-        }, 100)
-        Tr.addTranslations('fi-FI', {
-          'Workspace' : 'Työtila',
-          'Add search' : 'Lisää haku',
-          'Windows' : 'Ikkunat',
-          'Collapse all groups' : 'Piilota kaikki ryhmät',
-          'Expand all groups' : 'Laajenna kaikki ryhmät',
-          'Utilities' : 'Työkalut',
-          'Make note' : 'Tee muistiinpano',
-          'Session' : 'Istunto',
-          'Save Session' : 'Tallenna istunto',
-          'Clear Session' : 'Nollaa asetukset',
-          'Note' : 'Muistiinpano ',
-          'help.html' : 'help.html',
-          'help' : 'Apua'
-        })
-        Tr.addTranslations('en-US', {
-          'Note' : 'Note '
-        })
-        Tr.addTranslations('ja-JP', {
-          'Date' : function(d){
-            weekdays = ['日', '月', '火', '水', '木', '金', '土']
-            months = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二']
-            return ((d.getYear() + 1900) + '年' +
-                    (d.getMonth() + 1) + '月' +
-                    d.getDate() + '日' +
-                    ' ('+ weekdays[d.getDay()] + ') ' +
-                    d.getHours().toString().rjust(2, '0') + ':' +
-                    d.getMinutes().toString().rjust(2, '0') + ':' +
-                    d.getSeconds().toString().rjust(2, '0'))
-          },
-          'Workspace' : '作業領域',
-          'Add search' : '検索を追加する',
-          'Windows' : '窓',
-          'Collapse all groups' : '全グループを隠す',
-          'Expand all groups' : '全グループを広げる',
-          'Utilities' : '道具',
-          'Make note' : '覚書',
-          'Session' : 'セッション',
-          'Save Session' : 'セッションを保管する',
-          'Clear Session' : 'セッションを消す',
-          'Note' : '覚書 ',
-          'help.html' : 'help.html',
-          'help' : '使用法'
-        })
-        Tr.translations['fi'] = Tr.translations['fi-FI']
-        menu = new Desk.Menu()
-        menu.addTitle(Tr('Workspace'))
-        var q = ""
-        if (loggedIn)
-          q += "user:"+Session.storage.info.name+" " 
-        q += "sort:date"
-        menu.addItem(Tr('Add search'), function() {
-          var ns = new TileMap({
-            isSubmap : true,
-            query: q,
-            bgcolor: Map.bgcolor,
-            left: Math.pow(2,-Map.targetZ)*(Map.pointerX-Map.x),
-            top: Math.pow(2,-Map.targetZ)*(Map.pointerY-Map.y),
-            width: 256,
-            height: 256
-          }).setParent(Map)
-        })
-        if (loggedIn) {
-          menu.addTitle(Tr('Utilities'))
-          menu.addItem(Tr('Make note'), function(){ new Desk.Window('app:Notes.make') })
-        }
-        menu.addTitle(Tr('Windows'))
-        menu.addItem(Tr('Collapse all groups'), function() {
-          Desk.Windows.taskbar.setCollapsedForAll(true)
-        }, 'icons/CollapseAllGroups.png')
-        menu.addItem(Tr('Expand all groups'), function() {
-          Desk.Windows.taskbar.setCollapsedForAll(false)
-        }, 'icons/ExpandAllGroups.png')
-//         menu.addSeparator()
-//         menu.addItem(Tr('Add Panel'), function(){ new Desk.Panel() })
-        menu.addTitle(Tr('Session'))
-//         menu.addItem(Tr('Save Session'), function(){ Session.save() })
-        menu.addItem(Tr('Clear Session'), function(){ Session.clear() })
-        menu.addItem(Tr('Applets.Session.LogOut'), function(){ location.href = '/users/logout' })
-        menu.bind(Desk.Windows.windowContainer)
-        if (!Session.load()) {
-          Map = new TileMap({
-            x:50, y: 50,
-            z: 1,
-            width: window.innerWidth,
-            height: window.innerHeight,
-            noTiles: true
           })
-          new TileMap({
-            isSubmap : true,
-            query: q,
-            left: 0,
-            top: 0,
-            width: 256,
-            height: 256
-          }).setParent(Map)
-          var types = ['audio','video','pdf|postscript','html','image']
-          var i = 0
-          types.each(
-          function(e) {
+        },
+        
+        getItem : function(name) {
+          var item = undefined
+          try { item = this.info.preferences[name] } catch(e) {}
+          return (item ? {key: name, value: item} : undefined)
+        },
+        
+        setItem : function(name, value) {
+          var params = {}
+          params[name] = value
+          new Ajax.Request('/users/set_preferences', { asynchronous : false, parameters : params })
+        },
+
+        removeItem : function(name) {
+          var params = {}
+          params[name] = true
+          new Ajax.Request('/users/delete_preferences', { asynchronous : false, parameters : params })
+        }
+      }
+      
+      Muryu = {
+        init : function(){
+          var loggedIn = (Session.storage.info.name && Session.storage.info.name != 'anonymous')
+          if (loggedIn) {
+            if (Session.storage.info.preferences.language)
+              Tr.language = Session.storage.info.preferences.language
+            Ajax.Request.prototype.initialize = function(url, options) {
+              this.transport = Ajax.getTransport()
+              if (!options.method || options.method.toLowerCase() == 'post') {
+                var secret = {secret : Session.storage.info.secret}
+                if (options.parameters) {
+                  if (typeof options.parameters == 'object') {
+                    Object.extend(options.parameters, secret)
+                  } else {
+                    options.parameters = options.parameters.toString()+"&secret="+secret.secret
+                  }
+                } else {
+                  options.parameters = secret
+                }
+              }
+              this.setOptions(options)
+              this.request(url)
+            }
+          }
+          
+          var qvars = document.location.search.slice(1).split("&")
+          var query = {}
+          qvars.each(function(q){ var p = q.split("="); query[p[0]] = p[1] })
+          var prefs = Session.storage.info.preferences
+          if (prefs && prefs.addons && prefs.addons.length > 0 && (query.disable_addons == undefined)) {
+            var addons = prefs.addons.split(";")
+            for(var i=0; i<addons.length; i++) {
+              Object.require(addons[i])
+            }
+          }
+  
+          var map = document.getElementById("map")
+          Desk.Windows.setContainer(map)
+          map.style.width = window.innerWidth + 'px'
+          map.style.height = window.innerHeight + 'px'
+          setInterval(function(){
+            if (window.innerWidth != Desk.Windows.previousInnerWidth ||
+                window.innerHeight != Desk.Windows.previousInnerHeight) {
+              map.style.width = window.innerWidth + 'px'
+              map.style.height = window.innerHeight + 'px'
+              Desk.Windows.previousInnerWidth = window.innerWidth
+              Desk.Windows.previousInnerHeight = window.innerHeight
+            }
+          }, 100)
+          Tr.addTranslations('fi-FI', {
+            'Workspace' : 'Työtila',
+            'Add search' : 'Lisää haku',
+            'Windows' : 'Ikkunat',
+            'Collapse all groups' : 'Piilota kaikki ryhmät',
+            'Expand all groups' : 'Laajenna kaikki ryhmät',
+            'Utilities' : 'Työkalut',
+            'Make note' : 'Tee muistiinpano',
+            'Session' : 'Istunto',
+            'Save Session' : 'Tallenna istunto',
+            'Clear Session' : 'Nollaa asetukset',
+            'Note' : 'Muistiinpano ',
+            'help.html' : 'help.html',
+            'help' : 'Apua'
+          })
+          Tr.addTranslations('en-US', {
+            'Note' : 'Note '
+          })
+          Tr.addTranslations('ja-JP', {
+            'Date' : function(d){
+              weekdays = ['日', '月', '火', '水', '木', '金', '土']
+              months = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二']
+              return ((d.getYear() + 1900) + '年' +
+                      (d.getMonth() + 1) + '月' +
+                      d.getDate() + '日' +
+                      ' ('+ weekdays[d.getDay()] + ') ' +
+                      d.getHours().toString().rjust(2, '0') + ':' +
+                      d.getMinutes().toString().rjust(2, '0') + ':' +
+                      d.getSeconds().toString().rjust(2, '0'))
+            },
+            'Workspace' : '作業領域',
+            'Add search' : '検索を追加する',
+            'Windows' : '窓',
+            'Collapse all groups' : '全グループを隠す',
+            'Expand all groups' : '全グループを広げる',
+            'Utilities' : '道具',
+            'Make note' : '覚書',
+            'Session' : 'セッション',
+            'Save Session' : 'セッションを保管する',
+            'Clear Session' : 'セッションを消す',
+            'Note' : '覚書 ',
+            'help.html' : 'help.html',
+            'help' : '使用法'
+          })
+          Tr.translations['fi'] = Tr.translations['fi-FI']
+          menu = new Desk.Menu()
+          menu.addTitle(Tr('Workspace'))
+          var q = ""
+          if (loggedIn)
+            q += "user:"+Session.storage.info.name+" " 
+          q += "sort:date"
+          menu.addItem(Tr('Add search'), function() {
+            var ns = new TileMap({
+              isSubmap : true,
+              query: q,
+              bgcolor: Map.bgcolor,
+              left: Math.pow(2,-Map.targetZ)*(Map.pointerX-Map.x),
+              top: Math.pow(2,-Map.targetZ)*(Map.pointerY-Map.y),
+              width: 256,
+              height: 256
+            }).setParent(Map)
+          })
+          if (loggedIn) {
+            menu.addTitle(Tr('Utilities'))
+            menu.addItem(Tr('Make note'), function(){ new Desk.Window('app:Notes.make') })
+          }
+          menu.addTitle(Tr('Windows'))
+          menu.addItem(Tr('Collapse all groups'), function() {
+            Desk.Windows.taskbar.setCollapsedForAll(true)
+          }, 'icons/CollapseAllGroups.png')
+          menu.addItem(Tr('Expand all groups'), function() {
+            Desk.Windows.taskbar.setCollapsedForAll(false)
+          }, 'icons/ExpandAllGroups.png')
+  //         menu.addSeparator()
+  //         menu.addItem(Tr('Add Panel'), function(){ new Desk.Panel() })
+          menu.addTitle(Tr('Session'))
+  //         menu.addItem(Tr('Save Session'), function(){ Session.save() })
+          menu.addItem(Tr('Clear Session'), function(){ Session.clear() })
+          menu.addItem(Tr('Applets.Session.LogOut'), function(){ location.href = '/users/logout' })
+          menu.bind(Desk.Windows.windowContainer)
+          if (!Session.load()) {
+            Map = new TileMap({
+              x:50, y: 50,
+              z: 1,
+              width: window.innerWidth,
+              height: window.innerHeight,
+              noTiles: true
+            })
             new TileMap({
               isSubmap : true,
-              left : 220,
-              top : i*32,
+              query: q,
+              left: 0,
+              top: 0,
               width: 256,
-              color: 'false',
-              height: e == 'image' ? 256 : 32,
-              query : 'type:'+e+" "+q
+              height: 256
             }).setParent(Map)
-            i++
-          })
-          var topPanel = new Desk.Panel('left', {movable : false})
-          topPanel.addApplet(Applets.Session())
-          topPanel.addApplet(Applets.MusicPlayer())
-          topPanel.addApplet(Applets.Sets())
-          topPanel.addApplet(Applets.Groups())
-          topPanel.addApplet(Applets.Taskbar())
-          new Desk.Window(Tr('help.html'), {x: 800, y: 10, group: Tr('help')})
+            var types = ['audio','video','pdf|postscript','html','image']
+            var i = 0
+            types.each(
+            function(e) {
+              new TileMap({
+                isSubmap : true,
+                left : 220,
+                top : i*32,
+                width: 256,
+                color: 'false',
+                height: e == 'image' ? 256 : 32,
+                query : 'type:'+e+" "+q
+              }).setParent(Map)
+              i++
+            })
+            var topPanel = new Desk.Panel('left', {movable : false})
+            topPanel.addApplet(Applets.Session())
+            topPanel.addApplet(Applets.MusicPlayer())
+            topPanel.addApplet(Applets.Sets())
+            topPanel.addApplet(Applets.Groups())
+            topPanel.addApplet(Applets.Taskbar())
+            new Desk.Window(Tr('help.html'), {x: 800, y: 10, group: Tr('help')})
+          }
+          $('while_loading').detachSelf()
         }
-        $('while_loading').detachSelf()
+      }
+      
+      window.addEventListener("load", function(ev){
+        Session.storage.load(Muryu.init.bind(Muryu))
       }, false)
       // ]]>
     </script>
   </head>
   <body>
     <div id="while_loading">
-      <h1>Muryu Files</h1>
+      <h1>Muryu</h1>
       <p>Loading... around 420k in total</p>
       <p>
         You need Firefox 1.5+ with JavaScript enabled

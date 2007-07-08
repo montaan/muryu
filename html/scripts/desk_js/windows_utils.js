@@ -320,6 +320,7 @@ EventListener = {
   newEvent : function(type, e) {
     if (!this.listeners) return
     var l = this.listeners[type]
+    if (!e) e = {}
     if (l) {
       e.type = type
       e.target = this

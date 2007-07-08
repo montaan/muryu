@@ -41,7 +41,7 @@ module MuryuDispatch
     ### helpers
 
     def get_sets(user, req)
-      sets = Future::Sets.rfind_all(user, :columns => :all)
+      sets = Future::Sets.rfind_all(user, :columns => :all, :order_by => [[:name, :asc]])
       sets.map{|s|
         hashify_set(user, s)
       }.compact
@@ -53,6 +53,11 @@ module MuryuDispatch
       h.delete("id")
       h["writable"] = !!set.writable_by(user)
       h["namespace"] = h["namespace"].split(":",2).last
+      if h["writable"]
+        h["groups"] = set.groups.map{|g| g.namespace+"/"+g.name }
+      else
+        h["groups"] = []
+      end
       h["owner"] = set.owner.name
       h
     end
@@ -81,10 +86,30 @@ module MuryuDispatch
       end
 
       def edit(req,res)
-        @target.write(@user) {
+        @target.write(@user) do
           @target.name = req.query['name'].to_s unless req.query['name'].to_s.empty?
           @target.public = req.query['public'].to_s == 'true' unless req.query['public'].to_s.empty?
-        }
+          if req.query['groups'] || req.query['groups.new']
+            can_modify = req.query['can_modify'].to_s == 'true'
+            groups = req.query['groups'] || []
+            groups += req.query['groups.new'].join(",").split(",")
+            groups.map!{|n| n.strip.split("/") }
+            groups.delete_if{|n| n.size != 2 }
+            group_idx = Hash.new{|h,k| h[k] = {}}
+            groups.each{|ns,n| group_idx[ns][n] = true }
+            old_groups = @target.groups([:name, :namespace])
+            old_groups.delete_if{|og| group_idx[og.namespace][og.name] }
+            old_groups.each{|og| 
+              next if og.namespace == 'users' and og.name == @target.owner.name
+              @target.remove_group(og) 
+            }
+            groups.each{|ns, n|
+              next if ns == 'users' and n == @target.owner.name
+              group = Future::Groups.find(:namespace => ns.to_s, :name => n.to_s)
+              @target.add_group(group, can_modify) if group
+            }
+          end
+        end
         res.content_type = "text/plain"
         res.body = "OK"
       end
@@ -94,8 +119,12 @@ module MuryuDispatch
           can_modify = req.query['can_modify'].to_s == 'true'
           @target.write(@user) do
             req.query['name'].each{|u|
-              group = Future::Groups.rfind(@user, :name => u.to_s)
-              @target.add_group(group, can_modify) if group
+              ns, n = u.to_s.strip.split("/")
+              if ns and n and not (ns.empty? or n.empty?)
+                next if ns == 'users' and n == @target.owner.name
+                group = Future::Groups.find(:namespace => ns.to_s, :name => n.to_s)
+                @target.add_group(group, can_modify) if group
+              end
             }
           end
         end
@@ -107,8 +136,12 @@ module MuryuDispatch
         if req.query['name']
           @target.write(@user) do
             req.query['name'].each{|u|
-              group = Future::Groups.rfind(@user, :name => u.to_s)
-              @target.remove_group(group) if group
+              ns, n = u.to_s.strip.split("/")
+              if ns and n and not (ns.empty? or n.empty?)
+                next if ns == 'users' and n == @target.owner.name
+                group = Future::Groups.find(:namespace => ns.to_s, :name => n.to_s)
+                @target.remove_group(group) if group
+              end
             }
           end
         end

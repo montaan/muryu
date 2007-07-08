@@ -82,7 +82,7 @@ class MuryuQuery
   password = '(.+)'
   tagname = '(\S+)'
   setkey = "(#{username}/#{setname})"
-  groupname = '([^/]+)'
+  groupname = "((users/#{username})|(groups/#{username}/[^/]+)|(public/[^/]+))"
   tile = "(x#{uint}y#{uint}z#{uint}(w#{uint}h#{uint})?)"
   boolean = '(true|false)'
   url = '(.*)'
@@ -266,7 +266,9 @@ class MuryuQuery
         'name' => e(setname)
       }.merge(up),
       'edit' => {
-        'name' => e(setname)
+        'name' => e(setname),
+        'groups' => ee(groupname),
+        'groups.new' => elist_of[groupname]
       }.merge(up),
       'add_group' => {
         'name' => e(groupname),
@@ -300,7 +302,9 @@ class MuryuQuery
       }.merge(up),
       'edit' => {
         'name' => e(string),
-        'public' => e(boolean)
+        'public' => e(boolean),
+        'users' => ee(username),
+        'users.new' => elist_of[username]
       }.merge(up),
       'add_member' => {
         'name' => e(username),

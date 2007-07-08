@@ -29,7 +29,7 @@ Object.require = function(url) {
 }
 
 var libs = [
-  'session', 'windows_utils', 'metadata', 'button',
+  'windows_utils', 'session', 'metadata', 'button',
   'windowmanager', 'windows', 'panel', 'applets',
   'taskbar'
 ]

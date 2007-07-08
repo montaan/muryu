@@ -907,25 +907,25 @@ module DB
              :table_name, :cast_quote
              )
 
-    def pin!(*cols)
+    def pin!(c, cols)
       __assign_vars self.class.query("id" => id, :columns => :all)
     end
 
-    def pin_foreign_key!(fk, ivar_name)
-      instance_variable_set("@#{ivar_name}", fk.get(self, :columns => :all))
+    def pin_foreign_key!(fk, ivar_name, cols)
+      instance_variable_set("@#{ivar_name}", fk.get(self, :columns => cols || :all))
     end
 
-    def pin_reverse_foreign_key!(fkeys, ivar_name)
-      v = fetch_reverse_foreign_keys fkeys
+    def pin_reverse_foreign_key!(fkeys, ivar_name, cols)
+      v = fetch_reverse_foreign_keys(fkeys, cols)
       instance_variable_set("@#{ivar_name}", v)
     end
 
-    def fetch_reverse_foreign_keys(fkeys)
-      fkeys.inject([]){|s,(n,f)| s += f.get_all(self, :columns => :all) }
+    def fetch_reverse_foreign_keys(fkeys, cols)
+      fkeys.inject([]){|s,(n,f)| s += f.get_all(self, :columns => cols || :all) }
     end
 
-    def get_column(c)
-      pin!(c) unless instance_variables.include?("@#{c}")
+    def get_column(c, cols)
+      pin!(c, cols) unless instance_variables.include?("@#{c}")
       instance_variable_get("@#{c}")
     end
 
@@ -939,53 +939,53 @@ module DB
       instance_variable_set("@#{c}",v)
     end
 
-    def get_foreign_key(c)
+    def get_foreign_key(c, cols)
       fk = foreign_keys[c+"_id"]
-      pin_foreign_key!(fk,c) unless instance_variables.include?("@#{c}")
+      pin_foreign_key!(fk,c,cols) unless instance_variables.include?("@#{c}")
       instance_variable_get("@#{c}")
     end
 
-    def get_reverse_foreign_key(c)
+    def get_reverse_foreign_key(c,cols)
       fkeys = reverse_foreign_keys[c]
-      pin_reverse_foreign_key!(fkeys,c) unless instance_variables.include?("@#{c}")
+      pin_reverse_foreign_key!(fkeys,c,cols) unless instance_variables.include?("@#{c}")
       instance_variable_get("@#{c}")
     end
 
-    def get_join(c)
+    def get_join(c,cols)
       fkeys = joins[c]
-      pin_reverse_foreign_key!(fkeys,c) unless instance_variables.include?("@#{c}")
+      pin_reverse_foreign_key!(fkeys,c,cols) unless instance_variables.include?("@#{c}")
       instance_variable_get("@#{c}")
     end
 
-    def method_missing(c, *a)
+    def method_missing(c, *args)
       c = c.to_s
       if c[-1,1] == "="
         c = c[0..-2]
-        super if a.empty? or not column?(c)
-        set_column(c, a[0])
+        super if args.empty? or not column?(c)
+        set_column(c, args[0])
       elsif column?(c)
-        get_column(c)
+        get_column(c, args[0])
       elsif foreign_key?(c, true)
-        get_foreign_key(c)
+        get_foreign_key(c, args[0])
       elsif reverse_foreign_key?(c)
-        get_reverse_foreign_key(c)
+        get_reverse_foreign_key(c, args[0])
       elsif join?(c)
-        get_join(c)
+        get_join(c, args[0])
       elsif fk = foreign_keys.find{|a,k| a != table_name and
                                          k.foreign_table.columns[c]}
-        pin_foreign_key!(fk[1],c) unless instance_variables.include?("@#{c}")
+        pin_foreign_key!(fk[1],c,args[0]) unless instance_variables.include?("@#{c}")
         instance_variable_get("@#{c}").__send__(c)
       elsif fk = reverse_foreign_keys.find{|a,k| a != table_name and
                                                  Tables[a].columns[c[0..-2]]}
         cs = c[0..-2]
         a = fk[0]
-        pin_reverse_foreign_key!(fk[1],a) unless instance_variables.include?("@#{a}")
+        pin_reverse_foreign_key!(fk[1],a,args[0]) unless instance_variables.include?("@#{a}")
         instance_variable_get("@#{a}").inject([]){|t,r| t << r.__send__(cs) }
       elsif fk = joins.find{|a,k| a != table_name and
                                   Tables[a].columns[c[0..-2]]}
         cs = c[0..-2]
         a = fk[0]
-        pin_reverse_foreign_key!(fk[1],a) unless instance_variables.include?("@#{a}")
+        pin_reverse_foreign_key!(fk[1],a,args[0]) unless instance_variables.include?("@#{a}")
         instance_variable_get("@#{a}").inject([]){|t,r| t << r.__send__(cs) }
       else
         raise NameError, "Unknown column `#{c}'"

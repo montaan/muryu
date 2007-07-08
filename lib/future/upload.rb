@@ -221,6 +221,7 @@ class Uploader
     end
     options[:sets].each do |set_name|
       set_name = set_name.name if set_name.is_a? DB::Table
+      next if not set_name or set_name.to_s.strip.empty?
       set = Sets.rfind_or_create(options[:user], :name => set_name)
       item.add_set set
     end
@@ -484,6 +485,7 @@ class Uploader
         ([[owner.group, true]] + groups).each do |group, cm|
           cm = can_modify if cm.nil?
           unless group.is_a? DB::Table
+            next if not group or group.to_s.strip.empty?
             group = Groups.rfind_or_create(owner, :name => group)
           end
           ItemsGroups.find_or_create(
