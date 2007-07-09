@@ -18,6 +18,13 @@ include Future
   def item(thumbnail, deleted=false)
     OpenStruct.new(:thumbnail => thumbnail, :deleted => deleted)
   end
+  
+  def test_read_empty
+    cache_setup 'empty'
+    assert_equal(@image_cache.read_images_as_jpeg(5, [0]), "\000\000\000\000")
+    assert_equal(@image_cache.read_images_as_jpeg(6, [0]), "\000\000\000\000")
+    assert_equal(@image_cache.read_images_as_jpeg(7, [0]), "\000\000\000\000")
+  end
 
   def test_add_image
     cache_setup 'add'

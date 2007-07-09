@@ -1,4 +1,5 @@
 require 'future/base'
+require 'future/imaging/utils'
 require 'thread'
 require 'imlib2'
 
@@ -257,14 +258,14 @@ class ImageCache
 
     def imlib_to_rgb_alpha_jpeg(img)
       a = ""
-      a << Tiles.imlib_to_gray_jpeg(img, 75) if img.has_alpha?
-      rgb = Tiles.imlib_to_jpeg(img, 75)
+      a << ImagingUtils.imlib_to_gray_jpeg(img, 75) if img.has_alpha?
+      rgb = ImagingUtils.imlib_to_jpeg(img, 75)
       rgba = [rgb.size].pack("I") << rgb << [a.size].pack("I") << a
       [rgba.size].pack("I") << rgba
     end
 
     def imlib_to_gray_jpeg(img)
-      Tiles.imlib_to_gray_jpeg(img, 75)
+      ImagingUtils.imlib_to_gray_jpeg(img, 75)
     end
 
     def crop_and_jpeg(bgra, lvl)
@@ -289,8 +290,8 @@ class ImageCache
           img.crop!(0,0,w,h)
         end
         a = ""
-        a << Tiles.imlib_to_gray_jpeg(img, 75) if img.has_alpha?
-        rgb = Tiles.imlib_to_jpeg(img, 75)
+        a << ImagingUtils.imlib_to_gray_jpeg(img, 75) if img.has_alpha?
+        rgb = ImagingUtils.imlib_to_jpeg(img, 75)
         rgba = [rgb.size].pack("I") << rgb << [a.size].pack("I") << a
       end
       [rgba.size].pack("I") << rgba
@@ -628,7 +629,7 @@ class JPEGPyramid
 
   def read_images_as_imlib(level, indexes)
     read_images(level, indexes).map{|rgb_alpha_jpeg|
-      bgra = Tiles.tile_drawer.decompress_rgb_alpha_jpeg(rgb_alpha_jpeg, 2**level, 2**level)
+      bgra = ImagingUtils.decompress_rgb_alpha_jpeg(rgb_alpha_jpeg, 2**level, 2**level)
       $imlib_mutex.synchronize{ Imlib2::Image.create_using_data(2**level, 2**level, bgra) }
     }
   end
@@ -946,7 +947,7 @@ class JPEGTileStore
             if image_data[0,4].unpack("I")[0] != image_data.size-4
               raise "Bad RGB-Alpha JPEG header! Got #{image_data[0,4].unpack("I")[0]}, expected #{image_data.size-4}."
             end
-            data = Tiles.tile_drawer.decompress_rgb_alpha_jpeg(image_data, tile_size, tile_size)
+            data = ImagingUtils.decompress_rgb_alpha_jpeg(image_data, tile_size, tile_size)
             $imlib_mutex.synchronize do
               ctx = Imlib2::Context.get
               ctx.blend = true
@@ -991,7 +992,7 @@ class JPEGTileStore
         if image_data[0,4].unpack("I")[0] != image_data.size-4
           raise "Bad RGB-Alpha JPEG header! Got #{image_data[0,4].unpack("I")[0]}, expected #{image_data.size-4}."
         end
-        data = Tiles.tile_drawer.decompress_rgb_alpha_jpeg(image_data, tile_size, tile_size)
+        data = ImagingUtils.decompress_rgb_alpha_jpeg(image_data, tile_size, tile_size)
       ensure
         f.flock(File::LOCK_UN)
       end

@@ -121,7 +121,7 @@ extern int      stbi_jpeg_test_memory     (stbi_uc *buffer, int len);
 
 extern stbi_uc *stbi_jpeg_load            (char *filename,           int *x, int *y, int *comp, int req_comp);
 extern stbi_uc *stbi_jpeg_load_from_file  (FILE *f,                  int *x, int *y, int *comp, int req_comp);
-extern stbi_uc *stbi_jpeg_load_from_memory(const stbi_uc *buffer, int len, int *x, int *y, int *comp, int req_comp);
+extern stbi_uc *stbi_jpeg_load_from_memory(stbi_uc *buffer, int len, int *x, int *y, int *comp, int req_comp);
 extern int      stbi_jpeg_info            (char *filename,           int *x, int *y, int *comp);
 extern int      stbi_jpeg_info_from_file  (char *filename,           int *x, int *y, int *comp);
 extern int      stbi_jpeg_info_from_memory(stbi_uc *buffer, int len, int *x, int *y, int *comp);
@@ -1217,7 +1217,7 @@ unsigned char *stbi_jpeg_load(char *filename, int *x, int *y, int *comp, int req
    return data;
 }
 
-unsigned char *stbi_jpeg_load_from_memory(const stbi_uc *buffer, int len, int *x, int *y, int *comp, int req_comp)
+unsigned char *stbi_jpeg_load_from_memory(stbi_uc *buffer, int len, int *x, int *y, int *comp, int req_comp)
 {
    start_mem(buffer,len);
    return load_jpeg_image(x,y,comp,req_comp);
@@ -1451,7 +1451,7 @@ static int parse_huffman_block(void)
          if (dist_extra[z]) dist += zreceive(dist_extra[z]);
          if (zout - zout_start < dist) return e("bad dist");
          if (zout + len > zout_end) if (!expand(len)) return 0;
-         p = zout - dist;
+         p = (uint8*)(zout - dist);
          while (len--)
             *zout++ = *p++;
       }
@@ -1536,8 +1536,8 @@ static int parse_uncompressed_block(void)
 static int parse_zlib_header(void)
 {
    int cmf   = zget8();
-      int cm       = cmf & 15;
-      int cinfo    = cmf >> 4;
+   int cm       = cmf & 15;
+   // int cinfo    = cmf >> 4;
    int flg   = zget8();
    if ((cmf*256+flg) % 31 != 0) return e("bad zlib header"); // zlib spec
    if (flg & 32) return e("no preset dict"); // preset dictionary not allowed in png
@@ -1611,15 +1611,15 @@ char *stbi_zlib_decode_malloc_guesssize(int initial_size, int *outlen)
 
 char *stbi_zlib_decode_malloc(char *buffer, int len, int *outlen)
 {
-   zbuffer = buffer;
-   zbuffer_end = buffer+len;
+   zbuffer = (uint8*)buffer;
+   zbuffer_end = (uint8*)buffer+len;
    return stbi_zlib_decode_malloc_guesssize(16384, outlen);
 }
 
 int stbi_zlib_decode_buffer(char *obuffer, int olen, char *ibuffer, int ilen)
 {
-   zbuffer = ibuffer;
-   zbuffer_end = ibuffer + ilen;
+   zbuffer = (uint8*)ibuffer;
+   zbuffer_end = (uint8*)ibuffer + ilen;
    if (do_zlib(obuffer, olen, 0))
       return zout - zout_start;
    else
@@ -1908,10 +1908,10 @@ static int parse_png_file(int scan, int req_comp)
          }
 
          case PNG_TYPE('I','E','N','D'): {
-            uint32 raw_len;
+            int raw_len;
             if (scan != SCAN_load) return 1;
             if (idata == NULL) return e("no IDAT");
-            expanded = stbi_zlib_decode_malloc(idata, ioff, &raw_len);
+            expanded = (uint8*)stbi_zlib_decode_malloc((char*)idata, ioff, &raw_len);
             if (expanded == NULL) return 0; // zlib should set error
             free(idata); idata = NULL;
             if ((req_comp == img_n+1 && req_comp != 3 && !pal_img_n) || has_trans)
