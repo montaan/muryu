@@ -1,5 +1,7 @@
 #!/usr/bin/ruby
 
+$NO_TILE_DRAWING = false
+
 require 'future/imaging/tile_drawer'
 require 'dipus'
 

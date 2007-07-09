@@ -2,6 +2,7 @@
 
 $USE_DIPUS_IMAGE_CACHE = true
 $PRINT_QUERY_PROFILE = true
+$NO_TILE_DRAWING = false
 
 count = ARGV[0].to_i
 
