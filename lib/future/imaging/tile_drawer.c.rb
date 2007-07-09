@@ -390,7 +390,6 @@ int jpeg_cache_level_fill
   span_sz = 1 << (21-(level*2)); // ~1 MiB chunks
   for(j=first_idx; j<=last_idx; j+=span_sz)
   {
-    printf("%d, %d\n", j, last_idx);
     span_end = j+span_sz;
     if (span_end > last_idx) span_end = last_idx;
     thumb_str = rb_funcall(image_cache,
@@ -408,12 +407,9 @@ int jpeg_cache_level_fill
 
 
 
-int cache_fill(VALUE self, int first_idx, int last_idx)
+int cache_fill(VALUE image_cache, int first_idx, int last_idx)
 {
   int i;
-  VALUE image_cache;
-  
-  image_cache = rb_ivar_get(self, rb_intern("@image_cache"));
   
   printf("raw cache fill start, caching levels %d-%d\n",
           0, icache_levels-1);
@@ -442,7 +438,7 @@ int cache_fill(VALUE self, int first_idx, int last_idx)
 
 VALUE build_texture_c
 (
-  int z, int* iindexes, int iindexes_length, VALUE image_cache
+  int z, int *iindexes, int iindexes_length, VALUE image_cache
 )
 {
   VALUE thumb_data;
@@ -533,3 +529,59 @@ VALUE build_texture_c
 }
 
 
+
+void init_image_cache_c
+(
+  VALUE image_cache, int cache_size, int cache_levels, int cache_jpeg_levels, int max_index
+)
+{
+  int i,j,sz24;
+  int total_header_sz = 0;
+  char **c;
+  int e;
+  if (icache != NULL) destroy_image_cache();
+  icache_size = (int)cache_size;
+  icache_levels = (int)cache_levels + 1;
+  icache_jpeg_levels = (int)cache_jpeg_levels + 1;
+  /* 2D-array of strings: icache[level][index] */
+  icache = (char***)malloc(sizeof(char**) * icache_jpeg_levels);
+  total_header_sz += sizeof(char**) * icache_jpeg_levels;
+  if (icache == NULL) {
+    rb_raise(rb_eRuntimeError, "Failed to allocate icache");
+    goto fail;
+  }
+  for(i=0; i < icache_jpeg_levels; i++) {
+    // with an extra for the slab at c[icache_size]
+    c = (char**)malloc(sizeof(char*) * (icache_size + 1));
+    total_header_sz += sizeof(char*) * (icache_size + 1);
+    printf("allocated %u bytes (%u entries) of cache index for level %d\n", sizeof(char*) * (icache_size + 1), icache_size, i);
+    if (c == NULL) {
+      rb_raise(rb_eRuntimeError, "Failed to allocate icache level");
+      destroy_image_cache();
+      goto fail;
+    }
+    for (j=0; j<icache_size; j++) c[j] = NULL;
+    if (i < icache_levels) {
+      /* allocate a slab max_index * 2^i * 4 bytes in size
+          aligned to 16-byte boundary*/
+      sz24 = (1<<(i*2)) * 4;
+      if (0 != (e = posix_memalign((void **)&c[icache_size],
+                          MEMORY_ALIGN,
+                          (max_index+1) * sz24)))
+      {
+        printf("%d: %d, %d\n", e, EINVAL, ENOMEM);
+        rb_raise(rb_eRuntimeError, "Failed to allocate icache slab");
+        destroy_image_cache();
+        goto fail;
+      }
+      total_header_sz += (max_index+1) * sz24;
+      for (j=0; j<=max_index; j++) c[j] = c[icache_size] + sz24*j;
+    }
+    icache[i] = c;
+  }
+  printf("pre-allocated %d bytes of cache headers (max_index: %d)\n", total_header_sz, max_index);
+  cache_fill(image_cache, 0, max_index);
+  
+  fail:
+  return;
+}

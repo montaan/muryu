@@ -8,6 +8,8 @@ require 'inline'
 
 require 'fastthread'
 
+$NO_TILE_DRAWING = true if $NO_TILE_DRAWING.nil?
+
 class Struct
   def to_json
     "{#{ members.map{|m| m.dump << ":" << self[m].to_json}.join(",") }}"
@@ -495,53 +497,8 @@ class TileDrawer
         int cache_size, int cache_levels, int cache_jpeg_levels, int max_index
       )
       {
-        int i,j,sz24;
-        int total_header_sz = 0;
-        char **c;
-        int e;
-        if (icache != NULL) destroy_image_cache();
-        icache_size = (int)cache_size;
-        icache_levels = (int)cache_levels + 1;
-        icache_jpeg_levels = (int)cache_jpeg_levels + 1;
-        /* 2D-array of strings: icache[level][index] */
-        icache = (char***)malloc(sizeof(char**) * icache_jpeg_levels);
-        total_header_sz += sizeof(char**) * icache_jpeg_levels;
-        if (icache == NULL) {
-          rb_raise(rb_eRuntimeError, "Failed to allocate icache");
-          goto fail;
-        }
-        for(i=0; i < icache_jpeg_levels; i++) {
-          // with an extra for the slab at c[icache_size]
-          c = (char**)malloc(sizeof(char*) * (icache_size + 1));
-          total_header_sz += sizeof(char*) * (icache_size + 1);
-          printf("allocated %u bytes (%u entries) of cache index for level %d\\n", sizeof(char*) * (icache_size + 1), icache_size, i);
-          if (c == NULL) {
-            rb_raise(rb_eRuntimeError, "Failed to allocate icache level");
-            destroy_image_cache();
-            goto fail;
-          }
-          for (j=0; j<icache_size; j++) c[j] = NULL;
-          if (i < icache_levels) {
-            /* allocate a slab max_index * 2^i * 4 bytes in size
-               aligned to 16-byte boundary*/
-            sz24 = (1<<(i*2)) * 4;
-            if (0 != (e = posix_memalign((void **)&c[icache_size],
-                                MEMORY_ALIGN,
-                                (max_index+1) * sz24)))
-            {
-              printf("%d: %d, %d\\n", e, EINVAL, ENOMEM);
-              rb_raise(rb_eRuntimeError, "Failed to allocate icache slab");
-              destroy_image_cache();
-              goto fail;
-            }
-            total_header_sz += (max_index+1) * sz24;
-            for (j=0; j<=max_index; j++) c[j] = c[icache_size] + sz24*j;
-          }
-          icache[i] = c;
-        }
-        printf("pre-allocated %d bytes of cache headers (max_index: %d)\\n", total_header_sz, max_index);
-        cache_fill(self, 0, max_index);
-        fail:
+       VALUE image_cache = rb_ivar_get(self, rb_intern("@image_cache"));
+       init_image_cache_c(image_cache, cache_size, cache_levels, cache_jpeg_levels, max_index);
       }
     EOF
 
