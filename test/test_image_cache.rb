@@ -4,6 +4,8 @@ require File.join(File.dirname(__FILE__), "set_include_path.rb")
 require 'future/config'
 require "future/imaging/image_cache"
 require 'ostruct'
+require 'digest/md5'
+
 Thread.abort_on_exception = true
 
 class ImageCacheTest < Test::Unit::TestCase

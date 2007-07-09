@@ -16,6 +16,10 @@ include Future
     @image_cache = ImageCache.new cache_path
   end
 
+  def setup
+    $NO_TILE_DRAWING = false
+  end
+  
   def item(thumbnail, deleted=false)
     OpenStruct.new(:thumbnail => thumbnail, :deleted => deleted)
   end
