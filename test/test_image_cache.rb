@@ -153,28 +153,28 @@ include Future
       @image_cache.read_span_as_jpeg(7, 2040, 4100).size
     )
     assert_equal(
-      Digest::MD5.new(jpegs[0,8].join).hexdigest,
-      Digest::MD5.new(@image_cache.read_span_as_jpeg(7, 2040, 2047)).hexdigest
+      Digest::MD5.hexdigest(jpegs[0,8].join),
+      Digest::MD5.hexdigest(@image_cache.read_span_as_jpeg(7, 2040, 2047))
     )
     assert_equal(
-      Digest::MD5.new(jpegs[8,3].join).hexdigest,
-      Digest::MD5.new(@image_cache.read_span_as_jpeg(7, 2048, 2050)).hexdigest
+      Digest::MD5.hexdigest(jpegs[8,3].join),
+      Digest::MD5.hexdigest(@image_cache.read_span_as_jpeg(7, 2048, 2050))
     )
     assert_equal(
-      Digest::MD5.new(jpegs.join).hexdigest,
-      Digest::MD5.new(@image_cache.read_span_as_jpeg(7, 2040, 2050)).hexdigest
+      Digest::MD5.hexdigest(jpegs.join),
+      Digest::MD5.hexdigest(@image_cache.read_span_as_jpeg(7, 2040, 2050))
     )
     assert_equal(
-      Digest::MD5.new(jpegs.join).hexdigest,
-      Digest::MD5.new(@image_cache.read_span_as_jpeg(7, 4090, 4100)).hexdigest
+      Digest::MD5.hexdigest(jpegs.join),
+      Digest::MD5.hexdigest(@image_cache.read_span_as_jpeg(7, 4090, 4100))
     )
     assert_equal(
-      Digest::MD5.new(jpegs.join).hexdigest,
-      Digest::MD5.new(@image_cache.read_images_as_jpeg(7, (2040..2044).to_a+(4095..4100).to_a)).hexdigest
+      Digest::MD5.hexdigest(jpegs.join),
+      Digest::MD5.hexdigest(@image_cache.read_images_as_jpeg(7, (2040..2044).to_a+(4095..4100).to_a))
     )
     assert_equal(
-      Digest::MD5.new(jpegs.join+("\000\000\000\000"*2039)+jpegs.join).hexdigest,
-      Digest::MD5.new(@image_cache.read_span_as_jpeg(7, 2040, 4100)).hexdigest
+      Digest::MD5.hexdigest(jpegs.join+("\000\000\000\000"*2039)+jpegs.join),
+      Digest::MD5.hexdigest(@image_cache.read_span_as_jpeg(7, 2040, 4100))
     )
   end
 
