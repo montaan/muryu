@@ -214,20 +214,38 @@ extend self
       end
       puts "#{Thread.current.telapsed} for memcache get" if $PRINT_QUERY_PROFILE
       unless t
-        idxs = Items.rfind_all(user, query.merge(:columns => [:image_index, :mimetype_id, :deleted], :as_array => true))
-        tr = 't'
+        query = query.merge(:columns => [:image_index, :mimetype_id, :deleted])
         mts = []
-        nidxs = idxs.map{|i|
-          ii = Integer(i[0])
-          mi = (i[2] == tr ? MIMETYPE_DELETED : Integer(i[1]) + 1)
-          mts[mi] ||= mi
-          [ii, mi]
-        }
+        if defined? ROCStoreIntegration && ROCStoreIntegration.can_handle?(query)
+          data = ROCStoreIntegration.rfind_all(user, query)
+          image_indexes = data[:image_index].to_a
+          mimetype_ids = data[:mimetype_id].to_a
+          deleted = data[:deleted].to_a
+          i = mi = 0
+          mimetype_ids.map! do |mtype|
+            mi = deleted[i] == 1 ? MIMETYPE_DELETED : mtype + 1
+            i += 1
+            mi
+          end
+          t = [image_indexes.size].pack("N")
+          t << [image_indexes, mimetype_ids].map{|x| x.pack("I*")}.join
+        else
+          idxs = Items.rfind_all(user, query.merge(:as_array => true))
+          tr = 't'
+          nidxs = idxs.map{|i|
+            ii = Integer(i[0])
+            mi = (i[2] == tr ? MIMETYPE_DELETED : Integer(i[1]) + 1)
+            mts[mi] ||= mi
+            [ii, mi]
+          }
+          t = [nidxs.size].pack("N")
+          t << nidxs.transpose.map{|ix| ix.pack("I*") }.join
+        end
+
         if palette(true, 0).size != mts.size
           @@palette = @@transparent_palette = nil
         end
-        t = [nidxs.size].pack("N")
-        t << nidxs.transpose.map{|ix| ix.pack("I*") }.join
+
         if Future.memcache
           Future.memcache.set(key, t, 300, true)
         else
