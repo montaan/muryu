@@ -217,6 +217,20 @@ class DBConnTest < Test::Unit::TestCase
     assert_equal(lucy, @dcs.find(:employee_id => lucy).employee)
   end
 
+  def test_bytea
+    bytes = (0..255).to_a.pack("C*")
+    bytes *= 2
+    DB::Tables::A.find_or_create(:bytes => bytes)
+    assert_equal(bytes, DB::Tables::A.find_or_create(:bytes => bytes).bytes)
+  end
+  
+  def test_bigint
+    DB::Tables::A.find_or_create(:size => 2**48)
+    assert_equal(2**48, DB::Tables::A.find_or_create(:size => 2**48).size)
+
+    DB::Tables::A.find_or_create(:small => 2**48)
+    assert_equal(2**32, DB::Tables::A.find_or_create(:small => 2**48).small)
+  end
 
 end
 

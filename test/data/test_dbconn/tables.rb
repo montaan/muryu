@@ -1,4 +1,9 @@
-tables['a'] = {:name => [:text, 'index']}
+tables['a'] = {
+  :name => [:text, 'index'],
+  :small => [:int],
+  :size => [:bitint],
+  :bytes => [:bytea]
+}
 
 tables['employees'] = {
   :first_name => [:text], 

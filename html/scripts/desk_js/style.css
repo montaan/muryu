@@ -44,8 +44,7 @@ iframe {
   padding: 4px;
 }
 .windowBackground {
-  background-color: black;
-  opacity: 0.8;
+  background-color: #33363C;
 }
 /*.default .windowBackground {
   background-color: #444444;
@@ -279,6 +278,7 @@ iframe {
 }
 .panel .windowBackground {
   background-color: #000;
+  opacity: 0.8;
 }
 .leftPanel {
   border-right: 1px solid #555;

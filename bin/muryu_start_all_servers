@@ -6,8 +6,8 @@ muryu_imagecache_server &
 muryu_tile_server 4 &
 muryu_rack 3000 4 &
 muryu_rack_threaded 4000 2 &
-muryu_download_worker 
+muryu_download_worker &
 
 echo
-echo "Servers running."
+echo "Servers started."
 echo
