@@ -11,8 +11,11 @@ Selection.prototype = {
       menu.addItem(Tr('Selection.add_to_playlist'), this.selection.addToPlaylist.bind(this.selection))
       menu.addItem(Tr('Selection.create_presentation'))
       menu.addSeparator()
+      menu.addSubMenu(Tr('Selection.addSets'), this.selection.fillSetMenu.bind(this.selection))
+      menu.addSeparator()
       menu.addItem(Tr('Selection.makePublic'), this.selection.makePublic.bind(this.selection))
       menu.addItem(Tr('Selection.makePrivate'), this.selection.makePrivate.bind(this.selection))
+      menu.addSubMenu(Tr('Selection.addGroups'), this.selection.fillGroupMenu.bind(this.selection))
       menu.addSeparator()
       menu.addItem(Tr('Selection.delete_all'), this.selection.deleteSelected.bind(this.selection))
       menu.addItem(Tr('Selection.undelete_all'), this.selection.undeleteSelected.bind(this.selection))
@@ -23,6 +26,59 @@ Selection.prototype = {
       menu.show(ev)
       Event.stop(ev)
     }
+  },
+  
+  fillGroupMenu : function(menu) {
+    if (menu.element.firstChild)
+      menu.element.removeChild(menu.element.firstChild)
+    menu.addTitle(Tr('Item.groups'))
+    for (var i=0; i<Groups.length; i++) {
+      var n = Groups[i].name + ' ('+Groups[i].owner+')'
+      menu.addItem(n, function(ev){
+        this.toggle()
+        menu.skipHide = true
+        Event.stop(ev)
+      }, null, Groups[i].name)
+      menu.uncheckItem(n)
+    }
+    menu.addTitle(Tr('Item.NewGroups'))
+    this.addSubMenuCallback(menu, this.addGroups.bind(this))
+  },
+
+  fillSetMenu : function(menu) {
+    if (menu.element.firstChild)
+      menu.element.removeChild(menu.element.firstChild)
+    menu.addTitle(Tr('Item.sets'))
+    for (var i=0; i<Sets.length; i++) {
+      var n = Sets[i].name + ' ('+Sets[i].namespace+')'
+      menu.addItem(n, function(ev){
+        this.toggle()
+        menu.skipHide = true
+        Event.stop(ev)
+      }, null, Sets[i].namespace + '/' + Sets[i].name)
+      menu.uncheckItem(n)
+      if (!Sets[i].writable)
+        menu.disableItem(n)
+    }
+    menu.addTitle(Tr('Item.NewSets'))
+    this.addSubMenuCallback(menu, this.addSets.bind(this))
+  },
+
+  addSubMenuCallback : function(menu, callback) {
+    var newInput = E('input', null, null, null, {
+      display : 'block', marginLeft : '1ex', marginRight : '1ex'
+    }, {
+      type : 'text'
+    })
+    $(menu.element).append(newInput)
+    var oldItems = menu.checkedItems().pluck('itemValue')
+    menu.addListener('hide', function(){
+      var newItems = menu.checkedItems().pluck('itemValue')
+      var created = newInput.value
+      if (!oldItems.equals(newItems) || created.length > 0) {
+        callback(newItems, created)
+      }
+    })
   },
 
   deselect : function(obj) {
@@ -96,28 +152,28 @@ Selection.prototype = {
     this.items.values().invoke('setTags', tags)
   },
   
-  addGroups : function(groups) {
-    this.items.values().invoke('addGroups', groups)
+  addGroups : function(groups, created) {
+    this.items.values().invoke('addGroups', groups, created)
   },
   
   removeGroups : function(groups) {
     this.items.values().invoke('removeGroups', groups)
   },
   
-  setGroups : function(groups) {
-    this.items.values().invoke('setGroups', groups)
+  setGroups : function(groups, created) {
+    this.items.values().invoke('setGroups', groups, created)
   },
   
-  addSets : function(sets) {
-    this.items.values().invoke('addSets', sets)
+  addSets : function(sets, created) {
+    this.items.values().invoke('addSets', sets, created)
   },
   
   removeSets : function(sets) {
     this.items.values().invoke('removeSets', sets)
   },
   
-  setSets : function(sets) {
-    this.items.values().invoke('setSets', sets)
+  setSets : function(sets, created) {
+    this.items.values().invoke('setSets', sets, created)
   }
   
 }

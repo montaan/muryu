@@ -629,7 +629,7 @@ Applets.MusicPlayer = function() {
     w.addListener('containerChange', t.initSortable)
   }
 
-  soundManager.onload = function() {
+  c.init = function() {
     soundManager.createSound(c.soundID, {url: 'data/null.mp3'})
     c.sound = soundManager.sounds[c.soundID]
     c.sound.setVolume(c.volume)
@@ -670,6 +670,10 @@ Applets.MusicPlayer = function() {
     }
     if (c.playing) c.play()
   }
+  if (soundManager.enabled)
+    c.init()
+  else
+    soundManager.onload = c.init
 
   c.playButton = Desk.Button('Play', c.pause.bind(c), {
     downTitle : 'Pause'

@@ -513,16 +513,18 @@ class TileDrawer
       {
         :x => 0,
         :y => 0,
-        :width => indexes.size > 1000 ? 200 : (indexes.size / 5.0).ceil,
-        :height => ((indexes.size * 0.001).ceil * 5.5)
+        :width => indexes.size > 1000 ? 1.125 * 200 : (1.125 * indexes.size / 5.0).ceil,
+        :height => ((indexes.size * 0.001).ceil * 7.25)
       }
     end
 
     def each(indexes, x, y, sz, w, h,
-                  row_offset = sz / 2.0, columns = 200, rows = 5)
+                  row_offset = sz.to_f, columns = 200, rows = 5,  hspace = sz / 8.0, vspace = sz / 4.0)
       return false if x < 0 or y < 0
-      row_offset ||= sz / 2.0
-      bigrow_height = (rows*sz) + row_offset
+      row_offset ||= sz.to_f
+      tw = sz + hspace
+      th = sz + vspace
+      bigrow_height = (rows*th) + row_offset
       bigrow_img_count = columns * rows
       
       item_count = indexes.size
@@ -535,23 +537,23 @@ class TileDrawer
       first_bigrow_offset = row_offset * first_bigrow_in_view
       last_bigrow_offset = row_offset * last_bigrow_in_view
       
-      first_row_in_view = ((y-first_bigrow_offset) / sz).floor
-      last_row_in_view = ((y+h-last_bigrow_offset) / sz).floor
+      first_row_in_view = ((y-first_bigrow_offset) / th).floor
+      last_row_in_view = ((y+h-last_bigrow_offset) / th).floor
       
-      first_row_y = first_row_in_view * sz + first_bigrow_offset
+      first_row_y = first_row_in_view * th + first_bigrow_offset
       y_offset = y - first_row_y
       
-      first_column_in_view = x / sz
-      last_column_in_view = (x+w) / sz
+      first_column_in_view = (x / tw).floor
+      last_column_in_view = ((x+w) / tw).floor
 
       (first_row_in_view..last_row_in_view).each_with_index do |r,i|
         next if r > all_rows or r < 0
         bigrow = r / rows
-        iy = i*sz - y_offset + row_offset*(bigrow-first_bigrow_in_view)
+        iy = i*th - y_offset + row_offset*(bigrow-first_bigrow_in_view)
         next if iy >= h
         (first_column_in_view..last_column_in_view).each_with_index do |c,j|
           next if c >= columns or c < 0
-          ix = j*sz - x%sz
+          ix = j * tw - x % tw
           next if ix >= w
           iindex = (bigrow * bigrow_img_count) + (c * rows) + (r % rows)
           index = indexes[iindex]

@@ -82,7 +82,7 @@ class MuryuQuery
   password = '(.+)'
   tagname = '(\S+)'
   setkey = "(#{username}/#{setname})"
-  groupname = "((users/#{username})|(groups/#{username}/[^/]+)|(public/[^/]+))"
+  groupname = "([^/,]+)" #"((users/#{username})|(groups/#{username}/[^/,]+)|(public/[^/,]+))"
   tile = "(x#{uint}y#{uint}z#{uint}(w#{uint}h#{uint})?)"
   boolean = '(true|false)'
   url = '(.*)'

@@ -12,11 +12,15 @@ Tr.addTranslations('en-US', {
   'Item.view_in_slideshow' : 'View in slideshow',
   'Item.makePublic' : 'Make public',
   'Item.makePrivate' : 'Make private',
+  'Item.NewGroups' : 'New Group(s)',
+  'Item.NewSets' : 'New Folder(s)',
   'Selection' : 'Selection',
   'Selection.clear' : 'Clear selection',
   'Selection.deselect' : 'Deselect',
   'Selection.makePublic' : 'Make public',
   'Selection.makePrivate' : 'Make private',
+  'Selection.addGroups' : 'Add groups',
+  'Selection.addSets' : 'Add to folders',
   'Selection.delete_all' : 'Delete all',
   'Selection.undelete_all' : 'Undelete all',
   'Selection.add_to_playlist' : 'Add to playlist',
@@ -36,11 +40,15 @@ Tr.addTranslations('fi-FI', {
   'Item.view_in_slideshow' : 'Näytä kuvaesityksessä',
   'Item.makePublic' : 'Tee julkiseksi',
   'Item.makePrivate' : 'Tee yksityiseksi',
+  'Item.NewGroups' : 'Luo ryhmiä',
+  'Item.NewSets' : 'Luo kansioita',
   'Selection' : 'Valinta',
   'Selection.clear' : 'Tyhjennä valinta',
   'Selection.deselect' : 'Poista valinnasta',
   'Selection.makePublic' : 'Tee julkiseksi',
   'Selection.makePrivate' : 'Tee yksityiseksi',
+  'Selection.addGroups' : 'Lisää ryhmiin',
+  'Selection.addSets' : 'Lisää kansioihin',
   'Selection.delete_all' : 'Poista kaikki',
   'Selection.undelete_all' : 'Tuo kaikki takaisin',
   'Selection.add_to_playlist' : 'Lisää soittolistaan',
@@ -149,6 +157,20 @@ ItemArea = {
     this.editItem(params)
   },
 
+  addGroups : function(groups, created) {
+    if (created && created.length > 0)
+      groups = groups.concat(created.split(","))
+    var params = {'groups.new' : groups}
+    this.editItem(params)
+  },
+
+  addSets : function(sets, created) {
+    if (created && created.length > 0)
+      sets = sets.concat(created.split(","))
+    var params = {'sets.new' : sets}
+    this.editItem(params)
+  },
+
   editItem : function(params) {
     new Ajax.Request(this.itemHREF.replace(/json$/,'edit'), {
       method: 'post',
@@ -182,7 +204,7 @@ ItemArea = {
         if (!Sets[i].writable)
           menu.disableItem(n)
       }
-      menu.addTitle(Tr('New Folder(s)'))
+      menu.addTitle(Tr('Item.NewSets'))
       this.addSubMenuCallback(menu, this.setSets.bind(this))
     } else {
       menu.addTitle(Tr('Loading'))
@@ -208,9 +230,13 @@ ItemArea = {
           menu.checkItem(n)
         else
           menu.uncheckItem(n)
+        if (!this.info.writable)
+          menu.disableItem(n)
       }
-      menu.addTitle(Tr('New Group(s)'))
-      this.addSubMenuCallback(menu, this.setGroups.bind(this))
+      if (this.info.writable) {
+        menu.addTitle(Tr('Item.NewGroups'))
+        this.addSubMenuCallback(menu, this.setGroups.bind(this))
+      }
     } else {
       menu.addTitle(Tr('Loading'))
       this.addInfoCallback(this.fillGroupMenu, menu)

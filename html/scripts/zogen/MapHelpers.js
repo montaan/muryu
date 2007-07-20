@@ -36,8 +36,8 @@ Loader = function(map) {
     this.removeEventListener("load", t.loader, true)
     this.removeEventListener("abort", t.loader, true)
     this.removeEventListener("error", t.loader, true)
-    if (completed) t.totalCompletes++
     t.loads--
+    if (completed) t.totalCompletes++
     t.process()
   }
 }
@@ -48,7 +48,9 @@ Loader.prototype = {
   totalCompletes : 0,
 
   loads : 0,
-  maxLoads : 8,
+  __maxLoads : 1,
+  maxLoads : 2,
+  initialLoad : true,
   tileSize : 0.125, // in Mbps
   bandwidthLimit : -2.0, // in Mbps, negative values for no limit
 
@@ -60,29 +62,55 @@ Loader.prototype = {
   },
 
   process : function() {
-    while ((this.loads < this.maxLoads) && !this.queue.isEmpty()) {
+    var tim = this.tileInfoManager
+    while ((this.loads < this.__maxLoads) && !this.queue.isEmpty()) {
+      if (this.initializationTimeout) {
+        clearTimeout(this.initializationTimeout)
+        this.initializationTimeout = false
+      }
       var tile = this.queue.shift()
       tile.loader = this.loader
       tile.addEventListener("load", this.loader, true)
       tile.addEventListener("abort", this.loader, true)
       tile.addEventListener("error", this.loader, true)
       this.loads++
-      var t = this
       if (this.bandwidthLimit > 0) {
+        // THIS IS function(){}.bind(tile) BECAUSE JAVASCRIPT HAS CALL-BY-NAME, DO NOT CHANGE
+        // (unless you wish to spend an hour debugging seemingly randomly non-loading tiles)
         setTimeout(function(){
-          tile.load(t.tileInfoManager)
-        }, 1000 * ((this.tileSize * this.maxLoads) / this.bandwidthLimit))
+          this.load(tim)
+        }.bind(tile), 1000 * ((this.tileSize * this.maxLoads) / this.bandwidthLimit))
       } else {
+        // THIS IS function(){}.bind(tile) BECAUSE JAVASCRIPT HAS CALL-BY-NAME, DO NOT CHANGE
+        // (unless you wish to spend an hour debugging seemingly randomly non-loading tiles)
         setTimeout(function(){
-          tile.load(t.tileInfoManager)
-        }, 0)
-        // hack to make zooming out a bit less of a pain
-        // if zooming out and answering queries instantly from cache
+          this.load(tim)
+        }.bind(tile), 0) // hack to make zooming out a bit less of a pain
+                         // if zooming out and answering queries instantly from cache
       }
       this.totalLoads++
+      // First tile load is done separately, the rest with maxLoads parallel loads.
+      // What this aims to do is minimize first tile latency and increase throughput for the rest.
+      //
+      // The idea is to give information required to continue navigation ASAP, then fill out
+      // the rest of the picture. Locus is on pointer => load tile under pointer straight away,
+      // then load the surrounding tiles in parallel while the eye is still fixated on the first tile.
+      if (this.initialLoad) { 
+        this.__maxLoads = 1
+        this.initialLoad = false
+      } else {
+        this.__maxLoads = this.maxLoads
+      }
+    }
+    if (this.queue.isEmpty()) {
+      var t = this
+      t.initializationTimeout = setTimeout(function(){
+        t.initialLoad = true
+        t.initializationTimeout = false
+      }, 1000)
     }
   },
-
+  
   cancel : function(tile) {
     var lt = this[tile.uuid]
     if (lt) {

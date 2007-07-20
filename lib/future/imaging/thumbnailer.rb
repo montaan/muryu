@@ -76,7 +76,10 @@ module Mimetype
     elsif to_s =~ /html/
       page ||= 0
       html_thumbnail(filename, thumb_filename, thumb_size, page, crop)
-    elsif to_s =~ /image|pdf|postscript/
+    elsif to_s =~ /pdf/
+      page ||= 0
+      pdf_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+    elsif to_s =~ /image|postscript/
       page ||= 0
       image_thumbnail(filename, thumb_filename, thumb_size, page, crop)
     end or icon_thumbnail(filename, thumb_filename, thumb_size, crop)
@@ -136,25 +139,27 @@ module Mimetype
     else
 #       puts "going to non-image fork"
       original_filename = filename
-      filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.object_id}-src#{tfn.extname}"
+      filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.object_id}-src#{extname}"
       begin
         FileUtils.ln_s(original_filename.to_s, filename.to_s)
         filename.mimetype = self
         dims = filename.dimensions
         return false unless dims[0] and dims[1]
-        scale_fac = 1
+        larger = dims.max
         thumb_size ||= 2048
-        if dims.min < thumb_size
-          scale_fac = thumb_size / dims.min.to_f
-        elsif dims.max > thumb_size
-          scale_fac = thumb_size / dims.max.to_f
+        case filename.metadata.dimensions_unit
+        when 'mm'
+          scale_fac = larger.mm_to_points / 72
+        else
+          scale_fac = larger / 72
         end
-        density = scale_fac * 72
+        density = thumb_size / scale_fac
         args = ["-density", density.to_s,
                 "#{filename}[#{page}]",
                 "-scale", "#{thumb_size}x#{thumb_size}",
                 "-crop", crop.to_s,
                 tmp_filename.to_s]
+        log_debug('convert ' + args.join(" "))
         system("convert", *args)
       ensure
         filename.unlink if filename.exist?
@@ -162,6 +167,32 @@ module Mimetype
     end
     if tmp_filename.exist?
       tmp_filename.rename(tfn)
+      true
+    else
+      false
+    end
+  end
+  
+  PNMPROGS = {
+    ".jpg" => "pnmtojpeg",
+    ".png" => "pnmtopng"
+  }
+  
+  def pdf_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+    w,h,x,y = crop.scan(/[+-]?[0-9]+/).map{|i|i.to_i}
+    args = ["-x", x, 
+            "-y", y,
+            "-W", w,
+            "-H", h,
+            "-scale-to", thumb_size || 2048,
+            "-f", page + 1,
+            "-l", page + 1,
+            filename.to_s.dump]
+    ext = File.extname(thumb_filename.to_s)
+    args += ["|", PNMPROGS[ext], ">", thumb_filename.to_s.dump]
+    log_debug("pdftoppm " + args.join(" "))
+    system("pdftoppm " + args.join(" "))
+    if File.exist?(thumb_filename) and File.size(thumb_filename) > 0
       true
     else
       false

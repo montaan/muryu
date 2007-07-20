@@ -46,7 +46,7 @@ def update_loaded_features
   end
 end
 
-update_loaded_features
+#update_loaded_features
 
 class Rack::Request
   def headers

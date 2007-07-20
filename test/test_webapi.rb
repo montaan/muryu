@@ -237,10 +237,10 @@ class TestMuryuQuery < Test::Unit::TestCase
     mq('sets/bob.b/adamuk-08227')
     mq('sets/Bob.Badamuk-08_227/b-zark')
     mq('sets/public/inter_worship')
-    mq('groups/users/badamuk')
-    mq('groups/groups/kig/adamuk-08227')
-    mq('groups/groups/tom/b-zark')
-    mq('groups/public/inter_worship')
+#     mq('groups/users/badamuk')
+#     mq('groups/groups/kig/adamuk-08227')
+#     mq('groups/groups/tom/b-zark')
+#     mq('groups/public/inter_worship')
     mq('tile/x0y0z10')
     mq('tile/x25y375z5')
     mq('tile_info/x0y0z10')
@@ -380,31 +380,31 @@ class TestMuryuQuery < Test::Unit::TestCase
   end
 
   def test_good_groups_get
-    mq('groups/groups/kig/bobonite/json', {
-    })
-    mq('groups/users/bobonite/view', {
-    })
-    mq('groups/public/bobonite', {
-    })
+#     mq('groups/groups/kig/bobonite/json', {
+#     })
+#     mq('groups/users/bobonite/view', {
+#     })
+#     mq('groups/public/bobonite', {
+#     })
   end
 
   def test_good_groups_post
     mq('groups/create', nil, {
       'name' => 'babonite', 'public' => 'true'
     })
-    mq('groups/groups/he/bobonite/edit', nil, {
-      'name' => 'babanite', 'public' => 'false'
-    })
-    mq('groups/groups/ha/bobonite/edit', nil, {
-      'public' => 'true'
-    })
-    mq('groups/public/bobonite/edit', nil, {
-      'name' => 'bobonite'
-    })
-    mq('groups/public/bobonite/delete', nil, {
-    })
-    mq('groups/users/bobonite/undelete', nil, {
-    })
+#     mq('groups/groups/he/bobonite/edit', nil, {
+#       'name' => 'babanite', 'public' => 'false'
+#     })
+#     mq('groups/groups/ha/bobonite/edit', nil, {
+#       'public' => 'true'
+#     })
+#     mq('groups/public/bobonite/edit', nil, {
+#       'name' => 'bobonite'
+#     })
+#     mq('groups/public/bobonite/delete', nil, {
+#     })
+#     mq('groups/users/bobonite/undelete', nil, {
+#     })
   end
 
   def test_good_tile_get

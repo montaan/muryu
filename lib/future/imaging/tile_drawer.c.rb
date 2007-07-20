@@ -23,7 +23,7 @@ void sw_row_layout
 )
 {
   int columns, rows, bigrow_img_count;
-  int y_offset, tpt;
+  int y_offset;
   int bigrow, first_bigrow_in_view, last_bigrow_in_view;
   int first_row_in_view, last_row_in_view;
   int first_column_in_view, last_column_in_view, columns_in_view, rows_in_view;
@@ -31,31 +31,35 @@ void sw_row_layout
   int index;
   int *indexes = NULL;
   float row_offset, bigrow_height, ix, iy, first_row_y,
-        first_bigrow_offset, last_bigrow_offset;
+        first_bigrow_offset, last_bigrow_offset,
+        hspace, vspace, tw, th;
   int tile_image_count, l;
   int* cs = NULL;
 
-  tpt = 512 / sz;
-
-  row_offset = sz / 2.0;
+  row_offset = sz * 1.0;
+  hspace = sz / 8.0;
+  vspace = sz / 4.0;
+  tw = sz + hspace;
+  th = sz + vspace;
   columns = 200; 
   rows = 5;
-  bigrow_height = (rows*sz) + row_offset;
+  bigrow_height = (rows*th) + row_offset;
   bigrow_img_count = columns * rows;
+  
 
   first_bigrow_in_view = y / bigrow_height;
   last_bigrow_in_view = (y+h) / bigrow_height;
   first_bigrow_offset = row_offset * first_bigrow_in_view;
   last_bigrow_offset = row_offset * last_bigrow_in_view;
 
-  first_row_in_view = (y-first_bigrow_offset) / sz;
-  last_row_in_view = (y+h-last_bigrow_offset) / sz;
+  first_row_in_view = (y-first_bigrow_offset) / th;
+  last_row_in_view = (y+h-last_bigrow_offset) / th;
 
-  first_row_y = first_row_in_view * sz + first_bigrow_offset;
+  first_row_y = first_row_in_view * th + first_bigrow_offset;
   y_offset = y - first_row_y;
 
-  first_column_in_view = x / sz;
-  last_column_in_view = (x+w) / sz;
+  first_column_in_view = x / tw;
+  last_column_in_view = (x+w) / tw;
   columns_in_view = last_column_in_view - first_column_in_view + 1;
   rows_in_view = last_row_in_view - first_row_in_view + 1;
 
@@ -72,12 +76,12 @@ void sw_row_layout
   {
     if (r < 0) continue;
     bigrow = r / rows;
-    iy = i*sz - y_offset + row_offset*(bigrow-first_bigrow_in_view);
+    iy = i*th - y_offset + row_offset*(bigrow-first_bigrow_in_view);
     if (iy >= h) continue;
     for(j=0, c=first_column_in_view; c <= last_column_in_view; j++, c++)
     {
       if (c >= columns || c < 0) continue;
-      ix = j*sz - x%sz;
+      ix = j * tw - (x - tw*floor(x / tw));
       if (ix >= w) continue;
       index = (bigrow * bigrow_img_count) + (c * rows) + (r % rows);
       indexes[tile_image_count] = index;

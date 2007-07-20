@@ -454,11 +454,11 @@ module MuryuDispatch
             target.rset_tags(user, tags)
           end
         end
-        if req.query.has_key?('groups') or req.query.has_key?('groups.new')
+        if req.query.has_key?('groups')
           gs = req.query['groups'] || []
           target.rset_groups(user, gs.find_all{|g|g.strip.length > 0})
         end
-        if req.query.has_key?('sets') or req.query.has_key?('sets.new')
+        if req.query.has_key?('sets')
           gs = req.query['sets'] || []
           target.rset_sets(user, gs.find_all{|g|g.strip.length > 0})
         end
@@ -475,9 +475,17 @@ module MuryuDispatch
         if req.query.has_key?('sets.new')
           gs = req.query['sets.new'].join(",").split(",")
           unless gs.empty?
-            target.write(user) do
-              gs.each do |g|
-                target.add_set(Future::Sets.rfind_or_create(user, :name => g.strip))
+            gs.each do |g|
+              ns, n = g.strip.split("/")
+              if ns != user.name
+                set = Future::Sets.rfind(user, :name => n, :namespace => ns)
+              else
+                set = Future::Sets.rfind_or_create(user, :name => n, :namespace => ns)
+              end
+              if set
+                set.write(user) do
+                  target.add_set(set)
+                end
               end
             end
           end
@@ -485,22 +493,24 @@ module MuryuDispatch
 
         super
 
-        target.write(user) do
-          metadata_fields = req.query.keys.find_all{|k|
-            k.split(".").first == 'metadata'
-          }.map{|k| [k.split(".")[1], req.query[k]] }.find_all{|k,v|
-            metadata_editable_column?(k)
-          }
-          DB.transaction do
-            edits = metadata_fields.find_all{|k,v|
-              target.metadata[k].to_s != v[0]
+        if target.writable_by(user)
+          target.write(user) do
+            metadata_fields = req.query.keys.find_all{|k|
+              k.split(".").first == 'metadata'
+            }.map{|k| [k.split(".")[1], req.query[k]] }.find_all{|k,v|
+              metadata_editable_column?(k)
             }
-            edits.each{|k,v|
-              target.metadata[k] = v[0]
-            }
-            target[:modified_at] = Time.now.to_s
+            DB.transaction do
+              edits = metadata_fields.find_all{|k,v|
+                target.metadata[k].to_s != v[0]
+              }
+              edits.each{|k,v|
+                target.metadata[k] = v[0]
+              }
+              target[:modified_at] = Time.now.to_s
+            end
+            changed
           end
-          changed
         end
         @target.update_volatile_full_text_search
         json(req, res)
@@ -603,8 +613,8 @@ module MuryuDispatch
         target = @target
         h = target.to_hash
         %w(mimetype_id owner_id metadata_id internal_path).each{|k| h.delete(k)}
-        h[:groups] = target.groups.map{|g| g.name }
-        h[:sets] = target.sets.map{|g| g.namespace+"/"+g.name }
+        h[:groups] = target.groups.map{|g| g.name if user.groups.include?(g) }.compact
+        h[:sets] = target.sets.map{|g| g.namespace+"/"+g.name if (g.groups & user.groups).size > 0 }.compact
         h[:tags] = target.tags.map{|g| g.name }
         h[:owner] = target.owner.name
         h[:metadata] = target.metadata.to_hash.reject{|k,v| v.nil? }

@@ -36,6 +36,19 @@ class Pathname
 end
 
 
+class Numeric
+  
+  def points_to_mm
+    self * 0.3528
+  end
+  
+  def mm_to_points
+    self / 0.3528
+  end
+  
+end
+
+
 module Future
 
 
@@ -82,8 +95,8 @@ extend self
 
   def application_ps(fname, charset)
     i = image(fname)
-    i[:'width'] = (i[:'width'] * 0.3528).round.to_i
-    i[:'height'] = (i[:'height'] * 0.3528).round.to_i
+    i[:'width'] = i[:'width'].points_to_mm
+    i[:'height'] = i[:'height'].points_to_mm
     i[:'dimensions_unit'] = 'mm'
     i[:'pages'] = i[:'frames']
     i.delete :'frames'
@@ -111,6 +124,7 @@ extend self
       :length, (h['length'].to_i > 0) ? h['length'] : nil,
       :width, h['video_width'],
       :height, h['video_height'],
+      :dimensions_unit, 'px',
       :fps, h['video_fps'],
       :audio_bitrate, h['audio_bitrate'],
       :video_bitrate, h['video_bitrate'],
@@ -140,6 +154,7 @@ extend self
       :description => enc_utf8(exif["Image Description"], charset),
       :author => enc_utf8(exif["Artist"], charset),
       :height => parse_val(h),
+      :dimensions_unit => 'px',
       :frames => id_out.split("\n").size,
       :exif => enc_utf8(exif.map{|r| r.join("\t")}.join("\n"), charset)
     }
@@ -232,11 +247,12 @@ extend self
     i = Hash[*ids.flatten]
     if i['page size']
       w,h = i['page size'].gsub(/[^0-9.]/, ' ').strip.split(/\s+/)
-      wmm = w.to_f * 0.3528
-      hmm = h.to_f * 0.3528
+      wmm = w.to_f.points_to_mm
+      hmm = h.to_f.points_to_mm
       i['page size'] = i['page size'].scan(/\(([^)]+)\)/)[0].to_s
-      i['width'] = wmm.round.to_i
-      i['height'] = hmm.round.to_i
+      i['width'] = wmm
+      i['height'] = hmm
+      i['dimensions_unit'] = 'mm'
     end
     i
   end

@@ -23,7 +23,7 @@ class MozSnapshooter < Gtk::Window
     Gtk::MozEmbed.set_profile_path(ENV['HOME'] + '.mozilla', 'RubyGecko')
     self << Gtk::MozEmbed.new
     self.child.chrome_mask = Gtk::MozEmbed::ALLCHROME
-    self.child.set_size_request(1280,1024)
+    self.child.set_size_request(1024,1024)
     self.child.signal_connect("net_stop") { on_net_stop }
     self.child.location = location
     @target = target

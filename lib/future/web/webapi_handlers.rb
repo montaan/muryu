@@ -76,16 +76,18 @@ module MuryuDispatch
       end
 
       def edit(req,res)
-        target.write(user) do
-          DB.transaction do
-            edits = req.query.find_all{|k,v|
-              column?(k) and target[k].to_s != v and
-              not uneditable_column?(k)
-            }
-            edits.each{|k,v|
-              target[k] = v
-            }
-            target[:modified_at] = Time.now.to_s if column?('modified_at')
+        if target.writable_by(user)
+          target.write(user) do
+            DB.transaction do
+              edits = req.query.find_all{|k,v|
+                column?(k) and target[k].to_s != v and
+                not uneditable_column?(k)
+              }
+              edits.each{|k,v|
+                target[k] = v
+              }
+              target[:modified_at] = Time.now.to_s if column?('modified_at')
+            end
           end
         end
         res.body = 'OK'

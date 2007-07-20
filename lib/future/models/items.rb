@@ -62,24 +62,31 @@ class Items < DB::Tables::Items
   end
 
   def rset_sets(user, new_set_names)
-    write(user) do
-      new_sets = []
-      DB.transaction do
-        new_sets = new_set_names.uniq.map{|t|
-          ns,n = t.split("/",2)
-          unless n
-            n = ns
-            ns = user.name
-          end
-          Sets.rfind_or_create(user, :name => n, :namespace => ns)
-        }
-      end
-      DB.transaction do
-        (sets - new_sets).each{|t| remove_set(t) }
-      end
-      DB.transaction do
-        (new_sets - sets).each{|t| add_set(t) }
-      end
+    return unless readable_by(user)
+    new_sets = []
+    DB.transaction do
+      new_sets = new_set_names.uniq.map{|t|
+        ns,n = t.split("/",2)
+        unless n
+          n = ns
+          ns = user.name
+        end
+        Sets.rfind_or_create(user, :name => n, :namespace => ns)
+      }.compact
+    end
+    DB.transaction do
+      (sets - new_sets).each{|t|
+        t.write(user) do
+          remove_set(t)
+        end
+      }
+    end
+    DB.transaction do
+      (new_sets - sets).each{|t|
+        t.write(user) do
+          add_set(t)
+        end
+      }
     end
   end
 

@@ -4,6 +4,7 @@ tables["sets"] = {
   :owner_id => [['users']],
   :deleted => [:boolean, 'not null', 'default false']
 }
+constraints << ['sets', :unique, [:namespace, :name]]
 
 tables["items_sets"] = {
   :item_id => [['items', :id], 'not null'],

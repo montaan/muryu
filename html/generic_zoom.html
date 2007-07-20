@@ -7,6 +7,15 @@
       div.PortalBackground {
         border : 1px solid white;
       }
+      div.TitledPortal {
+        border : 1px solid green;
+      }
+      div.PortalMap {
+        border : 1px solid yellow;
+      }
+      div.Title {
+        border : 1px solid red;
+      }
     </style>
   
   
@@ -233,20 +242,28 @@
         document.body.style.overflow = 'hidden'
         var container = E('div')
         container.style.position = 'absolute'
-        container.style.left = '0px'
-        container.style.top = '0px'
-/*        container.style.width = '100%'
-        container.style.height = '100%'*/
-        container.width = 256
-        container.height = 256
-        container.style.width = container.width + 'px'
-        container.style.height = container.height + 'px'
-        var c = E('div',null,null,null, container.style)
-        c.style.border = '1px solid red'
-        c.style.top = '-1'
-        c.style.left = '-1'
-        c.style.zIndex = 1000
-        container.appendChild(c)
+        var debug = false
+        if (debug) {
+          container.style.top = '200px'
+          container.style.left = '200px'
+          container.width = 256
+          container.height = 256
+          container.style.width = container.width + 'px'
+          container.style.height = container.height + 'px'
+          var c = E('div',null,null,null, container.style)
+          c.style.border = '1px solid red'
+          c.style.top = '-1'
+          c.style.left = '-1'
+          c.style.zIndex = 1000
+          container.appendChild(c)
+        } else {
+          container.style.left = '0px'
+          container.style.top = '0px'
+          container.style.width = '100%'
+          container.style.height = '100%'
+          container.width = document.body.clientWidth
+          container.height = document.body.clientHeight
+        }
         var txt = E('div')
         txt.style.position = 'absolute'
         txt.style.left = '280px'
@@ -254,10 +271,6 @@
         txt.style.color = 'white'
         txt.style.zIndex = 1000
         container.appendChild(txt)
-        container.style.top = '200px'
-        container.style.left = '200px'
-/*        container.width = document.body.clientWidth
-        container.height = document.body.clientHeight*/
         document.body.appendChild(container)
         document.body.style.overflow = 'hidden'
         topmap = new Portal({
@@ -321,7 +334,8 @@
           topmap.pointerY = y - topmap.container.offsetTop
         }, false)
         createStuff = function(map, levels, x,y) {
-          var maptree = new Portal({
+          var maptree = new TitledPortal({
+            title : x + ':' + y,
             parent : map,
             relativeZ : -2,
             left : x,
@@ -332,9 +346,10 @@
             for (var x=0; x<2; x++) {
               if (i != 2) {
                 new PortalMap({
-                  parent : maptree,
+                  title : x + ':' + y,
+                  parent : maptree.portal,
                   left : x*200,
-                  top : y*284,
+                  top : y*420,
                   relativeZ : i
                 })
               }
@@ -342,12 +357,12 @@
             }
           }
           if (levels > 0) {
-            createStuff(maptree, levels-1, 284+256, 0)
-            createStuff(maptree, levels-1, 284+256, 256)
-            createStuff(maptree, levels-1, 284+256, 512)
-            createStuff(maptree, levels-1, 284+522, 0)
-            createStuff(maptree, levels-1, 284+522, 256)
-            createStuff(maptree, levels-1, 284+522, 512)
+            createStuff(maptree.portal, levels-1, 284+256, 0)
+            createStuff(maptree.portal, levels-1, 284+256, 400)
+            createStuff(maptree.portal, levels-1, 284+256, 800)
+            createStuff(maptree.portal, levels-1, 284+522, 0)
+            createStuff(maptree.portal, levels-1, 284+522, 400)
+            createStuff(maptree.portal, levels-1, 284+522, 800)
           }
           return maptree
         }

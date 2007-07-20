@@ -19,7 +19,7 @@ module AccessControl
   end
 
   def readable_by(user)
-    (groups & user.groups)
+    (groups & user.groups).size > 0
   end
 
   def writable_by(user)
