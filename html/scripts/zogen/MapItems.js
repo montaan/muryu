@@ -398,7 +398,7 @@ ItemArea = {
 
   getTile : function() {
     if (this.parentNode)
-      return this.parentNode.parentNode
+      return this.parentNode.parentNode.tile || this.parentNode.parentNode
   },
 
   getMap : function() {

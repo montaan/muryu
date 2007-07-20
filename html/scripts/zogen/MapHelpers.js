@@ -27,7 +27,7 @@ ImagePool.prototype = {
 Loader = function(map) {
   this.map = map
   this.queue = new PriorityQueue()
-  this.tileInfoManager = new TileInfoManager(map)
+  this.tileInfoManager = new TileInfoManager()
   var t = this
   this.loader = function(completed){
     var tile = this.tile || this
@@ -129,13 +129,17 @@ Loader.prototype = {
 
 
 
-TileInfoManager = function(map) {
-  this.map = map
-  this.request_bundle = []
+TileInfoManager = function() {
+  this.bundles = {}
   this.cache = {}
+  this.keys = []
   var t = this
-  this.sendBundle = function(){
-    t.bundleSender()
+  this.sendBundles = function(){
+    for (var i=0; i<t.keys.length; i++) {
+      var key = t.keys[i]
+      t.bundleSender(key, t.bundles[key])
+      t.bundles[key] = []
+    }
   }
 }
 TileInfoManager.prototype = {
@@ -143,35 +147,37 @@ TileInfoManager.prototype = {
   callbackDelay : 50,
   cacheZ : 5,
 
-  server : '/tile_info',
-
   flushCache : function() {
     this.cache = {}
   },
 
-  requestInfo : function(x,y,z, callback) {
-    var rv = this.getCachedInfo(x,y,z)
+  requestInfo : function(server, x,y,z, callback) {
+    var rv = this.getCachedInfo(server, x,y,z)
     if (rv && callback.handleInfo)
       callback.handleInfo(rv)
     else
       this.bundleRequest(arguments)
   },
 
-  getCachedInfo : function(x,y,z) {
-    var zc = this.cache[z]
+  getCachedInfo : function(key, x,y,z) {
+    if (x < 0 || y < 0) return []
+    if (!this.cache[key])
+      this.cache[key] = {}
+    var qcache = this.cache[key]
+    var zc = qcache[z]
     var c = zc && zc[x+':'+y]
     if (c) {
       return c
     } else if (z > this.cacheZ) {
-      if (!this.cache[this.cacheZ]) return false
+      if (!qcache[this.cacheZ]) return false
       var zf = 1 << (z-this.cacheZ)
       var rzf = 1.0 / zf
       var rx = x * rzf
       var ry = y * rzf
-      var rsz = this.map.tileSize * rzf
-      var xz = Math.floor(rx / this.map.tileSize) * this.map.tileSize
-      var yz = Math.floor(ry / this.map.tileSize) * this.map.tileSize
-      var tz = this.cache[this.cacheZ][xz+':'+yz]
+      var rsz = 256 * rzf
+      var xz = Math.floor(rx / 256) * 256
+      var yz = Math.floor(ry / 256) * 256
+      var tz = qcache[this.cacheZ][xz+':'+yz]
       if (!tz) return false
       var res = []
       var rrx = rx - xz
@@ -179,15 +185,15 @@ TileInfoManager.prototype = {
       for (var i=0; i<tz.length; i++) {
         var a = tz[i]
         if (!(a.x+a.sz < rrx || a.y+a.sz < rry || a.x >= rrx+rsz || a.y >= rry+rsz)) {
-          var na = Object.extend({}, a)
+          var na = Object.clone(a)
           na.x = (a.x - rrx) * zf
           na.y = (a.y - rry) * zf
           na.sz *= zf
           res.push(na)
         }
       }
-      if (!this.cache[z]) this.cache[z] = {}
-      this.cache[z][x+':'+y] = res
+      if (!qcache[z]) qcache[z] = {}
+      qcache[z][x+':'+y] = res
       return res
     } else {
       return false
@@ -195,41 +201,43 @@ TileInfoManager.prototype = {
   },
 
   bundleRequest : function(req) {
-    this.request_bundle.push(req)
+    var key = req[0]
+    if (!this.keys[key]) {
+      this.bundles[key] = []
+      this.keys[key] = true
+      this.keys.push(key)
+    }
+    this.bundles[key].push(req)
     if (this.requestTimeout) clearTimeout(this.requestTimeout)
-    this.requestTimeout = setTimeout(this.sendBundle, 10)
+    this.requestTimeout = setTimeout(this.sendBundles, 150)
   },
 
-  bundleSender : function() {
+  bundleSender : function(server, bundle) {
     var reqs = []
     var callbacks = []
-    var reqb = this.request_bundle
-    this.request_bundle = []
-    var tsz = this.map.tileSize
+    var reqb = bundle
+    var tsz = 256
     for (var i=0; i<reqb.length; i++) {
       var req = reqb[i]
-      var info = this.getCachedInfo(req[0], req[1], req[2])
+      var info = this.getCachedInfo(req[0], req[1], req[2], req[3])
       if (!info) {
-        if (req[2] >= this.cacheZ) {
-          var rz = 1 << (req[2]-this.cacheZ)
-          reqs.push([Math.floor(req[0]/rz/tsz) * tsz, Math.floor(req[1]/rz/tsz) * tsz, this.cacheZ])
+        if (req[3] >= this.cacheZ) {
+          var rz = 1 << (req[3]-this.cacheZ)
+          reqs.push([Math.floor(req[1]/rz/tsz) * tsz, Math.floor(req[2]/rz/tsz) * tsz, this.cacheZ])
         } else {
-          reqs.push(req.slice(0,3))
+          reqs.push(req.slice(1,3))
         }
         callbacks.push(req)
       } else {
         this.callbackHandler(req)
       }
     }
-    reqs = reqs.uniq()
+    if (reqs.length == 0) return
     var t = this
-    var parameters = {}
-    parameters.tiles = Object.toJSON(reqs)
-    if (this.map.query)
-      parameters.q = this.map.query
-    if (this.map.time)
-      parameters.time = this.map.time
-    new Ajax.Request(this.server, {
+    var parameters = server.split("?")[1].toQueryParams()
+    parameters.tiles = '[' + reqs.invoke('toJSON').uniq().join(",") + ']'
+    reqs = parameters.tiles.evalJSON()
+    new Ajax.Request(server.split("?")[0], {
       method : 'post',
       parameters : parameters,
       onSuccess : function(res) {
@@ -237,9 +245,11 @@ TileInfoManager.prototype = {
         for (var i=0; i<reqs.length; i++) {
           var info = infos[i]
           var req = reqs[i]
-          if (!t.cache[req[2]])
-            t.cache[req[2]] = {}
-          t.cache[req[2]][req[0]+':'+req[1]] = info
+          if (!t.cache[server])
+            t.cache[server] = {}
+          if (!t.cache[server][req[2]])
+            t.cache[server][req[2]] = {}
+          t.cache[server][req[2]][req[0]+':'+req[1]] = info
         }
         // everything cached, let's retry getCachedInfo
         for (var i=0; i<callbacks.length; i++) {
@@ -249,8 +259,8 @@ TileInfoManager.prototype = {
       onFailure : function(res) {
         for (var i=0; i<callbacks.length; i++) {
           var callback = callbacks[i]
-          if (callback[3].handleInfo)
-            callback[3].handleInfo(false)
+          if (callback[4].handleInfo)
+            callback[4].handleInfo(false)
         }
       }
     })
@@ -264,14 +274,15 @@ TileInfoManager.prototype = {
   makeCallbackHandler : function(callback) {
     var t = this
     return function(){
-      if (callback[3].handleInfo) {
+      if (callback[4].handleInfo) {
         var info = t.getCachedInfo.apply(t, callback)
-        callback[3].handleInfo(info)
+        callback[4].handleInfo(info)
       }
     }
   }
-  
+
 }
+
 
 
 

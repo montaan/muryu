@@ -550,6 +550,9 @@ Object.extend(TileMap.prototype, {
     'http://t2.manifold.fhtr.org:8080/tile/',
     'http://t3.manifold.fhtr.org:8080/tile/'
   ],
+  tileInfoServers : [
+    '/tile_info/'
+  ],
   
   tileSize : 256,
   tileQuery : false,
@@ -661,6 +664,14 @@ Object.extend(TileMap.prototype, {
     return this.tileServers[0]
   },
   
+  /**
+    Rotates the tile info servers and returns the current first tile info server.
+    */
+  rotateTileInfoServers : function() {
+    this.tileInfoServers.push(this.tileInfoServers.shift())
+    return this.tileInfoServers[0]
+  },
+  
   getTileQuery : function() {
     return "?time=" + this.time
   },
@@ -711,7 +722,15 @@ TileNode.prototype = {
   },
 
   getInfoURL : function() {
-    return this.map.rotateInfoServers() + this.getInfoPath()
+    return this.map.rotateTileInfoServers() + this.getInfoPath()
+  },
+
+  getInfoQuery : function() {
+    return this.map.getInfoQuery()
+  },
+
+  getInfoServer : function() {
+    return this.map.rotateTileInfoServers()
   },
 
   getInfoPath : function() {
@@ -1011,10 +1030,35 @@ TileNode.prototype = {
     this.image.style.position = 'absolute'
     this.image.style.zIndex = this.z
     this.image.style.display = 'none'
+    this.image.style.border = '0px'
+    this.image.tile = this
     this.image.onload = this.onload.bind(this)
     this.map.element.appendChild(this.image)
     var url = this.getImageURL()
     this.image.src = url
+    if (this.z < 5) return
+    this.image.style.cursor = 'wait'
+    this.handleInfo = function(infos) {
+      if (!infos || !this.image) return
+      this.image.style.cursor = 'default'
+      this.image.ImageMap = E('map')
+      this.image.ImageMap.name = this.image.src
+      this.image.appendChild(this.image.ImageMap)
+      for(var i=0; i<infos.length; i++) {
+        var info = infos[i]
+        var area = E('area')
+        Object.extend(area, ItemArea)
+        area.info = info
+        area.shape = 'rect'
+        area.coords = [info.x, info.y, info.x + info.sz, info.y + info.sz].join(",")
+        area.href = '/files/' + info.path
+        area.title = area.getTitle()
+        area.itemHREF = '/items/' + info.path + '/json'
+        this.image.ImageMap.appendChild(area)
+      }
+      this.image.useMap = '#'+this.image.src
+    }
+    tileInfoManager.requestInfo(this.getInfoServer()+this.getInfoQuery(), this.tileX, this.tileY, this.z, this)
   },
 
   /**

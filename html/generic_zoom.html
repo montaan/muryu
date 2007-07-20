@@ -67,7 +67,7 @@
       }
       
       Muryu = {
-        init : function(){
+        login : function() {
           var loggedIn = (Session.storage.info.name && Session.storage.info.name != 'anonymous')
           if (loggedIn) {
             if (Session.storage.info.preferences.language)
@@ -90,6 +90,10 @@
               this.request(url)
             }
           }
+        },
+        
+        init : function(){
+          var loggedIn = this.login()
           
           var qvars = document.location.search.slice(1).split("&")
           var query = {}
@@ -239,6 +243,7 @@
       }
       
       window.addEventListener('load', function() {
+        Session.storage.load(Muryu.login.bind(Muryu))
         document.body.style.overflow = 'hidden'
         var container = E('div')
         container.style.position = 'absolute'
