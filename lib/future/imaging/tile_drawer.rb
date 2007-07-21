@@ -188,13 +188,16 @@ extend self
       indexes << image_index
     }
     puts "#{Thread.current.telapsed} for info layout" if $PRINT_QUERY_PROFILE
-    paths = Items.find_all(:image_index => indexes, :columns => ['image_index','path'], :as_array => true)
-    i = 0
-    while i < infos.size
-      iidx,path = paths[i]
-      h[iidx.to_i][6] = path
-      i += 1
+    if indexes.size > 0
+      paths = DB::Conn.query("select image_index, path from items where image_index = ANY (ARRAY#{indexes.inspect})")
+      i = 0
+      while i < infos.size
+        iidx,path = paths[i]
+        h[iidx.to_i][6] = path
+        i += 1
+      end
     end
+    puts "#{Thread.current.telapsed} for paths query" if $PRINT_QUERY_PROFILE
     infos
   end
 
@@ -209,6 +212,7 @@ extend self
       else
         t = @@indexes[key]
       end
+      puts "#{Thread.current.telapsed} for memcache get" if $PRINT_QUERY_PROFILE
       unless t
         idxs = Items.rfind_all(user, query.merge(:columns => [:image_index, :mimetype_id, :deleted], :as_array => true))
         tr = 't'
@@ -229,6 +233,7 @@ extend self
         else
           @@indexes[key] = t
         end
+        puts "#{Thread.current.telapsed} for db info query" if $PRINT_QUERY_PROFILE
       end
       t
     end
@@ -245,6 +250,8 @@ extend self
 
   private
   def sanitize_query(query)
+    query = query.clone
+    query.delete :columns
     str = query.to_a.
           sort_by{|k,v| k.to_s }.inspect
     Digest::SHA1.hexdigest(str).to_s

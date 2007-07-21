@@ -11,7 +11,10 @@ module MuryuDispatch
       time = req.query['time'].to_s
       if req.query.has_key?('tiles')
         tiles = JSON.parse(req.query['tiles'][0])
-        tile_array = '[' + tiles.map{|x,y,z| get_tile_info(user, sq, x, y, z, 256, 256, time) }.join(",") + ']'
+        tile_array = '[' + Future.memcache.with_local_cache do
+          tiles.map{|x,y,z|
+            get_tile_info(user, sq, x, y, z, 256, 256, time) }.join(",")
+        end + ']'
         res.body = tile_array
       else
         dims = Future::Tiles.dimensions(user, sq, time, :rows)
@@ -35,9 +38,7 @@ module MuryuDispatch
       zjinfo = Future.memcache.get(key, true) if $CACHE_INFO
       unless zjinfo
         if z >= 4
-          sq[:columns] ||= []
-          sq[:columns] << 'path'
-          sq[:columns] << 'deleted'
+          sq[:columns] = ['path', 'deleted']
         end
         jinfo = "["
         puts "#{Thread.current.telapsed} for tile_info init" if $PRINT_QUERY_PROFILE

@@ -24,8 +24,7 @@ ImagePool.prototype = {
 
 
 
-Loader = function(map) {
-  this.map = map
+Loader = function() {
   this.queue = new PriorityQueue()
   this.tileInfoManager = new TileInfoManager()
   var t = this
@@ -61,8 +60,11 @@ Loader.prototype = {
     this.process()
   },
 
+  requestInfo : function() {
+    this.tileInfoManager.requestInfo.apply(this.tileInfoManager, arguments)
+  },
+
   process : function() {
-    var tim = this.tileInfoManager
     while ((this.loads < this.__maxLoads) && !this.queue.isEmpty()) {
       if (this.initializationTimeout) {
         clearTimeout(this.initializationTimeout)
@@ -78,13 +80,13 @@ Loader.prototype = {
         // THIS IS function(){}.bind(tile) BECAUSE JAVASCRIPT HAS CALL-BY-NAME, DO NOT CHANGE
         // (unless you wish to spend an hour debugging seemingly randomly non-loading tiles)
         setTimeout(function(){
-          this.load(tim)
+          this.load()
         }.bind(tile), 1000 * ((this.tileSize * this.maxLoads) / this.bandwidthLimit))
       } else {
         // THIS IS function(){}.bind(tile) BECAUSE JAVASCRIPT HAS CALL-BY-NAME, DO NOT CHANGE
         // (unless you wish to spend an hour debugging seemingly randomly non-loading tiles)
         setTimeout(function(){
-          this.load(tim)
+          this.load()
         }.bind(tile), 0) // hack to make zooming out a bit less of a pain
                          // if zooming out and answering queries instantly from cache
       }
@@ -138,7 +140,10 @@ TileInfoManager = function() {
     for (var i=0; i<t.keys.length; i++) {
       var key = t.keys[i]
       t.bundleSender(key, t.bundles[key])
+      var reqnum = t.bundles[key].requestNumber
       t.bundles[key] = []
+      t.bundles[key].requestNumber = reqnum
+      t.bundles[key].firstAt = new Date().getTime()
     }
   }
 }
@@ -204,12 +209,26 @@ TileInfoManager.prototype = {
     var key = req[0]
     if (!this.keys[key]) {
       this.bundles[key] = []
+      this.bundles[key].firstAt = 0
+      this.bundles[key].requestNumber = 0
       this.keys[key] = true
       this.keys.push(key)
     }
     this.bundles[key].push(req)
     if (this.requestTimeout) clearTimeout(this.requestTimeout)
-    this.requestTimeout = setTimeout(this.sendBundles, 150)
+    if (this.bundles[key].length == 1 && new Date().getTime() - this.bundles[key].firstAt > 1000) {
+      this.sendBundles()
+      this.bundles[key].firstAt = new Date().getTime()
+      this.bundles[key].requestNumber = 0
+    } else if (this.bundles[key].requestNumber < 4) {
+      this.bundles[key].requestNumber++
+      this.sendBundles()
+    } else if (this.bundles[key].length == 4) {
+      this.bundles[key].requestNumber++
+      this.sendBundles()
+    } else {
+      this.requestTimeout = setTimeout(this.sendBundles, 150)
+    }
   },
 
   bundleSender : function(server, bundle) {

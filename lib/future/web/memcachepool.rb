@@ -8,14 +8,21 @@ module Future
   class MemCachePool
     attr_reader :local_cache
     
-    def initialize(servers, size=2)
+    def initialize(servers, size=4)
       @queue = Queue.new
+      @level = 0
       size.times{ @queue.push(MemCache.new(servers)) }
     end
 
     def get(*a)
-      reserve do |s|
-        s.get(*a) rescue false
+      if @local_cache
+        @local_cache[a] ||= (reserve do |s|
+          s.get(*a) rescue false
+        end)
+      else
+        reserve do |s|
+          s.get(*a) rescue false
+        end
       end
     end
 
@@ -42,6 +49,15 @@ module Future
       end
     end
 
+    def with_local_cache
+      @level += 1
+      @local_cache ||= {}
+      yield
+    ensure
+      @level -= 1
+      @local_cache = nil if @level == 0
+    end
+
   end
 
 
@@ -49,35 +65,46 @@ module Future
     def initialize(servers, size=16)
       @server = MemCache.new(servers)
       @mutex = Mutex.new
+      @level = 0
     end
 
     def get(*a)
       @mutex.synchronize do
-        r = @server.get(*a) rescue false
-        r
+        if @local_cache
+          @local_cache[a] ||= (@server.get(*a) rescue false)
+        else
+          @server.get(*a) rescue false
+        end
       end
     end
 
     def get_multi(*a)
       @mutex.synchronize do
-        r = @server.get_multi(*a) rescue false
-        r
+        @server.get_multi(*a) rescue false
       end
     end
 
     def set(*a)
       @mutex.synchronize do
-        r = @server.set(*a) rescue false
-        r
+        @server.set(*a) rescue false
       end
     end
 
     def delete(a)
       @mutex.synchronize do
-        r = @server.delete(a) rescue false
-        r
+        @server.delete(a) rescue false
       end
     end
+    
+    def with_local_cache
+      @level += 1
+      @local_cache ||= {}
+      yield
+    ensure
+      @level -= 1
+      @local_cache = nil if @level == 0
+    end
+
   end
 
 

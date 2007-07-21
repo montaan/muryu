@@ -58,9 +58,9 @@ Zoomable = {
       this.parent.addChild(this)
     } else if (this.container) {
       this.root = this
-      this.loader = new Loader(this)
       this.setContainer(this.container)
     }
+    this.setupEventListeners()
   },
   
   /**
@@ -68,10 +68,14 @@ Zoomable = {
     */
   setParent : function(parent) {
     this.parent = parent
-    this.bgColor = parent.bgColor
-    this.root = parent.root
-    this.loader = parent.loader
-    this.setContainer(parent.container)
+    if (parent) {
+      this.bgColor = parent.bgColor
+      this.root = parent.root
+      this.loader = parent.loader
+      this.setContainer(parent.container)
+    } else {
+      this.unload()
+    }
   },
   
   /**
@@ -80,8 +84,13 @@ Zoomable = {
   setContainer : function(container) {
     this.container = container
     if (!this.parent) {
-      this.container.appendChild(this.element)
-      this.container.style.backgroundColor = '#'+this.bgColor
+      if (container) {
+        this.container.appendChild(this.element)
+        this.container.style.backgroundColor = '#'+this.bgColor
+      } else {
+        if (this.element.parentNode) $(this.element).detachSelf()
+        this.container.style.backgroundColor = 'inherit'
+      }
     }
   },
   
@@ -105,6 +114,44 @@ Zoomable = {
     child.z = this.z + this.relativeZ
     child.updateDimensions()
     child.zoom(child.z)
+  },
+
+  /**
+    Removes child from this.
+    */
+  removeChild : function(child) {
+    if (child.element && child.element.parentNode)
+      $(child.element).detachSelf()
+    this.children.deleteFirst(child)
+    child.setParent(null)
+  },
+
+  /**
+    When removing a Zoomable from the document, call this.
+    Removes event listeners.
+  */
+  unload : function() {
+    this.removeEventListeners()
+    while(this.children.length > 0) {
+      var c = this.children.pop()
+      c.unload()
+      if (c.element) this.element.removeChild(c.element)
+    }
+    this.root = null
+    this.loader = null
+    this.setContainer(null)
+  },
+
+  /**
+    Sets up event listeners for the Zoomable, called on init.
+    */
+  setupEventListeners : function() {
+  },
+
+  /**
+    Removes event listeners from the Zoomable, called on unload.
+    */
+  removeEventListeners : function() {
   },
 
   /**
@@ -271,40 +318,276 @@ Object.extend(Zoomable, EventListener)
 
 
 
-
-
 /**
-  A Portal consists of a selection layer and a submap layer.
-  
-  When panning the top-level map, it informs all its submaps.
-  
-  A map that is outside the container hides itself and stops updating
-  its submaps.
-
-  The submaps of a map can't go outside the parent map's boundary -
-  the parent map's boundary is ( min(submaps.left), min(submaps.top),
-  max(submaps.right), max(submaps.bottom) ).
+  A View is the topmost event handler for a zoomable scene.
+  Make a View and attach all the rest to it.
   */
-Portal = function(config) {
+View = function(config) {
+  this.loader = new Loader()
   this.init(config)
 }
-Portal.prototype = Object.extend({}, Zoomable)
-Object.extend(Portal.prototype, {
+View.prototype = Object.extend({}, Zoomable)
+Object.extend(View.prototype, {
   pointerX : 0, pointerY : 0,
+  panAmount : 16,
   maxZoom : 16, minZoom : -3,
-  className : 'PortalBackground',
   bgColor : '13163C',
 
   // state variables
   zoomIn : false, zoomOut : false,
 
   /**
+    Key handlers for the map
+  */
+  getKeyHandlers : function() {
+    if (!this.keyHandlers) {
+      this.keyHandlers = {
+        't' : function(){ this.animatedZoom(this.targetZ+1) },
+        'g' : function(){ this.animatedZoom(this.targetZ-1) },
+        'z' : function(){ this.animatedZoom(this.targetZ+1) },
+        'x' : function(){ this.animatedZoom(this.targetZ-1) },
+        'f' : function(){ this.panRight() },
+        'e' : function(){ this.panUp() },
+        's' : function(){ this.panLeft() },
+        'd' : function(){ this.panDown() },
+        'v' : function(){ this.resetZoom() }
+      }
+      var kh = this.keyHandlers
+      kh[Event.KEY_RIGHT] = function(){ this.panRight() }
+      kh[Event.KEY_UP]    = function(){ this.panUp() }
+      kh[Event.KEY_LEFT]  = function(){ this.panLeft() }
+      kh[Event.KEY_DOWN]  = function(){ this.panDown() }
+    }
+    return this.keyHandlers
+  },
+  getKeyDownHandlers : function() {
+    if (!this.keyDownHandlers) {
+      this.keyDownHandlers = {
+        't' : function(){ this.zoomIn = true },
+        'g' : function(){ this.zoomOut = true }
+      }
+    }
+    return this.keyDownHandlers
+  },
+  getKeyUpHandlers : function() {
+    if (!this.keyUpHandlers) {
+      this.keyUpHandlers = {
+        't' : function(){ this.zoomIn = false },
+        'g' : function(){ this.zoomOut = false }
+      }
+    }
+    return this.keyUpHandlers
+  },
+  
+  /**
+   Creates event listener functions and adds them to element and document.
+  */
+  setupEventListeners : function() {
+    var t = this
+    this.onmousedown = function(ev) {
+      if (!t.validEventTarget(ev)) return
+      if (t.previousTarget && t.previousTarget.blur)
+        t.previousTarget.blur()
+      window.focus()
+      document.focusedMap = t
+      var obj = ev.target
+      while (!obj.map && obj.parentNode)
+        obj = obj.parentNode
+      if (obj)
+        window.lastFocusedMap = obj.map
+      if (Event.isLeftClick(ev)) {
+        if (ev.shiftKey) {
+          t.selecting = true
+          t.selectX = ev.pageX - t.container.offsetLeft
+          t.selectY = ev.pageY - t.container.offsetTop
+          t.selectionElem.style.left = t.selectX + 'px'
+          t.selectionElem.style.top = t.selectY + 'px'
+          t.selectionElem.style.width = '0px'
+          t.selectionElem.style.height = '0px'
+          t.selectionStartTime = new Date().getTime()
+          t.selected = new Hash()
+        } else {
+          t.panning = true
+          t.panX = ev.clientX
+          t.panY = ev.clientY
+        }
+        Event.stop(ev)
+      }
+    }
+    this.ondblclick = function(ev) {
+      if (Event.isLeftClick(ev) && !ev.ctrlKey && !ev.shiftKey && !ev.altKey) {
+        var obj = ev.target
+        while (obj && !obj.map) {
+          obj = obj.parentNode
+        }
+        if (obj && obj.map != t) {
+          var maps_per_container = t.container.width / Math.max(obj.map.width, obj.map.height)
+          var crop_z = Math.floor(Math.log(maps_per_container) / Math.log(2))
+          if (crop_z > 4)
+            crop_z = 7
+          var full_z = Math.floor(Math.log(t.container.width) / Math.log(2))
+          t.pointerX = ev.pageX - t.container.offsetLeft
+          t.pointerY = ev.pageY - t.container.offsetTop
+          var dz = t.z - obj.map.z
+          if (crop_z+dz > t.targetZ) {
+            t.animatedZoom(crop_z+dz)
+          } else {
+            if (t.targetZ < 7+dz) {
+              t.animatedZoom(7+dz)
+            } else if (ev.target.style.cursor == 'wait') {
+              t.animatedZoom(full_z+dz)
+            } else {
+              t.animatedZoom(crop_z+dz)
+            }
+          }
+        } else if (t.targetZ < 2) {
+          t.animatedZoom(t.targetZ + 4)
+        } else {
+          t.animatedZoom(0)
+        }
+        Event.stop(ev)
+      }
+    }
+    this.onmouseup = function(ev) {
+      t.previousTarget = ev.target
+      t.panning = false
+      t.selecting = false
+//       t.selectionElem.style.display = 'none'
+    }
+    this.onmousemove = function(ev) {
+      t.previousTarget = ev.target
+      if (!t.validEventTarget(ev)) return
+      t.pointerX = ev.pageX - t.container.offsetLeft
+      t.pointerY = ev.pageY - t.container.offsetTop
+      document.focusedMap = t
+      if (t.panning) {
+        var dx = ev.clientX - t.panX
+        var dy = ev.clientY - t.panY
+        t.panBy(dx, dy)
+        t.panX = ev.clientX
+        t.panY = ev.clientY
+        Event.stop(ev)
+      } else if (t.selecting && (Math.abs(t.pointerX - t.selectX) > 3 ||
+                                 Math.abs(t.pointerY - t.selectY) > 3)
+      ) {
+        t.selectionElem.style.display = 'block'
+        t.selectionElem.style.left = Math.min(t.pointerX, t.selectX) + 'px'
+        t.selectionElem.style.top = Math.min(t.pointerY, t.selectY) + 'px'
+        t.selectionElem.style.width = Math.abs(t.pointerX-t.selectX) + 'px'
+        t.selectionElem.style.height = Math.abs(t.pointerY-t.selectY) + 'px'
+        var obj = ev.target
+        while (obj && !obj.map) {
+          obj = obj.parentNode
+        }
+        if (obj)
+          obj.map.selectUnderSelection()
+        Event.stop(ev)
+      }
+    }
+    this.onmousescroll = function(ev) {
+      if (!t.validEventTarget(ev)) return
+      if (ev.detail < 0) {
+        t.animatedZoom(t.z+1)
+      } else {
+        t.animatedZoom(t.z-1)
+      }
+      Event.stop(ev)
+    }
+    this.onkeypress = function(ev) {
+      t.previousTarget = ev.target
+      if (!t.validEventTarget(ev)) return
+      if (document.focusedMap == t && !ev.ctrlKey) {
+        if (ev.charCode == 0) return
+        var c = ev.keyCode | ev.charCode | ev.which
+        var cs = String.fromCharCode(c).toLowerCase()
+        var keyHandlers = t.getKeyHandlers()
+        var h = keyHandlers[c] || keyHandlers[cs]
+        if (h) h.apply(t, [c,cs])
+        Event.stop(ev)
+      }
+    }.bind(this.element)
+    this.onkeydown = function(ev) {
+      if (!t.validEventTarget(ev)) return
+      if (document.focusedMap == t && !ev.ctrlKey) {
+        if (ev.charCode == 0) return
+        var c = ev.keyCode | ev.charCode | ev.which
+        var cs = String.fromCharCode(c).toLowerCase()
+        var keyHandlers = t.getKeyDownHandlers()
+        var h = keyHandlers[c] || keyHandlers[cs]
+        if (h) h.apply(t, [c,cs])
+        Event.stop(ev)
+      }
+    }.bind(this.element)
+    this.onkeyup = function(ev) {
+      this.zoomKeyDown = 0
+      if (!t.validEventTarget(ev)) return
+      if (document.focusedMap == t && !ev.ctrlKey) {
+        if (ev.charCode == 0) return
+        var c = ev.keyCode | ev.charCode | ev.which
+        var cs = String.fromCharCode(c).toLowerCase()
+        var keyHandlers = t.getKeyUpHandlers()
+        var h = keyHandlers[c] || keyHandlers[cs]
+        if (h) h.apply(t, [c,cs])
+        Event.stop(ev)
+      }
+    }.bind(this.element)
+    this.onunload = function(ev) {
+      t.unload()
+    }
+    this.container.addEventListener("mousedown", this.onmousedown, false)
+    this.container.addEventListener("dblclick", this.ondblclick, false)
+    window.addEventListener("mouseup", this.onmouseup, false)
+    window.addEventListener("blur", this.onmouseup, false)
+    this.container.addEventListener("mousemove", this.onmousemove, false)
+    this.container.addEventListener("DOMMouseScroll", this.onmousescroll, false)
+    document.addEventListener("keypress", this.onkeypress, false)
+    document.addEventListener("keydown", this.onkeydown, false)
+    document.addEventListener("keyup", this.onkeyup, false)
+    document.addEventListener("unload", this.onunload, false)
+  },
+
+  invalidTargets : {
+    'INPUT' : true,
+    'TEXTAREA' : true
+  },
+  
+  validEventTarget : function(ev) {
+    var tn = ev.target.tagName
+    return (!this.invalidTargets[tn])
+  },
+  
+  /**
+   Removes event listeners from element and document,
+   then deletes the event listener functions.
+  */
+  removeEventListeners : function() {
+    this.container.removeEventListener("mousedown", this.onmousedown, false)
+    this.container.removeEventListener("dblclick", this.ondblclick, false)
+    document.removeEventListener("mouseup", this.titleDragEnd, false)
+    document.removeEventListener("mousemove", this.titleDrag, false)
+    window.removeEventListener("mouseup", this.onmouseup, false)
+    window.removeEventListener("blur", this.onmouseup, false)
+    this.container.removeEventListener("mousemove", this.onmousemove, false)
+    this.container.removeEventListener("DOMMouseScroll", this.onmousescroll, false)
+    document.removeEventListener("keypress", this.onkeypress, false)
+    document.removeEventListener("keydown", this.onkeydown, false)
+    document.removeEventListener("keyup", this.onkeyup, false)
+    document.removeEventListener("unload", this.onunload, false)
+    delete this.onmousemove
+    delete this.onmousescroll
+    delete this.onkeypress
+    delete this.onunload
+  },
+
+
+  /**
     Does an animated zoom towards the cursor.
     */
-  animatedZoom : function( z, dx, dy ) {
-    if (this.animation || z > this.maxZoom || z < this.minZoom) return
-    this.pointerX = dx
-    this.pointerY = dy
+  animatedZoom : function( z ) {
+    if (this.animation) return
+    z = Math.max(this.minZoom, Math.min(this.maxZoom, z))
+    this.targetZ = z
+    console.log(z)
     var elapsed = 0
     var time = new Date().getTime()
     var oz = this.z
@@ -358,11 +641,108 @@ Object.extend(Portal.prototype, {
       this.updatePosition()
       this.moved(dx, dy)
     }
+  },
+
+  /**
+    Pan to left by amt or this.panAmount.
+  */
+  panLeft : function(amt) {
+    if (!amt) amt = this.panAmount
+    this.panBy(amt, 0)
+  },
+  
+  /**
+    Pan to right by amt or this.panAmount.
+  */
+  panRight : function(amt) {
+    if (!amt) amt = this.panAmount
+    this.panBy(-amt, 0)
+  },
+  
+  /**
+    Pan up by amt or this.panAmount.
+  */
+  panUp : function(amt) {
+    if (!amt) amt = this.panAmount
+    this.panBy(0, amt)
+  },
+
+  /**
+    Pan down by amt or this.panAmount.
+  */
+  panDown : function(amt) {
+    if (!amt) amt = this.panAmount
+    this.panBy(0, -amt)
+  },
+
+  isVisible : function() {
+    return !!this.element.parentNode
+  },
+
+
+
+
+  /**
+    Show load statistics and bandwidth use for the map in a new window.
+   */
+  showStats : function() {
+    var map = this
+    var load_buf = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    var req_buf = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    var last_reqs = 0
+    var last_loads = 0
+    var max_rps = 0
+    var max_lps = 0
+    var ls = E('pre', null, 'loadStats')
+    ls.style.display = 'block'
+    var win = new Desk.Window(ls, {title:"stats for "+this.query, transient:true, x: 800, y: 40})
+    var updatesPerSec = 5
+    var start_time = new Date().getTime()
+    var updater = setInterval(function(){
+      req_buf.shift()
+      load_buf.shift()
+      req_buf.push(map.loader.totalCompletes - last_reqs)
+      load_buf.push(map.loader.totalLoads - last_loads)
+      last_reqs = map.loader.totalCompletes
+      last_loads = map.loader.totalLoads
+      var reqs = 0
+      var loads = 0
+      for (var i=0; i<req_buf.length; i++) reqs += req_buf[i]
+      for (var i=0; i<load_buf.length; i++) loads += load_buf[i]
+      var rps = updatesPerSec * reqs / req_buf.length
+      var lps = updatesPerSec * loads / load_buf.length
+      if (rps > max_rps) max_rps = rps
+      if (lps > max_lps) max_lps = lps
+      var bw = rps * 0.125 + ' Mbps'
+      var max_bw = max_rps * 0.125 + ' Mbps'
+      var total_bw = map.loader.totalLoads * 0.125
+      var avg_bw = total_bw / ((new Date().getTime() - start_time) * 0.001)
+      ls.innerHTML = [
+        "         requests: " + map.loader.totalRequests,
+        "          cancels: " + map.loader.totalCancels,
+        "            loads: " + map.loader.totalLoads,
+        "        completed: " + map.loader.totalCompletes,
+        "       load ratio: " + parseInt(100*(map.loader.totalLoads / map.loader.totalRequests)) / 100,
+        " completion ratio: " + parseInt(100*(map.loader.totalCompletes / map.loader.totalLoads)) / 100,
+        " pending requests: " + map.loader.queue.queue.length,
+        "        loads/sec: " + lps,
+        "    completes/sec: " + rps,
+        "    bandwidth use: " + bw,
+        "    max loads/sec: " + max_lps,
+        "max completes/sec: " + max_rps,
+        "    bandwidth max: " + max_bw,
+        "average bandwidth: " + parseInt(100*avg_bw) / 100 + 'Mbps',
+        "  total bandwidth: " + parseInt(100*total_bw) / 100 + 'Mb',
+        "              fps: " + parseInt(100*map.fps) / 100,
+        "      average fps: " + parseInt(100*map.avgFps) / 100
+      ].join("\n")
+    }, 1000/updatesPerSec)
+    win.addListener('close', function() {
+      clearInterval(updater)
+    })
   }
 
 })
-
-
 
 
 
@@ -386,22 +766,36 @@ Object.extend(TitledPortal.prototype, {
   className : 'TitledPortal'
 })
 
+/**
+  A Portal is the basic children-wrapping zoomable container.
+  */
+Portal = function(config) {
+  this.init(config)
+}
+Portal.prototype = Object.extend({}, Zoomable)
+Object.extend(Portal.prototype, {
+  className : 'Portal'
+})
+
+
+
 
 
 /**
-  A PortalMap has a TileMap and a Title.
+  A TitledMap has a TileMap and a Title.
  */
-PortalMap = function(config) {
+TitledMap = function(config) {
   this.init(config)
   this.title = new Title({parent: this, title: this.title})
   this.map = new TileMap(
     Object.extend(Object.clone(config),
     {parent: this, relativeZ: 0, left: 0, top: 28})
   )
+  this.element.map = this.map
 }
-PortalMap.prototype = Object.extend({}, Zoomable)
-Object.extend(PortalMap.prototype, {
-  className : 'PortalMap'
+TitledMap.prototype = Object.extend({}, Zoomable)
+Object.extend(TitledMap.prototype, {
+  className : 'TitledMap'
 })
 
 
@@ -421,7 +815,7 @@ Object.extend(Title.prototype, {
   maxFontSize : 20,
   minVisibleWidth : 4,
   minVisibleHeight : 2,
-  noMoveWithResize : true,
+  moveWithParent : true,
 
   // state vars
   absoluteFontSize : 0,
@@ -436,17 +830,87 @@ Object.extend(Title.prototype, {
     this.titleElement.style.color = 'white'
     this.titleElement.style.cursor = 'move'
     this.titleElement.style.fontFamily = 'URW Gothic L'
+    this.titleElement.style.zIndex = 100
     Zoomable.init.apply(this, arguments)
     this.element.appendChild(this.titleElement)
     this.setTitle( this.title )
-    this.setupEventListeners()
   },
 
   setupEventListeners : function(){
+    var t = this
+    this.titleDragStart = function(ev) {
+      if (!t.validEventTarget(ev)) return
+      if (Event.isLeftClick(ev)) {
+        window.lastFocusedMap = this.map
+        this.dragging = true
+        this.dragX = Event.pointerX(ev)
+        this.dragY = Event.pointerY(ev)
+        Event.stop(ev)
+      }
+    }
+    this.titleDragEnd = function(ev) {
+      this.dragging = false
+    }
+    this.titleDrag = function(ev) {
+      if (!t.validEventTarget(ev)) return
+      if (this.dragging) {
+        var x = Event.pointerX(ev)
+        var y = Event.pointerY(ev)
+        var dx = x - this.dragX
+        var dy = y - this.dragY
+        t.moveBy(dx,dy)
+        this.dragX = x
+        this.dragY = y
+        Event.stop(ev)
+      }
+    }
+    this.titleEdit = function(ev) {
+      if (!t.validEventTarget(ev)) return
+      if (!ev || Event.isLeftClick(ev)) {
+        this.style.minWidth = this.offsetWidth + 200 + 'px'
+        $(this).replaceWithEditor(
+          function(val) {
+            this.style.minWidth = '0px'
+            this.innerHTML = val
+            t.setQuery(val)
+          }.bind(this),
+          function() {
+            this.style.minWidth = '0px'
+          }.bind(this)
+        )
+      }
+    }
+    if (this.titleElem) {
+      this.titleElem.firstChild.ondblclick = this.titleEdit
+      this.titleElem.onmousedown = this.titleDragStart
+      document.addEventListener('mouseup', this.titleDragEnd.bind(this.titleElem), false)
+      document.addEventListener('mousemove', this.titleDrag.bind(this.titleElem), false)
+      this.titleMenu = new Desk.Menu()
+      this.titleMenu.addTitle(Tr('TileMap'))
+      this.titleMenu.addItem(Tr('TileMap.EditTitle'), this.titleEdit.bind(this.titleElem.firstChild))
+      this.titleMenu.addItem(Tr('TileMap.ShowColors'), function(){
+        if (this.color != 'false') {
+          this.titleMenu.uncheckItem(Tr('TileMap.ShowColors'))
+          this.setColor('false')
+        } else {
+          this.titleMenu.checkItem(Tr('TileMap.ShowColors'))
+          this.setColor('true')
+        }
+      }.bind(this))
+      this.titleMenu.checkItem(Tr('TileMap.ShowColors'))
+      if (this.color == 'false')
+        this.titleMenu.uncheckItem(Tr('TileMap.ShowColors'))
+      this.titleMenu.addSeparator()
+      this.titleMenu.addItem(Tr('TileMap.ShowStats'), this.showStats.bind(this))
+      this.titleMenu.addSeparator()
+      this.titleMenu.addItem(Tr('TileMap.RemoveMap'), this.detachSelf.bind(this))
+      this.titleMenu.bind(this.titleElem)
+    }
     this.element.addEventListener('mousedown', function(ev){
       if (Event.isLeftClick(ev)) {
-        this.downX = Event.pointerX(ev)
-        this.downY = Event.pointerY(ev)
+        this.downX = this.dragX = Event.pointerX(ev)
+        this.downY = this.dragY = Event.pointerY(ev)
+        document.body.style.cursor = 'move'
         this.down = true
         Event.stop(ev)
       }
@@ -455,11 +919,12 @@ Object.extend(Title.prototype, {
       if (Event.isLeftClick(ev)) {
         this.dragging = false
         this.down = false
+        document.body.style.cursor = 'default'
         Event.stop(ev)
       }
     }.bind(this.parent), false)
     window.addEventListener('mousemove', function(ev){
-      if (this.dragging) {
+      if (this.down) {
         this.currentX = Event.pointerX(ev)
         this.currentY = Event.pointerY(ev)
         var fac = Math.pow(2, this.z)
@@ -473,16 +938,6 @@ Object.extend(Title.prototype, {
         this.moved(dx, dy)
         this.dragX = this.currentX
         this.dragY = this.currentY
-        Event.stop(ev)
-      } else if (this.down) {
-        this.currentX = Event.pointerX(ev)
-        this.currentY = Event.pointerY(ev)
-        if (Math.abs(this.currentX - this.downX) > 3 ||
-            Math.abs(this.currentY - this.downY) > 3) {
-          this.dragX = this.currentX
-          this.dragY = this.currentY
-          this.dragging = true
-        }
         Event.stop(ev)
       }
     }.bind(this.parent), false)
@@ -556,8 +1011,11 @@ Object.extend(TileMap.prototype, {
   
   tileSize : 256,
   tileQuery : false,
+  color : false,
   className : 'MapBackground',
   bgColor : '13163C',
+
+  tileInitDone : false,
   
   minVisibleWidth :  5,
   minVisibleHeight : 5,
@@ -609,12 +1067,14 @@ Object.extend(TileMap.prototype, {
     if (this.isVisible())
       for(var i=0,cl=this.tiles.length; i<cl; i++)
         this.tiles[i].zoom(z,z)
+    this.tileInitDone = true
   },
 
   /**
     Discards the top-level TileNodes.
     */
   discardTiles : function() {
+    this.tileInitDone = false
     for(var i=0,cl=this.tiles.length; i<cl; i++)
       this.tiles[i].unload()
     this.tiles.clear()
@@ -625,6 +1085,7 @@ Object.extend(TileMap.prototype, {
     */
   zoom : function(z, targetZ) {
     if (Zoomable.zoom.apply(this, arguments)) {
+      if (!this.tileInitDone) return
       var c = this.tiles
       var rz = z+this.relativeZ
       var rtz = this.targetZ+this.relativeZ
@@ -671,13 +1132,58 @@ Object.extend(TileMap.prototype, {
     this.tileInfoServers.push(this.tileInfoServers.shift())
     return this.tileInfoServers[0]
   },
-  
+
+  /**
+    Returns the tile-specific part of the map query.
+    */
   getTileQuery : function() {
-    return "?time=" + this.time
+    var q = "?time=" + this.time
+    if (this.bgColor) q += "&bgcolor=" + this.bgColor
+    if (this.tileQuery) q += "&q=" + this.tileQuery
+    if (this.color != undefined) q += "&color=" + this.color
+    return q
   },
-  
+
+  /**
+    Returns the tile info -specific part of the map query.
+    */
   getInfoQuery : function() {
-    return "?time=" + this.time
+    var q = "?time=" + this.time
+    if (this.tileQuery) q += "&q=" + this.tileQuery
+    return q
+  },
+
+
+
+  /**
+   Sets search query and reloads all tiles.
+  */
+  setQuery : function(q) {
+    this.query = q
+    this.updateTileQuery()
+  },
+
+  /**
+   Sets tile coloring and reloads all tiles.
+  */
+  setColor : function(q) {
+    this.color = q
+    this.updateTileQuery()
+  },
+
+  /**
+   Forces tile update.
+  */
+  forceUpdate : function() {
+    this.time = new Date().getTime()
+    this.updateTileQuery()
+  },
+
+  /**
+   Updates tile query and reloads all tiles.
+  */
+  updateTileQuery : function() {
+    this.updateInfo()
   }
 
 })
@@ -798,7 +1304,10 @@ TileNode.prototype = {
     if (this.d <= 0 || this.is_current) {
       if (this.zoom_complete && (!this.is_visible || this.loaded || this.above_loaded))
         this.discardChildren()
-    } else if (this.is_visible && !this.is_current) {
+    // this.d <= 1  ==  don't create whole tile hierarchy to targetZ, only the next level
+    // (imagine case where zooming from 0 to 16, first frame would create the full
+    //  tile tree all the way down to 16 => run out of ram, crash, hang, explode)
+    } else if (this.is_visible && !this.is_current && (this.zoom_complete || this.d <= 1)) {
       this.createChildren()
     }
   },
@@ -1001,7 +1510,7 @@ TileNode.prototype = {
       c.left < container.width && c.top < container.height
     )
     var dz = (directly_visible ? 0 : 5) // load offscreen tiles last
-    this.root.map.loader.load(
+    this.map.loader.load(
       -this.z + dz,
       Math.sqrt(dx*dx+dy*dy),
       this
@@ -1025,7 +1534,7 @@ TileNode.prototype = {
   /**
     Called by the loader.
     */
-  load : function(tileInfoManager) {
+  load : function() {
     if (!this.image) return
     this.image.style.position = 'absolute'
     this.image.style.zIndex = this.z
@@ -1036,31 +1545,32 @@ TileNode.prototype = {
     this.map.element.appendChild(this.image)
     var url = this.getImageURL()
     this.image.src = url
-    if (this.z < 5) return
-    this.image.style.cursor = 'wait'
-    this.handleInfo = function(infos) {
-      if (!infos || !this.image) return
-      this.image.style.cursor = 'default'
-      this.image.ImageMap = E('map')
-      this.image.ImageMap.name = this.image.src
-      this.image.appendChild(this.image.ImageMap)
-      for(var i=0; i<infos.length; i++) {
-        var info = infos[i]
-        var area = E('area')
-        Object.extend(area, ItemArea)
-        area.info = info
-        area.shape = 'rect'
-        area.coords = [info.x, info.y, info.x + info.sz, info.y + info.sz].join(",")
-        area.href = '/files/' + info.path
-        area.title = area.getTitle()
-        area.itemHREF = '/items/' + info.path + '/json'
-        this.image.ImageMap.appendChild(area)
-      }
-      this.image.useMap = '#'+this.image.src
-    }
-    tileInfoManager.requestInfo(this.getInfoServer()+this.getInfoQuery(), this.tileX, this.tileY, this.z, this)
   },
 
+  /**
+    Tile info handler function, creates the image map for this.image.
+    */
+  handleInfo : function(infos) {
+    if (!infos || !this.image) return
+    this.image.style.cursor = 'default'
+    this.image.ImageMap = E('map')
+    this.image.ImageMap.name = this.image.src
+    this.image.appendChild(this.image.ImageMap)
+    for(var i=0; i<infos.length; i++) {
+      var info = infos[i]
+      var area = E('area')
+      Object.extend(area, ItemArea)
+      area.info = info
+      area.shape = 'rect'
+      area.coords = [info.x, info.y, info.x + info.sz, info.y + info.sz].join(",")
+      area.href = '/files/' + info.path
+      area.title = area.getTitle()
+      area.itemHREF = '/items/' + info.path + '/json'
+      this.image.ImageMap.appendChild(area)
+    }
+    this.image.useMap = '#'+this.image.src
+  },
+  
   /**
     Event listener for the tile image onload.
     */
@@ -1072,6 +1582,9 @@ TileNode.prototype = {
     this.loaded = true
     this.updateCoverage()
     if (this.parent != this) this.parent.updateCoverage()
+    if (this.z < 5 || !this.is_visible) return
+    this.image.style.cursor = 'wait'
+    this.map.loader.requestInfo(this.getInfoServer()+this.getInfoQuery(), this.tileX, this.tileY, this.z, this)
   },
 
   /**
@@ -1085,8 +1598,14 @@ TileNode.prototype = {
         this.map.loader.cancel(this)
       }
       this.image.src = 'data:'
-      if (this.image.parentNode) $(this.image).detachSelf()
+      this.image.style.cursor = 'default'
+      while (this.image.firstChild)
+        $(this.image.firstChild).detachSelf()
+      delete this.image.useMap
+      delete this.image.ImageMap
       delete this.image.tile
+      delete this.image.onload
+      if (this.image.parentNode) $(this.image).detachSelf()
       ImagePool.getPool().put(this.image)
       delete this.image
     }

@@ -367,22 +367,23 @@ ItemArea = {
       }
       var m = this.getMap()
       var t = m.root
-      var maps_per_container = t.width / Math.max(m.width, m.height)
+      var maps_per_container = t.container.width / Math.max(m.width, m.height)
       var crop_z = Math.floor(Math.log(maps_per_container) / Math.log(2))
+      var dz = t.z - m.z
       if (crop_z > 4)
         crop_z = 7
-      var full_z = Math.floor(Math.log(Math.max(t.width, t.height)) / Math.log(2))
+      var full_z = Math.floor(Math.log(Math.max(t.container.width, t.container.height)) / Math.log(2))
       t.pointerX = ev.pageX - t.container.offsetLeft
       t.pointerY = ev.pageY - t.container.offsetTop
-      if (crop_z > t.targetZ) {
-        t.animatedZoom(crop_z)
+      if (crop_z+dz > t.targetZ) {
+        t.animatedZoom(crop_z+dz)
       } else {
-        if (t.targetZ < 7) {
-          t.animatedZoom(7)
-        } else if (t.targetZ < full_z) {
-          t.animatedZoom(full_z)
+        if (t.targetZ < 7+dz) {
+          t.animatedZoom(7+dz)
+        } else if (t.targetZ < full_z+dz) {
+          t.animatedZoom(full_z+dz)
         } else {
-          t.animatedZoom(7)
+          t.animatedZoom(7+dz)
         }
       }
       Event.stop(ev)
