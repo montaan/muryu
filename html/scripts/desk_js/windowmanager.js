@@ -18,11 +18,11 @@ Desk.WindowManager.prototype = {
 
   containerStyleChangeHandler : function() {
     if (this.container && 
-        (this.container.style.width != this.previousWidth ||
-         this.container.style.height != this.previousHeight)) {
+        (this.container.offsetWidth != this.previousWidth ||
+         this.container.offsetHeight != this.previousHeight)) {
       this.updateConstraints()
-      this.previousWidth = this.container.style.width
-      this.previousHeight = this.container.style.height
+      this.previousWidth = this.container.offsetWidth
+      this.previousHeight = this.container.offsetHeight
       this.windows.each(function(win) {
         if (win.maximized) {
           win.setSize(win.container.offsetWidth,win.container.offsetHeight)
@@ -105,15 +105,15 @@ Desk.WindowManager.prototype = {
     var avoids = this.windows.findAll(function(w){return w.avoid})
     var t = this
     this.left = 0
-    this.right = this.fullWidth = parseInt(this.container.style.width)
+    this.right = this.fullWidth = parseInt(this.container.offsetWidth)
     this.top = 0
-    this.bottom = this.fullHeight = parseInt(this.container.style.height)
+    this.bottom = this.fullHeight = parseInt(this.container.offsetHeight)
     avoids.each(function(a){
       var f = t[a.side+'Constrain']
       if (f) f.apply(t, [a])
     })
-    this.width = this.right - this.left
-    this.height = this.bottom - this.top
+    this.windowContainer.width = this.width = this.right - this.left
+    this.windowContainer.height = this.height = this.bottom - this.top
     this.windowContainer.style.left = this.left + 'px'
     this.windowContainer.style.top = this.top + 'px'
     this.windowContainer.style.width = this.width + 'px'

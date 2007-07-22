@@ -169,7 +169,7 @@ Zoomable = {
     } else {
       var c = this.projectExtentsToContainer()
       this.is_visible = (c.right > 0 && c.bottom > 0 &&
-                         c.left < this.container.width && c.top < this.container.height)
+                         c.left < this.container.offsetWidth && c.top < this.container.offsetHeight)
     }
     return this.is_visible
   },
@@ -325,13 +325,14 @@ Object.extend(Zoomable, EventListener)
 View = function(config) {
   this.loader = new Loader()
   this.init(config)
+  this.element.style.zIndex = 0
 }
 View.prototype = Object.extend({}, Zoomable)
 Object.extend(View.prototype, {
   pointerX : 0, pointerY : 0,
-  panAmount : 16,
   maxZoom : 16, minZoom : -3,
   bgColor : '13163C',
+  panAmount : 64,
 
   // state variables
   zoomIn : false, zoomOut : false,
@@ -421,11 +422,9 @@ Object.extend(View.prototype, {
           obj = obj.parentNode
         }
         if (obj && obj.map != t) {
-          var maps_per_container = t.container.width / Math.max(obj.map.width, obj.map.height)
+          var maps_per_container = t.container.offsetWidth / Math.max(obj.map.width, obj.map.height)
           var crop_z = Math.floor(Math.log(maps_per_container) / Math.log(2))
-          if (crop_z > 4)
-            crop_z = 7
-          var full_z = Math.floor(Math.log(t.container.width) / Math.log(2))
+          var full_z = Math.floor(Math.log(t.container.offsetWidth) / Math.log(2))
           t.pointerX = ev.pageX - t.container.offsetLeft
           t.pointerY = ev.pageY - t.container.offsetTop
           var dz = t.z - obj.map.z
@@ -437,7 +436,10 @@ Object.extend(View.prototype, {
             } else if (ev.target.style.cursor == 'wait') {
               t.animatedZoom(full_z+dz)
             } else {
-              t.animatedZoom(crop_z+dz)
+              if (t.targetZ == crop_z+dz)
+                t.animatedZoom(crop_z+dz-1)
+              else
+                t.animatedZoom(crop_z+dz)
             }
           }
         } else if (t.targetZ < 2) {
@@ -587,7 +589,6 @@ Object.extend(View.prototype, {
     if (this.animation) return
     z = Math.max(this.minZoom, Math.min(this.maxZoom, z))
     this.targetZ = z
-    console.log(z)
     var elapsed = 0
     var time = new Date().getTime()
     var oz = this.z
@@ -786,16 +787,63 @@ Object.extend(Portal.prototype, {
  */
 TitledMap = function(config) {
   this.init(config)
-  this.title = new Title({parent: this, title: this.title})
-  this.map = new TileMap(
-    Object.extend(Object.clone(config),
-    {parent: this, relativeZ: 0, left: 0, top: 28})
-  )
-  this.element.map = this.map
 }
 TitledMap.prototype = Object.extend({}, Zoomable)
 Object.extend(TitledMap.prototype, {
-  className : 'TitledMap'
+  className : 'TitledMap',
+
+  init : function(config) {
+    Zoomable.init.apply(this, arguments)
+    this.setupChildren(config)
+  },
+
+  setupChildren : function(config) {
+    this.title = new Title({parent: this, title: this.title})
+    this.map = new TileMap(
+      Object.extend(Object.clone(config),
+      {parent: this, relativeZ: 0, left: 0, top: 28})
+    )
+    this.title.titleElement.map = this.map
+    this.title.titleElement.addEventListener('dblclick',
+      this.titleEdit.bind(this), false)
+    this.titleMenu = new Desk.Menu()
+    this.titleMenu.addTitle(Tr('TileMap'))
+    this.titleMenu.addItem(Tr('TileMap.EditTitle'), this.titleEdit.bind(this.title.titleElement))
+    this.titleMenu.addItem(Tr('TileMap.ShowColors'), function(){
+      if (this.color != 'false') {
+        this.titleMenu.uncheckItem(Tr('TileMap.ShowColors'))
+        this.map.setColor('false')
+      } else {
+        this.titleMenu.checkItem(Tr('TileMap.ShowColors'))
+        this.map.setColor('true')
+      }
+    }.bind(this))
+    this.titleMenu.checkItem(Tr('TileMap.ShowColors'))
+    if (this.map.color == 'false')
+      this.titleMenu.uncheckItem(Tr('TileMap.ShowColors'))
+    this.titleMenu.addSeparator()
+    this.titleMenu.addItem(Tr('TileMap.RemoveMap'), function(){this.setParent(null)}.bind(this))
+    this.titleMenu.bind(this.title.titleElement)
+  },
+  
+  titleEdit : function(ev) {
+    if (!this.root.validEventTarget(ev)) return
+    if (!ev || Event.isLeftClick(ev)) {
+      var t = this.title.titleElement
+      var map = this.map
+      t.style.minWidth = t.offsetWidth + 200 + 'px'
+      $(t).replaceWithEditor(
+        function(val) {
+          this.style.minWidth = '0px'
+          this.innerHTML = val
+          map.setQuery(val)
+        }.bind(t),
+        function() {
+          this.style.minWidth = '0px'
+        }.bind(t)
+      )
+    }
+  }
 })
 
 
@@ -837,93 +885,27 @@ Object.extend(Title.prototype, {
   },
 
   setupEventListeners : function(){
-    var t = this
-    this.titleDragStart = function(ev) {
-      if (!t.validEventTarget(ev)) return
+    this.onmousedown = function(ev){
+      if (!this.root.validEventTarget(ev)) return
       if (Event.isLeftClick(ev)) {
         window.lastFocusedMap = this.map
-        this.dragging = true
-        this.dragX = Event.pointerX(ev)
-        this.dragY = Event.pointerY(ev)
-        Event.stop(ev)
-      }
-    }
-    this.titleDragEnd = function(ev) {
-      this.dragging = false
-    }
-    this.titleDrag = function(ev) {
-      if (!t.validEventTarget(ev)) return
-      if (this.dragging) {
-        var x = Event.pointerX(ev)
-        var y = Event.pointerY(ev)
-        var dx = x - this.dragX
-        var dy = y - this.dragY
-        t.moveBy(dx,dy)
-        this.dragX = x
-        this.dragY = y
-        Event.stop(ev)
-      }
-    }
-    this.titleEdit = function(ev) {
-      if (!t.validEventTarget(ev)) return
-      if (!ev || Event.isLeftClick(ev)) {
-        this.style.minWidth = this.offsetWidth + 200 + 'px'
-        $(this).replaceWithEditor(
-          function(val) {
-            this.style.minWidth = '0px'
-            this.innerHTML = val
-            t.setQuery(val)
-          }.bind(this),
-          function() {
-            this.style.minWidth = '0px'
-          }.bind(this)
-        )
-      }
-    }
-    if (this.titleElem) {
-      this.titleElem.firstChild.ondblclick = this.titleEdit
-      this.titleElem.onmousedown = this.titleDragStart
-      document.addEventListener('mouseup', this.titleDragEnd.bind(this.titleElem), false)
-      document.addEventListener('mousemove', this.titleDrag.bind(this.titleElem), false)
-      this.titleMenu = new Desk.Menu()
-      this.titleMenu.addTitle(Tr('TileMap'))
-      this.titleMenu.addItem(Tr('TileMap.EditTitle'), this.titleEdit.bind(this.titleElem.firstChild))
-      this.titleMenu.addItem(Tr('TileMap.ShowColors'), function(){
-        if (this.color != 'false') {
-          this.titleMenu.uncheckItem(Tr('TileMap.ShowColors'))
-          this.setColor('false')
-        } else {
-          this.titleMenu.checkItem(Tr('TileMap.ShowColors'))
-          this.setColor('true')
-        }
-      }.bind(this))
-      this.titleMenu.checkItem(Tr('TileMap.ShowColors'))
-      if (this.color == 'false')
-        this.titleMenu.uncheckItem(Tr('TileMap.ShowColors'))
-      this.titleMenu.addSeparator()
-      this.titleMenu.addItem(Tr('TileMap.ShowStats'), this.showStats.bind(this))
-      this.titleMenu.addSeparator()
-      this.titleMenu.addItem(Tr('TileMap.RemoveMap'), this.detachSelf.bind(this))
-      this.titleMenu.bind(this.titleElem)
-    }
-    this.element.addEventListener('mousedown', function(ev){
-      if (Event.isLeftClick(ev)) {
         this.downX = this.dragX = Event.pointerX(ev)
         this.downY = this.dragY = Event.pointerY(ev)
         document.body.style.cursor = 'move'
         this.down = true
         Event.stop(ev)
       }
-    }.bind(this.parent), false)
-    window.addEventListener('mouseup', function(ev){
+    }.bind(this.parent)
+    this.onmouseup = function(ev){
       if (Event.isLeftClick(ev)) {
         this.dragging = false
         this.down = false
-        document.body.style.cursor = 'default'
+        document.body.style.cursor = 'auto'
         Event.stop(ev)
       }
-    }.bind(this.parent), false)
-    window.addEventListener('mousemove', function(ev){
+    }.bind(this.parent)
+    this.onmousemove = function(ev){
+      if (!this.root.validEventTarget(ev)) return
       if (this.down) {
         this.currentX = Event.pointerX(ev)
         this.currentY = Event.pointerY(ev)
@@ -940,7 +922,15 @@ Object.extend(Title.prototype, {
         this.dragY = this.currentY
         Event.stop(ev)
       }
-    }.bind(this.parent), false)
+    }.bind(this.parent)
+    this.titleElement.addEventListener('mousedown', this.onmousedown, false)
+    window.addEventListener('mouseup', this.onmouseup, false)
+    window.addEventListener('mousemove', this.onmousemove, false)
+  },
+
+  removeEventListeners : function() {
+    window.removeEventListener('mouseup', this.onmouseup, false)
+    window.removeEventListener('mousemove', this.onmousemove, false)
   },
 
   setParent : function() {
@@ -952,7 +942,6 @@ Object.extend(Title.prototype, {
   },
 
   zoom : function(z,tz) {
-    var need_update = (this.z != z)
     if (Zoomable.zoom.apply(this, arguments)) {
       var maxfac = this.maxFontSize / this.fontSize
       var fac = Math.min(Math.pow(2,this.z+this.relativeZ), maxfac)
@@ -960,10 +949,8 @@ Object.extend(Title.prototype, {
       if (newFontSize != this.absoluteFontSize) {
         this.absoluteFontSize = newFontSize
         this.titleElement.style.fontSize = this.absoluteFontSize + 'px'
-        need_update = true
       }
-      if (need_update)
-        this.titleElement.style.top = Math.floor(this.h - this.ownHeight*fac) + 'px'
+      this.titleElement.style.top = Math.floor(this.h - this.ownHeight*fac) + 'px'
     }
   },
 
@@ -974,9 +961,13 @@ Object.extend(Title.prototype, {
   setTitle : function(title) {
     this.title = title
     this.titleElement.innerHTML = this.title
+    this.titleElement.style.visibility = 'hidden'
+    document.body.appendChild(this.titleElement)
     this.titleElement.style.fontSize = Math.round(this.fontSize) + 'px'
     this.ownWidth = this.titleElement.offsetWidth
     this.ownHeight = this.titleElement.offsetHeight
+    this.parent.element.appendChild(this.titleElement)
+    this.titleElement.style.visibility = 'inherit'
     this.absoluteFontSize = 0
     this.zoom(this.z)
   }
@@ -1010,9 +1001,9 @@ Object.extend(TileMap.prototype, {
   ],
   
   tileSize : 256,
-  tileQuery : false,
+  query : false,
   color : false,
-  className : 'MapBackground',
+  className : 'TileMap',
   bgColor : '13163C',
 
   tileInitDone : false,
@@ -1025,6 +1016,7 @@ Object.extend(TileMap.prototype, {
   init : function(config) {
     this.tiles = []
     Zoomable.init.apply(this, arguments)
+    this.element.map = this
     this.element.style.backgroundColor = '#444444'
     this.element.style.overflow = 'hidden'
     this.updateInfo()
@@ -1037,16 +1029,21 @@ Object.extend(TileMap.prototype, {
     this.discardTiles()
     new Ajax.Request('/tile_info', {
       method : 'get',
+      parameters : this.getInfoQuery(),
       onSuccess : function(res) {
         var obj = res.responseText.evalJSON()
         var dims = obj.dimensions
         this.tileInfo = obj
+        this.right = this.left
+        this.bottom = this.top
+        this.width = 0
+        this.height = 0
         this.ownWidth = obj.dimensions.width
         this.ownHeight = obj.dimensions.height
         if (this.ownWidth < this.minVisibleWidth)
-          this.minVisibleWidth = this.ownWidth
+          this.minVisibleWidth = this.ownWidth - 1
         if (this.ownHeight < this.minVisibleHeight)
-          this.minVisibleHeight = this.ownHeight
+          this.minVisibleHeight = this.ownHeight - 1
         this.updateDimensions()
         this.initTiles()
       }.bind(this)
@@ -1139,7 +1136,7 @@ Object.extend(TileMap.prototype, {
   getTileQuery : function() {
     var q = "?time=" + this.time
     if (this.bgColor) q += "&bgcolor=" + this.bgColor
-    if (this.tileQuery) q += "&q=" + this.tileQuery
+    if (this.query) q += "&q=" + this.query
     if (this.color != undefined) q += "&color=" + this.color
     return q
   },
@@ -1149,7 +1146,7 @@ Object.extend(TileMap.prototype, {
     */
   getInfoQuery : function() {
     var q = "?time=" + this.time
-    if (this.tileQuery) q += "&q=" + this.tileQuery
+    if (this.query) q += "&q=" + this.query
     return q
   },
 
@@ -1450,7 +1447,7 @@ TileNode.prototype = {
     var c = this.projectExtentsToContainer()
     var container = m.container
     return (c.right > -this.size && c.bottom > -this.size &&
-            c.left < container.width + this.size && c.top < container.height + this.size)
+            c.left < container.offsetWidth + this.size && c.top < container.offsetHeight + this.size)
   },
 
   /**
@@ -1507,7 +1504,7 @@ TileNode.prototype = {
     var container = this.root.map.container
     var directly_visible = (
       c.right > 0 && c.bottom > 0 &&
-      c.left < container.width && c.top < container.height
+      c.left < container.offsetWidth && c.top < container.offsetHeight
     )
     var dz = (directly_visible ? 0 : 5) // load offscreen tiles last
     this.map.loader.load(
@@ -1552,7 +1549,7 @@ TileNode.prototype = {
     */
   handleInfo : function(infos) {
     if (!infos || !this.image) return
-    this.image.style.cursor = 'default'
+    this.image.style.cursor = 'auto'
     this.image.ImageMap = E('map')
     this.image.ImageMap.name = this.image.src
     this.image.appendChild(this.image.ImageMap)
@@ -1598,7 +1595,7 @@ TileNode.prototype = {
         this.map.loader.cancel(this)
       }
       this.image.src = 'data:'
-      this.image.style.cursor = 'default'
+      this.image.style.cursor = 'auto'
       while (this.image.firstChild)
         $(this.image.firstChild).detachSelf()
       delete this.image.useMap

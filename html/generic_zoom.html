@@ -1,31 +1,44 @@
-<html>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
   <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>muryu</title>
+    <link rel="stylesheet" href="/scripts/desk_js/style.css"></link>
+    <link rel="stylesheet" href="/scripts/slideshow.css"></link>
+    <link rel="stylesheet" href="/muryu.css"></link>
     <style>
-/*      div.MapBackground {
+/*      div.TileMap {
         border : 1px solid blue;
       }
-      div.PortalBackground {
+      div.Portal {
         border : 1px solid white;
       }
       div.TitledPortal {
         border : 1px solid green;
       }
-      div.PortalMap {
+      div.TitledMap {
         border : 1px solid yellow;
       }
       div.Title {
         border : 1px solid red;
+      }
+      h3 {
+        border : 1px solid cyan;
       }*/
     </style>
   
   
     <script type="text/javascript" src="/scripts/desk_js/prototype.js"></script>
     <script type="text/javascript" src="/scripts/desk_js/scriptaculous.js"></script>
+    <script type="text/javascript" src="/scripts/desk_js/soundmanager2.js"></script>
     <script type="text/javascript" src="/scripts/desk_js/desk.js"></script>
-    <script type="text/javascript" src="/scripts/slideshow.js"></script>
+    <script type="text/javascript" src="/scripts/flv_player/swfobject.js"></script>
     <script type="text/javascript" src="/scripts/zogen/PortalMap.js"></script>
+    <script type="text/javascript" src="/scripts/zogen/Editors.js"></script>
+    <script type="text/javascript" src="/scripts/slideshow.js"></script>
     <script type="text/javascript">
-    
+    // <![CDATA[
+
       String.prototype.unfilterJSON = function() {
         if (this.slice(0,8) == 'while(0)') {
           return this.slice(9,-1)
@@ -239,6 +252,51 @@
             new Desk.Window(Tr('help.html'), {x: 800, y: 10, group: Tr('help')})
           }
           $('while_loading').detachSelf()
+        },
+        
+        mapView : function(win) {
+          var rootMap = E('div')
+          rootMap.style.width = '100%'
+          rootMap.style.height = '100%'
+          win.setTitle(null)
+          win.setContent(rootMap)
+          topmap = new View({
+            container: rootMap
+          })
+          createStuff = function(map, levels, x,y) {
+            var maptree = new TitledPortal({
+              title : x + ':' + y,
+              parent : map,
+              relativeZ : -2,
+              left : x,
+              top : y
+            })
+            var i = -1
+            for (var y=0; y<2; y++) {
+              for (var x=0; x<2; x++) {
+                if (i != 2) {
+                  new TitledMap({
+                    title : x + ':' + y,
+                    parent : maptree.portal,
+                    left : x*200,
+                    top : y*420,
+                    relativeZ : i
+                  })
+                }
+                i++
+              }
+            }
+            if (levels > 0) {
+              createStuff(maptree.portal, levels-1, 284+256, 0)
+              createStuff(maptree.portal, levels-1, 284+256, 400)
+              createStuff(maptree.portal, levels-1, 284+256, 800)
+              createStuff(maptree.portal, levels-1, 284+522, 0)
+              createStuff(maptree.portal, levels-1, 284+522, 400)
+              createStuff(maptree.portal, levels-1, 284+522, 800)
+            }
+            return maptree
+          }
+          maptree = createStuff(topmap, 1,0,0)
         }
       }
       
@@ -278,108 +336,18 @@
         container.appendChild(txt)
         document.body.appendChild(container)
         document.body.style.overflow = 'hidden'
-        topmap = new View({
-          container: container
+        Desk.Windows.setContainer(container)
+        RootWindow = new Desk.Window('app:Muryu.mapView', {
+          group : 'root',
+          movable : false,
+          buttons : [],
+          showInTaskbar : false,
+          maximized : true,
+          resizable : false,
+          layer : -1
         })
-//         down = false
-//         downX = 0
-//         downY = 0
-//         window.addEventListener('click', function(){window.focus()}, false)
-//         window.addEventListener('DOMMouseScroll', function(ev) {
-//           var x = downX
-//           var y = downY
-//           var dx = x - topmap.container.offsetLeft
-//           var dy = y - topmap.container.offsetTop
-//           topmap.animatedZoom( topmap.z - (ev.detail > 0 ? 1 : -1), dx, dy )
-//           Event.stop(ev)
-//         }, false)
-//         window.addEventListener('keydown', function(ev) {
-//           var x = downX
-//           var y = downY
-//           var dx = x - topmap.container.offsetLeft
-//           var dy = y - topmap.container.offsetTop
-//           var k = ev.charCode | ev.keyCode
-//           var s = String.fromCharCode(k).toLowerCase()
-//           if (s == 't') {
-//             topmap.zoomIn = true
-//             topmap.animatedZoom( topmap.z + 1, dx, dy )
-//           } else if (s == 'g') {
-//             topmap.zoomOut = true
-//             topmap.animatedZoom( topmap.z - 1, dx, dy )
-//           }
-// //           Event.stop(ev)
-//         }, false)
-//         window.addEventListener('keyup', function(ev) {
-//           var k = ev.charCode | ev.keyCode
-//           var s = String.fromCharCode(k).toLowerCase()
-//           if (s == 't') {
-//             topmap.zoomIn = false
-//           } else if (s == 'g') {
-//             topmap.zoomOut = false
-//           }
-// //           Event.stop(ev)
-//         }, false)
-//         window.onmousedown = function(ev) {
-//           down=true; return false }
-//         window.onmouseup = function() {
-//           down=false; return false  }
-//         window.addEventListener('mousemove', function(ev) {
-//           if (down) {
-//             Event.stop(ev)
-//             var dx = ev.clientX - downX
-//             var dy = ev.clientY - downY
-//             if (dx != 0 || dy != 0)
-//               topmap.panBy(dx,dy)
-//           }
-//           downX=ev.clientX
-//           downY=ev.clientY
-//           var x = downX
-//           var y = downY
-//           topmap.pointerX = x - topmap.container.offsetLeft
-//           topmap.pointerY = y - topmap.container.offsetTop
-//         }, false)
-        createStuff = function(map, levels, x,y) {
-          var maptree = new TitledPortal({
-            title : x + ':' + y,
-            parent : map,
-            relativeZ : -2,
-            left : x,
-            top : y
-          })
-          var i = -1
-          for (var y=0; y<2; y++) {
-            for (var x=0; x<2; x++) {
-              if (i != 2) {
-                new TitledMap({
-                  title : x + ':' + y,
-                  parent : maptree.portal,
-                  left : x*200,
-                  top : y*420,
-                  relativeZ : i
-                })
-              }
-              i++
-            }
-          }
-          if (levels > 0) {
-            createStuff(maptree.portal, levels-1, 284+256, 0)
-            createStuff(maptree.portal, levels-1, 284+256, 400)
-            createStuff(maptree.portal, levels-1, 284+256, 800)
-            createStuff(maptree.portal, levels-1, 284+522, 0)
-            createStuff(maptree.portal, levels-1, 284+522, 400)
-            createStuff(maptree.portal, levels-1, 284+522, 800)
-          }
-          return maptree
-        }
-        maptree = createStuff(topmap, 1,0,0)
-/*        setInterval(function() {
-          txt.innerHTML = 'x '+topmap.left +
-                          '<br/>y '+topmap.top +
-                          '<br/>left '+topmap.element.style.left +
-                          '<br/>top '+topmap.element.style.top +
-                          '<br/>z ' + topmap.z
-        }, 50)*/
       }, false)
+    // ]]>
     </script>
   </head>
   <body bgcolor="#555555">

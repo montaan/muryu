@@ -274,7 +274,7 @@ Mimetype = {
       if (info.metadata.title && show_title) {
         var title = E('span', info.metadata.title)
 /*        if (info.writable)
-          Element.makeEditable(title, Map.__itemPrefix+info.path+'/edit',
+          Element.makeEditable(title, '/items/'+info.path+'/edit',
             'metadata.title', null, Tr('Item.click_to_edit_title'))*/
         elem.appendChild(title)
       } else {
@@ -283,7 +283,7 @@ Mimetype = {
         var editable_part = E('span', basename)
 /*        if (info.writable)
           Element.makeEditable(editable_part,
-            Map.__itemPrefix+info.path+'/edit',
+            '/items/'+info.path+'/edit',
             'metadata.title',
             function(base){
               if (base.length == 0) return false
@@ -298,7 +298,7 @@ Mimetype = {
           metadata.appendChild(T(Tr('Item.by')+" "))
           var author = E('span', info.metadata.author)
 /*          if (info.writable)
-            Element.makeEditable(author, Map.__itemPrefix+info.path+'/edit',
+            Element.makeEditable(author, '/items/'+info.path+'/edit',
               'metadata.author', null, Tr('Item.click_to_edit_author'))*/
           metadata.appendChild(author)
         }
@@ -347,7 +347,7 @@ Mimetype = {
               t.editor.close()
               delete t.editor
             } else {
-              t.editor = new Desk.Window(Map.__itemPrefix + info.path + '/edit')
+              t.editor = new Desk.Window('/items/' + info.path + '/edit')
             }
           }, {
           className: 'editButton',
@@ -459,10 +459,10 @@ Mimetype = {
 
     deleteItem : function(win, info) {
       var method = info.deleted ? '/undelete' : '/delete'
-      var url = Map.__itemPrefix + info.path + method
+      var url = '/items/' + info.path + method
       new Ajax.Request(url, {
         onSuccess : function(res){
-          Map.forceUpdate()
+//           Map.forceUpdate()
           if (win && !info.deleted) win.close()
           else if (win) win.setSrc(win.src)
         },
@@ -563,7 +563,7 @@ Mimetype = {
             Math.abs(this.downX - e.clientX) < 3 &&
             Math.abs(this.downY - e.clientY) < 3) win.close()
       }*/
-      i.src = Map.__filePrefix + info.path
+      i.src = '/files/' + info.path
       win.content.appendChild(i)
       if (mw < (iw + 20)) {
         ih *= (mw - 20) / iw
@@ -662,7 +662,7 @@ Mimetype = {
         var newheight = parseInt(win.contentElement.style.height) - restheight
         this.style.height = newheight + 'px'
       }.bind(s))
-      i.src = Map.__filePrefix + info.path
+      i.src = '/files/' + info.path
       i.setAttribute("scale", "aspect")
       i.setAttribute("bgcolor", "000000")
       if (navigator.userAgent.indexOf('Windows') != -1)
@@ -693,7 +693,7 @@ Mimetype = {
       var so = new SWFObject("/scripts/flv_player/flvplayer.swf","player",info.metadata.width,info.metadata.height+20,"7")
       so.addParam("allowfullscreen", "true")
       so.addVariable("volume", (MusicPlayer && MusicPlayer.volume) || 100)
-      so.addVariable("file", Map.__filePrefix + info.path)
+      so.addVariable("file", '/files/' + info.path)
       so.write(i)
       i.firstChild.style.display = 'block'
       return s
@@ -717,7 +717,7 @@ Mimetype = {
         this.style.height = newheight + 'px'
       }.bind(i))
       s.appendChild(i)
-      var so = new SWFObject(Map.__filePrefix + info.path, "player",
+      var so = new SWFObject('/files/' + info.path, "player",
         '100%','100%',"7")
       so.write(i)
       i.firstChild.style.display = 'block'
@@ -733,15 +733,15 @@ Mimetype = {
       i.width = '100%'
       i.height = 16
       i.setAttribute("volume", (MusicPlayer && MusicPlayer.volume) || 100)
-      i.src = Map.__filePrefix + info.path
+      i.src = '/files/' + info.path
       i.setAttribute("type", info.mimetype)
       return s
     },
 
     makeHTMLViewer : function(info, win) {
       this.html = Object.extend({}, Mimetype['html'])
-      this.embed = this.html.makeEmbed(Map.__filePrefix + info.path)
-      this.html.init(Map.__filePrefix + info.path, win)
+      this.embed = this.html.makeEmbed('/files/' + info.path)
+      this.html.init('/files/' + info.path, win)
       return this.embed
     },
 
@@ -754,10 +754,10 @@ Mimetype = {
       var i = E('img')
       i.style.display = 'block'
       i.style.border = '0px'
-      i.src = Map.__itemPrefix + info.path + '/thumbnail'
+      i.src = '/items/' + info.path + '/thumbnail'
       s.appendChild(i)
       s.appendChild(T(info.path.split("/").last()))
-      s.href = Map.__filePrefix + info.path
+      s.href = '/files/' + info.path
       return s
     }
   },
@@ -810,7 +810,7 @@ Mimetype = {
       var editor = E('div', null, null, 'editor')
       var ef = E("form")
       ef.method = 'POST'
-      ef.action = Map.__itemPrefix + info.path + '/edit'
+      ef.action = '/items/' + info.path + '/edit'
       obj = new Object()
       var d = E('span')
       d.style.display = 'block'
@@ -828,7 +828,7 @@ Mimetype = {
       var dd = E('div')
       dd.style.minWidth = "256px"
       td.appendChild(dd)
-      dd.appendChild(E("img", null, null, null, {display:'block'}, {src:Map.__itemPrefix + info.path+'/thumbnail'}))
+      dd.appendChild(E("img", null, null, null, {display:'block'}, {src:'/items/' + info.path+'/thumbnail'}))
       dd.appendChild(E("h5", Tr('Item.filename')))
       dd.appendChild(E("input", null,null,null,null,
         { type: 'text',
@@ -998,19 +998,20 @@ Mimetype = {
           method: ef.method,
           parameters: $(ef).serialize(),
           onSuccess: function(res){
-            var newSrc = Map.__itemPrefix +
+            var newSrc = '/items/' +
                           info.path.split("/").slice(0, -1).join('/') + '/' +
                           ef.filename.value + '.' + info.path.split(".").slice(-1)[0] +
                           '/json'
-            var oldSrc = (Map.__itemPrefix + info.path + '/json')
+            var oldSrc = ('/items/' + info.path + '/json')
             var need_update = (newSrc != oldSrc)
             var wins = win.windowManager.windows
             for (var i=0; i<wins.length; i++) {
               if (wins[i].src == oldSrc) wins[i].setSrc(newSrc)
             }
             win.close()
-            if (need_update)
-              Map.forceUpdate()
+            if (need_update) {
+//               Map.forceUpdate()
+            }
           }
         })
       }
@@ -1043,10 +1044,10 @@ Mimetype = {
     },
 
     deleteItem : function(win, info) {
-      var url = Map.__itemPrefix + info.path + '/delete'
+      var url = '/items/' + info.path + '/delete'
       new Ajax.Request(url, {
         onSuccess : function(res){
-          Map.forceUpdate()
+//           Map.forceUpdate()
           if (win) win.close()
         },
         onFailure: function(res){
@@ -1077,10 +1078,10 @@ Mimetype = {
     },
 
     deleteItem : function(win, info) {
-      var url = Map.__itemPrefix + info.path + '/undelete'
+      var url = '/items/' + info.path + '/undelete'
       new Ajax.Request(url, {
         onSuccess : function(res){
-          Map.forceUpdate()
+//           Map.forceUpdate()
           if (win) win.close()
         },
         onFailure: function(res){

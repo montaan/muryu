@@ -169,9 +169,37 @@ iframe {
   border-bottom: 1px solid #555;
 }
 
+.root {
+  border: none;
+  margin: 0px;
+  padding: 0px;
+}
+.root .windowContent {
+  border: none;
+  margin: 0px;
+  padding: 0px;
+}
+.root .windowBackground {
+  background-color: transparent;
+  opacity: 1;
+}
+.root .windowBorder {
+  margin: 0px;
+  padding: 0px;
+}
+
+.panel {
+  cursor: default;
+}
 .panel .windowContent {
+  display: inline;
   border: none;
 }
+.panel .windowBackground {
+  background-color: #000;
+  opacity: 0.8;
+}
+
 
 .topPanel .taskbar {
   display: inline;
@@ -270,16 +298,7 @@ iframe {
   width: 10em;
 }
 
-.panel {
-  cursor: default;
-}
-.panel .windowContent {
-  display: inline;
-}
-.panel .windowBackground {
-  background-color: #000;
-  opacity: 0.8;
-}
+
 .leftPanel {
   border-right: 1px solid #555;
 }

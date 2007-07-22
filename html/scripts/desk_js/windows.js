@@ -81,6 +81,7 @@ Desk.Window.prototype = {
   resizable : true,
   defaultButtons : ['Minimize', 'Maximize', 'Close'],
   showInTaskbar : true,
+  noDecoration : false,
   avoid: false,
   easyMove: false,
   src: null,
@@ -416,13 +417,17 @@ Desk.Window.prototype = {
     this.width = w
     this.height = h
     this.element.style.width = (typeof w == 'string' ? w : w + 'px')
+    var borders = $(this.borders)
+    var cs = borders.getComputedStyle()
+    var horizPadding = parseInt(cs.paddingLeft) + parseInt(cs.paddingRight)
+    var vertPadding = parseInt(cs.paddingTop) + parseInt(cs.paddingBottom)
     this.contentElement.style.width = (
-      parseInt(this.element.style.width) - 8) + 'px'
+      parseInt(this.element.style.width) - horizPadding) + 'px'
     if (!this.shaded) {
       this.element.style.height = (typeof h == 'string' ? h : h + 'px')
       this.contentElement.style.height = (
         parseInt(this.element.style.height) -
-        this.contentElement.offsetTop - 6) + 'px'
+        this.contentElement.offsetTop - vertPadding) + 'px'
       h = parseInt(this.previousHeight)
     }
     this.setX(this.x)

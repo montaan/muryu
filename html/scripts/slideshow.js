@@ -246,6 +246,7 @@ Suture.prototype = {
     } else {
       var f = Math.max(0, idx - 100)
       var l = idx + 100
+      if (!params.q || params.q.toString().length == 0) delete params.q
       params.first = f
       params.last = l
       this.loadingIndicator.style.visibility = "inherit"

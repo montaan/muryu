@@ -58,11 +58,19 @@ Tr.addTranslations('fi-FI', {
 
 ItemArea = {
   deleteItem : function() {
-    new Desk.Window(this.itemHREF.replace(/json$/, 'delete'))
+    new Ajax.Request(this.itemHREF.replace(/json$/, 'delete'), {
+      onSuccess : function() {
+        this.getMap().forceUpdate()
+      }.bind(this)
+    })
   },
   
   undelete : function() {
-    new Desk.Window(this.itemHREF.replace(/json$/, 'undelete'))
+    new Ajax.Request(this.itemHREF.replace(/json$/, 'undelete'), {
+      onSuccess : function() {
+        this.getMap().forceUpdate()
+      }.bind(this)
+    })
   },
 
   edit : function() {
@@ -133,7 +141,7 @@ ItemArea = {
       }
       var map = this.getMap()
       if (m.slideshowWindow.slideshow.query.q != map.query) {
-        m.slideshowWindow.slideshow.setQuery({q:map.query}, false)
+        m.slideshowWindow.slideshow.setQuery({q:map.query||''}, false)
       }
       if (m.slideshowWindow.minimized)
         m.slideshowWindow.minimize()
@@ -142,7 +150,7 @@ ItemArea = {
       m.slideshowWindow.slideshow.showIndex(this.info.index)
     } else {
       new Desk.Window('app:Suture.loadWindow', {
-        parameters: {index:this.info.index, query:{ q:this.getMap().query }}
+        parameters: {index:this.info.index, query:{ q:this.getMap().query||'' }}
       })
     }
   },
@@ -304,7 +312,7 @@ ItemArea = {
       menu.addItem(Tr('Item.makePrivate'), this.makePrivate.bind(this))
       menu.addSubMenu(Tr('Item.groups'), this.fillGroupMenu.bind(this))
       menu.addSeparator()
-      if (this.info.deleted == 't')
+      if (this.info.deleted)
         menu.addItem(Tr('Button.Item.undelete_item'), this.undelete.bind(this))
       else
         menu.addItem(Tr('Button.Item.delete_item'), this.deleteItem.bind(this))
@@ -367,12 +375,12 @@ ItemArea = {
       }
       var m = this.getMap()
       var t = m.root
-      var maps_per_container = t.container.width / Math.max(m.width, m.height)
+      var maps_per_container = t.container.offsetWidth / Math.max(m.width, m.height)
       var crop_z = Math.floor(Math.log(maps_per_container) / Math.log(2))
       var dz = t.z - m.z
       if (crop_z > 4)
         crop_z = 7
-      var full_z = Math.floor(Math.log(Math.max(t.container.width, t.container.height)) / Math.log(2))
+      var full_z = Math.floor(Math.log(Math.max(t.container.offsetWidth, t.container.offsetHeight)) / Math.log(2))
       t.pointerX = ev.pageX - t.container.offsetLeft
       t.pointerY = ev.pageY - t.container.offsetTop
       if (crop_z+dz > t.targetZ) {

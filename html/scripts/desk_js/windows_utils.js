@@ -283,6 +283,7 @@ Element.replaceWithEditor = function(elem, callback, oncancel) {
   var cs = $(elem).getComputedStyle()
   Object.forceExtend(input.style, cs)
   input.style.minWidth = elem.offsetWidth + 'px'
+  input.style.cursor = 'text'
   input.addEventListener("keypress", function(e){
     if ((e.charCode || e.keyCode) == 27) this.cancel()
   }, false)
