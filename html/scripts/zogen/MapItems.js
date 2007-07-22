@@ -5,6 +5,7 @@ Tr.addTranslations('en-US', {
   'TileMap.RemoveMap' : 'Remove search',
   'TileMap.ShowColors' : 'Color items',
   'TileMap.ShowStats' : 'Open stats window',
+  'TileMap.itemCount' : function(count) { return count + ' items' },
   'Item.open' : 'Open',
   'Item.select' : 'Select',
   'Item.click_to_inspect' : 'Left-click to inspect ',
@@ -33,6 +34,7 @@ Tr.addTranslations('fi-FI', {
   'TileMap.RemoveMap' : 'Poista haku',
   'TileMap.ShowColors' : 'Väritä tiedostot',
   'TileMap.ShowStats' : 'Seuraa latauksia',
+  'TileMap.itemCount' : function(count) { return count + ' tiedostoa' },
   'Item.open' : 'Avaa',
   'Item.select' : 'Valitse',
   'Item.click_to_inspect' : 'Napsauta nähdäksesi ',
@@ -381,8 +383,6 @@ ItemArea = {
       if (crop_z > 4)
         crop_z = 7
       var full_z = Math.floor(Math.log(Math.max(t.container.offsetWidth, t.container.offsetHeight)) / Math.log(2))
-      t.pointerX = ev.pageX - t.container.offsetLeft
-      t.pointerY = ev.pageY - t.container.offsetTop
       if (crop_z+dz > t.targetZ) {
         t.animatedZoom(crop_z+dz)
       } else {
@@ -406,7 +406,7 @@ ItemArea = {
   },
 
   getTile : function() {
-    if (this.parentNode)
+    if (this.parentNode && this.parentNode.parentNode)
       return this.parentNode.parentNode.tile || this.parentNode.parentNode
   },
 

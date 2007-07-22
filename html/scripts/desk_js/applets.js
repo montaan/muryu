@@ -1139,3 +1139,38 @@ Applets.Sets = function(wm) {
 
 Applets.SelectionEditor = function(wm) {
 }
+
+
+
+Notes = {
+  make : function(win) {
+    var ta = E('textarea')
+    ta.style.display = 'block'
+    ta.style.width = '100%'
+    ta.style.height = '200px'
+    ta.style.backgroundColor = '#DDD'
+    ta.style.border = '0px'
+    ta.style.padding = '2px'
+    ta.style.color = '#000'
+    ta.style.fontSize = '14px'
+    ta.style.fontWeight = 'normal'
+    ta.style.fontFamily = 'Serif'
+    if (win.title == win.src)
+      win.setTitle(Tr('Note', Tr('Date', new Date())))
+    win.addListener('resize', function() {
+      ta.style.width = parseInt(win.contentElement.style.width) - 6 + 'px'
+      ta.style.height = parseInt(win.contentElement.style.height) - 7 + 'px'
+    })
+    if (win.parameters)
+      ta.value = win.parameters.content
+    else
+      win.parameters = {content:''}
+    ta.ival = setInterval(function() {
+      if (win.parameters.content != ta.value)
+        win.parameters.content = ta.value
+    }, 1000)
+    win.addListener('close', function() { clearInterval(ta.ival) })
+    win.setContent(ta)
+  }
+}
+

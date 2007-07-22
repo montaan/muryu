@@ -67,8 +67,10 @@ Zoomable = {
     Sets parent node in zoomable scenegraph.
     */
   setParent : function(parent) {
-    this.parent = parent
+    if (this.parent)
+      this.parent.removeChild(this)
     if (parent) {
+      this.parent = parent
       this.bgColor = parent.bgColor
       this.root = parent.root
       this.loader = parent.loader
@@ -89,7 +91,6 @@ Zoomable = {
         this.container.style.backgroundColor = '#'+this.bgColor
       } else {
         if (this.element.parentNode) $(this.element).detachSelf()
-        this.container.style.backgroundColor = 'inherit'
       }
     }
   },
@@ -123,7 +124,6 @@ Zoomable = {
     if (child.element && child.element.parentNode)
       $(child.element).detachSelf()
     this.children.deleteFirst(child)
-    child.setParent(null)
   },
 
   /**
@@ -133,12 +133,14 @@ Zoomable = {
   unload : function() {
     this.removeEventListeners()
     while(this.children.length > 0) {
-      var c = this.children.pop()
-      c.unload()
-      if (c.element) this.element.removeChild(c.element)
+      this.children[0].setParent(null)
     }
     this.root = null
     this.loader = null
+    if (this.parent)
+      this.parent.removeChild(this)
+    this.parent = null
+    $(this.element).detachSelf()
     this.setContainer(null)
   },
 
@@ -169,7 +171,8 @@ Zoomable = {
     } else {
       var c = this.projectExtentsToContainer()
       this.is_visible = (c.right > 0 && c.bottom > 0 &&
-                         c.left < this.container.offsetWidth && c.top < this.container.offsetHeight)
+                         c.left < this.container.width &&
+                         c.top < this.container.height)
     }
     return this.is_visible
   },
@@ -198,8 +201,8 @@ Zoomable = {
     Updates absolute and parent-relative position and size.
     Zooms children if visible.
     */
-  zoom : function(z, targetZ) {
-    var need_update = (z != this.z)
+  zoom : function(z, targetZ, force_update) {
+    var need_update = force_update || (z != this.z)
     this.z = z
     this.targetZ = targetZ == undefined ? z : targetZ
     this.updatePosition()
@@ -323,6 +326,7 @@ Object.extend(Zoomable, EventListener)
   Make a View and attach all the rest to it.
   */
 View = function(config) {
+  this.windowContainer = config.container
   this.loader = new Loader()
   this.init(config)
   this.element.style.zIndex = 0
@@ -386,6 +390,8 @@ Object.extend(View.prototype, {
   setupEventListeners : function() {
     var t = this
     this.onmousedown = function(ev) {
+      t.pointerX = ev.pageX - t.windowContainer.offsetLeft
+      t.pointerY = ev.pageY - t.windowContainer.offsetTop
       if (!t.validEventTarget(ev)) return
       if (t.previousTarget && t.previousTarget.blur)
         t.previousTarget.blur()
@@ -399,8 +405,8 @@ Object.extend(View.prototype, {
       if (Event.isLeftClick(ev)) {
         if (ev.shiftKey) {
           t.selecting = true
-          t.selectX = ev.pageX - t.container.offsetLeft
-          t.selectY = ev.pageY - t.container.offsetTop
+          t.selectX = ev.pageX - t.windowContainer.offsetLeft
+          t.selectY = ev.pageY - t.windowContainer.offsetTop
           t.selectionElem.style.left = t.selectX + 'px'
           t.selectionElem.style.top = t.selectY + 'px'
           t.selectionElem.style.width = '0px'
@@ -418,34 +424,54 @@ Object.extend(View.prototype, {
     this.ondblclick = function(ev) {
       if (Event.isLeftClick(ev) && !ev.ctrlKey && !ev.shiftKey && !ev.altKey) {
         var obj = ev.target
-        while (obj && !obj.map) {
+        while (obj && !obj.map && !obj.portal) {
           obj = obj.parentNode
         }
-        if (obj && obj.map != t) {
-          var maps_per_container = t.container.offsetWidth / Math.max(obj.map.width, obj.map.height)
+        if (obj && obj.map) {
+          var maps_per_container = t.container.width / Math.max(obj.map.width, obj.map.height)
           var crop_z = Math.floor(Math.log(maps_per_container) / Math.log(2))
-          var full_z = Math.floor(Math.log(t.container.offsetWidth) / Math.log(2))
-          t.pointerX = ev.pageX - t.container.offsetLeft
-          t.pointerY = ev.pageY - t.container.offsetTop
+          var full_z = Math.floor(Math.log(t.container.width) / Math.log(2))
           var dz = t.z - obj.map.z
-          if (crop_z+dz > t.targetZ) {
+          if (crop_z+dz > t.targetZ) { // zoom to map extents
             t.animatedZoom(crop_z+dz)
           } else {
-            if (t.targetZ < 7+dz) {
+            if (t.targetZ < 7+dz) { // zoom to 128x128 thumbs
               t.animatedZoom(7+dz)
-            } else if (ev.target.style.cursor == 'wait') {
+            } else if (ev.target.style.cursor == 'wait') { // zoom to full view
               t.animatedZoom(full_z+dz)
-            } else {
-              if (t.targetZ == crop_z+dz)
-                t.animatedZoom(crop_z+dz-1)
-              else
-                t.animatedZoom(crop_z+dz)
+            } else if (t.targetZ == crop_z+dz) { // zoom to parent extents
+              var maps_per_container = Math.min(
+                t.container.width / obj.map.parent.width,
+                t.container.height / obj.map.parent.height)
+              var crop_z = Math.floor(Math.log(maps_per_container) / Math.log(2))
+              var dz = t.z - obj.map.parent.z
+              t.animatedZoom(crop_z+dz)
+            } else { // zoom back to map extents
+              t.animatedZoom(crop_z+dz)
             }
           }
-        } else if (t.targetZ < 2) {
-          t.animatedZoom(t.targetZ + 4)
-        } else {
-          t.animatedZoom(0)
+        } else if (obj && obj.portal) {
+          var maps_per_container = Math.min(
+            t.container.width / obj.portal.width,
+            t.container.height / obj.portal.height)
+          var crop_z = Math.floor(Math.log(maps_per_container) / Math.log(2))
+          var dz = t.z - obj.portal.z
+          if (crop_z+dz != t.targetZ) { // zoom to my extents
+            t.animatedZoom(crop_z+dz)
+          } else { // zoom to parent extents
+            var maps_per_container = Math.min(
+              t.container.width / obj.portal.parent.width,
+              t.container.height / obj.portal.parent.height)
+            var crop_z = Math.floor(Math.log(maps_per_container) / Math.log(2))
+            var dz = t.z - obj.portal.parent.z
+            t.animatedZoom(crop_z+dz)
+          }
+        } else { // zoom to view extents
+          var maps_per_container = Math.min(
+            t.container.width / t.width,
+            t.container.height / t.height)
+          var crop_z = Math.floor(Math.log(maps_per_container) / Math.log(2))
+          t.animatedZoom(crop_z)
         }
         Event.stop(ev)
       }
@@ -459,8 +485,8 @@ Object.extend(View.prototype, {
     this.onmousemove = function(ev) {
       t.previousTarget = ev.target
       if (!t.validEventTarget(ev)) return
-      t.pointerX = ev.pageX - t.container.offsetLeft
-      t.pointerY = ev.pageY - t.container.offsetTop
+      t.pointerX = ev.pageX - t.windowContainer.offsetLeft
+      t.pointerY = ev.pageY - t.windowContainer.offsetTop
       document.focusedMap = t
       if (t.panning) {
         var dx = ev.clientX - t.panX
@@ -761,6 +787,7 @@ TitledPortal = function(config) {
     Object.extend(Object.clone(config),
     {parent: this, relativeZ: 0, left: 0, top: 56})
   )
+  this.element.portal = this
 }
 TitledPortal.prototype = Object.extend({}, Zoomable)
 Object.extend(TitledPortal.prototype, {
@@ -799,16 +826,23 @@ Object.extend(TitledMap.prototype, {
 
   setupChildren : function(config) {
     this.title = new Title({parent: this, title: this.title})
+    this.itemCountElement = E("span")
+    this.title.titleElement.appendChild(this.itemCountElement)
     this.map = new TileMap(
       Object.extend(Object.clone(config),
       {parent: this, relativeZ: 0, left: 0, top: 28})
     )
+    this.map.addListener('load', function(ev){
+      this.itemCountElement.innerHTML = ' (' +
+        Tr('TileMap.itemCount', this.map.info.itemCount) + ')'
+      this.title.setTitle(this.map.query || 'no query')
+    }.bind(this))
     this.title.titleElement.map = this.map
-    this.title.titleElement.addEventListener('dblclick',
+    this.title.titleElement.firstChild.addEventListener('dblclick',
       this.titleEdit.bind(this), false)
     this.titleMenu = new Desk.Menu()
     this.titleMenu.addTitle(Tr('TileMap'))
-    this.titleMenu.addItem(Tr('TileMap.EditTitle'), this.titleEdit.bind(this.title.titleElement))
+    this.titleMenu.addItem(Tr('TileMap.EditTitle'), this.titleEdit.bind(this))
     this.titleMenu.addItem(Tr('TileMap.ShowColors'), function(){
       if (this.color != 'false') {
         this.titleMenu.uncheckItem(Tr('TileMap.ShowColors'))
@@ -829,7 +863,7 @@ Object.extend(TitledMap.prototype, {
   titleEdit : function(ev) {
     if (!this.root.validEventTarget(ev)) return
     if (!ev || Event.isLeftClick(ev)) {
-      var t = this.title.titleElement
+      var t = this.title.titleElement.firstChild
       var map = this.map
       t.style.minWidth = t.offsetWidth + 200 + 'px'
       $(t).replaceWithEditor(
@@ -862,7 +896,7 @@ Object.extend(Title.prototype, {
   fontSize : 20,
   maxFontSize : 20,
   minVisibleWidth : 4,
-  minVisibleHeight : 2,
+  minVisibleHeight : 4,
   moveWithParent : true,
 
   // state vars
@@ -877,6 +911,7 @@ Object.extend(Title.prototype, {
     this.titleElement.style.padding = '0px'
     this.titleElement.style.color = 'white'
     this.titleElement.style.cursor = 'move'
+    this.titleElement.style.whiteSpace = 'nowrap'
     this.titleElement.style.fontFamily = 'URW Gothic L'
     this.titleElement.style.zIndex = 100
     Zoomable.init.apply(this, arguments)
@@ -958,18 +993,24 @@ Object.extend(Title.prototype, {
     this.setTitle(ev.value)
   },
 
-  setTitle : function(title) {
-    this.title = title
-    this.titleElement.innerHTML = this.title
+  updateTextDimensions : function() {
     this.titleElement.style.visibility = 'hidden'
     document.body.appendChild(this.titleElement)
     this.titleElement.style.fontSize = Math.round(this.fontSize) + 'px'
     this.ownWidth = this.titleElement.offsetWidth
     this.ownHeight = this.titleElement.offsetHeight
-    this.parent.element.appendChild(this.titleElement)
+    this.element.appendChild(this.titleElement)
     this.titleElement.style.visibility = 'inherit'
     this.absoluteFontSize = 0
-    this.zoom(this.z)
+    this.zoom(this.z, this.targetZ, true)
+  },
+
+  setTitle : function(title) {
+    this.title = title
+    if (!this.titleElement.firstChild)
+      this.titleElement.appendChild(E('span'))
+    this.titleElement.firstChild.innerHTML = this.title
+    this.updateTextDimensions()
   }
 })
 
@@ -1022,6 +1063,11 @@ Object.extend(TileMap.prototype, {
     this.updateInfo()
   },
 
+  unload : function() {
+    this.discardTiles()
+    Zoomable.unload.apply(this, arguments)
+  },
+
   /**
     Updates dimensions from the server.
     */
@@ -1033,7 +1079,7 @@ Object.extend(TileMap.prototype, {
       onSuccess : function(res) {
         var obj = res.responseText.evalJSON()
         var dims = obj.dimensions
-        this.tileInfo = obj
+        this.info = obj
         this.right = this.left
         this.bottom = this.top
         this.width = 0
@@ -1046,6 +1092,7 @@ Object.extend(TileMap.prototype, {
           this.minVisibleHeight = this.ownHeight - 1
         this.updateDimensions()
         this.initTiles()
+        this.newEvent('load')
       }.bind(this)
     })
   },
@@ -1205,7 +1252,8 @@ Object.extend(TileMap.prototype, {
   the TileNode, the TileNode hides its image.
   
   When zooming out, the TileNode shows its image and discards its children.
-
+  
+  FIXME: image flicker when zooming out (grey bg visible)
   */
 TileNode = function(x, y, z, parent, map) {
   this.x = x
@@ -1284,8 +1332,8 @@ TileNode.prototype = {
     if (this.image && !this.imageHidden && this.changed)
       this.updateImage()
     if (this.is_visible) {
-      this.determineChildren()
       this.determineImage()
+      this.determineChildren()
       for(var i=0,cl=this.children.length; i<cl; i++)
         this.children[i].zoom(this.zoom_level, this.targetZ)
       this.updateCoverage()
@@ -1299,8 +1347,10 @@ TileNode.prototype = {
 
   determineChildren : function() {
     if (this.d <= 0 || this.is_current) {
-      if (this.zoom_complete && (!this.is_visible || this.loaded || this.above_loaded))
+      if (this.zoom_complete && (!this.is_visible || this.loaded || this.above_loaded)) {
+        console.log('discard children', this.z)
         this.discardChildren()
+      }
     // this.d <= 1  ==  don't create whole tile hierarchy to targetZ, only the next level
     // (imagine case where zooming from 0 to 16, first frame would create the full
     //  tile tree all the way down to 16 => run out of ram, crash, hang, explode)
@@ -1333,38 +1383,44 @@ TileNode.prototype = {
   updateVars : function(zoom, targetZ) {
     if (this.zoom_level != zoom) this.changed = true
     this.zoom_level = zoom
-    this.zoom_complete = zoom == targetZ
+    console.log(zoom, targetZ)
+    this.zoom_complete = (zoom == targetZ)
     if (this.targetZ != targetZ || this.zoom_complete) {
       this.targetZ = targetZ
-      var d = this.d = targetZ - this.z
+      var d = this.d = (targetZ - this.z)
       var zo = (targetZ <= this.z && this.parent == this)
-      this.is_zoom_out_cache = (this.parent==this) || (d == 2 && targetZ-zoom <= 0)
-      this.is_current = d == 0 || zo || this.z == this.maxZoom
-      this.load_image = (d >= 0 && d < 1) || this.is_zoom_out_cache
-      this.too_high_res = d < 0 && !zo
-      this.too_low_res = d > 2 && !zo
+      this.is_zoom_out_cache = ((this.parent==this) || (d == 2 && targetZ-zoom <= 0))
+      this.is_current = (d == 0 || zo || this.z == this.maxZoom)
+      this.load_image = ((d >= 0 && d < 1) || this.is_zoom_out_cache)
+      this.too_high_res = (d < 0 && !zo)
+      this.too_low_res = (d > 2 && !zo)
     }
     if (this.parent == this) this.is_visible = this.isVisible()
-    else this.is_visible = this.parent.is_visible && this.isVisible()
+    else this.is_visible = (this.parent.is_visible && this.isVisible())
     if (d <= 0)
-      this.above_loaded = this.parent.above_loaded || this.loaded
+      this.above_loaded = (this.parent.above_loaded || this.loaded)
     else
       this.above_loaded = false
     this.need_high_res = !this.above_loaded
     this.need_image =
-      this.load_image && this.is_visible &&
-      (this.is_current || this.is_zoom_out_cache)
+      (this.load_image && this.is_visible &&
+       (this.is_current || this.is_zoom_out_cache))
   },
 
   determineImage : function() {
     if (this.need_image) {
       if (!this.image && this.load_image) this.loadImage(this.targetZ)
-      if (!this.is_current && this.above_loaded) this.hideImage(false)
+      if (!this.is_current && this.above_loaded) {
+        console.log('hide image because above loaded', this.z)
+        this.hideImage(false)
+      }
     // cancel unloaded tiles
     } else if (this.zoom_complete && !this.loaded) {
+        console.log('discard image because not loaded', this.z, this.zoom_level, this.targetZ)
       this.discardImage()
     // toss unneeded hires tiles and lores tiles
-    } else if ((this.too_high_res && !this.need_high_res) || (this.zoom_complete && this.too_low_res)) {
+    } else if (this.zoom_complete && ((this.too_high_res && !this.need_high_res) || (this.too_low_res))) {
+        console.log('hide image because ' + ((this.too_high_res && !this.need_high_res) ? 'too high res' : 'too low res'), this.z, this.zoom_level, this.targetZ )
       this.hideImage()
     }
   },
@@ -1373,6 +1429,7 @@ TileNode.prototype = {
     Hides the image of this TileNode if it has one.
     */
   hideImage : function(discard) {
+    console.log('hiding image', this.z)
     this.imageHidden = true
     if (!this.loaded && discard != false) this.discardImage()
     else if (this.image) this.image.style.display = 'none'
@@ -1447,7 +1504,8 @@ TileNode.prototype = {
     var c = this.projectExtentsToContainer()
     var container = m.container
     return (c.right > -this.size && c.bottom > -this.size &&
-            c.left < container.offsetWidth + this.size && c.top < container.offsetHeight + this.size)
+            c.left < container.width + this.size &&
+            c.top < container.height + this.size)
   },
 
   /**
@@ -1504,7 +1562,7 @@ TileNode.prototype = {
     var container = this.root.map.container
     var directly_visible = (
       c.right > 0 && c.bottom > 0 &&
-      c.left < container.offsetWidth && c.top < container.offsetHeight
+      c.left < container.width && c.top < container.height
     )
     var dz = (directly_visible ? 0 : 5) // load offscreen tiles last
     this.map.loader.load(
@@ -1579,7 +1637,7 @@ TileNode.prototype = {
     this.loaded = true
     this.updateCoverage()
     if (this.parent != this) this.parent.updateCoverage()
-    if (this.z < 5 || !this.is_visible) return
+    if (this.z < 5) return
     this.image.style.cursor = 'wait'
     this.map.loader.requestInfo(this.getInfoServer()+this.getInfoQuery(), this.tileX, this.tileY, this.z, this)
   },
@@ -1594,6 +1652,7 @@ TileNode.prototype = {
         delete this.image.onload
         this.map.loader.cancel(this)
       }
+      if (this.image.parentNode) $(this.image).detachSelf()
       this.image.src = 'data:'
       this.image.style.cursor = 'auto'
       while (this.image.firstChild)
@@ -1602,7 +1661,6 @@ TileNode.prototype = {
       delete this.image.ImageMap
       delete this.image.tile
       delete this.image.onload
-      if (this.image.parentNode) $(this.image).detachSelf()
       ImagePool.getPool().put(this.image)
       delete this.image
     }
@@ -1615,15 +1673,13 @@ TileNode.prototype = {
   unload : function(){
     this.discardChildren()
     this.hideImage(false)
-    setTimeout(function(){
-      this.discardImage()
-      if (this.loader) this.loader()
-      this.map.loader.cancel(this)
-      delete this.parent
-      delete this.root
-      delete this.children
-      delete this.map
-    }.bind(this), 50)
+    if (this.loader) this.loader()
+    this.map.loader.cancel(this)
+    this.discardImage()
+    delete this.parent
+    delete this.root
+    delete this.children
+    delete this.map
   }
 }
 
