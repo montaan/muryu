@@ -6,18 +6,85 @@
     <link rel="stylesheet" href="/scripts/desk_js/style.css"></link>
     <link rel="stylesheet" href="/scripts/slideshow.css"></link>
     <link rel="stylesheet" href="/muryu.css"></link>
-<!--     <script src="http://maps.google.com/maps?file=api&amp;v=2.x&amp;key=ABQIAAAAWpSYHNXxjMT-MLolMNpBmRS2fNlMtol7He-Jym4WpRf8M4n2NBTj9mfCSuHnIDtWQFsggjMA8zq-UA" type="text/javascript"></script> -->
+    <style>
+/*      div.TileMap {
+        border : 1px solid blue;
+      }
+      div.Portal {
+        border : 1px solid white;
+      }
+      div.TitledMap {
+        border : 1px solid yellow;
+      }
+      div.Title {
+        border : 1px solid red;
+      }
+      h3 {
+        border : 1px solid cyan;
+      }*/
+      div.TitledPortalBorder {
+        border : 1px dotted #444444;
+      }
+    </style>
+  
+  
     <script type="text/javascript" src="/scripts/desk_js/prototype.js"></script>
     <script type="text/javascript" src="/scripts/desk_js/scriptaculous.js"></script>
     <script type="text/javascript" src="/scripts/desk_js/soundmanager2.js"></script>
     <script type="text/javascript" src="/scripts/desk_js/desk.js"></script>
     <script type="text/javascript" src="/scripts/flv_player/swfobject.js"></script>
-    <script type="text/javascript" src="/scripts/zogen/TileMap.js"></script>
-    <script type="text/javascript" src="/scripts/zogen/Slideshow.js"></script>
+    <script type="text/javascript" src="/scripts/zogen/PortalMap.js"></script>
     <script type="text/javascript" src="/scripts/zogen/Editors.js"></script>
     <script type="text/javascript" src="/scripts/slideshow.js"></script>
-    <script>
-      // <![CDATA[
+    <script type="text/javascript">
+    // <![CDATA[
+
+      Tr.addTranslations('fi-FI', {
+        'Workspace' : 'Työtila',
+        'Add search' : 'Lisää haku',
+        'Windows' : 'Ikkunat',
+        'Collapse all groups' : 'Piilota kaikki ryhmät',
+        'Expand all groups' : 'Laajenna kaikki ryhmät',
+        'Utilities' : 'Työkalut',
+        'Make note' : 'Tee muistiinpano',
+        'Session' : 'Istunto',
+        'Save Session' : 'Tallenna istunto',
+        'Clear Session' : 'Nollaa asetukset',
+        'Note' : 'Muistiinpano ',
+        'help.html' : 'help.html',
+        'help' : 'Apua'
+      })
+      Tr.addTranslations('en-US', {
+        'Note' : 'Note '
+      })
+      Tr.addTranslations('ja-JP', {
+        'Date' : function(d){
+          weekdays = ['日', '月', '火', '水', '木', '金', '土']
+          months = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二']
+          return ((d.getYear() + 1900) + '年' +
+                  (d.getMonth() + 1) + '月' +
+                  d.getDate() + '日' +
+                  ' ('+ weekdays[d.getDay()] + ') ' +
+                  d.getHours().toString().rjust(2, '0') + ':' +
+                  d.getMinutes().toString().rjust(2, '0') + ':' +
+                  d.getSeconds().toString().rjust(2, '0'))
+        },
+        'Workspace' : '作業領域',
+        'Add search' : '検索を追加する',
+        'Windows' : '窓',
+        'Collapse all groups' : '全グループを隠す',
+        'Expand all groups' : '全グループを広げる',
+        'Utilities' : '道具',
+        'Make note' : '覚書',
+        'Session' : 'セッション',
+        'Save Session' : 'セッションを保管する',
+        'Clear Session' : 'セッションを消す',
+        'Note' : '覚書 ',
+        'help.html' : 'help.html',
+        'help' : '使用法'
+      })
+      Tr.translations['fi'] = Tr.translations['fi-FI']
+      
 
       String.prototype.unfilterJSON = function() {
         if (this.slice(0,8) == 'while(0)') {
@@ -26,6 +93,8 @@
           return this
         }
       }
+
+      
 
       Session.storage = {
         load : function(callback) {
@@ -58,9 +127,12 @@
           new Ajax.Request('/users/delete_preferences', { asynchronous : false, parameters : params })
         }
       }
+
+
+
       
       Muryu = {
-        init : function(){
+        login : function() {
           var loggedIn = (Session.storage.info.name && Session.storage.info.name != 'anonymous')
           if (loggedIn) {
             if (Session.storage.info.preferences.language)
@@ -83,6 +155,42 @@
               this.request(url)
             }
           }
+          this.loggedIn = loggedIn
+          return this.loggedIn
+        },
+
+
+        
+        init : function(){
+        try {
+          var loggedIn = this.login()
+          document.body.style.overflow = 'hidden'
+          var container = E('div')
+          container.style.position = 'absolute'
+          var debug = false
+          if (debug) {
+            container.style.top = '200px'
+            container.style.left = '200px'
+            container.width = 256
+            container.height = 256
+            container.style.width = container.width + 'px'
+            container.style.height = container.height + 'px'
+            var c = E('div',null,null,null, container.style)
+            c.style.border = '1px solid red'
+            c.style.top = '-1'
+            c.style.left = '-1'
+            c.style.zIndex = 1000
+            container.appendChild(c)
+          } else {
+            container.style.left = '0px'
+            container.style.top = '0px'
+            container.style.width = '100%'
+            container.style.height = '100%'
+            container.width = document.body.clientWidth
+            container.height = document.body.clientHeight
+          }
+          document.body.appendChild(container)
+          Desk.Windows.setContainer(container)
           
           var qvars = document.location.search.slice(1).split("&")
           var query = {}
@@ -94,83 +202,68 @@
               Object.require(addons[i])
             }
           }
-  
-          var map = document.getElementById("map")
-          Desk.Windows.setContainer(map)
-          map.style.width = window.innerWidth + 'px'
-          map.style.height = window.innerHeight + 'px'
-          setInterval(function(){
-            if (window.innerWidth != Desk.Windows.previousInnerWidth ||
-                window.innerHeight != Desk.Windows.previousInnerHeight) {
-              map.style.width = window.innerWidth + 'px'
-              map.style.height = window.innerHeight + 'px'
-              Desk.Windows.previousInnerWidth = window.innerWidth
-              Desk.Windows.previousInnerHeight = window.innerHeight
-            }
-          }, 100)
-          Tr.addTranslations('fi-FI', {
-            'Workspace' : 'Työtila',
-            'Add search' : 'Lisää haku',
-            'Windows' : 'Ikkunat',
-            'Collapse all groups' : 'Piilota kaikki ryhmät',
-            'Expand all groups' : 'Laajenna kaikki ryhmät',
-            'Utilities' : 'Työkalut',
-            'Make note' : 'Tee muistiinpano',
-            'Session' : 'Istunto',
-            'Save Session' : 'Tallenna istunto',
-            'Clear Session' : 'Nollaa asetukset',
-            'Note' : 'Muistiinpano ',
-            'help.html' : 'help.html',
-            'help' : 'Apua'
+
+          if (!Session.load())
+            this.initView()
+        } catch(e) { console.log(e) }
+        },
+        
+        initView : function() {
+          RootWindow = new Desk.Window('app:Muryu.mapView', {
+            group : 'root',
+            movable : false,
+            buttons : [],
+            showInTaskbar : false,
+            maximized : true,
+            resizable : false,
+            layer : -1
           })
-          Tr.addTranslations('en-US', {
-            'Note' : 'Note '
+          var topPanel = new Desk.Panel('left', {movable : false})
+          topPanel.addApplet(Applets.Session())
+          topPanel.addApplet(Applets.MusicPlayer())
+          topPanel.addApplet(Applets.Sets())
+          topPanel.addApplet(Applets.Groups())
+          topPanel.addApplet(Applets.Taskbar())
+        },
+        
+        mapView : function(win) {
+          var rootMap = E('div')
+          rootMap.style.width = '100%'
+          rootMap.style.height = '100%'
+          rootMap.style.overflow = 'hidden'
+          rootMap.style.position = 'absolute'
+          win.setTitle(null)
+          win.setContent(rootMap)
+          var topmap = new View({
+            container: rootMap,
+            windowContainer: win.container
           })
-          Tr.addTranslations('ja-JP', {
-            'Date' : function(d){
-              weekdays = ['日', '月', '火', '水', '木', '金', '土']
-              months = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二']
-              return ((d.getYear() + 1900) + '年' +
-                      (d.getMonth() + 1) + '月' +
-                      d.getDate() + '日' +
-                      ' ('+ weekdays[d.getDay()] + ') ' +
-                      d.getHours().toString().rjust(2, '0') + ':' +
-                      d.getMinutes().toString().rjust(2, '0') + ':' +
-                      d.getSeconds().toString().rjust(2, '0'))
-            },
-            'Workspace' : '作業領域',
-            'Add search' : '検索を追加する',
-            'Windows' : '窓',
-            'Collapse all groups' : '全グループを隠す',
-            'Expand all groups' : '全グループを広げる',
-            'Utilities' : '道具',
-            'Make note' : '覚書',
-            'Session' : 'セッション',
-            'Save Session' : 'セッションを保管する',
-            'Clear Session' : 'セッションを消す',
-            'Note' : '覚書 ',
-            'help.html' : 'help.html',
-            'help' : '使用法'
+          win.map = topmap
+          win.addListener('resize', function(ev) {
+            topmap.container.width = rootMap.offsetWidth
+            topmap.container.height = rootMap.offsetHeight
+            topmap.zoom(topmap.z, topmap.z, true)
           })
-          Tr.translations['fi'] = Tr.translations['fi-FI']
-          menu = new Desk.Menu()
+          win.addListener('containerChange', function(ev) {
+            topmap.windowContainer = ev.value
+            topmap.zoom(topmap.z, topmap.z, true)
+          })
+          
+          var menu = new Desk.Menu()
           menu.addTitle(Tr('Workspace'))
           var q = ""
-          if (loggedIn)
-            q += "user:"+Session.storage.info.name+" " 
-          q += "sort:date"
+          if (this.loggedIn)
+            q += "user:"+Session.storage.info.name
           menu.addItem(Tr('Add search'), function() {
-            var ns = new TileMap({
-              isSubmap : true,
+            var ns = new TitledMap({
               query: q,
-              bgcolor: Map.bgcolor,
-              left: Math.pow(2,-Map.targetZ)*(Map.pointerX-Map.x),
-              top: Math.pow(2,-Map.targetZ)*(Map.pointerY-Map.y),
-              width: 256,
-              height: 256
-            }).setParent(Map)
+              parent: topmap,
+              bgcolor: topmap.bgcolor,
+              left: Math.pow(2,-topmap.targetZ)*(topmap.pointerX-topmap.x),
+              top: Math.pow(2,-topmap.targetZ)*(topmap.pointerY-topmap.y)
+            })
           })
-          if (loggedIn) {
+          if (this.loggedIn) {
             menu.addTitle(Tr('Utilities'))
             menu.addItem(Tr('Make note'), function(){ new Desk.Window('app:Notes.make') })
           }
@@ -181,72 +274,64 @@
           menu.addItem(Tr('Expand all groups'), function() {
             Desk.Windows.taskbar.setCollapsedForAll(false)
           }, 'icons/ExpandAllGroups.png')
-  //         menu.addSeparator()
-  //         menu.addItem(Tr('Add Panel'), function(){ new Desk.Panel() })
           menu.addTitle(Tr('Session'))
-  //         menu.addItem(Tr('Save Session'), function(){ Session.save() })
           menu.addItem(Tr('Clear Session'), function(){ Session.clear() })
           menu.addItem(Tr('Applets.Session.LogOut'), function(){ location.href = '/users/logout' })
-          menu.bind(Desk.Windows.windowContainer)
-          if (!Session.load()) {
-            Map = new TileMap({
-              x:50, y: 50,
-              z: 1,
-              width: window.innerWidth,
-              height: window.innerHeight,
-              noTiles: true
-            })
-            new TileMap({
-              isSubmap : true,
-              query: q,
-              left: 0,
-              top: 0,
-              width: 256,
-              height: 256
-            }).setParent(Map)
-            var types = ['audio','video','pdf|postscript','html','image']
-            var i = 0
-            types.each(
-            function(e) {
-              new TileMap({
-                isSubmap : true,
-                left : 220,
-                top : i*32,
-                width: 256,
-                color: 'false',
-                height: e == 'image' ? 256 : 32,
-                query : 'type:'+e+" "+q
-              }).setParent(Map)
-              i++
-            })
-            var topPanel = new Desk.Panel('left', {movable : false})
-            topPanel.addApplet(Applets.Session())
-            topPanel.addApplet(Applets.MusicPlayer())
-            topPanel.addApplet(Applets.Sets())
-            topPanel.addApplet(Applets.Groups())
-            topPanel.addApplet(Applets.Taskbar())
-            new Desk.Window(Tr('help.html'), {x: 800, y: 10, group: Tr('help')})
+          menu.bind(rootMap)
+
+          var typequeries = ['type:audio', 'type:video', 'type:text', 'type:application', 'type:image']
+          new TitledMap({
+            parent : topmap,
+            title : q,
+            query : q,
+            left: 30,
+            top: 30
+          })
+          topmap.typeTree = this.createQueryTree(topmap, 'types', typequeries, 290, 30)
+          topmap.updateGroupTree = function() {
+            if (topmap.groupTree)
+              topmap.groupTree.unload()
+            var groupqueries = Groups.map(function(s) { return 'group:"'+s.name+'"' })
+            topmap.groupTree = Muryu.createQueryTree(topmap, 'groups', groupqueries, 450,230)
           }
-          $('while_loading').detachSelf()
+          topmap.updateSetTree = function() {
+            if (topmap.setTree)
+              topmap.setTree.unload()
+            var setqueries = Sets.map(function(s) { return 'set:"'+s.name+'"' })
+            topmap.setTree = Muryu.createQueryTree(topmap, 'folders', setqueries, 450,30)
+          }
+          Groups.addListener('update', topmap.updateGroupTree)
+          Sets.addListener('update', topmap.updateSetTree)
+        },
+        
+        createQueryTree : function(parent, title, queries, x, y) {
+          var maptree = new TitledPortal({
+            title : title,
+            parent : parent,
+            left : x,
+            top : y,
+            relativeZ : -1,
+          })
+          for (var i=0; i<queries.length; i++) {
+            new TitledMap({
+              title : queries[i],
+              query : queries[i],
+              parent : maptree.portal,
+              top : i*64,
+              left : 0,
+              relativeZ : 0
+            })
+          }
+          return maptree
         }
       }
       
-      window.addEventListener("load", function(ev){
+      window.addEventListener('load', function() {
         Session.storage.load(Muryu.init.bind(Muryu))
       }, false)
-      // ]]>
+    // ]]>
     </script>
   </head>
-  <body>
-    <div id="while_loading">
-      <h1>Muryu</h1>
-      <p>Loading... around 420k in total</p>
-      <p>
-        You need Firefox 1.5+ with JavaScript enabled
-        to use this thing. We're working on compatability with other browsers
-        and text-only access.
-      </p>
-    </div>
-    <div id="map"></div>
+  <body bgcolor="#555555">
   </body>
 </html>
