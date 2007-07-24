@@ -188,10 +188,10 @@ Zoomable = {
     } else if (this.w < this.minVisibleWidth || this.h < this.minVisibleHeight) {
       this.is_visible = false
     } else {
-      var c = this.projectExtentsToContainer()
-      this.is_visible = (c.right > 0 && c.bottom > 0 &&
-                         c.left < this.container.width &&
-                         c.top < this.container.height)
+      this.is_visible = (this.ax < this.container.width &&
+                         this.ay < this.container.height &&
+                         this.ax+this.w > 0 &&
+                         this.ay+this.h > 0)
     }
     return this.is_visible
   },
@@ -305,14 +305,16 @@ Zoomable = {
     var ow = this.w
     var oh = this.h
     this.updateCoordinates()
+    var changed = (ow != this.w || oh != this.h)
     this.element.style.left = Math.floor(this.x) + 'px'
     this.element.style.top = Math.floor(this.y) + 'px'
-    if (ow != this.w || oh != this.h) {
+    if (changed) {
       this.element.style.width = Math.ceil(this.w) + 'px'
       this.element.style.height = Math.ceil(this.h) + 'px'
     }
     this.right = this.left + this.width
     this.bottom = this.top + this.height
+    return changed
   },
 
   /**
@@ -701,6 +703,14 @@ Object.extend(View.prototype, {
   },
 
   /**
+    Resets zoom to 0 and pans to 0,0.
+    */
+  resetZoom : function() {
+    this.zoom(0)
+    this.panTo(0,0)
+  },
+
+  /**
     Moves the map by dx, dy.
     */
   panBy : function(dx, dy, updateCoords) {
@@ -715,6 +725,13 @@ Object.extend(View.prototype, {
       this.updatePosition()
       this.moved(dx, dy)
     }
+  },
+
+  /**
+    Moves the map to x, y.
+    */
+  panTo : function(x, y) {
+    this.panBy(-this.ax-x, -this.ay-y)
   },
 
   /**
@@ -829,16 +846,36 @@ Object.extend(View.prototype, {
  */
 TitledPortal = function(config) {
   this.init(config)
-  this.title = new Title({parent: this, title: this.title, relativeZ: 1, maxFontSize: 56})
-  this.portal = new Portal(
-    Object.extend(Object.clone(config),
-    {parent: this, relativeZ: 0, left: 0, top: 40})
-  )
-  this.element.portal = this
 }
 TitledPortal.prototype = Object.extend({}, Zoomable)
 Object.extend(TitledPortal.prototype, {
-  className : 'TitledPortal'
+  className : 'TitledPortal',
+  borderOffset : 10,
+  
+  init : function(config) {
+    this.border = E('div', null, null, 'TitledPortalBorder', {
+      position: 'absolute',
+      zIndex: -1
+    })
+    Zoomable.init.apply(this, arguments)
+    this.title = new Title({parent: this, title: this.title, relativeZ: 1, maxFontSize: 56})
+    this.portal = new Portal(
+      Object.extend(Object.clone(config),
+      {parent: this, relativeZ: 0, left: 0, top: 40})
+    )
+    this.element.portal = this
+    this.element.appendChild(this.border)
+  },
+
+  updatePosition : function() {
+    if (Zoomable.updatePosition.apply(this, arguments)) {
+      var bo = Math.pow(2, this.z) * this.borderOffset
+      this.border.style.top = -bo + 'px'
+      this.border.style.left = -bo + 'px'
+      this.border.style.width = this.w + 2*bo + 'px'
+      this.border.style.height = this.h + 2*bo + 'px'
+    }
+  }
 })
 
 /**
@@ -873,14 +910,15 @@ Object.extend(TitledMap.prototype, {
 
   setupChildren : function(config) {
     this.title = new Title({parent: this, title: this.title})
-    this.itemCountElement = E("span")
+    this.itemCountElement = E("span", T(' ('+Tr('Loading')+')'))
     this.title.titleElement.appendChild(this.itemCountElement)
+    this.title.updateTextDimensions()
     this.map = new TileMap(
       Object.extend(Object.clone(config),
       {parent: this, relativeZ: 0, left: 0, top: 20})
     )
     this.map.addListener('load', function(ev){
-      this.itemCountElement.innerHTML = ' (' +
+      this.itemCountElement.firstChild.textContent = ' (' +
         Tr('TileMap.itemCount', this.map.info.itemCount) + ')'
       this.title.setTitle(this.map.query || 'no query')
     }.bind(this))
@@ -1049,14 +1087,16 @@ Object.extend(Title.prototype, {
     this.element.appendChild(this.titleElement)
     this.titleElement.style.visibility = 'inherit'
     this.absoluteFontSize = 0
+    this.updateDimensions()
     this.zoom(this.z, this.targetZ, true)
   },
 
   setTitle : function(title) {
     this.title = title
     if (!this.titleElement.firstChild)
-      this.titleElement.appendChild(E('span'))
-    this.titleElement.firstChild.innerHTML = this.title
+      this.titleElement.appendChild(E('span', T(this.title)))
+    else
+      this.titleElement.firstChild.firstChild.textContent = this.title
     this.updateTextDimensions()
   }
 })
@@ -1213,7 +1253,7 @@ Object.extend(TileMap.prototype, {
           this.minVisibleWidth = this.ownWidth - 1
         if (this.ownHeight < this.minVisibleHeight)
           this.minVisibleHeight = this.ownHeight - 1
-        this.updateDimensions()
+        this.selectionLayer.updateDimensions()
         this.initTiles()
         this.zoom(this.z, this.z, true)
         this.newEvent('load')
@@ -1504,6 +1544,15 @@ TileNode.prototype = {
     this.updateVars(zoom, targetZ)
     if (this.image && !this.imageHidden && this.changed)
       this.updateImage()
+    if (this.infoElement && this.d == 0 && this.is_visible && this.zoom_complete) {
+      if (this.infoElement.visible != true) {
+        this.infoElement.visible = true
+        this.infoElement.style.display = 'block'
+      }
+    } else if (this.infoElement && this.infoElement.visible != false) {
+      this.infoElement.visible = false
+      this.infoElement.style.display = 'none'
+    }
     if (this.is_visible) {
       this.determineImage()
       this.determineChildren()
@@ -1513,10 +1562,9 @@ TileNode.prototype = {
     } else {
       // if (this.image && !this.imageHidden && this.loaded)
       //   console.log('hide image because invisible', this.z)
-      this.hideImage()
-      this.determineChildren()
-      for(var i=0,cl=this.children.length; i<cl; i++)
-        this.children[i].zoom(this.zoom_level, this.targetZ)
+      if (this.image && this.image.visible != false && this.zoom_complete)
+        this.hideImage()
+      this.discardChildren()
     }
   },
 
@@ -1550,15 +1598,6 @@ TileNode.prototype = {
         this.infoElement.style.width = this.size + 'px'
         this.infoElement.lastSize = this.size
       }
-    }
-    if (this.infoElement && this.d == 0 && this.is_visible && this.zoom_complete) {
-      if (this.infoElement.visible != true) {
-        this.infoElement.visible = true
-        this.infoElement.style.display = 'block'
-      }
-    } else if (this.infoElement && this.infoElement.visible != false) {
-      this.infoElement.visible = false
-      this.infoElement.style.display = 'none'
     }
     this.changed = false
   },
@@ -1652,8 +1691,6 @@ TileNode.prototype = {
         this.image.style.display = 'block'
         this.image.visible = true
       }
-      if (!this.image.parentNode)
-        this.map.element.appendChild(this.image)
     }
   },
 
@@ -1695,11 +1732,11 @@ TileNode.prototype = {
     */
   isVisible : function() {
     var m = this.root.map
-    var c = this.projectExtentsToContainer()
     var container = m.container
-    return (c.right > -this.size && c.bottom > -this.size &&
-            c.left < container.width + this.size &&
-            c.top < container.height + this.size)
+    return (this.left+m.ax < container.width + this.size &&
+            this.top+m.ay < container.height + this.size &&
+            this.left+m.ax+this.size > -this.size &&
+            this.top+m.ay+this.size > -this.size)
   },
 
   /**
@@ -1787,7 +1824,6 @@ TileNode.prototype = {
     if (!this.image) return
     this.image.style.position = 'absolute'
     this.image.style.zIndex = this.z
-    this.image.style.display = 'none'
     this.image.style.border = '0px'
     this.image.tile = this
     this.image.onload = this.onload.bind(this)
@@ -1870,6 +1906,8 @@ TileNode.prototype = {
     */
   onload : function() {
     if (!this.image) return
+    this.image.style.display = 'none'
+    this.map.element.appendChild(this.image)
     this.image.style.left = this.left + 'px'
     this.image.style.top = this.top + 'px'
     this.image.style.width = this.image.style.height = this.size + 'px'

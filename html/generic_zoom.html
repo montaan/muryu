@@ -13,9 +13,6 @@
       div.Portal {
         border : 1px solid white;
       }
-      div.TitledPortal {
-        border : 1px solid green;
-      }
       div.TitledMap {
         border : 1px solid yellow;
       }
@@ -25,6 +22,9 @@
       h3 {
         border : 1px solid cyan;
       }*/
+      div.TitledPortalBorder {
+        border : 1px dotted #444444;
+      }
     </style>
   
   
@@ -283,20 +283,22 @@
           new TitledMap({
             parent : topmap,
             title : q,
-            query : q
+            query : q,
+            left: 30,
+            top: 30
           })
-          topmap.typeTree = this.createQueryTree(topmap, 'types', typequeries, 260, 0)
+          topmap.typeTree = this.createQueryTree(topmap, 'types', typequeries, 290, 30)
           topmap.updateGroupTree = function() {
             if (topmap.groupTree)
               topmap.groupTree.unload()
             var groupqueries = Groups.map(function(s) { return 'group:"'+s.name+'"' })
-            topmap.groupTree = Muryu.createQueryTree(topmap, 'groups', groupqueries, 420,200)
+            topmap.groupTree = Muryu.createQueryTree(topmap, 'groups', groupqueries, 450,230)
           }
           topmap.updateSetTree = function() {
             if (topmap.setTree)
               topmap.setTree.unload()
             var setqueries = Sets.map(function(s) { return 'set:"'+s.name+'"' })
-            topmap.setTree = Muryu.createQueryTree(topmap, 'folders', setqueries, 420,0)
+            topmap.setTree = Muryu.createQueryTree(topmap, 'folders', setqueries, 450,30)
           }
           Groups.addListener('update', topmap.updateGroupTree)
           Sets.addListener('update', topmap.updateSetTree)
