@@ -520,7 +520,7 @@ class TileDrawer
       {
         :x => 0,
         :y => 0,
-        :width => indexes.size > 1000 ? 1.125 * 200 : (1.125 * indexes.size / 5.0).ceil,
+        :width => indexes.size >= 1000 ? 1.125 * 200 : 1.125 * (indexes.size / 5.0).ceil,
         :height => ((indexes.size * 0.001).ceil * 7.25)
       }
     end

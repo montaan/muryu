@@ -33,6 +33,7 @@ Zoomable = {
   className : null,
   minVisibleWidth : 1,
   minVisibleHeight : 1,
+  fitChildren : true,
 
   // state variables
   tx : 0, ty : 0, z : 0, targetZ : 0,
@@ -61,6 +62,7 @@ Zoomable = {
       this.setContainer(this.container)
     }
     this.setupEventListeners()
+    this.zoom(this.z)
   },
   
   /**
@@ -93,6 +95,7 @@ Zoomable = {
         if (this.element.parentNode) $(this.element).detachSelf()
       }
     }
+    this.children.invoke('setContainer', container)
   },
   
   /**
@@ -127,13 +130,29 @@ Zoomable = {
   },
 
   /**
+    Removes all children from this.
+    */
+  removeAllChildren : function() {
+    while(this.children.length > 0) {
+      this.children[0].detachSelf()
+    }
+  },
+
+  /**
+    Detaches self by setting parent to null.
+    */
+  detachSelf : function() {
+    this.setParent(null)
+  },
+
+  /**
     When removing a Zoomable from the document, call this.
     Removes event listeners.
   */
   unload : function() {
     this.removeEventListeners()
     while(this.children.length > 0) {
-      this.children[0].setParent(null)
+      this.children[0].detachSelf()
     }
     this.root = null
     this.loader = null
@@ -214,7 +233,7 @@ Zoomable = {
       var rz = z+this.relativeZ
       var rtz = this.targetZ+this.relativeZ
       for (var i=0,cl=c.length; i<cl; i++)
-        c[i].zoom(rz, rtz)
+        c[i].zoom(rz, rtz, force_update)
       return true
     } else {
       this.element.style.display = 'none'
@@ -239,7 +258,7 @@ Zoomable = {
     */
   updateDimensions : function(updateParent) {
     this.leftBound = this.topBound = this.bottomBound = this.rightBound = 0
-    if (this.children && this.children.length > 0) {
+    if (this.fitChildren && this.children && this.children.length > 0) {
       this.leftBound = this.children.pluck('left').min()
       this.topBound = this.children.pluck('top').min()
       this.rightBound = this.children.pluck('right').max()
@@ -283,11 +302,15 @@ Zoomable = {
     var relfac = Math.pow(2, this.relativeZ)
     this.width = Math.max(this.rightBound-this.leftBound, this.ownWidth)*relfac
     this.height = Math.max(this.bottomBound-this.topBound, this.ownHeight)*relfac
+    var ow = this.w
+    var oh = this.h
     this.updateCoordinates()
     this.element.style.left = Math.floor(this.x) + 'px'
     this.element.style.top = Math.floor(this.y) + 'px'
-    this.element.style.width = Math.ceil(this.w) + 'px'
-    this.element.style.height = Math.ceil(this.h) + 'px'
+    if (ow != this.w || oh != this.h) {
+      this.element.style.width = Math.ceil(this.w) + 'px'
+      this.element.style.height = Math.ceil(this.h) + 'px'
+    }
     this.right = this.left + this.width
     this.bottom = this.top + this.height
   },
@@ -328,7 +351,16 @@ Object.extend(Zoomable, EventListener)
 View = function(config) {
   this.windowContainer = config.container
   this.loader = new Loader()
+  this.selected = {}
+  this.selectionElem = E('div')
+  this.selectionElem.style.border = '2px solid blue'
+  this.selectionElem.style.backgroundColor = 'darkblue'
+  this.selectionElem.style.opacity = 0.5
+  this.selectionElem.style.position = 'absolute'
+  this.selectionElem.style.display = 'none'
+  this.selectionElem.style.zIndex = 50
   this.init(config)
+  this.container.appendChild(this.selectionElem)
   this.element.style.zIndex = 0
 }
 View.prototype = Object.extend({}, Zoomable)
@@ -340,6 +372,14 @@ Object.extend(View.prototype, {
 
   // state variables
   zoomIn : false, zoomOut : false,
+
+  setBgColor : function(bgcolor) {
+    if (bgcolor)
+      this.element.style.backgroundColor = '#'+bgcolor
+    else
+      this.element.style.backgroundColor = 'transparent'
+    Zoomable.setBgColor.apply(this, arguments)
+  },
 
   /**
     Key handlers for the map
@@ -390,8 +430,10 @@ Object.extend(View.prototype, {
   setupEventListeners : function() {
     var t = this
     this.onmousedown = function(ev) {
-      t.pointerX = ev.pageX - t.windowContainer.offsetLeft
-      t.pointerY = ev.pageY - t.windowContainer.offsetTop
+      t.wcOffsetLeft = t.windowContainer.offsetLeft
+      t.wcOffsetTop = t.windowContainer.offsetTop
+      t.pointerX = ev.pageX - t.wcOffsetLeft
+      t.pointerY = ev.pageY - t.wcOffsetTop
       if (!t.validEventTarget(ev)) return
       if (t.previousTarget && t.previousTarget.blur)
         t.previousTarget.blur()
@@ -478,15 +520,20 @@ Object.extend(View.prototype, {
     }
     this.onmouseup = function(ev) {
       t.previousTarget = ev.target
+      t.wcOffsetLeft = t.wcOffsetTop = null
       t.panning = false
       t.selecting = false
-//       t.selectionElem.style.display = 'none'
+      t.selectionElem.style.display = 'none'
     }
     this.onmousemove = function(ev) {
       t.previousTarget = ev.target
       if (!t.validEventTarget(ev)) return
-      t.pointerX = ev.pageX - t.windowContainer.offsetLeft
-      t.pointerY = ev.pageY - t.windowContainer.offsetTop
+      if (t.wcOffsetLeft == null) {
+        t.wcOffsetLeft = t.windowContainer.offsetLeft
+        t.wcOffsetTop = t.windowContainer.offsetTop
+      }
+      t.pointerX = ev.pageX - t.wcOffsetLeft
+      t.pointerY = ev.pageY - t.wcOffsetTop
       document.focusedMap = t
       if (t.panning) {
         var dx = ev.clientX - t.panX
@@ -507,7 +554,7 @@ Object.extend(View.prototype, {
         while (obj && !obj.map) {
           obj = obj.parentNode
         }
-        if (obj)
+        if (obj && obj.map && obj.map.selectUnderSelection)
           obj.map.selectUnderSelection()
         Event.stop(ev)
       }
@@ -782,10 +829,10 @@ Object.extend(View.prototype, {
  */
 TitledPortal = function(config) {
   this.init(config)
-  this.title = new Title({parent: this, title: this.title, relativeZ: 1, maxFontSize: 40})
+  this.title = new Title({parent: this, title: this.title, relativeZ: 1, maxFontSize: 56})
   this.portal = new Portal(
     Object.extend(Object.clone(config),
-    {parent: this, relativeZ: 0, left: 0, top: 56})
+    {parent: this, relativeZ: 0, left: 0, top: 40})
   )
   this.element.portal = this
 }
@@ -830,7 +877,7 @@ Object.extend(TitledMap.prototype, {
     this.title.titleElement.appendChild(this.itemCountElement)
     this.map = new TileMap(
       Object.extend(Object.clone(config),
-      {parent: this, relativeZ: 0, left: 0, top: 28})
+      {parent: this, relativeZ: 0, left: 0, top: 20})
     )
     this.map.addListener('load', function(ev){
       this.itemCountElement.innerHTML = ' (' +
@@ -844,7 +891,7 @@ Object.extend(TitledMap.prototype, {
     this.titleMenu.addTitle(Tr('TileMap'))
     this.titleMenu.addItem(Tr('TileMap.EditTitle'), this.titleEdit.bind(this))
     this.titleMenu.addItem(Tr('TileMap.ShowColors'), function(){
-      if (this.color != 'false') {
+      if (this.map.color != 'false') {
         this.titleMenu.uncheckItem(Tr('TileMap.ShowColors'))
         this.map.setColor('false')
       } else {
@@ -893,10 +940,10 @@ Title.prototype = Object.extend({}, Zoomable)
 Object.extend(Title.prototype, {
   title: 'Title',
   className: 'Title',
-  fontSize : 20,
-  maxFontSize : 20,
+  fontSize : 14,
+  maxFontSize : 28,
   minVisibleWidth : 4,
-  minVisibleHeight : 4,
+  minVisibleHeight : 2,
   moveWithParent : true,
 
   // state vars
@@ -976,7 +1023,7 @@ Object.extend(Title.prototype, {
       this.parent.addListener('titleChange', this.onTitleChange)
   },
 
-  zoom : function(z,tz) {
+  zoom : function(z,tz,force_update) {
     if (Zoomable.zoom.apply(this, arguments)) {
       var maxfac = this.maxFontSize / this.fontSize
       var fac = Math.min(Math.pow(2,this.z+this.relativeZ), maxfac)
@@ -1032,10 +1079,11 @@ TileMap = function(config) {
 TileMap.prototype = Object.extend({}, Zoomable)
 Object.extend(TileMap.prototype, {
   tileServers : [
-    'http://t0.manifold.fhtr.org:8080/tile/',
+    '/tile/'
+/*    'http://t0.manifold.fhtr.org:8080/tile/',
     'http://t1.manifold.fhtr.org:8080/tile/',
     'http://t2.manifold.fhtr.org:8080/tile/',
-    'http://t3.manifold.fhtr.org:8080/tile/'
+    'http://t3.manifold.fhtr.org:8080/tile/'*/
   ],
   tileInfoServers : [
     '/tile_info/'
@@ -1043,7 +1091,7 @@ Object.extend(TileMap.prototype, {
   
   tileSize : 256,
   query : false,
-  color : false,
+  color : undefined,
   className : 'TileMap',
   bgColor : '13163C',
 
@@ -1056,10 +1104,17 @@ Object.extend(TileMap.prototype, {
   
   init : function(config) {
     this.tiles = []
+    this.selection = new Selection()
     Zoomable.init.apply(this, arguments)
     this.element.map = this
     this.element.style.backgroundColor = '#444444'
     this.element.style.overflow = 'hidden'
+    this.selectionLayer = new SelectionLayer({
+      map : this,
+      width : this.ownWidth,
+      height : this.ownHeight
+    })
+    this.addChild(this.selectionLayer)
     this.updateInfo()
   },
 
@@ -1068,6 +1123,71 @@ Object.extend(TileMap.prototype, {
     Zoomable.unload.apply(this, arguments)
   },
 
+  /**
+    Selects all items that intersect the lasso selection box (selectionElem).
+  */
+  selectUnderSelection : function(startSelection) {
+    if (this.root.selectionStartTime != this.lastSelectionStartTime) {
+      this.root.selected[this] = new Hash()
+      this.lastSelectionStartTime = this.root.selectionStartTime
+    }
+    this.selectionElem = this.root.selectionElem
+    lx = this.ax
+    ly = this.ay
+    this.selectionElem.map = this
+    var left = -lx + parseInt(this.selectionElem.style.left)
+    var top = -ly + parseInt(this.selectionElem.style.top)
+    var width = parseInt(this.selectionElem.style.width)
+    var height = parseInt(this.selectionElem.style.height)
+    var previousSelection = this.root.selected[this]
+    this.root.selected[this] = new Hash()
+    var selection = this.root.selected[this]
+    var images = this.element.getElementsByTagName('img')
+    for (var i=0; i<images.length; i++) {
+      var tile = images[i]
+      if (tile.tile.z != this.targetZ)
+        continue
+      if (tile.ImageMap) {
+        var areas = tile.ImageMap.childNodes
+        var tx = parseInt(tile.style.left)
+        var ty = parseInt(tile.style.top)
+        for (var j=0; j<areas.length; j++) {
+          var area = areas[j]
+          var key = area.info.index
+          if (
+            !(selection[key]) && // not already processed
+            this.intersect(left, top, width, height,
+                            area.info.x+tx, area.info.y+ty, area.info.sz, area.info.sz)
+          ) {
+            var pr = previousSelection[key]
+            // If the item was in previous selected, but not from this area,
+            // use the previous selected and skip this one.
+            if (pr && pr != area) {
+              selection[key] = pr
+            } else {
+              if (!pr) // not previously selected
+                area.toggleSelect()
+              selection[key] = area
+            }
+          }
+        }
+      }
+    }
+    // deselect all that fell out of selection
+    previousSelection.each(function(kv,i) {
+      if (!selection[kv[0]]) {
+        kv[1].toggleSelect()
+      }
+    })
+  },
+
+  /**
+   * Box intersection test.
+   */
+  intersect : function(x1,y1,w1,h1, x2,y2,w2,h2) {
+    return !(x1 > x2+w2 || y1 > y2+h2 || x1+w1 < x2 || y1+h1 < y2)
+  },
+  
   /**
     Updates dimensions from the server.
     */
@@ -1086,12 +1206,16 @@ Object.extend(TileMap.prototype, {
         this.height = 0
         this.ownWidth = obj.dimensions.width
         this.ownHeight = obj.dimensions.height
+        this.selectionLayer.ownWidth = this.ownWidth
+        this.selectionLayer.ownHeight = this.ownHeight
+        this.selectionLayer.removeAllChildren()
         if (this.ownWidth < this.minVisibleWidth)
           this.minVisibleWidth = this.ownWidth - 1
         if (this.ownHeight < this.minVisibleHeight)
           this.minVisibleHeight = this.ownHeight - 1
         this.updateDimensions()
         this.initTiles()
+        this.zoom(this.z, this.z, true)
         this.newEvent('load')
       }.bind(this)
     })
@@ -1108,9 +1232,6 @@ Object.extend(TileMap.prototype, {
       }
     }
     var z = this.z+this.relativeZ
-    if (this.isVisible())
-      for(var i=0,cl=this.tiles.length; i<cl; i++)
-        this.tiles[i].zoom(z,z)
     this.tileInitDone = true
   },
 
@@ -1127,14 +1248,14 @@ Object.extend(TileMap.prototype, {
   /**
     Zooms map.
     */
-  zoom : function(z, targetZ) {
+  zoom : function(z, targetZ, force_update) {
     if (Zoomable.zoom.apply(this, arguments)) {
       if (!this.tileInitDone) return
       var c = this.tiles
       var rz = z+this.relativeZ
       var rtz = this.targetZ+this.relativeZ
       for (var i=0,cl=c.length; i<cl; i++)
-        c[i].zoom(rz, rtz)
+        c[i].zoom(rz, rtz, force_update)
     }
   },
   
@@ -1216,6 +1337,14 @@ Object.extend(TileMap.prototype, {
   },
 
   /**
+   Sets bgColor and reloads all tiles.
+  */
+  setBgColor : function(q) {
+    this.bgColor = q
+    this.updateTileQuery()
+  },
+
+  /**
    Forces tile update.
   */
   forceUpdate : function() {
@@ -1237,8 +1366,27 @@ Object.extend(TileMap.prototype, {
 
 
 
+/**
+  A zoomable layer that handles selection divs.
+ */
+SelectionLayer = function(config) {
+  this.init(config)
+}
+SelectionLayer.prototype = Object.extend({}, Zoomable)
+SelectionLayer.prototype.fitChildren = false
 
 
+/**
+  SelectionArea is a zoomable div with className 'selectionArea'.
+  */
+SelectionArea = function(config) {
+  this.init(config)
+  this.element.style.zIndex = 48
+}
+SelectionArea.prototype = Object.extend({}, Zoomable)
+Object.extend(SelectionArea.prototype, {
+  className : 'selectionArea'
+})
 
 
 
@@ -1252,8 +1400,31 @@ Object.extend(TileMap.prototype, {
   the TileNode, the TileNode hides its image.
   
   When zooming out, the TileNode shows its image and discards its children.
-  
-  FIXME: image flicker when zooming out (grey bg visible)
+
+  Show images that are:
+    - inside screen
+    - not covered by other tiles
+
+  Hide images that are:
+    - outside screen
+    - covered by other tiles
+
+  Load images that are:
+    - inside screen and have z E {0, current_z-2, current_z}
+
+  Discard images that are:
+    - not loaded
+    - too high resolution, and a lower resolution tile is loaded
+
+  Discard tiles that are:
+    - too high resolution, and a lower resolution tile is loaded
+      or tile is outside screen
+
+  FIXME:
+    * The implementation is overly complex
+    * zoom-out flicker
+    * panning is heavy (and keeps too many images)
+
   */
 TileNode = function(x, y, z, parent, map) {
   this.x = x
@@ -1326,7 +1497,9 @@ TileNode.prototype = {
 
     Loads image if needed.
     */
-  zoom : function(zoom, targetZ) {
+  zoom : function(zoom, targetZ, force_update) {
+    if (force_update)
+      this.zoom_level = false
     this.updateDims(zoom, targetZ)
     this.updateVars(zoom, targetZ)
     if (this.image && !this.imageHidden && this.changed)
@@ -1338,6 +1511,8 @@ TileNode.prototype = {
         this.children[i].zoom(this.zoom_level, this.targetZ)
       this.updateCoverage()
     } else {
+      // if (this.image && !this.imageHidden && this.loaded)
+      //   console.log('hide image because invisible', this.z)
       this.hideImage()
       this.determineChildren()
       for(var i=0,cl=this.children.length; i<cl; i++)
@@ -1348,7 +1523,7 @@ TileNode.prototype = {
   determineChildren : function() {
     if (this.d <= 0 || this.is_current) {
       if (this.zoom_complete && (!this.is_visible || this.loaded || this.above_loaded)) {
-        console.log('discard children', this.z)
+        // console.log('discard children', this.z)
         this.discardChildren()
       }
     // this.d <= 1  ==  don't create whole tile hierarchy to targetZ, only the next level
@@ -1361,10 +1536,31 @@ TileNode.prototype = {
 
   updateImage : function() {
     if (this.image && !this.imageHidden && this.changed) {
-      this.image.style.left = this.left + 'px'
-      this.image.style.top = this.top + 'px'
-      this.image.style.width = this.image.style.height = this.size + 'px'
+      if (this.image.lastSize != this.size) {
+        this.image.style.left = this.left + 'px'
+        this.image.style.top = this.top + 'px'
+        this.image.style.width = this.image.style.height = this.size + 'px'
+        this.image.lastSize = this.size
+      }
     }
+    if (this.infoElement && this.changed) {
+      if (this.infoElement.lastSize != this.size) {
+        this.infoElement.style.left = this.left + 'px'
+        this.infoElement.style.top = this.top + 'px'
+        this.infoElement.style.width = this.size + 'px'
+        this.infoElement.lastSize = this.size
+      }
+    }
+    if (this.infoElement && this.d == 0 && this.is_visible && this.zoom_complete) {
+      if (this.infoElement.visible != true) {
+        this.infoElement.visible = true
+        this.infoElement.style.display = 'block'
+      }
+    } else if (this.infoElement && this.infoElement.visible != false) {
+      this.infoElement.visible = false
+      this.infoElement.style.display = 'none'
+    }
+    this.changed = false
   },
 
   updateDims : function(zoom, targetZ) {
@@ -1383,9 +1579,9 @@ TileNode.prototype = {
   updateVars : function(zoom, targetZ) {
     if (this.zoom_level != zoom) this.changed = true
     this.zoom_level = zoom
-    console.log(zoom, targetZ)
+    // console.log(zoom, targetZ)
     this.zoom_complete = (zoom == targetZ)
-    if (this.targetZ != targetZ || this.zoom_complete) {
+    if (this.targetZ != targetZ || (this.zoom_complete && !this.updated_after_zoom)) {
       this.targetZ = targetZ
       var d = this.d = (targetZ - this.z)
       var zo = (targetZ <= this.z && this.parent == this)
@@ -1394,13 +1590,16 @@ TileNode.prototype = {
       this.load_image = ((d >= 0 && d < 1) || this.is_zoom_out_cache)
       this.too_high_res = (d < 0 && !zo)
       this.too_low_res = (d > 2 && !zo)
+      this.updated_after_zoom = this.zoom_complete
     }
-    if (this.parent == this) this.is_visible = this.isVisible()
-    else this.is_visible = (this.parent.is_visible && this.isVisible())
-    if (d <= 0)
+    if (this.parent == this)
+      this.is_visible = this.isVisible()
+    else
+      this.is_visible = (this.parent.is_visible && this.isVisible())
+    if (this.parent != this)
       this.above_loaded = (this.parent.above_loaded || this.loaded)
     else
-      this.above_loaded = false
+      this.above_loaded = this.loaded
     this.need_high_res = !this.above_loaded
     this.need_image =
       (this.load_image && this.is_visible &&
@@ -1409,18 +1608,19 @@ TileNode.prototype = {
 
   determineImage : function() {
     if (this.need_image) {
-      if (!this.image && this.load_image) this.loadImage(this.targetZ)
+      if (!this.image && this.load_image)
+        this.loadImage(this.targetZ)
       if (!this.is_current && this.above_loaded) {
-        console.log('hide image because above loaded', this.z)
+        // console.log('hide image because above loaded', this.z)
         this.hideImage(false)
       }
     // cancel unloaded tiles
     } else if (this.zoom_complete && !this.loaded) {
-        console.log('discard image because not loaded', this.z, this.zoom_level, this.targetZ)
+        // console.log('discard image because not loaded', this.z, this.zoom_level, this.targetZ)
       this.discardImage()
     // toss unneeded hires tiles and lores tiles
     } else if (this.zoom_complete && ((this.too_high_res && !this.need_high_res) || (this.too_low_res))) {
-        console.log('hide image because ' + ((this.too_high_res && !this.need_high_res) ? 'too high res' : 'too low res'), this.z, this.zoom_level, this.targetZ )
+        // console.log('hide image because ' + ((this.too_high_res && !this.need_high_res) ? 'too high res' : 'too low res'), this.z, this.zoom_level, this.targetZ )
       this.hideImage()
     }
   },
@@ -1429,10 +1629,15 @@ TileNode.prototype = {
     Hides the image of this TileNode if it has one.
     */
   hideImage : function(discard) {
-    console.log('hiding image', this.z)
+    // if (this.image && this.loaded)
+    //   console.log('hiding image', this.z)
     this.imageHidden = true
-    if (!this.loaded && discard != false) this.discardImage()
-    else if (this.image) this.image.style.display = 'none'
+    if (!this.loaded && discard != false) {
+      this.discardImage()
+    } else if (this.image && this.image.visible != false) {
+      this.image.style.display = 'none'
+      this.image.visible = false
+    }
   },
 
   /**
@@ -1443,7 +1648,12 @@ TileNode.prototype = {
     if (this.image && this.loaded) {
       this.changed = true
       this.updateImage()
-      this.image.style.display = 'block'
+      if (this.image.visible != true) {
+        this.image.style.display = 'block'
+        this.image.visible = true
+      }
+      if (!this.image.parentNode)
+        this.map.element.appendChild(this.image)
     }
   },
 
@@ -1451,30 +1661,13 @@ TileNode.prototype = {
     Update coverage.
     */
   updateCoverage : function() {
-    if (this.targetZ <= this.z) {
-      if (this.parent != this) {
-        var o = this
-        while (o.z <= this.targetZ) {
-          if (o.loaded || o.above_loaded) {
-            this.above_loaded = true
-            break
-          }
-          o = o.parent
-          if (o == o.parent) break
-        }
-      } else {
-        this.above_loaded = this.loaded
-      }
-      if (!this.is_visible || this.above_loaded) {
-        this.discardChildren()
-      }
-      return
-    }
     this.covered = this.isCovered()
-    if (this.covered)
+    if (this.covered) {
+      // console.log('hide image because covered', this.z)
       this.hideImage()
-    else
+    } else {
       this.showImage()
+    }
   },
 
   /**
@@ -1485,9 +1678,10 @@ TileNode.prototype = {
       return false
     } else {
       for (var i=0; i<this.children.length; i++) {
-        if (!(this.children[i].covered || this.children[i].loaded) &&
-            this.children[i].isVisible()
-        ) {
+        var c = this.children[i]
+        // covered or loaded or invisible
+        var covers = c.covered || c.loaded || !c.is_visible
+        if (!covers) {
           return false
         }
       }
@@ -1597,7 +1791,6 @@ TileNode.prototype = {
     this.image.style.border = '0px'
     this.image.tile = this
     this.image.onload = this.onload.bind(this)
-    this.map.element.appendChild(this.image)
     var url = this.getImageURL()
     this.image.src = url
   },
@@ -1607,6 +1800,15 @@ TileNode.prototype = {
     */
   handleInfo : function(infos) {
     if (!infos || !this.image) return
+    if (this.z >= 7) {
+      this.infoElement = E('div')
+      this.infoElement.style.position = 'absolute'
+      this.infoElement.style.zIndex = this.z + 1
+      this.infoElement.style.left = this.left + 'px'
+      this.infoElement.style.top = this.top + 'px'
+      this.infoElement.style.width = this.size + 'px'
+      this.map.element.appendChild(this.infoElement)
+    }
     this.image.style.cursor = 'auto'
     this.image.ImageMap = E('map')
     this.image.ImageMap.name = this.image.src
@@ -1619,9 +1821,46 @@ TileNode.prototype = {
       area.shape = 'rect'
       area.coords = [info.x, info.y, info.x + info.sz, info.y + info.sz].join(",")
       area.href = '/files/' + info.path
-      area.title = area.getTitle()
+//       area.title = area.getTitle()
       area.itemHREF = '/items/' + info.path + '/json'
       this.image.ImageMap.appendChild(area)
+      if (this.z >= 7 && info.x >= 0 && info.y >= 0) {
+        var titleContainer = E('div')
+        titleContainer.style.position = 'absolute'
+        titleContainer.style.left = info.x+'px'
+        titleContainer.style.top = info.y+info.sz+2+'px'
+        titleContainer.style.width = info.sz+'px'
+        var str = info.path.split("/").last()
+        if (info.deleted)
+          titleContainer.style.color = '#888888'
+        var title = E('span')
+        titleContainer.appendChild(title)
+        title.innerHTML = str
+        this.infoElement.appendChild(titleContainer)
+        if (title.offsetWidth > info.sz) {
+          var replaces = [
+            [/([a-z])([^a-z])/g,'$1 $2'],
+            [/-+/g, ' '],
+            [/_+/g, ' ']
+          ]
+          while (title.offsetWidth > info.sz && replaces.length > 0) {
+            str = str.replace.apply(str, replaces.pop())
+            title.firstChild.textContent = str
+          }
+          var count = str.length-1
+          while (title.offsetWidth > info.sz && count >= 0) {
+            title.firstChild.textContent = str.slice(0,count) + ' ' + str.slice(count)
+            count--
+          }
+          if (title.offsetWidth > info.sz) {
+            str = str.replace(/\.+/g, ' ')
+            title.firstChild.textContent = str
+          }
+          if (title.offsetWidth > info.sz) {
+            titleContainer.style.overflow = 'auto'
+          }
+        }
+      }
     }
     this.image.useMap = '#'+this.image.src
   },
@@ -1634,9 +1873,9 @@ TileNode.prototype = {
     this.image.style.left = this.left + 'px'
     this.image.style.top = this.top + 'px'
     this.image.style.width = this.image.style.height = this.size + 'px'
+    this.image.lastSize = this.size
     this.loaded = true
-    this.updateCoverage()
-    if (this.parent != this) this.parent.updateCoverage()
+    if (!this.covered) this.showImage()
     if (this.z < 5) return
     this.image.style.cursor = 'wait'
     this.map.loader.requestInfo(this.getInfoServer()+this.getInfoQuery(), this.tileX, this.tileY, this.z, this)
@@ -1652,17 +1891,23 @@ TileNode.prototype = {
         delete this.image.onload
         this.map.loader.cancel(this)
       }
-      if (this.image.parentNode) $(this.image).detachSelf()
-      this.image.src = 'data:'
-      this.image.style.cursor = 'auto'
-      while (this.image.firstChild)
-        $(this.image.firstChild).detachSelf()
-      delete this.image.useMap
-      delete this.image.ImageMap
-      delete this.image.tile
-      delete this.image.onload
-      ImagePool.getPool().put(this.image)
+      this.loaded = false
+      var image = this.image
       delete this.image
+      if (image.parentNode) $(image).detachSelf()
+      image.src = 'data:'
+      image.style.cursor = 'auto'
+      while (image.firstChild)
+        $(image.firstChild).detachSelf()
+      delete image.useMap
+      delete image.ImageMap
+      delete image.tile
+      delete image.onload
+      ImagePool.getPool().put(image)
+    }
+    if (this.infoElement) {
+      $(this.infoElement).detachSelf()
+      delete this.infoElement
     }
     this.loaded = false
   },
@@ -1672,6 +1917,7 @@ TileNode.prototype = {
     */
   unload : function(){
     this.discardChildren()
+    // console.log('hide image because unload', this.z)
     this.hideImage(false)
     if (this.loader) this.loader()
     this.map.loader.cancel(this)

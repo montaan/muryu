@@ -353,7 +353,7 @@ ItemArea = {
           this.toggleSelect()
         } else if (ev.altKey) {
           return
-        } else if (this.actionTimeout) {
+/*        } else if (this.actionTimeout) {
           clearTimeout(this.actionTimeout)
           delete this.actionTimeout
           Event.stop(ev)
@@ -362,7 +362,7 @@ ItemArea = {
           this.actionTimeout = setTimeout(function(){
             delete this.actionTimeout
             this.defaultAction()
-          }.bind(this), 300)
+          }.bind(this), 300)*/
         }
       }
       Event.stop(ev)
@@ -416,24 +416,24 @@ ItemArea = {
   
   onselect : function() {
     var tile = this.getTile()
-    var s = E('div')
+    var fac = Math.pow(2, tile.z)
+    var s = new SelectionArea({
+      left : (tile.left + this.info.x) / fac,
+      top : (tile.top + this.info.y) / fac,
+      width : this.info.sz / fac,
+      height : this.info.sz / fac,
+      parent : tile.map.selectionLayer
+    })
     this.selectionIndicator = s
-    s.item = this
-    s.selection = tile.map.selection
-    s.style.position = 'absolute'
-    s.X = (tile.X * (tile.Size / this.info.sz) + (this.info.x / this.info.sz))
-    s.Y = (tile.Y * (tile.Size / this.info.sz) + (this.info.y / this.info.sz))
-    s.style.left = s.X * this.info.sz * (tile.rSize/tile.Size) + 'px'
-    s.style.top = s.Y * this.info.sz * (tile.rSize/tile.Size) + 'px'
-    s.style.width = this.info.sz * (tile.rSize/tile.Size) + 'px'
-    s.style.height = this.info.sz * (tile.rSize/tile.Size) + 'px'
-    s.style.backgroundColor = 'cyan'
-    s.style.opacity = 0.5
-    s.onmousedown = function(e) {
+    s.element.selection = tile.map.selection
+    s.element.item = this
+    s.element.style.backgroundColor = 'cyan'
+    s.element.style.opacity = 0.5
+    s.element.onmousedown = function(e) {
       this.downX = e.clientX
       this.downY = e.clientY
     }
-    s.onclick = function(e) {
+    s.element.onclick = function(e) {
       if (Event.isLeftClick(e) &&
           (this.downX == undefined || this.downY == undefined) ||
           (Math.abs(this.downX - e.clientX) < 3 &&
@@ -447,12 +447,11 @@ ItemArea = {
         Event.stop(e)
       }
     }
-    s.oncontextmenu = s.selection.oncontextmenu
-    tile.map.selectionLayer.element.appendChild(s)
+    s.element.oncontextmenu = s.element.selection.oncontextmenu
   },
   
   ondeselect : function() {
-    $(this.selectionIndicator).detachSelf()
+    this.selectionIndicator.detachSelf()
   }
   
 }

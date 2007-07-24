@@ -162,6 +162,7 @@
 
         
         init : function(){
+        try {
           var loggedIn = this.login()
           document.body.style.overflow = 'hidden'
           var container = E('div')
@@ -204,6 +205,7 @@
 
           if (!Session.load())
             this.initView()
+        } catch(e) { console.log(e) }
         },
         
         initView : function() {
@@ -232,16 +234,19 @@
           rootMap.style.position = 'absolute'
           win.setTitle(null)
           win.setContent(rootMap)
-          topmap = new View({
+          var topmap = new View({
             container: rootMap,
             windowContainer: win.container
           })
+          win.map = topmap
           win.addListener('resize', function(ev) {
             topmap.container.width = rootMap.offsetWidth
             topmap.container.height = rootMap.offsetHeight
+            topmap.zoom(topmap.z, topmap.z, true)
           })
           win.addListener('containerChange', function(ev) {
             topmap.windowContainer = ev.value
+            topmap.zoom(topmap.z, topmap.z, true)
           })
           
           var menu = new Desk.Menu()
@@ -280,18 +285,18 @@
             title : q,
             query : q
           })
-          typetree = this.createQueryTree(topmap, 'types', typequeries, 320, 0)
+          topmap.typeTree = this.createQueryTree(topmap, 'types', typequeries, 260, 0)
           topmap.updateGroupTree = function() {
             if (topmap.groupTree)
               topmap.groupTree.unload()
             var groupqueries = Groups.map(function(s) { return 'group:"'+s.name+'"' })
-            topmap.groupTree = Muryu.createQueryTree(topmap, 'groups', groupqueries, 640,320)
+            topmap.groupTree = Muryu.createQueryTree(topmap, 'groups', groupqueries, 420,200)
           }
           topmap.updateSetTree = function() {
             if (topmap.setTree)
               topmap.setTree.unload()
             var setqueries = Sets.map(function(s) { return 'set:"'+s.name+'"' })
-            topmap.setTree = Muryu.createQueryTree(topmap, 'sets', setqueries, 640,0)
+            topmap.setTree = Muryu.createQueryTree(topmap, 'folders', setqueries, 420,0)
           }
           Groups.addListener('update', topmap.updateGroupTree)
           Sets.addListener('update', topmap.updateSetTree)
@@ -302,7 +307,8 @@
             title : title,
             parent : parent,
             left : x,
-            top : y
+            top : y,
+            relativeZ : -1,
           })
           for (var i=0; i<queries.length; i++) {
             new TitledMap({
