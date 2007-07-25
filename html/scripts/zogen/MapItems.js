@@ -379,7 +379,7 @@ ItemArea = {
       var t = m.root
       var maps_per_container = t.container.offsetWidth / Math.max(m.width, m.height)
       var crop_z = Math.floor(Math.log(maps_per_container) / Math.log(2))
-      var dz = t.z - m.z
+      var dz = t.z - (m.z+m.relativeZ)
       if (crop_z > 4)
         crop_z = 7
       var full_z = Math.floor(Math.log(Math.max(t.container.offsetWidth, t.container.offsetHeight)) / Math.log(2))

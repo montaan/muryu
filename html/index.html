@@ -39,6 +39,11 @@
     <script type="text/javascript">
     // <![CDATA[
 
+      Tr.addTranslations('en-US', {
+        'Muryu.groups' : 'groups',
+        'Muryu.folders' : 'folders',
+        'Muryu.types' : 'types'
+      })
       Tr.addTranslations('fi-FI', {
         'Workspace' : 'Työtila',
         'Add search' : 'Lisää haku',
@@ -52,7 +57,10 @@
         'Clear Session' : 'Nollaa asetukset',
         'Note' : 'Muistiinpano ',
         'help.html' : 'help.html',
-        'help' : 'Apua'
+        'help' : 'Apua',
+        'Muryu.groups' : 'ryhmät',
+        'Muryu.folders' : 'kansiot',
+        'Muryu.types' : 'tiedostotyypit'
       })
       Tr.addTranslations('en-US', {
         'Note' : 'Note '
@@ -220,9 +228,11 @@
           })
           var topPanel = new Desk.Panel('left', {movable : false})
           topPanel.addApplet(Applets.Session())
-          topPanel.addApplet(Applets.MusicPlayer())
-          topPanel.addApplet(Applets.Sets())
-          topPanel.addApplet(Applets.Groups())
+          if (this.loggedIn) {
+            topPanel.addApplet(Applets.MusicPlayer())
+            topPanel.addApplet(Applets.Sets())
+            topPanel.addApplet(Applets.Groups())
+          }
           topPanel.addApplet(Applets.Taskbar())
         },
         
@@ -232,12 +242,42 @@
           rootMap.style.height = '100%'
           rootMap.style.overflow = 'hidden'
           rootMap.style.position = 'absolute'
+          rootMap.dumpSession = function() {
+            return win.map.dumpSession()
+          }
           win.setTitle(null)
           win.setContent(rootMap)
-          var topmap = new View({
-            container: rootMap,
-            windowContainer: win.container
-          })
+          var topmap
+          var q = ""
+          if (this.loggedIn)
+            q += "user:"+Session.storage.info.name
+          else
+            q += 'sort:date'
+          if (win.parameters) {
+            win.parameters.data.container = rootMap
+            win.parameters.data.windowContainer = win.container
+            topmap = Session.loadDump(win.parameters)
+            topmap.groupTree = topmap.children.find(function(c) { return c.isGroupTree })
+            if (topmap.groupTree)
+              topmap.groupTree.dumpVars.push('isGroupTree')
+            topmap.setTree = topmap.children.find(function(c) { return c.isSetTree })
+            if (topmap.setTree)
+              topmap.setTree.dumpVars.push('isSetTree')
+          } else {
+            topmap = new View({
+              container: rootMap,
+              windowContainer: win.container
+            })
+            new TitledMap({
+              parent : topmap,
+              title : q,
+              query : q,
+              left: 30,
+              top: 30
+            })
+            var typequeries = ['type:audio', 'type:video', 'type:html', 'type:pdf|postscript', 'type:text', 'type:application', 'type:image']
+            topmap.typeTree = this.createQueryTree(topmap, Tr('Muryu.types'), typequeries, 290, 30, 'false')
+          }
           win.map = topmap
           win.addListener('resize', function(ev) {
             topmap.container.width = rootMap.offsetWidth
@@ -249,11 +289,29 @@
             topmap.zoom(topmap.z, topmap.z, true)
           })
           
+
+
+          topmap.updateGroupTree = function() {
+            if (topmap.groupTree)
+              topmap.groupTree.unload()
+            var groupqueries = Groups.map(function(s) { return 'group:"'+s.name+'"' })
+            topmap.groupTree = Muryu.createQueryTree(topmap, Tr('Muryu.groups'), groupqueries, 450,230)
+            topmap.groupTree.isGroupTree = true
+            topmap.groupTree.dumpVars.push('isGroupTree')
+          }
+          topmap.updateSetTree = function() {
+            if (topmap.setTree)
+              topmap.setTree.unload()
+            var setqueries = Sets.map(function(s) { return 'set:"'+s.name+'"' })
+            topmap.setTree = Muryu.createQueryTree(topmap, Tr('Muryu.folders'), setqueries, 450,30)
+            topmap.setTree.isSetTree = true
+            topmap.setTree.dumpVars.push('isSetTree')
+          }
+          Groups.addListener('update', topmap.updateGroupTree)
+          Sets.addListener('update', topmap.updateSetTree)
+          
           var menu = new Desk.Menu()
           menu.addTitle(Tr('Workspace'))
-          var q = ""
-          if (this.loggedIn)
-            q += "user:"+Session.storage.info.name
           menu.addItem(Tr('Add search'), function() {
             var ns = new TitledMap({
               query: q,
@@ -263,10 +321,8 @@
               top: Math.pow(2,-topmap.targetZ)*(topmap.pointerY-topmap.y)
             })
           })
-          if (this.loggedIn) {
-            menu.addTitle(Tr('Utilities'))
-            menu.addItem(Tr('Make note'), function(){ new Desk.Window('app:Notes.make') })
-          }
+          menu.addTitle(Tr('Utilities'))
+          menu.addItem(Tr('Make note'), function(){ new Desk.Window('app:Notes.make') })
           menu.addTitle(Tr('Windows'))
           menu.addItem(Tr('Collapse all groups'), function() {
             Desk.Windows.taskbar.setCollapsedForAll(true)
@@ -274,37 +330,15 @@
           menu.addItem(Tr('Expand all groups'), function() {
             Desk.Windows.taskbar.setCollapsedForAll(false)
           }, 'icons/ExpandAllGroups.png')
-          menu.addTitle(Tr('Session'))
-          menu.addItem(Tr('Clear Session'), function(){ Session.clear() })
-          menu.addItem(Tr('Applets.Session.LogOut'), function(){ location.href = '/users/logout' })
+          if (this.loggedIn) {
+            menu.addTitle(Tr('Session'))
+            menu.addItem(Tr('Clear Session'), function(){ Session.clear() })
+            menu.addItem(Tr('Applets.Session.LogOut'), function(){ location.href = '/users/logout' })
+          }
           menu.bind(rootMap)
-
-          var typequeries = ['type:audio', 'type:video', 'type:text', 'type:application', 'type:image']
-          new TitledMap({
-            parent : topmap,
-            title : q,
-            query : q,
-            left: 30,
-            top: 30
-          })
-          topmap.typeTree = this.createQueryTree(topmap, 'types', typequeries, 290, 30)
-          topmap.updateGroupTree = function() {
-            if (topmap.groupTree)
-              topmap.groupTree.unload()
-            var groupqueries = Groups.map(function(s) { return 'group:"'+s.name+'"' })
-            topmap.groupTree = Muryu.createQueryTree(topmap, 'groups', groupqueries, 450,230)
-          }
-          topmap.updateSetTree = function() {
-            if (topmap.setTree)
-              topmap.setTree.unload()
-            var setqueries = Sets.map(function(s) { return 'set:"'+s.name+'"' })
-            topmap.setTree = Muryu.createQueryTree(topmap, 'folders', setqueries, 450,30)
-          }
-          Groups.addListener('update', topmap.updateGroupTree)
-          Sets.addListener('update', topmap.updateSetTree)
         },
         
-        createQueryTree : function(parent, title, queries, x, y) {
+        createQueryTree : function(parent, title, queries, x, y, color) {
           var maptree = new TitledPortal({
             title : title,
             parent : parent,
@@ -316,6 +350,7 @@
             new TitledMap({
               title : queries[i],
               query : queries[i],
+              color : color,
               parent : maptree.portal,
               top : i*64,
               left : 0,

@@ -40,9 +40,44 @@ Zoomable = {
   x : 0, y : 0, w : 256, h : 256,
   ax : 0, ay : 0,
   is_visible : true,
+
+  defaultDumpVars : [
+    'left', 'top',
+    'ownWidth', 'ownHeight',
+    'width', 'height',
+    'bgColor', 'className',
+    'relativeZ', 'z', 'targetZ'
+  ],
+  additionalDumpVars : [],
+  dumpVars : [],
+
+  dumpSession : function() {
+    var data = {}
+    this.dumpVars.each(function(dv) {
+      data[dv] = this[dv]
+    }.bind(this))
+    data.children = this.children.invoke('dumpSession')
+    return {
+      loader : this.dumpLoader,
+      data : data
+    }
+  },
+
+  loadSession : function(data) {
+    var obj = new this(data)
+    data.children.each(function(d) {
+      var dup = Object.clone(d)
+      dup.data.parent = obj
+      Session.loadDump(dup)
+    })
+    return obj
+  },
   
   init : function(config) {
     if (config) Object.extend(this, config)
+    this.dumpVars = this.dumpVars
+                    .concat(this.defaultDumpVars)
+                    .concat(this.additionalDumpVars).uniq()
     this.children = []
     this.element = E('div',null,null,this.className, {
       position: 'absolute',
@@ -51,8 +86,10 @@ Zoomable = {
       width: this.width + 'px',
       height: this.height + 'px'
     })
-    this.ownWidth = this.width
-    this.ownHeight = this.height
+    if (!this.ownWidth)
+      this.ownWidth = this.width
+    if (!this.ownHeight)
+      this.ownHeight = this.height
     this.right = this.left + this.width
     this.bottom = this.top + this.height
     if (this.parent) {
@@ -187,7 +224,7 @@ Zoomable = {
       this.is_visible = false
     } else if (this.w < this.minVisibleWidth || this.h < this.minVisibleHeight) {
       this.is_visible = false
-    } else {
+    } else if (this.container) {
       this.is_visible = (this.ax < this.container.width &&
                          this.ay < this.container.height &&
                          this.ax+this.w > 0 &&
@@ -361,25 +398,32 @@ View = function(config) {
   this.selectionElem.style.position = 'absolute'
   this.selectionElem.style.display = 'none'
   this.selectionElem.style.zIndex = 50
+  this.panVector = {x:0, y:0}
   this.init(config)
   this.container.appendChild(this.selectionElem)
   this.element.style.zIndex = 0
 }
+View.loadSession = Zoomable.loadSession
 View.prototype = Object.extend({}, Zoomable)
 Object.extend(View.prototype, {
   pointerX : 0, pointerY : 0,
   maxZoom : 16, minZoom : -3,
   bgColor : '13163C',
-  panAmount : 64,
+  panAmount : 256,
 
   // state variables
   zoomIn : false, zoomOut : false,
 
+  dumpLoader: 'View',
+
+  additionalDumpVars : ['maxZoom', 'minZoom'],
+  
   setBgColor : function(bgcolor) {
-    if (bgcolor)
-      this.element.style.backgroundColor = '#'+bgcolor
-    else
-      this.element.style.backgroundColor = 'transparent'
+    if (bgcolor) {
+      this.container.style.backgroundColor = '#'+bgcolor
+    } else {
+      this.container.style.backgroundColor = 'transparent'
+    }
     Zoomable.setBgColor.apply(this, arguments)
   },
 
@@ -411,7 +455,11 @@ Object.extend(View.prototype, {
     if (!this.keyDownHandlers) {
       this.keyDownHandlers = {
         't' : function(){ this.zoomIn = true },
-        'g' : function(){ this.zoomOut = true }
+        'g' : function(){ this.zoomOut = true },
+        'f' : function(){ this.panVector.x = 1 },
+        'e' : function(){ this.panVector.y = -1 },
+        's' : function(){ this.panVector.x = -1 },
+        'd' : function(){ this.panVector.y = 1 }
       }
     }
     return this.keyDownHandlers
@@ -420,7 +468,11 @@ Object.extend(View.prototype, {
     if (!this.keyUpHandlers) {
       this.keyUpHandlers = {
         't' : function(){ this.zoomIn = false },
-        'g' : function(){ this.zoomOut = false }
+        'g' : function(){ this.zoomOut = false },
+        'f' : function(){ this.panVector.x = 0 },
+        'e' : function(){ this.panVector.y = 0 },
+        's' : function(){ this.panVector.x = 0 },
+        'd' : function(){ this.panVector.y = 0 }
       }
     }
     return this.keyUpHandlers
@@ -472,10 +524,10 @@ Object.extend(View.prototype, {
           obj = obj.parentNode
         }
         if (obj && obj.map) {
-          var maps_per_container = t.container.width / Math.max(obj.map.width, obj.map.height)
+          var maps_per_container = t.container.width / (Math.max(obj.map.width, obj.map.height)/(Math.pow(2,obj.map.relativeZ)))
           var crop_z = Math.floor(Math.log(maps_per_container) / Math.log(2))
           var full_z = Math.floor(Math.log(t.container.width) / Math.log(2))
-          var dz = t.z - obj.map.z
+          var dz = t.z - (obj.map.z+obj.map.relativeZ)
           if (crop_z+dz > t.targetZ) { // zoom to map extents
             t.animatedZoom(crop_z+dz)
           } else {
@@ -586,7 +638,6 @@ Object.extend(View.prototype, {
     this.onkeydown = function(ev) {
       if (!t.validEventTarget(ev)) return
       if (document.focusedMap == t && !ev.ctrlKey) {
-        if (ev.charCode == 0) return
         var c = ev.keyCode | ev.charCode | ev.which
         var cs = String.fromCharCode(c).toLowerCase()
         var keyHandlers = t.getKeyDownHandlers()
@@ -599,7 +650,6 @@ Object.extend(View.prototype, {
       this.zoomKeyDown = 0
       if (!t.validEventTarget(ev)) return
       if (document.focusedMap == t && !ev.ctrlKey) {
-        if (ev.charCode == 0) return
         var c = ev.keyCode | ev.charCode | ev.which
         var cs = String.fromCharCode(c).toLowerCase()
         var keyHandlers = t.getKeyUpHandlers()
@@ -702,6 +752,56 @@ Object.extend(View.prototype, {
     }.bind(this), 20)
   },
 
+  animatedPanBy : function(dx, dy, delay) {
+    if (this.animation) return
+    var elapsed = 0
+    var time = new Date().getTime()
+    if (delay == undefined)
+      delay = 200
+    var lastPos = 0
+    var totalX = 0
+    var totalY = 0
+    this.animation = setInterval(function(){
+      if (this.panVector.x != 0 || this.panVector.y != 0)
+        this.continuousPan = true
+      else if (this.continuousPan)
+        this.continuousPan = false
+      var t = new Date().getTime()
+      var dt = t - time
+      time = t
+      if (this.continuousPan != undefined) {
+        if (this.continuousPan) {
+          var df = (dt*this.panAmount) / delay
+          this.panBy(-this.panVector.x*df, -this.panVector.y*df)
+        } else {
+          clearInterval(this.animation)
+          this.animation = false
+        }
+      } else {
+        elapsed += dt
+        var pos = elapsed / delay
+        if (pos >= 1) {
+          pos = 1
+        }
+        var nx = dx * (pos-lastPos)
+        var ny = dy * (pos-lastPos)
+        totalX += nx
+        totalY += ny
+        if (Math.abs(totalX) > Math.abs(dx) || Math.abs(totalY) > Math.abs(dy)) {
+          nx -= (totalX - dx)
+          ny -= (totalY - dy)
+          pos = 1
+        }
+        lastPos = pos
+        this.panBy(nx, ny)
+        if (pos == 1) {
+          clearInterval(this.animation)
+          this.animation = false
+        }
+      }
+    }.bind(this), 20)
+  },
+
   /**
     Resets zoom to 0 and pans to 0,0.
     */
@@ -739,7 +839,7 @@ Object.extend(View.prototype, {
   */
   panLeft : function(amt) {
     if (!amt) amt = this.panAmount
-    this.panBy(amt, 0)
+    this.animatedPanBy(amt, 0)
   },
   
   /**
@@ -747,7 +847,7 @@ Object.extend(View.prototype, {
   */
   panRight : function(amt) {
     if (!amt) amt = this.panAmount
-    this.panBy(-amt, 0)
+    this.animatedPanBy(-amt, 0)
   },
   
   /**
@@ -755,7 +855,7 @@ Object.extend(View.prototype, {
   */
   panUp : function(amt) {
     if (!amt) amt = this.panAmount
-    this.panBy(0, amt)
+    this.animatedPanBy(0, amt)
   },
 
   /**
@@ -763,7 +863,7 @@ Object.extend(View.prototype, {
   */
   panDown : function(amt) {
     if (!amt) amt = this.panAmount
-    this.panBy(0, -amt)
+    this.animatedPanBy(0, -amt)
   },
 
   isVisible : function() {
@@ -847,24 +947,44 @@ Object.extend(View.prototype, {
 TitledPortal = function(config) {
   this.init(config)
 }
+TitledPortal.loadSession = function(data) {
+  var d = Object.clone(data)
+  d.loadingFromDump = true
+  var obj = Zoomable.loadSession.apply(this, [d])
+  obj.postLoadSetup()
+  return obj
+}
 TitledPortal.prototype = Object.extend({}, Zoomable)
 Object.extend(TitledPortal.prototype, {
   className : 'TitledPortal',
   borderOffset : 10,
+  loadingFromDump : false,
   
+  dumpLoader: 'TitledPortal',
+
+  additionalDumpVars : ['borderOffset'],
+
   init : function(config) {
     this.border = E('div', null, null, 'TitledPortalBorder', {
       position: 'absolute',
       zIndex: -1
     })
     Zoomable.init.apply(this, arguments)
-    this.title = new Title({parent: this, title: this.title, relativeZ: 1, maxFontSize: 56})
-    this.portal = new Portal(
-      Object.extend(Object.clone(config),
-      {parent: this, relativeZ: 0, left: 0, top: 40})
-    )
-    this.element.portal = this
+    if (!this.loadingFromDump) {
+      this.title = new Title({parent: this, title: this.title, relativeZ: 1, maxFontSize: 56})
+      this.portal = new Portal(
+        Object.extend(Object.clone(config),
+        {parent: this, relativeZ: 0, left: 0, top: 40})
+      )
+      this.element.portal = this
+    }
     this.element.appendChild(this.border)
+  },
+
+  postLoadSetup : function() {
+    this.title = this.children[0]
+    this.portal = this.children[1]
+    this.element.portal = this
   },
 
   updatePosition : function() {
@@ -884,9 +1004,11 @@ Object.extend(TitledPortal.prototype, {
 Portal = function(config) {
   this.init(config)
 }
+Portal.loadSession = Zoomable.loadSession
 Portal.prototype = Object.extend({}, Zoomable)
 Object.extend(Portal.prototype, {
-  className : 'Portal'
+  className : 'Portal',
+  dumpLoader : 'Portal'
 })
 
 
@@ -899,24 +1021,30 @@ Object.extend(Portal.prototype, {
 TitledMap = function(config) {
   this.init(config)
 }
+TitledMap.loadSession = TitledPortal.loadSession
 TitledMap.prototype = Object.extend({}, Zoomable)
 Object.extend(TitledMap.prototype, {
   className : 'TitledMap',
+  loadingFromDump : false,
+
+  dumpLoader: 'TitledMap',
 
   init : function(config) {
     Zoomable.init.apply(this, arguments)
-    this.setupChildren(config)
+    if (!this.loadingFromDump) {
+      this.title = new Title({parent: this, title: this.title})
+      this.map = new TileMap(
+        Object.extend(Object.clone(config),
+        {parent: this, relativeZ: 0, left: 0, top: 19})
+      )
+      this.setupChildren()
+    }
   },
 
-  setupChildren : function(config) {
-    this.title = new Title({parent: this, title: this.title})
+  setupChildren : function() {
     this.itemCountElement = E("span", T(' ('+Tr('Loading')+')'))
     this.title.titleElement.appendChild(this.itemCountElement)
     this.title.updateTextDimensions()
-    this.map = new TileMap(
-      Object.extend(Object.clone(config),
-      {parent: this, relativeZ: 0, left: 0, top: 20})
-    )
     this.map.addListener('load', function(ev){
       this.itemCountElement.firstChild.textContent = ' (' +
         Tr('TileMap.itemCount', this.map.info.itemCount) + ')'
@@ -925,6 +1053,17 @@ Object.extend(TitledMap.prototype, {
     this.title.titleElement.map = this.map
     this.title.titleElement.firstChild.addEventListener('dblclick',
       this.titleEdit.bind(this), false)
+    this.ondblclick = function(ev){
+      if (Event.isLeftClick(ev)) {
+        var fac = Math.pow(2,this.z)
+        var x = this.map.ax
+        var y = this.map.ay
+        var px = this.root.pointerX
+        var py = this.root.pointerY
+        this.root.panBy(px-x, py-y)
+      }
+    }.bind(this)
+    this.title.titleElement.addEventListener('dblclick', this.ondblclick, false)
     this.titleMenu = new Desk.Menu()
     this.titleMenu.addTitle(Tr('TileMap'))
     this.titleMenu.addItem(Tr('TileMap.EditTitle'), this.titleEdit.bind(this))
@@ -945,6 +1084,12 @@ Object.extend(TitledMap.prototype, {
     this.titleMenu.bind(this.title.titleElement)
   },
   
+  postLoadSetup : function() {
+    this.title = this.children[0]
+    this.map = this.children[1]
+    this.setupChildren()
+  },
+
   titleEdit : function(ev) {
     if (!this.root.validEventTarget(ev)) return
     if (!ev || Event.isLeftClick(ev)) {
@@ -974,6 +1119,7 @@ Object.extend(TitledMap.prototype, {
 Title = function(config) {
   this.init(config)
 }
+Title.loadSession = Zoomable.loadSession
 Title.prototype = Object.extend({}, Zoomable)
 Object.extend(Title.prototype, {
   title: 'Title',
@@ -986,6 +1132,10 @@ Object.extend(Title.prototype, {
 
   // state vars
   absoluteFontSize : 0,
+
+  dumpLoader: 'Title',
+
+  additionalDumpVars : ['title', 'fontSize', 'maxFontSize'],
 
   init : function(config) {
     this.onTitleChange = this.titleChangeHandler.bind(this)
@@ -1115,15 +1265,14 @@ Object.extend(Title.prototype, {
 TileMap = function(config) {
   this.init(config)
 }
-
+TileMap.loadSession = Zoomable.loadSession
 TileMap.prototype = Object.extend({}, Zoomable)
 Object.extend(TileMap.prototype, {
   tileServers : [
-    '/tile/'
-/*    'http://t0.manifold.fhtr.org:8080/tile/',
+    'http://t0.manifold.fhtr.org:8080/tile/',
     'http://t1.manifold.fhtr.org:8080/tile/',
     'http://t2.manifold.fhtr.org:8080/tile/',
-    'http://t3.manifold.fhtr.org:8080/tile/'*/
+    'http://t3.manifold.fhtr.org:8080/tile/'
   ],
   tileInfoServers : [
     '/tile_info/'
@@ -1142,6 +1291,10 @@ Object.extend(TileMap.prototype, {
 
   time : new Date().getTime(),
   
+  dumpLoader: 'TileMap',
+
+  additionalDumpVars : ['tileServers', 'tileInfoServers', 'tileSize', 'query', 'color'],
+
   init : function(config) {
     this.tiles = []
     this.selection = new Selection()
@@ -1246,6 +1399,7 @@ Object.extend(TileMap.prototype, {
         this.height = 0
         this.ownWidth = obj.dimensions.width
         this.ownHeight = obj.dimensions.height
+        this.relativeZ = Math.floor( Math.min( 128 / this.ownWidth, 16 / this.ownHeight ) )
         this.selectionLayer.ownWidth = this.ownWidth
         this.selectionLayer.ownHeight = this.ownHeight
         this.selectionLayer.removeAllChildren()
@@ -1412,7 +1566,9 @@ Object.extend(TileMap.prototype, {
 SelectionLayer = function(config) {
   this.init(config)
 }
+SelectionLayer.loadSession = Zoomable.loadSession
 SelectionLayer.prototype = Object.extend({}, Zoomable)
+SelectionLayer.prototype.dumpLoader = 'SelectionLayer'
 SelectionLayer.prototype.fitChildren = false
 
 
@@ -1423,9 +1579,11 @@ SelectionArea = function(config) {
   this.init(config)
   this.element.style.zIndex = 48
 }
+SelectionArea.loadSession = Zoomable.loadSession
 SelectionArea.prototype = Object.extend({}, Zoomable)
 Object.extend(SelectionArea.prototype, {
-  className : 'selectionArea'
+  className : 'selectionArea',
+  dumpLoader : 'SelectionArea'
 })
 
 
