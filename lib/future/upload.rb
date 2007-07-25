@@ -332,7 +332,7 @@ class Uploader
   end
 
   def sanitize filename
-    File.basename(filename).gsub(/[^a-z0-9,. _-]/i, '_')
+    File.basename(filename).to_utf8
   end
 
   def filename_violation? e

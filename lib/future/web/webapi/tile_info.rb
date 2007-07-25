@@ -46,7 +46,7 @@ module MuryuDispatch
           user, sq, time,
           :rows, x, y, z, w, h
         ).each do |image_index, query_index, deleted, x, y, sz, path|
-          jinfo << "{index:#{query_index},x:#{x},y:#{y},sz:#{sz},path:#{path.dump},deleted:#{deleted}},"
+          jinfo << "{index:#{query_index},x:#{x},y:#{y},sz:#{sz},path:#{path.to_json},deleted:#{deleted}},"
         end
         jinfo.chop! if jinfo.size > 1
         jinfo << "]"

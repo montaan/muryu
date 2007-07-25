@@ -5,7 +5,7 @@ require 'iconv'
 require 'time'
 require 'future/base'
 require 'future/models/items'
-
+require 'UniversalDetector' # gem install chardet
 
 class Pathname
 
@@ -269,15 +269,7 @@ extend self
 
   def enc_utf8(s, charset)
     return nil if s.nil? or s.empty?
-    us = nil
-    charsets = ['utf-8','shift-jis','euc-jp','iso8859-1','cp1252','big-5']
-    charsets.unshift(charset) if charset
-    charsets.find{|c|
-      ((us = Iconv.iconv('utf-8', c, s)[0]) rescue false)
-    }
-    us ||= s.gsub(/[^0-9a-z._ '"\*\+\-]/,'?')
-    us.gsub!(/^(\xFF\xFE|\xEF\xBB\xBF|\xFE\xFF)/, '') # strip UTF BOMs
-    us
+    s.to_utf8(charset)
   end
 
   def parse_num(s)
@@ -300,6 +292,5 @@ extend self
 
 
 end
-
 
 end

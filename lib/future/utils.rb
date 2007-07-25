@@ -78,20 +78,6 @@ class Symbol
 end
 
 
-class Array
-
-  def to_proc
-    lambda{|a| inject(a){|o,msg| o.__send__(*msg) } }
-  end
-  
-  def to_hash
-    h = {}
-    each{|k,v| h[k] = v}
-    h
-  end
-
-end
-
 class StandardDateTime < DateTime
   def to_json(*a)
     strftime("new Date(\"%m/%d/%Y %H:%M:%S %z\")")
@@ -108,20 +94,6 @@ class Time
   def to_json(*a)
     strftime("new Date(\"%m/%d/%Y %H:%M:%S %z\")")
   end
-end
-
-class String
-
-  def to_proc
-    lambda{|a| eval(sprintf(self, a)) } # ha ha ha </robot voice>
-  end
-
-  def to_pn(*rest)
-    pn = Pathname.new(self)
-    pn = pn.join(*rest) unless rest.empty?
-    pn
-  end
-
 end
 
 
@@ -222,6 +194,16 @@ end
 
 class Array
 
+  def to_proc
+    lambda{|a| inject(a){|o,msg| o.__send__(*msg) } }
+  end
+  
+  def to_hash
+    h = {}
+    each{|k,v| h[k] = v}
+    h
+  end
+
   def cjoin(*a)
     compact.join(*a)
   end
@@ -255,6 +237,29 @@ class String
       factor = 1000**magnitudes.map{|m|m.downcase}.index(mag.downcase).to_i
     end
     (s.to_f * factor).to_i
+  end
+
+  def to_proc
+    lambda{|a| eval(sprintf(self, a)) } # ha ha ha </robot voice>
+  end
+
+  def to_pn(*rest)
+    pn = Pathname.new(self)
+    pn = pn.join(*rest) unless rest.empty?
+    pn
+  end
+
+  def to_utf8(charset=nil)
+    us = nil
+    charsets = [charset, 'utf-8',
+      UniversalDetector.chardet(self[0,65536]),
+      'shift-jis','euc-jp','iso8859-1','cp1252','big-5'].compact
+    charsets.find{|c|
+      ((us = Iconv.iconv('utf-8', c, self)[0]) rescue false)
+    }
+    us ||= self.gsub(/[^0-9a-z._ '"\*\+\-]/,'?')
+    us.gsub!(/^(\xFF\xFE|\xEF\xBB\xBF|\xFE\xFF)/, '') # strip UTF BOMs
+    us
   end
 
 end

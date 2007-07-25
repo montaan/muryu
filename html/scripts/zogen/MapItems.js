@@ -294,7 +294,7 @@ ItemArea = {
   oncontextmenu : function(ev) {
     if (!ev.ctrlKey) {
       var menu = new Desk.Menu()
-      menu.addTitle(this.href.split("/").last())
+      menu.addTitle(decodeURI(this.href).split("/").last())
       menu.addItem(Tr('Item.open'), this.open.bind(this))
       menu.addItem(Tr('Item.select'), this.toggleSelect.bind(this))
       var ext = this.getExt()

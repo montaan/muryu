@@ -182,12 +182,16 @@ class ImageCache
   end
 
   def read_images_as_string(lvl, indexes)
-    raise "No raw mipmap at that level." if lvl < 0 or lvl > @max_raw_zoom
-    @raw_pyramid.read_images_as_string(lvl, indexes)
+    raise "No mipmap at that level."  if lvl < 0 or lvl > @max_zoom
+    if lvl > @max_raw_zoom
+      @jpeg_pyramid.read_images_as_raw_string(lvl, indexes)
+    else
+      @raw_pyramid.read_images_as_string(lvl, indexes)
+    end
   end
 
   def read_span_as_string(lvl, start, last)
-    raise "No raw mipmap at that level." if lvl < 0 or lvl > @max_raw_zoom
+    raise "No raw mipmap at that level." if lvl < 0 or lvl > @max_zoom
     d = @raw_pyramid.read_span_as_string(lvl, start, last)
     @total_data_read += d.size
     log_debug([:total_data_read, @total_data_read].inspect)
@@ -195,12 +199,12 @@ class ImageCache
   end
   
   def read_images_as_jpeg(lvl, indexes)
-    raise "No JPEG mipmap at that level." if lvl < 0 or lvl > @max_zoom
+    raise "No JPEG mipmap at that level." if lvl < @max_raw_zoom or lvl > @max_zoom
     @jpeg_pyramid.read_images_as_string(lvl, indexes)
   end
   
   def read_span_as_jpeg(lvl, start, last)
-    raise "No JPEG mipmap at that level." if lvl < 0 or lvl > @max_zoom
+    raise "No JPEG mipmap at that level." if lvl < @max_raw_zoom or lvl > @max_zoom
     d = @jpeg_pyramid.read_span_as_string(lvl, start, last)
     @total_data_read += d.size
     log_debug([:total_data_read, @total_data_read].inspect)
@@ -590,7 +594,7 @@ class JPEGPyramid
   def read_images(level, indexes)
     reads = indexes.zip((0...indexes.size).to_a).sort_by{|a,b| a }
     esz = 2**(2*level) * 4 / 15.0
-    stream_limit = 2**18 / esz # reading 262kB / 80MB/s =~ 3ms
+    stream_limit = 1 # 2**18 / esz # reading 262kB / 80MB/s =~ 3ms
     result = indexes.dup
     spans = reads.inject([]){|s, (idx,j)|
       if s.last.nil? or s.last.first.end < idx-stream_limit
@@ -625,6 +629,12 @@ class JPEGPyramid
 
   def read_images_as_string(level, indexes)
     read_images(level, indexes).join
+  end
+
+  def read_images_as_raw_string(level, indexes)
+    read_images(level, indexes).map{|rgb_alpha_jpeg|
+      ImagingUtils.decompress_rgb_alpha_jpeg(rgb_alpha_jpeg, 2**level, 2**level)
+    }.join
   end
 
   def read_images_as_imlib(level, indexes)

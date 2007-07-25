@@ -292,20 +292,34 @@
 
 
           topmap.updateGroupTree = function() {
-            if (topmap.groupTree)
-              topmap.groupTree.unload()
             var groupqueries = Groups.map(function(s) { return 'group:"'+s.name+'"' })
-            topmap.groupTree = Muryu.createQueryTree(topmap, Tr('Muryu.groups'), groupqueries, 450,230)
-            topmap.groupTree.isGroupTree = true
-            topmap.groupTree.dumpVars.push('isGroupTree')
+            if (!topmap.groupTree) {
+              topmap.groupTree = Muryu.createQueryTree(topmap, Tr('Muryu.groups'), groupqueries, 450,230)
+              topmap.groupTree.isGroupTree = true
+              topmap.groupTree.dumpVars.push('isGroupTree')
+            } else {
+              var old_queries = topmap.groupTree.portal.children.findAll(function(c){
+                return c.map && groupqueries.include(c.map.query)
+              }).pluck('map').pluck('query')
+              var new_queries = Array.prototype.without.apply(groupqueries, old_queries)
+              var b = topmap.groupTree.portal.ownHeight + 10
+              Muryu.createQueryTree(topmap.groupTree.portal, null, new_queries, 0, b, true)
+            }
           }
           topmap.updateSetTree = function() {
-            if (topmap.setTree)
-              topmap.setTree.unload()
             var setqueries = Sets.map(function(s) { return 'set:"'+s.name+'"' })
-            topmap.setTree = Muryu.createQueryTree(topmap, Tr('Muryu.folders'), setqueries, 450,30)
-            topmap.setTree.isSetTree = true
-            topmap.setTree.dumpVars.push('isSetTree')
+            if (!topmap.setTree) {
+              topmap.setTree = Muryu.createQueryTree(topmap, Tr('Muryu.folders'), setqueries, 450,30)
+              topmap.setTree.isSetTree = true
+              topmap.setTree.dumpVars.push('isSetTree')
+            } else {
+              var old_queries = topmap.setTree.portal.children.findAll(function(c){
+                return c.map && setqueries.include(c.map.query)
+              }).pluck('map').pluck('query')
+              var new_queries = Array.prototype.without.apply(setqueries, old_queries)
+              var b = topmap.setTree.portal.ownHeight + 10
+              Muryu.createQueryTree(topmap.setTree.portal, null, new_queries, 0, b, true)
+            }
           }
           Groups.addListener('update', topmap.updateGroupTree)
           Sets.addListener('update', topmap.updateSetTree)
@@ -339,21 +353,27 @@
         },
         
         createQueryTree : function(parent, title, queries, x, y, color) {
-          var maptree = new TitledPortal({
-            title : title,
-            parent : parent,
-            left : x,
-            top : y,
-            relativeZ : -1,
-          })
+          if (!title) {
+            var maptree = parent
+            var map_parent = parent
+          } else {
+            var maptree = new TitledPortal({
+              title : title,
+              parent : parent,
+              left : x,
+              top : y,
+              relativeZ : -1,
+            })
+            var map_parent = maptree.portal
+          }
           for (var i=0; i<queries.length; i++) {
             new TitledMap({
               title : queries[i],
               query : queries[i],
               color : color,
-              parent : maptree.portal,
-              top : i*64,
-              left : 0,
+              parent : map_parent,
+              left : (title ? 0 : x),
+              top : (title ? 0 : y) + i*64,
               relativeZ : 0
             })
           }

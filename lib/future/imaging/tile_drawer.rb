@@ -269,7 +269,7 @@ class TileDrawer
     @image_cache = image_cache
     @max_cache_size = 1_000_000
     @raw_cache_level = 4
-    @jpeg_cache_level = 7
+    @jpeg_cache_level = 6
     init_sw unless $NO_TILE_DRAWING
   end
 

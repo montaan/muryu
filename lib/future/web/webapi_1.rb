@@ -76,7 +76,7 @@ class MuryuQuery
   relative_path = '([0-9A-Za-z._-]+/[0-9]{4}/[0-9]{2}-[0-9]{2}/[^/]+)'
   items_query = '(.*)'
   itemkey = "(#{uint}|#{relative_path})"
-  filename = '(\S+)'
+  filename = '([^/]+)'
   setname = '(.+)'
   username = '([0-9A-Za-z._-]+)'
   password = '(.+)'

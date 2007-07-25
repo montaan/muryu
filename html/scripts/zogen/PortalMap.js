@@ -56,7 +56,8 @@ Zoomable = {
     this.dumpVars.each(function(dv) {
       data[dv] = this[dv]
     }.bind(this))
-    data.children = this.children.invoke('dumpSession')
+    data.children = this.children.findAll(function(c){
+      return c.dumpSession }).invoke('dumpSession')
     return {
       loader : this.dumpLoader,
       data : data
@@ -65,11 +66,16 @@ Zoomable = {
 
   loadSession : function(data) {
     var obj = new this(data)
+    var fc = obj.fitChildren
+    obj.fitChildren = false
     data.children.each(function(d) {
       var dup = Object.clone(d)
       dup.data.parent = obj
       Session.loadDump(dup)
     })
+    obj.fitChildren = fc
+    if (fc)
+      obj.updateDimensions()
     return obj
   },
   
@@ -1325,7 +1331,7 @@ Object.extend(TileMap.prototype, {
       this.lastSelectionStartTime = this.root.selectionStartTime
     }
     this.selectionElem = this.root.selectionElem
-    lx = this.ax
+    lx = this.ax 
     ly = this.ay
     this.selectionElem.map = this
     var left = -lx + parseInt(this.selectionElem.style.left)
@@ -1338,7 +1344,7 @@ Object.extend(TileMap.prototype, {
     var images = this.element.getElementsByTagName('img')
     for (var i=0; i<images.length; i++) {
       var tile = images[i]
-      if (tile.tile.z != this.targetZ)
+      if (tile.tile.z != this.targetZ+this.relativeZ)
         continue
       if (tile.ImageMap) {
         var areas = tile.ImageMap.childNodes
@@ -1570,6 +1576,7 @@ SelectionLayer.loadSession = Zoomable.loadSession
 SelectionLayer.prototype = Object.extend({}, Zoomable)
 SelectionLayer.prototype.dumpLoader = 'SelectionLayer'
 SelectionLayer.prototype.fitChildren = false
+SelectionLayer.prototype.dumpSession = false
 
 
 /**
@@ -1583,7 +1590,8 @@ SelectionArea.loadSession = Zoomable.loadSession
 SelectionArea.prototype = Object.extend({}, Zoomable)
 Object.extend(SelectionArea.prototype, {
   className : 'selectionArea',
-  dumpLoader : 'SelectionArea'
+  dumpLoader : 'SelectionArea',
+  dumpSession : false
 })
 
 

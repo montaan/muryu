@@ -477,6 +477,10 @@ module MuryuDispatch
           unless gs.empty?
             gs.each do |g|
               ns, n = g.strip.split("/")
+              unless n
+                n = ns
+                ns = user.name
+              end
               if ns != user.name
                 set = Future::Sets.rfind(user, :name => n, :namespace => ns)
               else
