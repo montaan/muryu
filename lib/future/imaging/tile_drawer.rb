@@ -266,7 +266,6 @@ extend self
     tile_drawer.dimensions((0...indexes_sz), layouter)
   end
 
-  private
   def sanitize_query(query)
     query = query.clone
     query.delete :columns

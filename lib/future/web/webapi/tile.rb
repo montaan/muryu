@@ -19,6 +19,7 @@ module MuryuDispatch
   class TileHandler < SingleHandler
 
     def view(req,res)
+      req.query.delete('time') if user == Future::Users.anonymous
       search_query = MuryuDispatch::Items.parse_search_query(user, req.query['q'].to_s)
       tile_start = Time.now.to_f
       res.content_type = 'image/jpeg'
@@ -28,7 +29,7 @@ module MuryuDispatch
       bgcolor = (req.query.has_key?('bgcolor') ?
                   req.query['bgcolor'].to_s[0,6] : false)
       bgimage_src = (req.query.has_key?('bgimage') ? URI.unescape(req.query['bgimage'].to_s) : false)
-      key = Digest::MD5.hexdigest([user.id, req.key, color, bgcolor, bgimage_src, search_query, req.query['time']].join("::"))
+      key = Digest::MD5.hexdigest([user.id, req.key, color, bgcolor, bgimage_src, Future::Tiles.sanitize_query(search_query), req.query['time']].join("::"))
       time_key = 'tiletime::' + key
       tile_key = 'tile::' + key
       puts "#{Thread.current.telapsed} for tile arg parsing" if $PRINT_QUERY_PROFILE
