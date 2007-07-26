@@ -4,7 +4,6 @@ Important:
 * title positioning that works with all font sizes
 * disabling player when no soundManager
 * disable notes
-* disable playlist editing
 * bug: player playlist sucks
 NO 1.0 * save notes somewhere else than session
 NO 1.0 * PDF reader

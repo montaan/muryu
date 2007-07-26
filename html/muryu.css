@@ -16,6 +16,9 @@ h1, h2, h3, h4, h5, h6 {
   left: 0px;
   background-color: gray;
 }
+div.TitledPortalBorder {
+  border : 1px dotted #444444;
+}
 #loadStats {
   margin: 0px;
   padding: 5px;
