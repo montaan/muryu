@@ -1,17 +1,41 @@
+Current list of buggy things, small-minded usability stuff:
+-----------------------------------------------------------
+Important:
+* title positioning that works with all font sizes
+* disabling player when no soundManager
+* disable notes
+* disable playlist editing
+* bug: player playlist sucks
+NO 1.0 * save notes somewhere else than session
+NO 1.0 * PDF reader
+
+Somewhat important:
+* fixing window resize handles
+* force search refresh
+* deleting folders
+* deleting groups
+* bug: video embed doesn't have correct dimensions
+NO 1.0 * bug: filenames not visible if top-left tile not visible
+NO 1.0 * on startup, bundle css files into one big gzipped file served from memory
+NO 1.0 * on startup, bundle js files into one big gzipped file served from memory
+         * update bundles by monitoring file mtimes (ruby-fam)
+         * timestamp bundle filenames
+NO 1.0 * itunes-like management view for player
+
+Not important:
+* player to get artist and title from db
+* turn file uploads and settings sidebar items into applets
+* bug: new folder/group positioning bad
+* bug: content overflows window borders
+NO 1.0 * show item infos overlay at z9+
+NO 1.0 * collapse-button for sidebar titles
+NO 1.0 * sidebar hiding
+NO 1.0 * create containers from menu
+NO 1.0 * create searches inside containers
+
+
 High priority (vital for utility / business):
 =============================================
-
-* make a complete UI design and implement it utility-first
-  - who uses future for what
-  - what new things can you do with future that you couldn't do with existing
-    software or would be very inconvenient with existing software
-
-* Write search query parser (sets:!work sets:todo tags:bank user:carol)
-  - make search query parser actually work
-
-* port future.xpi
-
-* view user items, groups, etc.
 
 * replace crystal icons (globe emblem, mimetypes) with own versions (but in case
   they're free to use, this becomes low priority)
@@ -34,11 +58,6 @@ High priority (vital for utility / business):
   - the visual version is quite friendly for bad eyesight due to zoomability
 
 * zogen
-  * make tile_info fetches use less requests and queries
-  * figure out a way to keep current map coordinates when navigating
-    away from page (in essence making back button work)
-    - one way would be suture-style navigation-creates-history-state
-      but that spams the history full of crap
   * show text items as text
     (get text from tile_info(close zoom) / items(detail floater))
 
@@ -46,16 +65,7 @@ High priority (vital for utility / business):
 Medium priority (improves use experience / codebase):
 =====================================================
 
-* port upload semantics from upload.cgi
-  - missing compressed and remote compressed
-
-* grab sidebar from augen
 * zoom lens and mini map
-* nested portal system for doing titled views (instead of drawing on server)
-  - subportal engulfs all items inside it, crop to window/container border
-  - subportal info gotten from tileinfo
-    - already getting title
-  - subportals behave like windows
 
 * IE compatibility
 * Safari / Konqueror compatibility
@@ -63,17 +73,12 @@ Medium priority (improves use experience / codebase):
 
 * coloring by source / set / author / poster / other metadata
 
-* Tests for dbconn #parse_query
-
 * list tags
 * list items with a given tag
 
-* view user infos
-* list users in a given group
-
 * redirect to wanted page on successful login
 
-* design and implement undo (argh, important feature but a bit painful)
+* design and implement undo
 
 * server-side-drawn emblems for items
 * drawing lines between two items
@@ -81,7 +86,7 @@ Medium priority (improves use experience / codebase):
 * rearrange items by dragging
   - use arrangement to infer relatedness, close items are related
 
-* Ability to do set arithmetic on search queries, dead-simple UI for it
+* ~~~Ability to do set arithmetic on search queries~~~, dead-simple UI for it
   - intersection, union, complement, substraction
     - A & B, A | B, ~A
     - A - B = (~A & ~B) & (A | B) = ~(A & B) & (A | B)
@@ -102,7 +107,8 @@ Low priority (would be nice / possible):
 * special thumbnail handling for multipage docs: big header page with all doc
   pages on the side as tiny, zoom in to read
 
-* Widgets; have a way to add custom snippets of HTML and JS to the page
+* ~~~Widgets; have a way to add custom snippets of HTML and JS to the page~~~
+  * implemented, but no site-side support
   - examples
     - GMail+GTalk widget for sending links and items to friends
       with a single click, received links in sidebar
@@ -111,8 +117,6 @@ Low priority (would be nice / possible):
   - outsource services that we don't want to do
   - promote good ones
   - like firefox extensions
-
-* media player for augen sidebar (i.e. musica.js + flash component for playing)
 
 * shoutcast stream of owner's music files at the wanted bitrate (high br when
   home at broadband, low br when crappy mobile net. bandwidth implications?)

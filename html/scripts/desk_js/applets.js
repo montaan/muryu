@@ -20,6 +20,7 @@ Tr.addTranslations('en-US', {
   'Button.Applets.Session.ToggleColors' : 'Toggle colors',
   'Applets.MusicPlayer' : 'Player',
   'Applets.MusicPlayer.Playlist' : 'Playlist',
+  'Applets.MusicPlayer.Playlist_empty' : 'Playlist empty',
   'Applets.Sets' : 'Folders',
   'Applets.Groups' : 'Groups',
   'Groups.Editing' : 'Editing group: ',
@@ -74,6 +75,7 @@ Tr.addTranslations('fi-FI', {
   'Button.Applets.Session.ToggleColors' : 'Värien näyttö',
   'Applets.MusicPlayer' : 'Soitin',
   'Applets.MusicPlayer.Playlist' : 'Soittolista',
+  'Applets.MusicPlayer.Playlist_empty' : 'Soittolista tyhjä',
   'Applets.Sets' : 'Kansiot',
   'Applets.Groups' : 'Ryhmät',
   'Groups.Editing' : 'Muokkain ryhmälle: ',
@@ -368,6 +370,17 @@ Applets.MusicPlayer = function() {
   
   c.removeFromPlaylistAt = function(index) {
     this.playlist.splice(index, 1)
+    if (index == this.currentIndex) {
+      if (this.playlist.length <= 1) {
+        this.currentIndex = 0
+        this.stop()
+      } else {
+        if (this.currentIndex > this.playlist.length)
+          this.previous()
+        else
+          this.next()
+      }
+    }
     this.playlistChanged()
   }
   
@@ -450,7 +463,8 @@ Applets.MusicPlayer = function() {
       } else {
         setTimeout(this.playNext, 0)
       }
-      this.newEvent('songChanged', {value: (this.currentURL || '').split("/").last() })
+      this.currentSongTitle = (this.currentURL || '').split("/").last()
+      this.newEvent('songChanged', {value: this.currentSongTitle })
     } else {
       this.paused = true
       this.currentIndex = 0
@@ -479,10 +493,12 @@ Applets.MusicPlayer = function() {
     }
     this.paused = false
     this.updateButtons()
+    this.newEvent('stop')
+    this.newEvent('positionChanged', {value: '', pct: 0})
   }
   
   c.updateButtons = function() {
-    if (this.paused) {
+    if (this.paused || !this.playing) {
       this.playButton.pull()
     } else {
       this.playButton.push()
@@ -540,7 +556,7 @@ Applets.MusicPlayer = function() {
     var t = this
     tlc.appendChild(Desk.Button('RemoveFromPlaylist', function() {
         for (var i=0; i<pl.childNodes.length; i++) {
-          if (pl.childNodes[i].className == 'selected') {
+          if (pl.childNodes[i].className.match(/\bselected\b/)) {
             pl.removeChild(pl.childNodes[i])
             t.removeFromPlaylistAt(i)
             i--
@@ -563,7 +579,7 @@ Applets.MusicPlayer = function() {
     w.addListener('containerChange', function(){
       plc.style.height = (tlc.offsetHeight - plc.offsetTop + tlc.offsetTop) + 'px'
     })
-    pl.updateCurrent = function(val) {
+    pl.updateCurrent = function() {
       var idx = t.currentIndex
       var c = this.childNodes
       for (var i=0; i<c.length; i++) {
@@ -575,8 +591,31 @@ Applets.MusicPlayer = function() {
         }
       }
     }
-    pl.updatePlaylist = function(val) {
+    pl.updatePlaylist = function() {
       t.currentIndex = this.getIndex(this.current)
+      $(this).removeAllChildren()
+      t.playlist.each(function(i) {
+        var a = A(i, i.split('/').last())
+        a.style.textDecoration = 'none'
+        a.onclick = function(ev) { if (Event.isLeftClick(ev)) ev.preventDefault() }
+        var li = E('li', a)
+        li.ondblclick = function(ev) {
+          t.goToIndex(pl.getIndex(this), true)
+          Event.stop(ev)
+        }
+        li.onclick = function(ev) {
+          if (Event.isLeftClick(ev)) {
+            if (!ev.ctrlKey) pl.deselect()
+            if (this.className.match(/\s*\bselected\b/))
+              this.className = this.className.replace(/\s*\bselected\b/, '')
+            else
+              this.className += ' selected'
+            Event.stop(ev)
+          }
+        }
+        pl.appendChild(li)
+      })
+      this.updateCurrent()
     }
     pl.currentUpdater = pl.updateCurrent.bind(pl)
     pl.playlistUpdater = pl.updatePlaylist.bind(pl)
@@ -588,50 +627,111 @@ Applets.MusicPlayer = function() {
         c[i].className = c[i].className.replace(/\s*\bselected\b/, '')
       }
     }
-    this.playlist.each(function(i) {
-      var a = A(i, i.split('/').last())
-      a.style.textDecoration = 'none'
-      a.onclick = function(ev) { if (Event.isLeftClick(ev)) ev.preventDefault() }
-      var li = E('li', a)
-      li.ondblclick = function(ev) {
-        t.goToIndex(pl.getIndex(this), true)
-        Event.stop(ev)
-      }
-      li.onclick = function(ev) {
-        if (Event.isLeftClick(ev)) {
-          if (!ev.ctrlKey) pl.deselect()
-          if (this.className.match(/\s*\bselected\b/))
-            this.className = this.className.replace(/\s*\bselected\b/, '')
-          else
-            this.className += ' selected'
-          Event.stop(ev)
-        }
-      }
-      pl.appendChild(li)
-    })
     pl.updateCurrent()
     plc.appendChild(pl)
     tlc.appendChild(plc)
     tlc.addEventListener('mousedown', function(){ w.bringToFront(); return true }, true)
-    t.initSortable = function(){
-      w.removeListener('containerChange', t.initSortable)
-      Position.includeScrollOffsets = true
-      Sortable.create('MusicPlayer_playlist', {
-        scroll:'MusicPlayer_playlistContainer',
-        onChange: function(){
-          var new_pl = []
-          $A(pl.childNodes).each(function(cn) {
-            new_pl.push(cn.firstChild.href)
-          })
-          t.playlist = new_pl
-          t.newEvent('playlistChanged', {value: t.playlist})
-        }
-      })
-    }
-    w.addListener('containerChange', t.initSortable)
+    pl.playlistUpdater()
   }
 
   c.init = function() {
+    c.playButton = Desk.Button('Play', c.pause.bind(c), {
+      downTitle : 'Pause'
+    })
+    c.prevButton = Desk.Button('Previous', c.previous.bind(c))
+    c.nextButton = Desk.Button('Next', c.next.bind(c))
+    c.shuffleButton = Desk.Button('Shuffle', c.shuffle.bind(c), {downTitle: 'ShuffleDown'})
+    if (c.shuffling) c.shuffleButton.toggle()
+    c.repeatButton = Desk.Button('Repeat', c.repeat.bind(c), {downTitle: 'RepeatDown'})
+    if (c.repeating) c.repeatButton.toggle()
+    c.volumeUpButton = Desk.Button('VolumeUp', c.volumeUp.bind(c))
+    c.volumeDownButton = Desk.Button('VolumeDown', c.volumeDown.bind(c))
+    c.playlistButton = Desk.Button('Playlist', c.togglePlaylist.bind(c))
+
+    c.volumeElem = E('span', c.volume.toString(), null, 'Volume')
+    
+    c.contentElem.appendChild(c.prevButton)
+    c.contentElem.appendChild(c.playButton)
+    c.contentElem.appendChild(c.nextButton)
+    c.contentElem.appendChild(c.shuffleButton)
+    c.contentElem.appendChild(c.repeatButton)
+    c.contentElem.appendChild(c.playlistButton)
+    c.contentElem.appendChild(c.volumeDownButton)
+    c.contentElem.appendChild(c.volumeUpButton)
+    c.contentElem.appendChild(c.volumeElem)
+
+
+    c.seekElem = Desk.Slider(function(val) { c.seekToPct(val) })
+    c.contentElem.appendChild(c.seekElem)
+
+    c.infoElem = E('div', null, null, 'SongInfo')
+    c.contentElem.appendChild(c.infoElem)
+    
+    c.indexElem = E('span', null, null, 'CurrentIndex')
+    c.infoElem.appendChild(c.indexElem)
+    c.sepElem = E('span', null, null, 'IndexSeparator')
+    c.infoElem.appendChild(c.sepElem)
+    c.allElem = E('span', null, null, 'PlaylistLength')
+    c.infoElem.appendChild(c.allElem)
+
+    c.currentSeekElem = E('span', null, null, 'CurrentSeek')
+    c.infoElem.appendChild(c.currentSeekElem)
+    
+    c.currentlyPlaying = E('span', null, null, 'CurrentlyPlaying')
+    c.infoElem.appendChild(c.currentlyPlaying)
+
+    c.addListener('positionChanged', function(e) {
+      if (e.pct != undefined) c.seekElem.setPosition(e.pct, false)
+      c.currentSeekElem.innerHTML = e.value
+    })
+    c.addListener('loadedChanged', function(e) {
+      if (e.pct != undefined) c.seekElem.setLoaded(e.pct)
+    })
+    c.addListener('songChanged', function(e){
+      var plen = c.playlist.length
+      c.indexElem.innerHTML = Math.min(plen, (c.currentIndex+1))
+      c.allElem.innerHTML = plen
+      if (plen > 0) {
+        c.currentlyPlaying.innerHTML = e.value
+      } else {
+        c.currentlyPlaying.innerHTML = Tr('Applets.MusicPlayer.Playlist_empty')
+      }
+    })
+    c.addListener('stop', function(e){
+      var plen = c.playlist.length
+      c.indexElem.innerHTML = Math.min(plen, (c.currentIndex+1))
+      c.allElem.innerHTML = plen
+      if (plen > 0) {
+        c.currentlyPlaying.innerHTML = e.value
+      } else {
+        c.currentlyPlaying.innerHTML = Tr('Applets.MusicPlayer.Playlist_empty')
+      }
+    })
+
+    c.addListener('playlistChanged', function(e) {
+      var plen = c.playlist.length
+      c.indexElem.innerHTML = Math.min(plen, (c.currentIndex+1))
+      c.allElem.innerHTML = plen
+    })
+    c.addListener('volumeChanged', function(e) {
+      c.volumeElem.innerHTML = e.value
+    })
+    
+    c.menu.addItem(Tr('Applets.MusicPlayer.Play'), c.play.bind(c))
+    c.menu.addItem(Tr('Applets.MusicPlayer.Pause'), c.pause.bind(c))
+    c.menu.addItem(Tr('Applets.MusicPlayer.Previous'), c.previous.bind(c))
+    c.menu.addItem(Tr('Applets.MusicPlayer.Next'), c.next.bind(c))
+    c.menu.addSeparator()
+    c.menu.addItem(Tr('Applets.MusicPlayer.Repeat'), c.repeat.bind(c))
+    if (c.repeating) c.menu.checkItem(Tr('Applets.MusicPlayer.Repeat'))
+    else c.menu.uncheckItem(Tr('Applets.MusicPlayer.Repeat'))
+    c.menu.addItem(Tr('Applets.MusicPlayer.Shuffle'), c.shuffle.bind(c))
+    if (c.shuffling) c.menu.checkItem(Tr('Applets.MusicPlayer.Shuffle'))
+    else c.menu.uncheckItem(Tr('Applets.MusicPlayer.Shuffle'))
+    c.menu.addSeparator()
+    c.menu.addItem(Tr('Applets.MusicPlayer.VolumeUp'), c.volumeUp.bind(c))
+    c.menu.addItem(Tr('Applets.MusicPlayer.VolumeDown'), c.volumeDown.bind(c))
+
     soundManager.createSound(c.soundID, {url: 'data/null.mp3'})
     c.sound = soundManager.sounds[c.soundID]
     c.sound.setVolume(c.volume)
@@ -666,84 +766,15 @@ Applets.MusicPlayer = function() {
         total : c.sound.bytesTotal
       })
     }
-    c.sound.options.onid3 = function(){
-      var elems = [c.sound.id3.artist, c.sound.id3.songname]
-      c.newEvent('songChanged', {value: elems.join(" - ")})
-    }
     if (c.playing) c.play()
+    else c.newEvent('songChanged', {value: c.currentSongTitle })
   }
+
   if (soundManager.enabled)
     c.init()
   else
     soundManager.onload = c.init
 
-  c.playButton = Desk.Button('Play', c.pause.bind(c), {
-    downTitle : 'Pause'
-  })
-  c.prevButton = Desk.Button('Previous', c.previous.bind(c))
-  c.nextButton = Desk.Button('Next', c.next.bind(c))
-  c.shuffleButton = Desk.Button('Shuffle', c.shuffle.bind(c), {downTitle: 'ShuffleDown'})
-  if (c.shuffling) c.shuffleButton.toggle()
-  c.repeatButton = Desk.Button('Repeat', c.repeat.bind(c), {downTitle: 'RepeatDown'})
-  if (c.repeating) c.repeatButton.toggle()
-  c.volumeUpButton = Desk.Button('VolumeUp', c.volumeUp.bind(c))
-  c.volumeDownButton = Desk.Button('VolumeDown', c.volumeDown.bind(c))
-  c.playlistButton = Desk.Button('Playlist', c.togglePlaylist.bind(c))
-
-  c.volumeElem = E('span', c.volume.toString(), null, 'Volume')
-  
-  c.contentElem.appendChild(c.prevButton)
-  c.contentElem.appendChild(c.playButton)
-  c.contentElem.appendChild(c.nextButton)
-  c.contentElem.appendChild(c.shuffleButton)
-  c.contentElem.appendChild(c.repeatButton)
-  c.contentElem.appendChild(c.playlistButton)
-  c.contentElem.appendChild(c.volumeDownButton)
-  c.contentElem.appendChild(c.volumeUpButton)
-  c.contentElem.appendChild(c.volumeElem)
-
-
-  c.seekElem = Desk.Slider(function(val) { c.seekToPct(val) })
-  c.contentElem.appendChild(c.seekElem)
-
-  c.infoElem = E('div', null, null, 'SongInfo')
-  c.contentElem.appendChild(c.infoElem)
-  
-  c.indexElem = E('span', null, null, 'CurrentIndex')
-  c.infoElem.appendChild(c.indexElem)
-  c.sepElem = E('span', null, null, 'IndexSeparator')
-  c.infoElem.appendChild(c.sepElem)
-  c.allElem = E('span', null, null, 'PlaylistLength')
-  c.infoElem.appendChild(c.allElem)
-
-  c.currentSeekElem = E('span', null, null, 'CurrentSeek')
-  c.infoElem.appendChild(c.currentSeekElem)
-  
-  c.currentlyPlaying = E('span', null, null, 'CurrentlyPlaying')
-  c.infoElem.appendChild(c.currentlyPlaying)
-
-  c.addListener('positionChanged', function(e) {
-    if (e.pct != undefined) c.seekElem.setPosition(e.pct, false)
-    c.currentSeekElem.innerHTML = e.value
-  })
-  c.addListener('loadedChanged', function(e) {
-    if (e.pct != undefined) c.seekElem.setLoaded(e.pct)
-  })
-  c.addListener('songChanged', function(e){
-    var plen = c.playlist.length
-    c.indexElem.innerHTML = Math.min(plen, (c.currentIndex+1))
-    c.allElem.innerHTML = plen
-    c.currentlyPlaying.innerHTML = e.value
-  })
-  c.addListener('playlistChanged', function(e) {
-    var plen = c.playlist.length
-    c.indexElem.innerHTML = Math.min(plen, (c.currentIndex+1))
-    c.allElem.innerHTML = plen
-  })
-  c.addListener('volumeChanged', function(e) {
-    c.volumeElem.innerHTML = e.value
-  })
-  
   Desk.Droppable.makeDroppable(c)
   c.drop = function(dragged, e) {
     if (dragged.className.match(/\bwindowTaskbarEntry\b/)) {
@@ -768,6 +799,7 @@ Applets.MusicPlayer = function() {
       loader: 'Applets.MusicPlayer',
       data: {
         currentIndex : this.currentIndex,
+        currentSongTitle : this.currentSongTitle,
         repeating : this.repeating,
         shuffling : this.shuffling,
         playing : this.playing,
@@ -778,27 +810,12 @@ Applets.MusicPlayer = function() {
       }
     }
   }
-  c.menu.addItem(Tr('Applets.MusicPlayer.Play'), c.play.bind(c))
-  c.menu.addItem(Tr('Applets.MusicPlayer.Pause'), c.pause.bind(c))
-  c.menu.addItem(Tr('Applets.MusicPlayer.Previous'), c.previous.bind(c))
-  c.menu.addItem(Tr('Applets.MusicPlayer.Next'), c.next.bind(c))
-  c.menu.addSeparator()
-  c.menu.addItem(Tr('Applets.MusicPlayer.Repeat'), c.repeat.bind(c))
-  if (c.repeating) c.menu.checkItem(Tr('Applets.MusicPlayer.Repeat'))
-  else c.menu.uncheckItem(Tr('Applets.MusicPlayer.Repeat'))
-  c.menu.addItem(Tr('Applets.MusicPlayer.Shuffle'), c.shuffle.bind(c))
-  if (c.shuffling) c.menu.checkItem(Tr('Applets.MusicPlayer.Shuffle'))
-  else c.menu.uncheckItem(Tr('Applets.MusicPlayer.Shuffle'))
-  c.menu.addSeparator()
-  c.menu.addItem(Tr('Applets.MusicPlayer.VolumeUp'), c.volumeUp.bind(c))
-  c.menu.addItem(Tr('Applets.MusicPlayer.VolumeDown'), c.volumeDown.bind(c))
-
-  c.newEvent('songChanged', {value: ''})
 
   return c
 }
 Applets.MusicPlayer.loadSession = function(data) {
   var mp = Applets.MusicPlayer()
+  mp.currentSongTitle = data.currentSongTitle
   mp.playlist = data.playlist || []
   mp.setShuffling(data.shuffling)
   mp.setRepeating(data.repeating)

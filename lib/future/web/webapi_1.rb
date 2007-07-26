@@ -458,8 +458,8 @@ class MuryuResponse
 end
 
 $PRINT_QUERY_PROFILE = false
-$CACHE_INFO = false
-$CACHE_TILES = false
+$CACHE_INFO = true
+$CACHE_TILES = true
 $USE_DIPUS_TILE_INFO = true
 
 module MuryuDispatch

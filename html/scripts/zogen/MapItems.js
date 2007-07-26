@@ -10,6 +10,7 @@ Tr.addTranslations('en-US', {
   'Item.select' : 'Select',
   'Item.click_to_inspect' : 'Left-click to inspect ',
   'Item.add_to_playlist' : 'Add to playlist',
+  'Item.play' : 'Play',
   'Item.view_in_slideshow' : 'View in slideshow',
   'Item.makePublic' : 'Make public',
   'Item.makePrivate' : 'Make private',
@@ -39,6 +40,7 @@ Tr.addTranslations('fi-FI', {
   'Item.select' : 'Valitse',
   'Item.click_to_inspect' : 'Napsauta nähdäksesi ',
   'Item.add_to_playlist' : 'Lisää soittolistaan',
+  'Item.play' : 'Soita',
   'Item.view_in_slideshow' : 'Näytä kuvaesityksessä',
   'Item.makePublic' : 'Tee julkiseksi',
   'Item.makePrivate' : 'Tee yksityiseksi',
@@ -78,10 +80,12 @@ ItemArea = {
   edit : function() {
     new Desk.Window(this.itemHREF.replace(/json$/, 'edit'))
   },
+
+  imageExts : ['jpeg','jpg','png','gif'],
   
   defaultAction : function() {
     var ext = this.getExt()
-    if (['jpeg','jpg','png','gif'].include(ext)) {
+    if (this.imageExts.include(ext)) {
 //       this.open()
       this.viewInSlideshow()
     } else if ( MusicPlayer && MusicPlayer.sound && ext == 'mp3' ) {
@@ -295,16 +299,20 @@ ItemArea = {
     if (!ev.ctrlKey) {
       var menu = new Desk.Menu()
       menu.addTitle(decodeURI(this.href).split("/").last())
+      var ext = this.getExt()
+      if (ext == 'mp3' && MusicPlayer) {
+        menu.addItem(Tr('Item.add_to_playlist'), this.addToPlaylist.bind(this))
+        menu.addItem(Tr('Item.play'), function(){
+          this.addToPlaylist()
+          MusicPlayer.goToIndex(MusicPlayer.playlist.length - 1)
+        }.bind(this))
+        menu.addSeparator()
+      } else if (ext.match(/^(jpe?g|png|gif)$/)) {
+        menu.addItem(Tr('Item.view_in_slideshow'), this.viewInSlideshow.bind(this))
+        menu.addSeparator()
+      }
       menu.addItem(Tr('Item.open'), this.open.bind(this))
       menu.addItem(Tr('Item.select'), this.toggleSelect.bind(this))
-      var ext = this.getExt()
-      if (ext == 'mp3') {
-        menu.addSeparator()
-        menu.addItem(Tr('Item.add_to_playlist'), this.addToPlaylist.bind(this))
-      } else if (ext.match(/^(jpe?g|png|gif)$/)) {
-        menu.addSeparator()
-        menu.addItem(Tr('Item.view_in_slideshow'), this.viewInSlideshow.bind(this))
-      }
       menu.addSeparator()
       menu.addItem(Tr('Button.Item.edit'), this.edit.bind(this))
       menu.addSeparator()
@@ -389,7 +397,10 @@ ItemArea = {
         if (t.targetZ < 7+dz) {
           t.animatedZoom(7+dz)
         } else if (t.targetZ < full_z+dz) {
-          t.animatedZoom(full_z+dz)
+          if (this.imageExts.include(this.href.split(".").last()))
+            t.animatedZoom(full_z+dz)
+          else
+            this.defaultAction()
         } else {
           t.animatedZoom(7+dz)
         }

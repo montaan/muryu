@@ -20,11 +20,6 @@
 */
 
 
-Object.require('/scripts/zogen/MapHelpers.js')
-Object.require('/scripts/zogen/MapItems.js')
-Object.require('/scripts/zogen/Selection.js')
-
-
 Zoomable = {
   left : 0, top : 0,
   relativeZ : 0, 
@@ -43,8 +38,6 @@ Zoomable = {
 
   defaultDumpVars : [
     'left', 'top',
-    'ownWidth', 'ownHeight',
-    'width', 'height',
     'bgColor', 'className',
     'relativeZ', 'z', 'targetZ'
   ],
@@ -945,6 +938,22 @@ Object.extend(View.prototype, {
 
 
 
+/**
+  A Portal is a children-wrapping zoomable container.
+  */
+Portal = function(config) {
+  this.init(config)
+}
+Portal.loadSession = Zoomable.loadSession
+Portal.prototype = Object.extend({}, Zoomable)
+Object.extend(Portal.prototype, {
+  className : 'Portal',
+  dumpLoader : 'Portal'
+})
+
+
+
+
 
 
 /**
@@ -1004,18 +1013,6 @@ Object.extend(TitledPortal.prototype, {
   }
 })
 
-/**
-  A Portal is the basic children-wrapping zoomable container.
-  */
-Portal = function(config) {
-  this.init(config)
-}
-Portal.loadSession = Zoomable.loadSession
-Portal.prototype = Object.extend({}, Zoomable)
-Object.extend(Portal.prototype, {
-  className : 'Portal',
-  dumpLoader : 'Portal'
-})
 
 
 
@@ -1299,7 +1296,10 @@ Object.extend(TileMap.prototype, {
   
   dumpLoader: 'TileMap',
 
-  additionalDumpVars : ['tileServers', 'tileInfoServers', 'tileSize', 'query', 'color'],
+  additionalDumpVars : [
+    'tileServers', 'tileInfoServers', 'tileSize',
+    'query', 'color', 'ownWidth', 'ownHeight'
+  ],
 
   init : function(config) {
     this.tiles = []

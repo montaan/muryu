@@ -27,13 +27,3 @@ Object.require = function(url) {
   el.src = url
   head.appendChild(el)
 }
-
-var libs = [
-  'windows_utils', 'session', 'metadata', 'button',
-  'windowmanager', 'windows', 'panel', 'applets',
-  'taskbar'
-]
-libs.each(function(lib){
-  Object.require('scripts/desk_js/' + lib + '.js')
-})
-

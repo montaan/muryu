@@ -193,6 +193,13 @@ Desk.ElementUtils = {
       return elem.appendChild(elem, obj)
   },
 
+  removeAllChildren : function(elem) {
+    var len = elem.childNodes.length
+    for (var i=0; i<len; i++)
+      if (elem.firstChild)
+        elem.removeChild(elem.firstChild)
+  },
+
   append : function(elem) {
     var objs = $A(arguments).slice(1)
     for (var i=0; i<objs.length; i++) {
