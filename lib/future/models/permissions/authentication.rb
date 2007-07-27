@@ -1,7 +1,19 @@
 require 'future/base'
+require 'digest/sha1'
 
+salt = DB::Tables::Config.find(:name => 'salt')
+unless salt
+  begin
+    DB::Tables::Config.create(
+      :name => 'salt',
+      :value => Digest::MD5.hexdigest(Time.now.to_s+rand.to_s).to_s
+    )
+  rescue
+  end
+end
+salt = DB::Tables::Config.find(:name => 'salt')
 
-Future.salt ||= "e31568d391a7210a00faff9dc3e2bcac"
+Future.salt = salt.value
 
 
 module Future
@@ -58,7 +70,8 @@ class Users < DB::Tables::Users
     @anonymous ||= find_or_create(:name => 'anonymous', :password => '')
   end
 
-  def self.register(username, password_hash)
+  def self.register(username, password)
+    password_hash = Digest::SHA1.hexdigest(password+Future.salt).to_s
     u = find_or_create(
       :name => username,
       :password => password_hash

@@ -1,5 +1,7 @@
 require 'jcode'
 require 'kconv'
+require 'digest/sha1'
+
 $KCODE = 'u'
 
 $NO_TILE_DRAWING = true
@@ -286,8 +288,6 @@ class MuryuQuery
       'create' => up,
       'edit' => {'new_password' => e(password)}.merge(up),
       'delete' => up,
-      'undelete' => up,
-      'purge' => up,
       'set_preferences' => any,
       'delete_preferences' => any,
       'clear_preferences' => up,
@@ -474,7 +474,11 @@ module MuryuDispatch
 
   def self.authenticate(req, res)
     un = req.query['username']
-    pw = req.query['password']
+    tpw = req.query['password']
+    pw = req.query['password_hash']
+    if not pw and tpw
+      pw = [Digest::SHA1.hexdigest(tpw.to_s+Future.salt).to_s]
+    end
     cookies = req.cookies['future_session_id']
     cookies = [cookies].compact unless cookies.is_a?(Array)
     user = cookie = session_id = secret = nil
@@ -510,6 +514,8 @@ module MuryuDispatch
       user = Future::Users.login(un[0], pw[0], session_id)
       if user and user.name != 'anonymous'
         cookie = new_cookie = session_id
+      else
+        log_error "authentication failed for #{un[0]} (from #{req.headers["X-Real-Ip"]})"
       end
     end
     if req.request_method.downcase == 'get'

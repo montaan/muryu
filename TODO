@@ -2,9 +2,11 @@ Current list of buggy things, small-minded usability stuff:
 -----------------------------------------------------------
 Important:
 * title positioning that works with all font sizes
-* disabling player when no soundManager
-* disable notes
 * bug: player playlist sucks
+* sha1 login
+  onsubmit= "this.password_hash.value=hex_sha1(hex_sha1(this.password.value+this.salt.value)+document.cookie.split(/[;=]/)[1]);this.password.value=''"
+
+* use the no-plaintext-over-network design from bluture
 NO 1.0 * save notes somewhere else than session
 NO 1.0 * PDF reader
 
@@ -15,10 +17,6 @@ Somewhat important:
 * deleting groups
 * bug: video embed doesn't have correct dimensions
 NO 1.0 * bug: filenames not visible if top-left tile not visible
-NO 1.0 * on startup, bundle css files into one big gzipped file served from memory
-NO 1.0 * on startup, bundle js files into one big gzipped file served from memory
-         * update bundles by monitoring file mtimes (ruby-fam)
-         * timestamp bundle filenames
 NO 1.0 * itunes-like management view for player
 
 Not important:
@@ -33,11 +31,8 @@ NO 1.0 * create containers from menu
 NO 1.0 * create searches inside containers
 
 
-High priority (vital for utility / business):
-=============================================
-
-* replace crystal icons (globe emblem, mimetypes) with own versions (but in case
-  they're free to use, this becomes low priority)
+High priority:
+==============
 
 * listing related items for an item
 * listing related buyables and auctions for an item
