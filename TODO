@@ -3,11 +3,11 @@ Current list of buggy things, small-minded usability stuff:
 Important:
 * title positioning that works with all font sizes
 * bug: player playlist sucks
-* sha1 login
-  onsubmit= "this.password_hash.value=hex_sha1(hex_sha1(this.password.value+this.salt.value)+document.cookie.split(/[;=]/)[1]);this.password.value=''"
-
-* use the no-plaintext-over-network design from bluture
-NO 1.0 * save notes somewhere else than session
+* search query editor with clickable sort: user: type: etc.
+* split session in several parts. In particular:
+  * save playlist somewhere else than session
+  * save map setup somewhere else than session
+  * save notes somewhere else than session
 NO 1.0 * PDF reader
 
 Somewhat important:
@@ -24,11 +24,14 @@ Not important:
 * turn file uploads and settings sidebar items into applets
 * bug: new folder/group positioning bad
 * bug: content overflows window borders
+NO 1.0 * player playlist context menu for items (nick from ItemArea)
 NO 1.0 * show item infos overlay at z9+
 NO 1.0 * collapse-button for sidebar titles
 NO 1.0 * sidebar hiding
 NO 1.0 * create containers from menu
 NO 1.0 * create searches inside containers
+NO 1.0 * sha1 challenge-response login for no https
+  onsubmit= "this.password_hash.value=hex_sha1(hex_sha1(this.password.value+this.salt.value)+document.cookie.split(/[;=]/)[1]);this.password.value=''"
 
 
 High priority:

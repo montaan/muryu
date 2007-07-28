@@ -120,20 +120,26 @@ class ImageCache
       ih = thumb.height / larger.to_f
       if thumb.width != thumb.height
         othumb = thumb
-        thumb = Imlib2::Image.new(2**@max_zoom, 2**@max_zoom)
+        msz = 2**@max_zoom
+        thumb = Imlib2::Image.new(msz, msz)
         thumb.has_alpha = true
         init_ctx
-        thumb.fill_rectangle(0,0,2**@max_zoom, 2**@max_zoom,
+        thumb.fill_rectangle(0,0,msz, msz,
                              Imlib2::Color::TRANSPARENT)
-        thumb.blend!(othumb, 0, 0, othumb.width, othumb.height,
-                             0, 0, 2**@max_zoom*iw, 2**@max_zoom*ih)
+        thumb.blend!(othumb,
+          0, 0, othumb.width, othumb.height,
+          (1-iw)*msz / 2, (1-ih)*msz, msz*iw, msz*ih)
+        thumb.save("output.png")
         othumb.delete!
       end
+      ctx = Imlib2::Context.get
       levels = (0..@max_zoom).to_a.reverse.map{|i|
         sz = 2**i
         image = Imlib2::Image.new(sz, sz)
         image.has_alpha = true
+        ctx.blend = false
         image.fill_rectangle(0,0, sz, sz, Imlib2::Color::TRANSPARENT)
+        ctx.blend = true
         image.blend!(thumb, 0, 0, thumb.width, thumb.height,
                             0, 0, sz, sz)
         image
@@ -911,6 +917,8 @@ class JPEGTileStore
       max = levels.max
       min = levels.min
       tsz = tile_size
+      fac = 1
+      sz = 2**zoom
       if level > max
         fac = 2**(level - max)
         tsz *= fac
@@ -921,17 +929,19 @@ class JPEGTileStore
         level = min
       end
       log_debug([:clamped_level, level, levels.sort].inspect)
-      first_x_tile = (-x / tsz.to_f).floor
-      first_y_tile = (-y / tsz.to_f).floor
-      last_x_tile = ((-x+image.width-1) / tsz.to_f).floor
-      last_y_tile = ((-y+image.height-1) / tsz.to_f).floor
-      x_range = (first_x_tile..last_x_tile)
-      y_range = (first_y_tile..last_y_tile)
       filename = File.join(dir, level.to_s)
       File.open(filename, 'rb'){|f|
       f.flock(File::LOCK_EX)
       begin
         w,h = f.read(8).unpack("NN")
+        y += (sz-h*fac)
+        x += ((sz-w*fac) / 2)
+        first_x_tile = (-x / tsz.to_f).floor
+        first_y_tile = (-y / tsz.to_f).floor
+        last_x_tile = ((-x+image.width-1) / tsz.to_f).floor
+        last_y_tile = ((-y+image.height-1) / tsz.to_f).floor
+        x_range = (first_x_tile..last_x_tile)
+        y_range = (first_y_tile..last_y_tile)
         cols = (w / tile_size.to_f).ceil
         rows = (h / tile_size.to_f).ceil
         offsets = f.read(cols * rows * 4).unpack("N*")

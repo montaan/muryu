@@ -387,7 +387,6 @@ Object.extend(Zoomable, EventListener)
   Make a View and attach all the rest to it.
   */
 View = function(config) {
-  this.windowContainer = config.container
   this.loader = new Loader()
   this.selected = {}
   this.selectionElem = E('div')
@@ -401,6 +400,61 @@ View = function(config) {
   this.init(config)
   this.container.appendChild(this.selectionElem)
   this.element.style.zIndex = 0
+}
+View.mapView = function(win, q) {
+  var rootMap = E('div')
+  rootMap.style.width = win.contentElement.style.width
+  rootMap.style.height = win.contentElement.style.height
+  rootMap.style.overflow = 'hidden'
+  rootMap.style.position = 'absolute'
+  rootMap.dumpSession = function() {
+    return win.map.dumpSession()
+  }
+  q = (q || win.parameters.query || 'sort:date')
+  win.setContent(rootMap)
+  if (!win.width)
+    win.setSize(640, 480)
+  var topmap
+  if (win.contentDump) {
+    var contentDump = Object.clone(win.contentDump)
+    contentDump.data.container = rootMap
+    topmap = Session.loadDump(contentDump)
+  } else {
+    topmap = new View({
+      container: rootMap
+    })
+    new TitledMap({
+      parent : topmap,
+      title : q,
+      query : q,
+      left: 30,
+      top: 30
+    })
+  }
+  win.map = topmap
+  win.addListener('resize', function(ev) {
+    console.log('resize',ev)
+    rootMap.style.width = win.contentElement.style.width
+    rootMap.style.height = win.contentElement.style.height
+    topmap.container.width = rootMap.offsetWidth
+    topmap.container.height = rootMap.offsetHeight
+    topmap.zoom(topmap.z, topmap.z, true)
+  })
+  win.addListener('containerChange', function(ev) {
+    topmap.zoom(topmap.z, topmap.z, true)
+  })
+  var menu = new Desk.Menu()
+  menu.addTitle(Tr('Workspace'))
+  menu.addItem(Tr('Add search'), function() {
+    var ns = new TitledMap({
+      query: q,
+      parent: topmap,
+      bgcolor: topmap.bgcolor,
+      left: Math.pow(2,-topmap.targetZ)*(topmap.pointerX-topmap.x),
+      top: Math.pow(2,-topmap.targetZ)*(topmap.pointerY-topmap.y)
+    })
+  })
+  menu.bind(rootMap)
 }
 View.loadSession = Zoomable.loadSession
 View.prototype = Object.extend({}, Zoomable)
@@ -483,8 +537,8 @@ Object.extend(View.prototype, {
   setupEventListeners : function() {
     var t = this
     this.onmousedown = function(ev) {
-      t.wcOffsetLeft = t.windowContainer.offsetLeft
-      t.wcOffsetTop = t.windowContainer.offsetTop
+      t.wcOffsetLeft = $(t.container).pageLeft()
+      t.wcOffsetTop = $(t.container).pageTop()
       t.pointerX = ev.pageX - t.wcOffsetLeft
       t.pointerY = ev.pageY - t.wcOffsetTop
       if (!t.validEventTarget(ev)) return
@@ -500,8 +554,8 @@ Object.extend(View.prototype, {
       if (Event.isLeftClick(ev)) {
         if (ev.shiftKey) {
           t.selecting = true
-          t.selectX = ev.pageX - t.windowContainer.offsetLeft
-          t.selectY = ev.pageY - t.windowContainer.offsetTop
+          t.selectX = ev.pageX - t.wcOffsetLeft
+          t.selectY = ev.pageY - t.wcOffsetTop
           t.selectionElem.style.left = t.selectX + 'px'
           t.selectionElem.style.top = t.selectY + 'px'
           t.selectionElem.style.width = '0px'
@@ -580,15 +634,15 @@ Object.extend(View.prototype, {
     }
     this.onmousemove = function(ev) {
       t.previousTarget = ev.target
-      if (!t.validEventTarget(ev)) return
       if (t.wcOffsetLeft == null) {
-        t.wcOffsetLeft = t.windowContainer.offsetLeft
-        t.wcOffsetTop = t.windowContainer.offsetTop
+        t.wcOffsetLeft = $(t.container).pageLeft()
+        t.wcOffsetTop = $(t.container).pageTop()
       }
       t.pointerX = ev.pageX - t.wcOffsetLeft
       t.pointerY = ev.pageY - t.wcOffsetTop
       document.focusedMap = t
       if (t.panning) {
+        if (!t.validEventTarget(ev)) return
         var dx = ev.clientX - t.panX
         var dy = ev.clientY - t.panY
         t.panBy(dx, dy)
@@ -598,6 +652,7 @@ Object.extend(View.prototype, {
       } else if (t.selecting && (Math.abs(t.pointerX - t.selectX) > 3 ||
                                  Math.abs(t.pointerY - t.selectY) > 3)
       ) {
+        if (!t.validEventTarget(ev)) return
         t.selectionElem.style.display = 'block'
         t.selectionElem.style.left = Math.min(t.pointerX, t.selectX) + 'px'
         t.selectionElem.style.top = Math.min(t.pointerY, t.selectY) + 'px'
@@ -717,6 +772,7 @@ Object.extend(View.prototype, {
     var time = new Date().getTime()
     var oz = this.z
     var delay = this.zoomIn || this.zoomOut ? 200 : 200
+    this.loader.loadsEnabled = false
     this.animation = setInterval(function(){
       var t = new Date().getTime()
       elapsed += t - time
@@ -734,6 +790,9 @@ Object.extend(View.prototype, {
           } else {
             oz = this.z
           }
+          this.loader.loadsEnabled = true
+          this.loader.process()
+          this.loader.loadsEnabled = false
         } else {
           pos = 1
         }
@@ -746,6 +805,8 @@ Object.extend(View.prototype, {
       this.zoom(nz, z)
       if (pos == 1) {
         clearInterval(this.animation)
+        this.loader.loadsEnabled = true
+        this.loader.process()
         this.animation = false
       }
     }.bind(this), 20)
@@ -1069,6 +1130,14 @@ Object.extend(TitledMap.prototype, {
     this.title.titleElement.addEventListener('dblclick', this.ondblclick, false)
     this.titleMenu = new Desk.Menu()
     this.titleMenu.addTitle(Tr('TileMap'))
+    this.titleMenu.addItem(Tr('Item.AddToPlaylist'), function(){})
+    this.titleMenu.addItem(Tr('Item.ViewInSlideshow'), function(){})
+    this.titleMenu.addSeparator()
+    this.titleMenu.addSubMenu(Tr('Item.AddToGroups'), function(){})
+    this.titleMenu.addItem(Tr('Item.MakePublic'), function(){})
+    this.titleMenu.addItem(Tr('Item.MakePrivate'), function(){})
+    this.titleMenu.addSubMenu(Tr('Item.AddToFolders'), function(){})
+    this.titleMenu.addSeparator()
     this.titleMenu.addItem(Tr('TileMap.EditTitle'), this.titleEdit.bind(this))
     this.titleMenu.addItem(Tr('TileMap.ShowColors'), function(){
       if (this.map.color != 'false') {
@@ -2027,17 +2096,28 @@ TileNode.prototype = {
       area.itemHREF = '/items/' + info.path + '/json'
       this.image.ImageMap.appendChild(area)
       if (this.z >= 7 && info.x >= 0 && info.y >= 0) {
-        var titleContainer = E('div')
+        var titleContainer = E('div', null, null, 'infoDiv')
         titleContainer.style.position = 'absolute'
         titleContainer.style.left = info.x+'px'
         titleContainer.style.top = info.y+info.sz+2+'px'
         titleContainer.style.width = info.sz+'px'
+        titleContainer.style.height = info.sz/4-2 + 'px'
+        titleContainer.style.overflow = 'hidden'
+        titleContainer.style.textAlign = 'center'
+        titleContainer.info = info
+        titleContainer.onmouseover = function(ev){
+          this.style.zIndex = 100
+          this.style.height = 'inherit'
+        }.bind(titleContainer)
+        titleContainer.onmouseout = function(ev){
+          this.style.zIndex = 'inherit'
+          this.style.height = this.info.sz/4-2 + 'px'
+        }.bind(titleContainer)
         var str = info.path.split("/").last()
         if (info.deleted)
-          titleContainer.style.color = '#888888'
-        var title = E('span')
+          titleContainer.style.opacity = 0.2
+        var title = E('span',str, null, 'infoDivLink')
         titleContainer.appendChild(title)
-        title.innerHTML = str
         this.infoElement.appendChild(titleContainer)
         if (title.offsetWidth > info.sz) {
           var replaces = [
@@ -2058,9 +2138,28 @@ TileNode.prototype = {
             str = str.replace(/\.+/g, ' ')
             title.firstChild.textContent = str
           }
-          if (title.offsetWidth > info.sz) {
-            titleContainer.style.overflow = 'auto'
+        }
+        title.style.display = 'block'
+        var shadow = title.cloneNode(true)
+        shadow.style.color = 'black'
+        shadow.style.marginTop = '1px'
+        shadow.style.marginLeft = '1px'
+        title.style.marginTop = -title.offsetHeight - 1 + 'px'
+        titleContainer.insertBefore(shadow, title)
+        if (this.z > 7) {
+          var infoDiv = E('div')
+          infoDiv.append(
+            A('/users/'+info.owner, info.owner, null, 'infoDivLink', null, {target:'_tab'})
+          )
+          if (info.source && info.source != '') {
+            var src = A(info.source, Tr("Item.source"), null, 'infoDivLink', null, {target:'_tab'})
+            infoDiv.append(" | ", src)
           }
+          if (info.referrer && info.referrer != '') {
+            var ref = A(info.referrer, Tr("Item.referrer"), null, 'infoDivLink', null, {target:'_tab'})
+            infoDiv.append(" | ", ref)
+          }
+          titleContainer.append(infoDiv)
         }
       }
     }

@@ -8,6 +8,12 @@ body {
 h1, h2, h3, h4, h5, h6 {
   font-family: URW Gothic L, Arial, Sans-Serif;
 }
+#while_loading {
+  padding: 10px;
+}
+#while_loading p {
+  margin: 20px;
+}
 #map {
   width: 0px;
   height: 0px;

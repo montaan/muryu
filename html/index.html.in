@@ -3,23 +3,6 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <title>muryu</title>
-    <style>
-/*      div.TileMap {
-        border : 1px solid blue;
-      }
-      div.Portal {
-        border : 1px solid white;
-      }
-      div.TitledMap {
-        border : 1px solid yellow;
-      }
-      div.Title {
-        border : 1px solid red;
-      }
-      h3 {
-        border : 1px solid cyan;
-      }*/
-    </style>
 
     <link rel="stylesheet" href="__CSS_BUNDLE__"></link>
     <script type="text/javascript" src="__JS_BUNDLE__"></script>
@@ -34,8 +17,17 @@
   </head>
   
 
-  <body bgcolor="#555555">
+  <body bgcolor="white">
+    <div id="while_loading">
+      <h1>Muryu</h1>
+      <p>Loading... around 100kB in total</p>
+      <p>
+        You need Firefox 1.5+ with JavaScript enabled
+        to use this thing. We're working on compatability with other browsers
+        and text-only access. If you want to help, tell what breaks and why and
+        how to fix it :)
+      </p>
+    </div>
   </body>
-
 
 </html>

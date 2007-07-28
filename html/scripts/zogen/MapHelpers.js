@@ -41,6 +41,11 @@ Loader = function() {
   }
 }
 Loader.prototype = {
+  maxLoads : 2,
+  loadsEnabled : true,
+  tileSize : 0.125, // in Mbps
+  bandwidthLimit : -2.0, // in Mbps, negative values for no limit
+
   totalLoads : 0,
   totalRequests : 0,
   totalCancels : 0,
@@ -48,10 +53,7 @@ Loader.prototype = {
 
   loads : 0,
   __maxLoads : 1,
-  maxLoads : 2,
   initialLoad : true,
-  tileSize : 0.125, // in Mbps
-  bandwidthLimit : -2.0, // in Mbps, negative values for no limit
 
   load : function(dZ, dP, tile) {
     this[tile.uuid] = tile
@@ -65,7 +67,7 @@ Loader.prototype = {
   },
 
   process : function() {
-    while ((this.loads < this.__maxLoads) && !this.queue.isEmpty()) {
+    while (this.loadsEnabled && (this.loads < this.__maxLoads) && !this.queue.isEmpty()) {
       if (this.initializationTimeout) {
         clearTimeout(this.initializationTimeout)
         this.initializationTimeout = false

@@ -182,6 +182,32 @@ Desk.ElementUtils = {
     return document.defaultView.getComputedStyle(elem, '')
   },
 
+  pageLeft : function(elem) {
+    var obj = elem
+    var left = elem.offsetLeft
+    var abs = ($(obj).getComputedStyle().position == 'absolute')
+    while (obj.parentNode && obj.parentNode != document.body) {
+      var p = obj.parentNode
+      if (!abs || $(p).getComputedStyle().position == 'absolute')
+        left += p.offsetLeft
+      obj = p
+    }
+    return left
+  },
+
+  pageTop : function(elem) {
+    var obj = elem
+    var top = elem.offsetTop
+    var abs = ($(obj).getComputedStyle().position == 'absolute')
+    while (obj.parentNode && obj.parentNode != document.body) {
+      var p = obj.parentNode
+      if (!abs || $(p).getComputedStyle().position == 'absolute')
+        top += p.offsetTop
+      obj = p
+    }
+    return top
+  },
+
   insertAfter : function(elem, obj, ref) {
     return elem.insertBefore(obj, ref.nextSibling)
   },
@@ -248,6 +274,17 @@ Desk.ElementUtils = {
       return false
     }
   }
+}
+
+Element.fromException = function(e) {
+  var error = E('div', null, null, 'Exception')
+  error.append(
+    E('h3', e.name + ': ' + e.message),
+    E('p', 'At '+e.fileName+':'+e.lineNumber),
+    E('h4', 'Backtrace'),
+    E('p', e.stack, null, null, {whiteSpace: 'pre'})
+  )
+  return error
 }
 
 Element.addMethods(Desk.ElementUtils)

@@ -71,8 +71,8 @@ module Mimetype
   def thumbnail(filename, thumb_filename, thumb_size=nil, page=nil, crop='0x0+0+0')
 #     puts "called thumbnail for #{filename} (#{to_s})"
     if to_s =~ /video/
-      page ||= 5.7
-      video_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+      page ||= [[5.7, filename.to_pn.length * 0.5].max, filename.to_pn.length * 0.75].min
+      ffmpeg_thumbnail(filename, thumb_filename, thumb_size, page, crop)
     elsif to_s =~ /html/
       page ||= 0
       html_thumbnail(filename, thumb_filename, thumb_size, page, crop)
@@ -225,13 +225,25 @@ module Mimetype
     rv
   end
 
+  def ffmpeg_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+    ffmpeg = `which ffmpeg`.strip
+    ffmpeg = "ffmpeg" if ffmpeg.empty?
+    tmp_filename = thumb_filename.to_pn.dirname + ".tmp#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}-ffmpeg.png"
+    system(ffmpeg, "-i", filename, "-vcodec", "png", "-f", "rawvideo", "-ss", page.to_s, "-an", "-r", "1", "-vframes", "1", "-y", tmp_filename.to_s)
+    if tmp_filename.exist?
+      Mimetype['image/png'].image_thumbnail(tmp_filename, thumb_filename, thumb_size, 0, crop)
+      tmp_filename.unlink
+    end
+    File.exist?(thumb_filename)
+  end
+
   def video_thumbnail(filename, thumb_filename, thumb_size, page, crop)
     video_cache_dir = Future.cache_dir + "videotemp-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}"
     video_cache_dir.mkdir_p
     mplayer = `which mplayer32`.strip
     mplayer = `which mplayer`.strip if mplayer.empty?
     mplayer = "mplayer" if mplayer.empty?
-    system(mplayer, "-nosound", "-ss", page.to_s, "-vf", "scale",
+    system(mplayer, "-really-quiet", "-nosound", "-ss", page.to_s, "-vf", "scale",
            "-vo", "jpeg:outdir=#{video_cache_dir}", "-frames", "10", filename)
     j = video_cache_dir.glob("*.jpg").sort.last
     Mimetype['image/jpeg'].image_thumbnail(j, thumb_filename, thumb_size, 0, crop) if j

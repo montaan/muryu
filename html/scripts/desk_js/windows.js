@@ -178,8 +178,9 @@ Desk.Window.prototype = {
         maximized: this.maximized,
         oldCoords : this.oldCoords,
         previousHeight : this.previousHeight,
-        parameters : (this.content && this.content.dumpSession ?
-                        this.content.dumpSession() : this.parameters),
+        contentDump : (this.content && this.content.dumpSession ?
+                        this.content.dumpSession() : false),
+        parameters : this.parameters,
         saveContent : this.saveContent,
         content : (this.saveContent ? this.contentElement.innerHTML : undefined)
       }

@@ -214,7 +214,10 @@ extend self
   private
 
   def mplayer_extract_info(fname)
-    output = IO.popen("mplayer -identify -vo null -ao null -frames 0 -playlist -", "r+"){|mp|
+    mplayer = `which mplayer32`.strip
+    mplayer = `which mplayer`.strip if mplayer.empty?
+    mplayer = "mplayer" if mplayer.empty?
+    output = IO.popen("#{mplayer.dump} -quiet -identify -vo null -ao null -frames 0 -playlist - 2>/dev/null", "r+"){|mp|
       mp.puts fname
       mp.close_write
       mp.read

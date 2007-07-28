@@ -159,7 +159,7 @@ Applets.Session = function(wm) {
 
   var loginform = E('form')
   loginform.method='POST'
-  loginform.action='/users/login'
+  loginform.action='https://manifold.fhtr.org:8081/users/login'
   loginform.appendChild(E('h5', Tr('Applets.Session.LogIn'), null, 'windowGroupTitle'))
   loginform.appendChild(E('h5', Tr('Applets.Session.AccountName'), null, 'taskbarFormTitle'))
   var username = E('input', null, null, 'taskbarTextInput')
@@ -350,6 +350,8 @@ MusicPlayer = null
 Applets.MusicPlayer = function() {
   var c = Applets.create('MusicPlayer')
   MusicPlayer = c
+
+  c.titleElem.style.opacity = 0.3
 
   c.playlist = []
   c.currentIndex = 0
@@ -635,6 +637,7 @@ Applets.MusicPlayer = function() {
   }
 
   c.init = function() {
+    c.titleElem.style.opacity = 'inherit'
     c.playButton = Desk.Button('Play', c.pause.bind(c), {
       downTitle : 'Pause'
     })
@@ -959,8 +962,9 @@ Object.extend(Sets, {
   
   viewer : function(win) {
     var set = win.parameters
+    win.parameters.query = 'set:"'+set.name+'"'
     win.setTitle(Tr('Set ', set.name + ' ('+ set.owner+')'))
-    win.setContent("I'd go to your Sets area into the subarea of this particular set right about now.")
+    View.mapView(win)
   }
 })
 Session.addListener('init', Sets.init.bind(Sets))
@@ -1057,8 +1061,9 @@ Object.extend(Groups, {
   
   viewer : function(win) {
     var group = win.parameters
+    win.parameters.query = 'group:"'+group.name+'"'
     win.setTitle(Tr('Group ', group.name + ' ('+ group.owner+')'))
-    win.setContent("I'd go to your Groups area into the subarea of this particular group right about now.")
+    View.mapView(win)
   }
 })
 Session.addListener('init', Groups.init.bind(Groups))

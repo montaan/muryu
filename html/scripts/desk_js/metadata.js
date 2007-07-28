@@ -51,7 +51,8 @@ Tr.addTranslations('en-US', {
   'Item.sign_out' : 'Log out',
   'Item.username' : 'Account name',
   'Item.password' : 'Password',
-  'Item.words' : 'words',
+  'Item.words' : function(c) { return c + ' words' },
+  'Item.pages' : function(c) { return c + ' pages' },
   'Item.by' : 'by',
   'Item.author' : 'Author',
   'Item.date_taken' : 'Created at',
@@ -136,7 +137,8 @@ Tr.addTranslations('fi-FI', {
   'Item.sign_out' : 'Lopeta',
   'Item.username' : 'Tunnus',
   'Item.password' : 'Salasana',
-  'Item.words' : function(w){ return w.toString() + ' sanaa' },
+  'Item.words' : function(c){ return c + ' sanaa' },
+  'Item.pages' : function(c) { return c + ' sivua' },
   'Item.by' : '-',
   'Item.author' : 'Tekijä',
   'Item.date_taken' : 'Luotu',
@@ -309,7 +311,11 @@ Mimetype = {
           mda.push(Tr('Time', info.metadata.length*1000))
         else if (info.metadata.words)
           mda.push(Tr('FuzzyTime', (info.metadata.words/5)*1000))
-        if (info.metadata.width && info.metadata.height)
+        if (info.metadata.pages)
+          mda.push(Tr('Item.pages', info.metadata.pages))
+        if (info.metadata.page_size)
+          mda.push(info.metadata.page_size)
+        else if (info.metadata.width && info.metadata.height)
           mda.push(info.metadata.width+"x"+info.metadata.height +
                    (info.metadata.dimensions_unit || ""))
         mda.push(Number.mag(info.size, Tr('Item.byte_abbr'), 1))
@@ -1010,7 +1016,7 @@ Mimetype = {
             }
             win.close()
             if (need_update) {
-//               Map.forceUpdate()
+//               Muryu.mainMap.forceUpdate()
             }
           }
         })

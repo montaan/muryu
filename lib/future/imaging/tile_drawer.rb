@@ -184,16 +184,16 @@ extend self
     indexes = []
     h = {}
     tile_drawer.tile_info(s, *tile_args){|image_index, query_index, deleted, x, y, sz|
-      infos << (h[image_index] = [image_index, query_index, deleted, x, y, sz, nil])
+      infos << (h[image_index] = [image_index, query_index, deleted, x, y, sz])
       indexes << image_index
     }
     puts "#{Thread.current.telapsed} for info layout" if $PRINT_QUERY_PROFILE
     if indexes.size > 0
-      paths = DB::Conn.query("select image_index, path from items where image_index = ANY (ARRAY#{indexes.inspect})")
+      paths = DB::Conn.query("select image_index, path, source, referrer, users.name from items, users where image_index = ANY (ARRAY#{indexes.inspect}) AND items.owner_id = users.id")
       i = 0
       while i < infos.size
-        iidx,path = paths[i]
-        h[iidx.to_i][6] = path
+        iidx = paths[i][0]
+        h[iidx.to_i].push(*paths[i][1..-1])
         i += 1
       end
     end
@@ -286,7 +286,7 @@ class TileDrawer
     @image_cache = image_cache
     @max_cache_size = 1_000_000
     @raw_cache_level = 4
-    @jpeg_cache_level = 6
+    @jpeg_cache_level = 7
     init_sw unless $NO_TILE_DRAWING
   end
 

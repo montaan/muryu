@@ -130,50 +130,68 @@ Muryu = {
 
 
   init : function(){
-  try {
-    var loggedIn = this.login()
-    document.body.style.overflow = 'hidden'
-    var container = E('div')
-    container.style.position = 'absolute'
-    var debug = false
-    if (debug) {
-      container.style.top = '200px'
-      container.style.left = '200px'
-      container.width = 256
-      container.height = 256
-      container.style.width = container.width + 'px'
-      container.style.height = container.height + 'px'
-      var c = E('div',null,null,null, container.style)
-      c.style.border = '1px solid red'
-      c.style.top = '-1'
-      c.style.left = '-1'
-      c.style.zIndex = 1000
-      container.appendChild(c)
-    } else {
-      container.style.left = '0px'
-      container.style.top = '0px'
-      container.style.width = '100%'
-      container.style.height = '100%'
-      container.width = document.body.clientWidth
-      container.height = document.body.clientHeight
-    }
-    document.body.appendChild(container)
-    Desk.Windows.setContainer(container)
-
-    var qvars = document.location.search.slice(1).split("&")
-    var query = {}
-    qvars.each(function(q){ var p = q.split("="); query[p[0]] = p[1] })
-    var prefs = Session.storage.info.preferences
-    if (prefs && prefs.addons && prefs.addons.length > 0 && (query.disable_addons == undefined)) {
-      var addons = prefs.addons.split(";")
-      for(var i=0; i<addons.length; i++) {
-        Object.require(addons[i])
+    try {
+      var loggedIn = this.login()
+      document.body.style.overflow = 'hidden'
+      var container = E('div')
+      container.style.position = 'absolute'
+      var debug = false
+      if (debug) {
+        container.style.top = '200px'
+        container.style.left = '200px'
+        container.width = 256
+        container.height = 256
+        container.style.width = container.width + 'px'
+        container.style.height = container.height + 'px'
+        var c = E('div',null,null,null, container.style)
+        c.style.border = '1px solid red'
+        c.style.top = '-1'
+        c.style.left = '-1'
+        c.style.zIndex = 1000
+        container.appendChild(c)
+      } else {
+        container.style.left = '0px'
+        container.style.top = '0px'
+        container.style.width = '100%'
+        container.style.height = '100%'
+        container.width = document.body.clientWidth
+        container.height = document.body.clientHeight
       }
-    }
+      document.body.appendChild(container)
+      Desk.Windows.setContainer(container)
 
-    if (!Session.load())
-      this.initView()
-  } catch(e) { console.log(e) }
+      var qvars = document.location.search.slice(1).split("&")
+      var query = {}
+      qvars.each(function(q){ var p = q.split("="); query[p[0]] = p[1] })
+      var prefs = Session.storage.info.preferences
+      if (prefs && prefs.addons && prefs.addons.length > 0 && (query.disable_addons == undefined)) {
+        var addons = prefs.addons.split(";")
+        for(var i=0; i<addons.length; i++) {
+          Object.require(addons[i])
+        }
+      }
+      $('while_loading').hide()
+      document.body.style.backgroundColor = '#53565C'
+      if (!Session.load())
+        this.initView()
+    } catch(e) {
+      var wl = $('while_loading')
+      wl.style.position = 'fixed'
+      wl.style.backgroundColor = 'white'
+      wl.style.color = 'black'
+      wl.style.zIndex = 1000
+      var hide = A("javascript:void($('while_loading').hide())", 'hide')
+      hide.style.color = 'red'
+      wl.append(
+        E('h2', 'Error while loading'),
+        Element.fromException(e),
+        hide
+      )
+      wl.show()
+      if (window.console && console.log)
+        console.log(e)
+      throw(e)
+    }
   },
 
   initView : function() {
@@ -213,10 +231,11 @@ Muryu = {
       q += "user:"+Session.storage.info.name
     else
       q += 'sort:date'
-    if (win.parameters) {
-      win.parameters.data.container = rootMap
-      win.parameters.data.windowContainer = win.container
-      topmap = Session.loadDump(win.parameters)
+    if (win.contentDump) {
+      var contentDump = Object.clone(win.contentDump)
+      contentDump.data.container = rootMap
+      contentDump.data.windowContainer = win.container
+      topmap = Session.loadDump(contentDump)
       topmap.groupTree = topmap.children.find(function(c) { return c.isGroupTree })
       if (topmap.groupTree)
         topmap.groupTree.dumpVars.push('isGroupTree')
@@ -238,6 +257,8 @@ Muryu = {
       var typequeries = ['type:audio', 'type:video', 'type:html', 'type:pdf|postscript', 'type:text', 'type:application', 'type:image']
       topmap.typeTree = this.createQueryTree(topmap, Tr('Muryu.types'), typequeries, 290, 30, 'false')
     }
+    Desk.Windows.rootWindow = win
+    this.mainMap = topmap
     win.map = topmap
     win.addListener('resize', function(ev) {
       topmap.container.width = rootMap.offsetWidth
@@ -306,7 +327,7 @@ Muryu = {
     }, 'icons/ExpandAllGroups.png')
     if (this.loggedIn) {
       menu.addTitle(Tr('Session'))
-      menu.addItem(Tr('Clear Session'), function(){ Session.clear() })
+      menu.addItem(Tr('Applets.Session.clear'), Session.clear.bind(Session))
       menu.addItem(Tr('Applets.Session.LogOut'), function(){ location.href = '/users/logout' })
     }
     menu.bind(rootMap)

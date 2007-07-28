@@ -83,14 +83,19 @@ if __FILE__ == $0
   port = (ARGV.shift || default_port).to_i
   processes = (ARGV.shift || 1).to_i
   $SERVER_ID = (ARGV.shift || 0).to_i
-  procs = (2..processes).map{|i|
+  procs = (1..processes).map{|i|
     sid = i-1
-    Thread.new{
-      system("ruby -Ilib bin/muryu_rack_threaded #{port+i-1} 1 #{sid}")
+    fork {
+      $SERVER_ID = sid
+      Rack::Handler::Mongrel.run(
+        MuryuRack.new,
+        :Port => port+i-1)
+      exit
     }
   }
-  Rack::Handler::Mongrel.run(
-    MuryuRack.new,
-    :Port => port)
+  procs.each{|pr| Process.wait(pr) }
+  trap "SIGINT" do
+    procs.each{|pr| Process.kill(pr) }
+  end
 end
 

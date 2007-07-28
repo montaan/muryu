@@ -45,8 +45,8 @@ module MuryuDispatch
         info = Future::Tiles.info(
           user, sq, time,
           :rows, x, y, z, w, h
-        ).each do |image_index, query_index, deleted, x, y, sz, path|
-          jinfo << "{index:#{query_index},x:#{x},y:#{y},sz:#{sz},path:#{path.to_json},deleted:#{deleted}},"
+        ).each do |image_index, query_index, deleted, x, y, sz, path, source, referrer, owner|
+          jinfo << "{index:#{query_index},x:#{x},y:#{y},sz:#{sz},path:#{path.to_json},deleted:#{deleted},source:#{source.to_json},referrer:#{referrer.to_json},owner:#{owner.to_json}},"
         end
         jinfo.chop! if jinfo.size > 1
         jinfo << "]"
