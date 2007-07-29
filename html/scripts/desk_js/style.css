@@ -191,6 +191,11 @@ iframe {
 .panel {
   cursor: default;
 }
+.panel h5 {
+  font-size: 1em;
+  margin: 0px;
+  padding: 0px;
+}
 .panel .windowContent {
   display: inline;
   border: none;

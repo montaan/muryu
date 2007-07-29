@@ -1,6 +1,6 @@
 tables["tags"] = {
-  :name => [:text, 'index'],
-  :namespace => [:text, 'index', 'not null', "default 'english'"]
+  :name => [:'varchar(80)', 'index'],
+  :namespace => [:'varchar(80)', 'index', 'not null', "default 'english'"]
 }
 constraints << ['tags', :unique, [:name, :namespace]]
 

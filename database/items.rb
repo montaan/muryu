@@ -1,6 +1,6 @@
 tables["items"] = {
   :image_index => [:serial, 'unique', 'not null'],
-  :path => [:text, 'unique', 'not null'],
+  :path => [:'varchar(512)', 'unique', 'not null'],
   :internal_path => [:text, 'not null'],
   :size => [:bigint, 'not null', 'default 0'],
   :sha1_hash => ['character(40)'],
@@ -9,8 +9,8 @@ tables["items"] = {
   :created_at => [:timestamp, 'not null'],
   :modified_at => [:timestamp, 'default now()'],
 
-  :source   => [:text],
-  :referrer => [:text],
+  :source   => [:'varchar(512)'],
+  :referrer => [:'varchar(512)'],
   
   :owner_id => [['users',:id], 'not null'],
   :mimetype_id => [['mimetypes', :id], 'not null', 'default 15'],

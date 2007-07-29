@@ -75,16 +75,16 @@ class MuryuQuery
   int = "((-|\\+)?#{uint})"
   ufloat = "((#{uint}(\.[0-9])?|0\.[0-9])[0-9]*)"
   float = "((-|\\+)?#{ufloat})"
-  relative_path = '([0-9A-Za-z._-]+/[0-9]{4}/[0-9]{2}-[0-9]{2}/[^/]+)'
+  username = '([^<>/]{1,40})'
+  password = '(.{6,40})'
+  filename = '([^/]{1,200})'
+  relative_path = "(#{username}/[0-9]{4}/[0-9]{2}-[0-9]{2}/#{filename})"
   items_query = '(.*)'
   itemkey = "(#{uint}|#{relative_path})"
-  filename = '([^/]+)'
-  setname = '(.+)'
-  username = '([0-9A-Za-z._-]+)'
-  password = '(.+)'
-  tagname = '(\S+)'
+  setname = '(.{1,80})'
+  tagname = '(\S{1,80})'
   setkey = "(#{username}/#{setname})"
-  groupname = "([^/,]+)" #"((users/#{username})|(groups/#{username}/[^/,]+)|(public/[^/,]+))"
+  groupname = "([^/,]{1,80})" #"((users/#{username})|(groups/#{username}/[^/,]+)|(public/[^/,]+))"
   tile = "(x#{uint}y#{uint}z#{uint}(w#{uint}h#{uint})?)"
   boolean = '(true|false)'
   url = '(.*)'
@@ -139,7 +139,8 @@ class MuryuQuery
 
   up = {
     'username' => e(username),
-    'password' => e(password)
+    'password' => e(password),
+    'password_hash' => e(password)
   }
   
   self.type_list_query = {
@@ -262,6 +263,7 @@ class MuryuQuery
       'undelete' => up,
       'purge' => up
     },
+
     'files' => {},
     'sets' => {
       'create' => {
@@ -282,6 +284,7 @@ class MuryuQuery
       'delete' => up,
       'undelete' => up
     },
+
     'users' => {
       'login' => up,
       'logout' => up,
@@ -295,6 +298,7 @@ class MuryuQuery
       'create_workspace' => { 'name' => e(string) },
       'delete_workspace' => { 'name' => e(string) },
     },
+    
     'groups' => {
       'create' => {
         'name' => e(string),
@@ -316,6 +320,7 @@ class MuryuQuery
       'delete' => up,
       'undelete' => up
     },
+
     'tile_info' => {
       'view' => {
         'q' => e(string),
@@ -459,7 +464,7 @@ end
 
 $PRINT_QUERY_PROFILE = false
 $CACHE_INFO = true
-$CACHE_TILES = true
+$CACHE_TILES = false
 $USE_DIPUS_TILE_INFO = true
 
 module MuryuDispatch
@@ -560,7 +565,7 @@ module MuryuDispatch
     time("dispatch start")
     r = MuryuResponse.new
     r.status = 200
-    r.content_type = 'text/html'
+    r.content_type = 'text/html;charset=utf-8'
     r.body = ''
     r.headers = {}
     begin

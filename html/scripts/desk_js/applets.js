@@ -12,12 +12,19 @@ Tr.addTranslations('en-US', {
   'Applets.Session.Register' : 'Register new account',
   'Applets.Session.AccountName' : 'Account name',
   'Applets.Session.Password' : 'Password',
-  'Applets.Session.Upload' : 'Upload',
-  'Applets.Session.UploadItems' : 'Upload items',
-  'Applets.Session.FirefoxExtension' : 'Firefox add-on',
-  'Applets.Session.Settings' : 'Settings',
-  'Applets.Session.BackgroundColor' : 'Background color',
-  'Button.Applets.Session.ToggleColors' : 'Toggle colors',
+  'Applets.Upload' : 'Upload',
+  'Applets.Upload.UploadItems' : 'Upload items',
+  'Applets.Upload.FirefoxExtension' : 'Firefox add-on',
+  'Applets.Upload.RemoteURLs' : 'Remote URLs',
+  'Applets.Upload.RemoteArchives' : 'URLs to remote archives',
+  'Applets.Upload.LocalFiles' : 'Local files',
+  'Applets.Upload.LocalArchives' : 'Local archives',
+  'Applets.Upload.BlankFieldsIgnored' : 'Blank fields will be ignored.',
+  'Applets.Upload.Send' : 'Send',
+  'Applets.Upload.PleaseWait' : 'Uploading files, this might take a while.',
+  'Applets.Settings' : 'Settings',
+  'Applets.Settings.BackgroundColor' : 'Background color',
+  'Button.Applets.Settings.ToggleColors' : 'Toggle colors',
   'Applets.MusicPlayer' : 'Player',
   'Applets.MusicPlayer.Playlist' : 'Playlist',
   'Applets.MusicPlayer.Playlist_empty' : 'Playlist empty',
@@ -50,7 +57,14 @@ Tr.addTranslations('en-US', {
   'Button.Playlist' : 'Playlist',
   'Button.VolumeUp' : 'Volume up',
   'Button.VolumeDown' : 'Volume down',
-  'Button.Mute' : 'Mute'
+  'Button.Mute' : 'Mute',
+
+  'Colors.flint' : 'flint',
+  'Colors.blue' : 'blue',
+  'Colors.purple' : 'purple',
+  'Colors.gray' : 'gray',
+  'Colors.white' : 'white',
+  'Colors.green' : 'green'
   
 })
 Tr.addTranslations('fi-FI', {
@@ -67,12 +81,19 @@ Tr.addTranslations('fi-FI', {
   'Applets.Session.Register' : 'Luo uusi tunnus',
   'Applets.Session.AccountName' : 'Tunnus',
   'Applets.Session.Password' : 'Salasana',
-  'Applets.Session.Upload' : 'Tiedostot',
-  'Applets.Session.UploadItems' : 'Tuo tiedostoja',
-  'Applets.Session.FirefoxExtension' : 'Firefoxin lisäosa',
-  'Applets.Session.Settings' : 'Asetukset',
-  'Applets.Session.BackgroundColor' : 'Taustaväri',
-  'Button.Applets.Session.ToggleColors' : 'Värien näyttö',
+  'Applets.Upload' : 'Tuonti',
+  'Applets.Upload.UploadItems' : 'Tuo tiedostoja',
+  'Applets.Upload.FirefoxExtension' : 'Firefoxin lisäosa',
+  'Applets.Upload.RemoteURLs' : 'Webbiosoitteet',
+  'Applets.Upload.RemoteArchives' : 'Pakettien webbiosoitteet',
+  'Applets.Upload.LocalFiles' : 'Omalla koneella olevat tiedostot',
+  'Applets.Upload.LocalArchives' : 'Omalla koneella olevat paketit',
+  'Applets.Upload.BlankFieldsIgnored' : 'Tyhjiä kenttiä ei oteta huomioon.',
+  'Applets.Upload.Send' : 'Lähetä',
+  'Applets.Upload.PleaseWait' : 'Lähetän tiedostoja, tässä voi kestää.',
+  'Applets.Settings' : 'Asetukset',
+  'Applets.Settings.BackgroundColor' : 'Taustaväri',
+  'Button.Applets.Settings.ToggleColors' : 'Värien näyttö',
   'Applets.MusicPlayer' : 'Soitin',
   'Applets.MusicPlayer.Playlist' : 'Soittolista',
   'Applets.MusicPlayer.Playlist_empty' : 'Soittolista tyhjä',
@@ -80,7 +101,15 @@ Tr.addTranslations('fi-FI', {
   'Applets.Groups' : 'Ryhmät',
   'Groups.Editing' : 'Muokkain ryhmälle: ',
   'Sets.Editing' : 'Muokkain kansiolle: ',
-  'Applets.Tags' : 'Tagit'
+  'Applets.Tags' : 'Tagit',
+
+  'Colors.flint' : 'piikivi',
+  'Colors.blue' : 'sininen',
+  'Colors.purple' : 'violetti',
+  'Colors.gray' : 'harmaa',
+  'Colors.white' : 'valkoinen',
+  'Colors.green' : 'vihreä'
+
 })
 
 
@@ -92,19 +121,19 @@ Applets = {
       return {loader: 'Applets', data: {name: name, collapsed: this.collapsed}}
     }
     var title = E('h4', Tr('Applets.'+name), null, 'windowGroupTitle')
-    applet.titleElem = title
-    applet.appendChild(applet.titleElem)
-    applet.contentElem = E('div', null, null, 'taskbarAppletContent')
-    applet.appendChild(applet.contentElem)
+    applet.titleElement = title
+    applet.appendChild(applet.titleElement)
+    applet.contentElement = E('div', null, null, 'taskbarAppletContent')
+    applet.appendChild(applet.contentElement)
     Object.extend(applet, EventListener)
     applet.collapsed = false
     applet.setCollapsed = function(c) {
       this.collapsed = c
-      if (applet.contentElem) {
+      if (applet.contentElement) {
         if (c)
-          applet.contentElem.style.display = 'none'
+          applet.contentElement.style.display = 'none'
         else
-          applet.contentElem.style.display = 'inherit'
+          applet.contentElement.style.display = 'inherit'
       }
       this.newEvent('collapseChange', { value: this.collapsed })
     }
@@ -150,7 +179,6 @@ Applets = {
 Applets.Session = function(wm) {
   if (!wm) wm = Desk.Windows
   var c = Applets.create('Session')
-  var controls = E('div')
 
   var logout = E('p', A('/users/logout', Tr('Applets.Session.LogOut')))
   logout.onclick = function(){
@@ -179,36 +207,16 @@ Applets.Session = function(wm) {
   c.loggedIn = (Session.storage.info.name && Session.storage.info.name != 'anonymous')
   
   if (c.loggedIn) {
-    controls.appendChild(E('p', Tr('Applets.Session.Welcome', Session.storage.info.name)))
-    controls.appendChild(logout)
-    controls.appendChild(E('h5', Tr('Applets.Session.Upload'), null, 'windowGroupTitle'))
-    controls.appendChild(E('p', A('/items', Tr('Applets.Session.UploadItems'))))
-    controls.appendChild(E('p', A('muryu_uploader.xpi', Tr('Applets.Session.FirefoxExtension'))))
-    controls.appendChild(E('h5', Tr('Applets.Session.Settings'), null, 'windowGroupTitle'))
-    var colorToggles = E('p', 'BG [ ')
-    var colors = {
-      flint: '13191C',
-      blue: '03233C',
-      purple: '231323'
-    }
-    for (var i in colors) {
-      var a = A("javascript:void(document.focusedMap.root.setBgColor('"+colors[i]+"'))", i)
-      colorToggles.appendChild(a)
-      colorToggles.appendChild(T(' | '))
-    }
-    colorToggles.removeChild(colorToggles.lastChild)
-    colorToggles.appendChild(T(' ]'))
-    controls.appendChild(colorToggles)
+    c.contentElement.appendChild(E('p', Tr('Applets.Session.Welcome', Session.storage.info.name)))
+    c.contentElement.appendChild(logout)
     c.autosave = true
   } else {
     c.autosave = false
-    $(c.titleElem).detachSelf()
-    controls.appendChild(loginform)
-    controls.appendChild(E('p', A('/users/register', Tr('Applets.Session.Register'))))
+    $(c.titleElement).detachSelf()
+    c.contentElement.appendChild(loginform)
+    c.contentElement.appendChild(E('p', A('/users/register', Tr('Applets.Session.Register'))))
   }
   
-  c.contentElem.appendChild(controls)
-
   c.session = null
   c.toggleAutosave = function(){
     this.setAutosave(!this.autosave)
@@ -278,15 +286,100 @@ Applets.Session = function(wm) {
 }
 
 
-Applets.OpenURL = function(wm) {
-  if (!wm) wm = Desk.Windows
+Applets.Upload = function() {
+  var c = Applets.create('Upload')
+  var upload = A('/items', Tr('Applets.Upload.UploadItems'))
+  upload.target = 'UploadWindow'
+  upload.onclick = function(ev){
+    if (!ev.altClick) {
+      Event.stop(ev)
+      var div = E('div')
+      div.style.textAlign = 'center'
+      var form = F('/items/create', 'post', {enctype: 'multipart/form-data'})
+      form.append(
+        E('h4', Tr('Applets.Upload.RemoteURLs')),
+        I('text', 'url', {size: 30, multiply: 'yes'}),
+        E('h4', Tr('Applets.Upload.RemoteArchives')),
+        I('text', 'remote_compressed', {size: 30, multiply: 'yes'}),
+        E('h4', Tr('Applets.Upload.LocalFiles')),
+        I('file', 'upload', {size: 21, multiply: 'yes'}),
+        E('h4', Tr('Applets.Upload.LocalArchives')),
+        I('file', 'compressed', {size: 21, multiply: 'yes'}),
+        E('h4', Tr('Applets.Upload.BlankFieldsIgnored')),
+        I('submit', null, {value: Tr('Applets.Upload.Send')})
+      )
+      var please_wait = E('h4', Tr('Applets.Upload.PleaseWait'))
+      form.append(please_wait)
+      div.appendChild(form)
+      div.style.display = 'none'
+      document.body.appendChild(div)
+      for(var i=0;i<form.childNodes.length;i++)
+        Object.forceExtend(form.childNodes[i].style, $(form.childNodes[i]).getComputedStyle())
+      document.body.removeChild(div)
+      div.style.display = 'block'
+      var w = window.open('/items', 'UploadWindow', 'width=400,height=400,menubar=no,resizable=yes,location=yes,status=yes,toolbar=no,scrollbars=yes')
+      please_wait.style.display = 'none'
+      w.Desk = Desk
+      w.Object = Object
+      w.addEventListener('load', function(){
+        w.document.body.style.backgroundColor = '#dfdfdf'
+        while (w.document.body.firstChild)
+          w.document.body.removeChild(w.document.body.firstChild)
+        w.document.body.appendChild(div)
+        var form = w.document.body.firstChild.firstChild
+        form.onsubmit = function() {
+          this.lastChild.style.display = 'block'
+        }
+        Desk.ElementUtils.initMultiplyForm(form)
+      }, false)
+    }
+  }
+  c.contentElement.appendChild(E('p', upload))
+    
+  var ext = A('/muryu_uploader.xpi', Tr('Applets.Upload.FirefoxExtension'))
+  ext.onclick = function(ev){
+    if (!ev.altClick && window.InstallTrigger) {
+      var params = []
+      params['Muryu Uploader'] = {URL: this.href, toString: function(){ return this.URL }}
+      InstallTrigger.install(params)
+      Event.stop(ev)
+    }
+  }
+  c.contentElement.appendChild(E('p', ext))
+  return c
+}
+
+Applets.Settings = function() {
+  var c = Applets.create('Settings')
+  var bgHeader = E('h5', Tr('Applets.Settings.BackgroundColor'))
+  var colorToggles = E('p')
+  var colors = {
+    flint: '13191C',
+    blue: '03233C',
+    purple: '231323',
+    gray: '333333',
+    white: 'cfcfcf',
+    green: 'b8cfaf'
+  }
+  for (var i in colors) {
+    var a = A("javascript:void(document.focusedMap.root.setBgColor('"+colors[i]+"'))",
+              Tr('Colors.'+i))
+    colorToggles.appendChild(a)
+    colorToggles.appendChild(T(' | '))
+  }
+  colorToggles.removeChild(colorToggles.lastChild)
+  c.contentElement.append(bgHeader, colorToggles)
+  return c
+}
+
+Applets.OpenURL = function() {
   var c = Applets.create('OpenURL')
   var f = E('form', null,null, 'taskbarForm')
   var t = E('input',null,null,'taskbarTextInput',null,
     {type:'text'})
   var s = E('input',null,null,'taskbarSubmitInput',null,
     {type:'submit', value:'Open'})
-  c.contentElem.appendChild(f)
+  c.contentElement.appendChild(f)
   f.appendChild(t)
   f.appendChild(s)
   c.openURL = function(new_src) {
@@ -351,7 +444,7 @@ Applets.MusicPlayer = function() {
   var c = Applets.create('MusicPlayer')
   MusicPlayer = c
 
-  c.titleElem.style.opacity = 0.3
+  c.titleElement.style.opacity = 0.3
 
   c.playlist = []
   c.currentIndex = 0
@@ -637,7 +730,7 @@ Applets.MusicPlayer = function() {
   }
 
   c.init = function() {
-    c.titleElem.style.opacity = 'inherit'
+    c.titleElement.style.opacity = 'inherit'
     c.playButton = Desk.Button('Play', c.pause.bind(c), {
       downTitle : 'Pause'
     })
@@ -651,49 +744,49 @@ Applets.MusicPlayer = function() {
     c.volumeDownButton = Desk.Button('VolumeDown', c.volumeDown.bind(c))
     c.playlistButton = Desk.Button('Playlist', c.togglePlaylist.bind(c))
 
-    c.volumeElem = E('span', c.volume.toString(), null, 'Volume')
+    c.volumeElement = E('span', c.volume.toString(), null, 'Volume')
     
-    c.contentElem.appendChild(c.prevButton)
-    c.contentElem.appendChild(c.playButton)
-    c.contentElem.appendChild(c.nextButton)
-    c.contentElem.appendChild(c.shuffleButton)
-    c.contentElem.appendChild(c.repeatButton)
-    c.contentElem.appendChild(c.playlistButton)
-    c.contentElem.appendChild(c.volumeDownButton)
-    c.contentElem.appendChild(c.volumeUpButton)
-    c.contentElem.appendChild(c.volumeElem)
+    c.contentElement.appendChild(c.prevButton)
+    c.contentElement.appendChild(c.playButton)
+    c.contentElement.appendChild(c.nextButton)
+    c.contentElement.appendChild(c.shuffleButton)
+    c.contentElement.appendChild(c.repeatButton)
+    c.contentElement.appendChild(c.playlistButton)
+    c.contentElement.appendChild(c.volumeDownButton)
+    c.contentElement.appendChild(c.volumeUpButton)
+    c.contentElement.appendChild(c.volumeElement)
 
 
-    c.seekElem = Desk.Slider(function(val) { c.seekToPct(val) })
-    c.contentElem.appendChild(c.seekElem)
+    c.seekElement = Desk.Slider(function(val) { c.seekToPct(val) })
+    c.contentElement.appendChild(c.seekElement)
 
-    c.infoElem = E('div', null, null, 'SongInfo')
-    c.contentElem.appendChild(c.infoElem)
+    c.infoElement = E('div', null, null, 'SongInfo')
+    c.contentElement.appendChild(c.infoElement)
     
-    c.indexElem = E('span', null, null, 'CurrentIndex')
-    c.infoElem.appendChild(c.indexElem)
-    c.sepElem = E('span', null, null, 'IndexSeparator')
-    c.infoElem.appendChild(c.sepElem)
-    c.allElem = E('span', null, null, 'PlaylistLength')
-    c.infoElem.appendChild(c.allElem)
+    c.indexElement = E('span', null, null, 'CurrentIndex')
+    c.infoElement.appendChild(c.indexElement)
+    c.sepElement = E('span', null, null, 'IndexSeparator')
+    c.infoElement.appendChild(c.sepElement)
+    c.allElement = E('span', null, null, 'PlaylistLength')
+    c.infoElement.appendChild(c.allElement)
 
-    c.currentSeekElem = E('span', null, null, 'CurrentSeek')
-    c.infoElem.appendChild(c.currentSeekElem)
+    c.currentSeekElement = E('span', null, null, 'CurrentSeek')
+    c.infoElement.appendChild(c.currentSeekElement)
     
     c.currentlyPlaying = E('span', null, null, 'CurrentlyPlaying')
-    c.infoElem.appendChild(c.currentlyPlaying)
+    c.infoElement.appendChild(c.currentlyPlaying)
 
     c.addListener('positionChanged', function(e) {
-      if (e.pct != undefined) c.seekElem.setPosition(e.pct, false)
-      c.currentSeekElem.innerHTML = e.value
+      if (e.pct != undefined) c.seekElement.setPosition(e.pct, false)
+      c.currentSeekElement.innerHTML = e.value
     })
     c.addListener('loadedChanged', function(e) {
-      if (e.pct != undefined) c.seekElem.setLoaded(e.pct)
+      if (e.pct != undefined) c.seekElement.setLoaded(e.pct)
     })
     c.addListener('songChanged', function(e){
       var plen = c.playlist.length
-      c.indexElem.innerHTML = Math.min(plen, (c.currentIndex+1))
-      c.allElem.innerHTML = plen
+      c.indexElement.innerHTML = Math.min(plen, (c.currentIndex+1))
+      c.allElement.innerHTML = plen
       if (plen > 0) {
         c.currentlyPlaying.innerHTML = e.value
       } else {
@@ -702,8 +795,8 @@ Applets.MusicPlayer = function() {
     })
     c.addListener('stop', function(e){
       var plen = c.playlist.length
-      c.indexElem.innerHTML = Math.min(plen, (c.currentIndex+1))
-      c.allElem.innerHTML = plen
+      c.indexElement.innerHTML = Math.min(plen, (c.currentIndex+1))
+      c.allElement.innerHTML = plen
       if (plen > 0) {
         c.currentlyPlaying.innerHTML = e.value
       } else {
@@ -713,11 +806,11 @@ Applets.MusicPlayer = function() {
 
     c.addListener('playlistChanged', function(e) {
       var plen = c.playlist.length
-      c.indexElem.innerHTML = Math.min(plen, (c.currentIndex+1))
-      c.allElem.innerHTML = plen
+      c.indexElement.innerHTML = Math.min(plen, (c.currentIndex+1))
+      c.allElement.innerHTML = plen
     })
     c.addListener('volumeChanged', function(e) {
-      c.volumeElem.innerHTML = e.value
+      c.volumeElement.innerHTML = e.value
     })
     
     c.menu.addItem(Tr('Applets.MusicPlayer.Play'), c.play.bind(c))
@@ -1074,7 +1167,7 @@ Applets.Groups = function(wm) {
  if (!wm) wm = Desk.Windows
   var c = Applets.create('Groups')
   var d = E('ul', null, null, 'setList')
-  c.contentElem.appendChild(d)
+  c.contentElement.appendChild(d)
   c.update = function(){
     while (d.firstChild) d.removeChild(d.firstChild)
     Groups.each(function(it){
@@ -1123,7 +1216,7 @@ Applets.Sets = function(wm) {
  if (!wm) wm = Desk.Windows
   var c = Applets.create('Sets')
   var d = E('ul', null, null, 'setList')
-  c.contentElem.appendChild(d)
+  c.contentElement.appendChild(d)
   c.update = function(){
     while (d.firstChild) d.removeChild(d.firstChild)
     Sets.each(function(it){

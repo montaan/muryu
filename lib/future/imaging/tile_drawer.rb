@@ -333,7 +333,7 @@ class TileDrawer
     end
     print_time_draw
     d = tile.data
-    $imlib_mutex.synchronize{ tile.delete! }
+    $imlib_mutex.synchronize{ tile.delete!(true) }
     d
   end
 

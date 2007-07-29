@@ -1,35 +1,42 @@
 Current list of buggy things, small-minded usability stuff:
 -----------------------------------------------------------
 Important:
-* title positioning that works with all font sizes
-* bug: player playlist sucks
+* uploading n-hundred image zips sucks because
+  - no indication of progress
+  - nginx errors out with "The page you are looking for is temporarily unavailable."
+    because of the timeout
 * search query editor with clickable sort: user: type: etc.
 * split session in several parts. In particular:
-  * save playlist somewhere else than session
-  * save map setup somewhere else than session
-  * save notes somewhere else than session
+  - save playlist somewhere else than session
+  - save map setup somewhere else than session
+  - save notes somewhere else than session
+* bug: map title positioning fails if font size differs from hardcoded expectation
+* bug: window resize handles don't work, only bottom left works
+* bug: player playlist sucks
 NO 1.0 * PDF reader
 
 Somewhat important:
-* fixing window resize handles
-* force search refresh
 * deleting folders
 * deleting groups
 * bug: video embed doesn't have correct dimensions
+* bug: no feedback on add-to-folder menu
+* bug: new folder/group positioning bad
 NO 1.0 * bug: filenames not visible if top-left tile not visible
 NO 1.0 * itunes-like management view for player
 
 Not important:
 * player to get artist and title from db
-* turn file uploads and settings sidebar items into applets
-* bug: new folder/group positioning bad
+* keep (non-z0) tiles loaded if less than four needed to fill map area
+  - i.e. keep toplevel tiles loaded
+* image thumbnailing is slow
 * bug: content overflows window borders
-NO 1.0 * player playlist context menu for items (nick from ItemArea)
+* bug: creating new folders in add-to-folder makes the main menu go bye
 NO 1.0 * show item infos overlay at z9+
 NO 1.0 * collapse-button for sidebar titles
 NO 1.0 * sidebar hiding
 NO 1.0 * create containers from menu
 NO 1.0 * create searches inside containers
+NO 1.0 * player playlist context menu for items (nick from ItemArea)
 NO 1.0 * sha1 challenge-response login for no https
   onsubmit= "this.password_hash.value=hex_sha1(hex_sha1(this.password.value+this.salt.value)+document.cookie.split(/[;=]/)[1]);this.password.value=''"
 

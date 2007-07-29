@@ -79,9 +79,9 @@ class ImageCache
       if item.deleted and not item.thumbnail
         clear_cache_at(index, raw, jpeg, tiles, force)
       else
-        mipmap = mipmap(item, force)
-        @raw_pyramid.update_cache_at(index, mipmap.map{|im| im.data_for_reading_only }) if raw
-        @jpeg_pyramid.update_cache_at(index, mipmap.map{|im| imlib_to_rgb_alpha_jpeg(im) }) if jpeg
+        mm = mipmap(item, force)
+        @raw_pyramid.update_cache_at(index, mm.map{|im| im.data_for_reading_only }) if raw
+        @jpeg_pyramid.update_cache_at(index, mm.map{|im| imlib_to_rgb_alpha_jpeg(im) }) if jpeg
         @jpeg_tiles.update_cache_at(index, item) if tiles
       end
     else
@@ -130,7 +130,7 @@ class ImageCache
           0, 0, othumb.width, othumb.height,
           (1-iw)*msz / 2, (1-ih)*msz, msz*iw, msz*ih)
         thumb.save("output.png")
-        othumb.delete!
+        othumb.delete!(true)
       end
       ctx = Imlib2::Context.get
       levels = (0..@max_zoom).to_a.reverse.map{|i|
@@ -144,7 +144,7 @@ class ImageCache
                             0, 0, sz, sz)
         image
       }.reverse
-      thumb.delete!
+      thumb.delete!(true)
       levels
     end
   end
@@ -168,7 +168,7 @@ class ImageCache
         ctx.blend = true
         image.blend!(img, 0, 0, img.width, img.height,
                           x, y, img.width, img.height)
-        img.delete!
+        img.delete!(true)
       end
     end
   end
@@ -241,7 +241,7 @@ class ImageCache
     if @batch_ops
       @batch_ops.each do |addr, img|
         img.save
-        img.delete!
+        img.delete!(true)
       end
       @batch_ops = false
     end
@@ -930,6 +930,7 @@ class JPEGTileStore
       end
       log_debug([:clamped_level, level, levels.sort].inspect)
       filename = File.join(dir, level.to_s)
+      ctx = Imlib2::Context.get
       File.open(filename, 'rb'){|f|
       f.flock(File::LOCK_EX)
       begin
@@ -969,7 +970,6 @@ class JPEGTileStore
             end
             data = ImagingUtils.decompress_rgb_alpha_jpeg(image_data, tile_size, tile_size)
             $imlib_mutex.synchronize do
-              ctx = Imlib2::Context.get
               ctx.blend = true
               ctx.color = Imlib2::Color::TRANSPARENT
               ctx.op = Imlib2::Op::COPY
@@ -981,7 +981,9 @@ class JPEGTileStore
               image.blend!(img, 0,  0,  img.width, img.height,
                                 ix, iy, tsz, tsz)
               img.delete!(true)
+              data.replace('')
             end
+            image_data.replace('')
           }
         }
       ensure

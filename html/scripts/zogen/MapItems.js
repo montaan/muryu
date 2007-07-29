@@ -1,6 +1,7 @@
 Tr.addTranslations('en-US', {
   'TileMap.DblClickToEditTitle' : 'Double-click to edit search terms',
   'TileMap' : 'Search',
+  'TileMap.Refresh' : 'Refresh',
   'TileMap.EditTitle' : 'Edit search terms',
   'TileMap.RemoveMap' : 'Remove search',
   'TileMap.ShowColors' : 'Color items',
@@ -31,6 +32,7 @@ Tr.addTranslations('en-US', {
 Tr.addTranslations('fi-FI', {
   'TileMap.DblClickToEditTitle' : 'Kaksoisnapsauta muokataksesi hakua',
   'TileMap' : 'Haku',
+  'TileMap.Refresh' : 'Päivitä',
   'TileMap.EditTitle' : 'Muokkaa hakua',
   'TileMap.RemoveMap' : 'Poista haku',
   'TileMap.ShowColors' : 'Väritä tiedostot',

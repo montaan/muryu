@@ -1,6 +1,6 @@
 tables["sets"] = {
-  :name => [:text, 'index'],
-  :namespace => [:text, 'index'],
+  :name => [:'varchar(80)', 'index'],
+  :namespace => [:'varchar(80)', 'index'],
   :owner_id => [['users']],
   :deleted => [:boolean, 'not null', 'default false']
 }

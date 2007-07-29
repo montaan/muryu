@@ -7,7 +7,7 @@ Suture = function(config) {
     Object.extend(this, this.window.parameters)
   var startprog = this.autoProgress
     
-  this.root = Elem("div", this.template, 'slideshow-root')
+  this.root = E("div", this.template, 'slideshow-root')
   var el = $(this.root)
   this.container.appendChild(this.root)
   var rcs = $(this.root).getComputedStyle()

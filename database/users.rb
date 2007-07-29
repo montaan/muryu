@@ -1,24 +1,24 @@
 tables["users"] = {
-  :name => [:text, 'unique not null', 'index'],
-  :password => [:text, 'not null'],
+  :name => [:'varchar(40)', 'unique not null', 'index'],
+  :password => [:'varchar(40)', 'not null'],
   :workspace_id => [['workspaces',:id]]
 }
 
 tables["workspaces"] = {
-  :name => [:text, 'not null'],
+  :name => [:'varchar(80)', 'not null'],
   :user_id => [['users', :id], 'not null', 'index']
 }
 constraints << ['workspaces', :unique, [:name, :user_id]]
 
 tables["preferences"] = {
-  :key => [:text, 'not null'],
+  :key => [:'varchar(80)', 'not null'],
   :value => [:text],
   :workspace_id => [['workspaces', :id], 'not null', 'index']
 }
 constraints << ['preferences', :unique, [:key, :workspace_id]]
 
 tables["selections"] = {
-  :name => [:text, 'not null'],
+  :name => [:'varchar(80)', 'not null'],
   :user_id => [['users', :id], 'not null', 'index']
 }
 

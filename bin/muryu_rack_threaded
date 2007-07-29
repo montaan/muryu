@@ -2,12 +2,14 @@
 
 $MEMCACHE_USE_POOL = true
 $DB_USE_POOL = true
+$SWIFTIPLY = false
+$EVENTED_MONGREL = false
 
-require 'rubygems'
-require 'rack/request'
-require 'rack/response'
+require 'future/web/rack'
 require 'future/web/webapi_1'
 require 'future/utils'
+
+$PRINT_QUERY_PROFILE = true
 
 $CACHE_INFO = true
 $USE_DIPUS_IMAGE_CACHE = true
@@ -15,63 +17,10 @@ $PRINT_QUERY_PROFILE = true
 $NO_TILE_DRAWING = true
 $USE_DIPUS_TILE_INFO = false
 
-class Rack::Request
-  def headers
-    @headers ||= (
-      h = {}
-      re = /\AHTTP_/
-      @env.find_all{|k,v| k =~ re }.map{|k,v|
-        header_name = k.split("_")[1..-1].map{|s|s.capitalize}.join("-")
-        h[header_name] = v
-      }
-      h
-    )
-  end
-end
-
-class MuryuRequest
-  attr_reader :relative_path, :get, :post, :cookies, :request_method, :headers
-  def initialize(req)
-    @relative_path = req.path_info.gsub(/\A\/+/, '')
-    @request_method = req.request_method
-    @headers = req.headers
-    @post = req.POST
-    @post.each{|k,v| @post[k] = [v] unless v.is_a?(Array) }
-    @get = req.GET
-    @get.each{|k,v| @get[k] = [v] unless v.is_a?(Array) }
-    @cookies = req.cookies
-  end
-
-  def [](k)
-    @headers[k]
-  end
-end
-
-class MuryuRack
-  def time(t0, msg)
-    return t0 unless $SHOW_REQUEST_PROFILE
-    t1 = Time.now.to_f
-    puts "#{(t1-t0) * 1000}\t: #{msg}"
-    t1
-  end
-  
+class ThreadedMuryuRack < MuryuRack
   def call(env)
     DB::Conn.reserve do |conn|
-      Thread.current.conn = conn
-      t = Time.now.to_f
-      t0 = time(0, "got rack request")
-      req = Rack::Request.new(env)
-      t0 = time(t0, "parsed rack request")
-      mr = MuryuRequest.new(req)
-      t0 = time(t0, "created muryu request")
-      r = MuryuDispatch.dispatch(mr)
-      t0 = time(t0, "dispatch done")
-      res = Rack::Response.new(r.body, r.status, r.headers.merge("Content-Type" => r.content_type))
-      t0 = time(t0, "response created")
-      a = res.finish
-      t0 = time(t0, "request done")
-      time(t, "total time")
-      a
+      super
     end
   end
 end
@@ -86,9 +35,10 @@ if __FILE__ == $0
   procs = (1..processes).map{|i|
     sid = i-1
     fork {
+      update_loaded_features
       $SERVER_ID = sid
       Rack::Handler::Mongrel.run(
-        MuryuRack.new,
+        ThreadedMuryuRack.new,
         :Port => port+i-1)
       exit
     }

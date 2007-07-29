@@ -389,16 +389,16 @@ Object.extend(Zoomable, EventListener)
 View = function(config) {
   this.loader = new Loader()
   this.selected = {}
-  this.selectionElem = E('div')
-  this.selectionElem.style.border = '2px solid blue'
-  this.selectionElem.style.backgroundColor = 'darkblue'
-  this.selectionElem.style.opacity = 0.5
-  this.selectionElem.style.position = 'absolute'
-  this.selectionElem.style.display = 'none'
-  this.selectionElem.style.zIndex = 50
+  this.selectionElement = E('div')
+  this.selectionElement.style.border = '2px solid blue'
+  this.selectionElement.style.backgroundColor = 'darkblue'
+  this.selectionElement.style.opacity = 0.5
+  this.selectionElement.style.position = 'absolute'
+  this.selectionElement.style.display = 'none'
+  this.selectionElement.style.zIndex = 50
   this.panVector = {x:0, y:0}
   this.init(config)
-  this.container.appendChild(this.selectionElem)
+  this.container.appendChild(this.selectionElement)
   this.element.style.zIndex = 0
 }
 View.mapView = function(win, q) {
@@ -433,7 +433,6 @@ View.mapView = function(win, q) {
   }
   win.map = topmap
   win.addListener('resize', function(ev) {
-    console.log('resize',ev)
     rootMap.style.width = win.contentElement.style.width
     rootMap.style.height = win.contentElement.style.height
     topmap.container.width = rootMap.offsetWidth
@@ -556,10 +555,10 @@ Object.extend(View.prototype, {
           t.selecting = true
           t.selectX = ev.pageX - t.wcOffsetLeft
           t.selectY = ev.pageY - t.wcOffsetTop
-          t.selectionElem.style.left = t.selectX + 'px'
-          t.selectionElem.style.top = t.selectY + 'px'
-          t.selectionElem.style.width = '0px'
-          t.selectionElem.style.height = '0px'
+          t.selectionElement.style.left = t.selectX + 'px'
+          t.selectionElement.style.top = t.selectY + 'px'
+          t.selectionElement.style.width = '0px'
+          t.selectionElement.style.height = '0px'
           t.selectionStartTime = new Date().getTime()
           t.selected = new Hash()
         } else {
@@ -630,7 +629,7 @@ Object.extend(View.prototype, {
       t.wcOffsetLeft = t.wcOffsetTop = null
       t.panning = false
       t.selecting = false
-      t.selectionElem.style.display = 'none'
+      t.selectionElement.style.display = 'none'
     }
     this.onmousemove = function(ev) {
       t.previousTarget = ev.target
@@ -653,11 +652,11 @@ Object.extend(View.prototype, {
                                  Math.abs(t.pointerY - t.selectY) > 3)
       ) {
         if (!t.validEventTarget(ev)) return
-        t.selectionElem.style.display = 'block'
-        t.selectionElem.style.left = Math.min(t.pointerX, t.selectX) + 'px'
-        t.selectionElem.style.top = Math.min(t.pointerY, t.selectY) + 'px'
-        t.selectionElem.style.width = Math.abs(t.pointerX-t.selectX) + 'px'
-        t.selectionElem.style.height = Math.abs(t.pointerY-t.selectY) + 'px'
+        t.selectionElement.style.display = 'block'
+        t.selectionElement.style.left = Math.min(t.pointerX, t.selectX) + 'px'
+        t.selectionElement.style.top = Math.min(t.pointerY, t.selectY) + 'px'
+        t.selectionElement.style.width = Math.abs(t.pointerX-t.selectX) + 'px'
+        t.selectionElement.style.height = Math.abs(t.pointerY-t.selectY) + 'px'
         var obj = ev.target
         while (obj && !obj.map) {
           obj = obj.parentNode
@@ -1130,13 +1129,7 @@ Object.extend(TitledMap.prototype, {
     this.title.titleElement.addEventListener('dblclick', this.ondblclick, false)
     this.titleMenu = new Desk.Menu()
     this.titleMenu.addTitle(Tr('TileMap'))
-    this.titleMenu.addItem(Tr('Item.AddToPlaylist'), function(){})
-    this.titleMenu.addItem(Tr('Item.ViewInSlideshow'), function(){})
-    this.titleMenu.addSeparator()
-    this.titleMenu.addSubMenu(Tr('Item.AddToGroups'), function(){})
-    this.titleMenu.addItem(Tr('Item.MakePublic'), function(){})
-    this.titleMenu.addItem(Tr('Item.MakePrivate'), function(){})
-    this.titleMenu.addSubMenu(Tr('Item.AddToFolders'), function(){})
+    this.titleMenu.addItem(Tr('TileMap.Refresh'), function(){ this.map.forceUpdate()}.bind(this))
     this.titleMenu.addSeparator()
     this.titleMenu.addItem(Tr('TileMap.EditTitle'), this.titleEdit.bind(this))
     this.titleMenu.addItem(Tr('TileMap.ShowColors'), function(){
@@ -1151,6 +1144,15 @@ Object.extend(TitledMap.prototype, {
     this.titleMenu.checkItem(Tr('TileMap.ShowColors'))
     if (this.map.color == 'false')
       this.titleMenu.uncheckItem(Tr('TileMap.ShowColors'))
+    this.titleMenu.addSeparator()
+    this.titleMenu.addItem(Tr('Item.add_to_playlist'), function(){})
+    this.titleMenu.addItem(Tr('Item.view_in_slideshow'), function(){})
+    this.titleMenu.addSeparator()
+    this.titleMenu.addSubMenu(Tr('Selection.addSets'), function(){})
+    this.titleMenu.addSeparator()
+    this.titleMenu.addItem(Tr('Item.makePublic'), function(){})
+    this.titleMenu.addItem(Tr('Item.makePrivate'), function(){})
+    this.titleMenu.addSubMenu(Tr('Selection.addGroups'), function(){})
     this.titleMenu.addSeparator()
     this.titleMenu.addItem(Tr('TileMap.RemoveMap'), function(){this.setParent(null)}.bind(this))
     this.titleMenu.bind(this.title.titleElement)
@@ -1392,21 +1394,21 @@ Object.extend(TileMap.prototype, {
   },
 
   /**
-    Selects all items that intersect the lasso selection box (selectionElem).
+    Selects all items that intersect the lasso selection box (selectionElement).
   */
   selectUnderSelection : function(startSelection) {
     if (this.root.selectionStartTime != this.lastSelectionStartTime) {
       this.root.selected[this] = new Hash()
       this.lastSelectionStartTime = this.root.selectionStartTime
     }
-    this.selectionElem = this.root.selectionElem
+    this.selectionElement = this.root.selectionElement
     lx = this.ax 
     ly = this.ay
-    this.selectionElem.map = this
-    var left = -lx + parseInt(this.selectionElem.style.left)
-    var top = -ly + parseInt(this.selectionElem.style.top)
-    var width = parseInt(this.selectionElem.style.width)
-    var height = parseInt(this.selectionElem.style.height)
+    this.selectionElement.map = this
+    var left = -lx + parseInt(this.selectionElement.style.left)
+    var top = -ly + parseInt(this.selectionElement.style.top)
+    var width = parseInt(this.selectionElement.style.width)
+    var height = parseInt(this.selectionElement.style.height)
     var previousSelection = this.root.selected[this]
     this.root.selected[this] = new Hash()
     var selection = this.root.selected[this]

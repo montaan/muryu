@@ -51,7 +51,38 @@ module Kernel
   def pn(str, *args)
     str.to_s.to_pn(*args)
   end
-  
+
+  def update_loaded_features
+    files = $LOADED_FEATURES.map{|fn|
+      lp = $LOAD_PATH.find{|pt| File.exist?(File.join(pt,fn)) and fn =~ /\.rb$/ and not fn =~ /tile_drawer|imaging\/utils/ }
+      if lp
+        File.join(lp,fn)
+      else
+        nil
+      end
+    }.compact
+    mtimes = files.map{|f| [f, File.mtime(f)] }.to_hash
+    Thread.new do
+      loop do
+        files.each do |fn|
+          if File.exist?(fn)
+            new_mtime = File.mtime(fn)
+            if new_mtime != mtimes[fn]
+              begin
+                load fn
+                STDERR.puts "Reloaded #{fn}"
+                mtimes[fn] = new_mtime
+              rescue Exception => e
+                STDERR.puts "Error reloading #{fn}: #{e.class}: #{e.message}", e.backtrace
+              end
+            end
+          end
+        end
+        sleep 1
+      end
+    end
+  end
+
 end
 
 

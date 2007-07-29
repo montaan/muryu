@@ -172,8 +172,11 @@ Muryu = {
       }
       $('while_loading').hide()
       document.body.style.backgroundColor = '#53565C'
+      
       if (!Session.load())
         this.initView()
+    
+
     } catch(e) {
       var wl = $('while_loading')
       wl.style.position = 'fixed'
@@ -207,6 +210,8 @@ Muryu = {
     var topPanel = new Desk.Panel('left', {movable : false})
     topPanel.addApplet(Applets.Session())
     if (this.loggedIn) {
+      topPanel.addApplet(Applets.Upload())
+      topPanel.addApplet(Applets.Settings())
       topPanel.addApplet(Applets.MusicPlayer())
       topPanel.addApplet(Applets.Sets())
       topPanel.addApplet(Applets.Groups())
@@ -275,7 +280,7 @@ Muryu = {
     topmap.updateGroupTree = function() {
       var groupqueries = Groups.map(function(s) { return 'group:"'+s.name+'"' })
       if (!topmap.groupTree) {
-        topmap.groupTree = Muryu.createQueryTree(topmap, Tr('Muryu.groups'), groupqueries, 450,230)
+        topmap.groupTree = Muryu.createQueryTree(topmap, Tr('Muryu.groups'), groupqueries, 140, 230)
         topmap.groupTree.isGroupTree = true
         topmap.groupTree.dumpVars.push('isGroupTree')
       } else {
@@ -290,7 +295,7 @@ Muryu = {
     topmap.updateSetTree = function() {
       var setqueries = Sets.map(function(s) { return 'set:"'+s.name+'"' })
       if (!topmap.setTree) {
-        topmap.setTree = Muryu.createQueryTree(topmap, Tr('Muryu.folders'), setqueries, 450,30)
+        topmap.setTree = Muryu.createQueryTree(topmap, Tr('Muryu.folders'), setqueries, 0, 230)
         topmap.setTree.isSetTree = true
         topmap.setTree.dumpVars.push('isSetTree')
       } else {
@@ -327,7 +332,7 @@ Muryu = {
     }, 'icons/ExpandAllGroups.png')
     if (this.loggedIn) {
       menu.addTitle(Tr('Session'))
-      menu.addItem(Tr('Applets.Session.clear'), Session.clear.bind(Session))
+      menu.addItem(Tr('Applets.Session.clear'), function(){ Session.clear() })
       menu.addItem(Tr('Applets.Session.LogOut'), function(){ location.href = '/users/logout' })
     }
     menu.bind(rootMap)

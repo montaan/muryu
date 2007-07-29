@@ -31,8 +31,7 @@ Applets.Taskbar.prototype = {
   init : function() {
     this.element = this
     this.taskbar = this
-    this.titleElem.innerHTML = Tr('Windows')
-    this.titleElement = this.titleElem
+    this.titleElement.innerHTML = Tr('Windows')
     this.menu.addItem(
       Tr('Applets.Taskbar.collapse_all'),
       function(){ this.setCollapsedForAll(true) }.bind(this),
@@ -171,17 +170,17 @@ Applets.Taskbar.prototype = {
       if (!this.windowGroups[e.value])
         this.windowGroups[e.value] = e.target
       else
-        this.contentElem.removeChild(e.target.element)
+        this.contentElement.removeChild(e.target.element)
     }.bind(this))
     this.windowGroups[name] = wg
-    this.contentElem.appendChild(wg.element)
+    this.contentElement.appendChild(wg.element)
     return wg
   },
 
   removeWindowGroup : function(name) {
     if (name == 'default') return
     var wg = this.windowGroups[name]
-    this.contentElem.removeChild(wg.element)
+    this.contentElement.removeChild(wg.element)
     delete this.windowGroups[name]
   }
 

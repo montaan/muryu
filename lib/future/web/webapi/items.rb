@@ -10,9 +10,101 @@ module MuryuDispatch
       <HTML>
       <HEAD>
       <TITLE>Upload items</TITLE>
+      <STYLE type="text/css">
+        body {
+          background-color:#33363C;
+          color:#AAB2B8;
+          font-family:Verdana,Arial,Helvetica;
+          font-size:small;
+          margin:0pt;
+        }
+        a {
+          color:#BBC4CB;
+        }
+        a:visited {
+          color:#66666C;
+        }
+        form {
+          text-align: center;
+          display: block;
+        }
+        textarea {
+          background-color:#43464C;
+          border:2px solid #43464C;
+          color:#AAB2B8;
+          font-size:11px;
+        }
+        input {
+          background-color:#43464C;
+          border:2px solid #43464C;
+          color:#AAB2B8;
+          font-size:11px;
+          height:20px;
+        }
+        input.item_checkbox {
+          background-color:#43464C;
+          border:0px solid #43464C;
+          color:#AAB2B8;
+          display:none;
+          font-size:11px;
+          height:9px;
+          margin:0px 0px 1px;
+          width:9px;
+        }
+        input[type="submit"] {
+          background-color:#63666C;
+          border:2px solid #63666C;
+          color:#CCD2D8;
+          font-size:11px;
+          margin-bottom:-1px;
+          text-transform:uppercase;
+        }
+      </STYLE>
+      <SCRIPT>
+        function makeAddNewInput(i){
+          return function(e){
+            addNewInput(i,e)
+          }
+        }
+
+        function addNewInput(i,e){
+          if (i.value.length > 0) {
+            var new_input = document.createElement("input")
+            new_input.name = i.name + "0"
+            new_input.type = i.type
+            new_input.size = i.size
+            new_input.style.marginTop = 2
+            i.parentNode.appendChild(document.createElement("br"))
+            i.parentNode.appendChild(new_input)
+            new_input.monitor = setInterval(makeAddNewInput(new_input), 100)
+            new_input.onchange = makeAddNewInput(new_input)
+            clearInterval(i.monitor)
+            i.onchange = null
+          }
+        }
+        
+        function init(e) {
+          var inputs = document.getElementsByTagName("input")
+          for (var j = 0; j<inputs.length; j++) {
+            var i = inputs[j]
+            if(i.getAttribute("multiply")) {
+              i.monitor = setInterval(makeAddNewInput(i), 100)
+              i.onchange = makeAddNewInput(i)
+            }
+          }
+          var textareas = document.getElementsByTagName("textarea")
+          for (var j = 0; j<textareas.length; j++) {
+            var t = textareas[j]
+            t.addEventListener("keypress", function(e){ if (e.keyCode != 9) e.target.style.height = '100px' }, false)
+          }
+        }
+
+        window.onload = init
+      </SCRIPT>
       </HEAD>
       <BODY>
       <FORM METHOD="post" ENCTYPE="multipart/form-data" ACTION="/items/create">
+      <!--
       <P><A href="http://textism.com/tools/textile/" target="_new">TEXTILE</A><BR>
         <TEXTAREA NAME="text" ROWS="1" COLS="30"></TEXTAREA>
       </P>
@@ -25,6 +117,7 @@ module MuryuDispatch
       <P>TAGS<BR>
         <INPUT name="tags" size="30" TYPE="text">
       </P>
+      -->
       <P>REMOTE FILES<BR>
         <INPUT name="url" size="30" TYPE="text" multiply="yes">
       </P>
@@ -51,88 +144,106 @@ module MuryuDispatch
     
     def create(user, req, res)
       user = user
+      server_name = 'http://manifold.fhtr.org:8080'
       if user != Future::Users.anonymous
         common_fields = {
           :groups => req.query['groups'],
           :public => req.query['public'],
           :sets => req.query['sets'],
-          :tags => req.query['tags'],
-          :referrer => req.headers['Referer']
+          :tags => req.query['tags']
         }
+        if req.headers['Referer'] != server_name+"/items"
+          common_fields[:referrer] = req.headers['Referer']
+        end
         common_fields.delete_if{|k,v| v.nil? or v.empty? }
         common_fields[:user] = user
         urls, texts, uploads, compressed, compressed_urls, sources, referrers = (
           ['url', 'text', 'upload',
           'compressed', 'remote_compressed',
           'source', 'referrer'
-          ].map{|pat| req.query.keys.grep(/^#{pat}[0-9]*$/).
-                      find_all{|k| req.query[k] and not req.query[k][0].empty? } }
+          ].map{|pat| req.query.keys.grep(/^#{pat}[0-9]*$/) }
         )
-        p req.query
         unless [urls, texts, uploads, compressed, compressed_urls].all?{|k| k.empty?}
-          urls.each{|u|
-            num = u.scan(/[0-9]+/)[0]
+          urls.each{|url|
+            num = url.scan(/[0-9]+/)[0]
             referrer = referrers.find{|r| r.scan(/[0-9]+/)[0] == num }
-            f = {}
-            f[:source] = req.query[u][0].strip
-            f[:referrer] = req.query[referrer][0] if referrer
-            d = common_fields.merge(f)
-            dump = Marshal.dump(d)
-            DB::Tables::Downloads.create(:options => dump)
+            req.query[url].each{|u|
+              next if u.strip.empty?
+              f = {}
+              f[:source] = u.strip
+              f[:referrer] = req.query[referrer][0] if referrer
+              d = common_fields.merge(f)
+              dump = Marshal.dump(d)
+              DB::Tables::Downloads.create(:options => dump)
+            }
           }
-          compressed_urls.each{|u|
-            num = u.scan(/[0-9]+/)[0]
+          compressed_urls.each{|url|
+            num = url.scan(/[0-9]+/)[0]
             referrer = referrers.find{|r| r.scan(/[0-9]+/)[0] == num }
-            f = {}
-            f[:source] = req.query[u][0].strip
-            f[:referrer] = req.query[referrer][0] if referrer
-            d = common_fields.merge(f)
-            dump = Marshal.dump(d)
-            DB::Tables::Downloads.create(:options => dump, :archive => true)
+            req.query[url].each{|u|
+              next if u.strip.empty?
+              f = {}
+              f[:source] = u.strip
+              f[:referrer] = req.query[referrer][0] if referrer
+              d = common_fields.merge(f)
+              dump = Marshal.dump(d)
+              DB::Tables::Downloads.create(:options => dump, :archive => true)
+            }
           }
-          texts.each{|u|
-            num = u.scan(/[0-9]+/)[0]
+          texts.each{|url|
+            num = url.scan(/[0-9]+/)[0]
+            referrer = referrers.find{|r| r.scan(/[0-9]+/)[0] == num }
             source = sources.find{|r| r.scan(/[0-9]+/)[0] == num }
-            referrer = referrers.find{|r| r.scan(/[0-9]+/)[0] == num }
-            f = {}
-            f[:text] = req.query[u][0]
-            f[:source] = req.query[source][0] if source
-            f[:referrer] = req.query[referrer][0] if referrer
-            Future::Uploader.upload(common_fields.merge(f))
+            req.query[url].each{|u|
+              next if u.empty?
+              f = {}
+              f[:text] = u
+              f[:source] = req.query[source][0] if source
+              f[:referrer] = req.query[referrer][0] if referrer
+              Future::Uploader.upload(common_fields.merge(f))
+            }
           }
-          uploads.each{|u|
-            num = u.scan(/[0-9]+/)[0]
-            source = sources.find{|r| r.scan(/[0-9]+/)[0] == num }
+          uploads.each{|url|
+            num = url.scan(/[0-9]+/)[0]
             referrer = referrers.find{|r| r.scan(/[0-9]+/)[0] == num }
-            f = {}
-            f[:filename] = File.basename(req.query[u][0][:filename])
-            f[:io] = req.query[u][0][:tempfile]
-            next if f[:io].size == 0
-            fd = f[:io]
-            def fd.filename
-              @filename
-            end
-            fd.instance_variable_set("@filename", f[:filename])
-            f[:source] = req.query[source][0] if source
-            f[:referrer] = req.query[referrer][0] if referrer
-            Future::Uploader.upload(common_fields.merge(f))
+            source = sources.find{|r| r.scan(/[0-9]+/)[0] == num }
+            req.query[url].each{|u|
+              next unless u[:tempfile]
+              f = {}
+              f[:filename] = File.basename(u[:filename])
+              f[:io] = u[:tempfile]
+              next if f[:io].size == 0
+              fd = f[:io]
+              def fd.filename
+                @filename
+              end
+              fd.instance_variable_set("@filename", f[:filename])
+              f[:source] = f[:filename]
+              f[:source] = req.query[source][0] if source
+              f[:referrer] = req.query[referrer][0] if referrer
+              Future::Uploader.upload(common_fields.merge(f))
+            }
           }
-          compressed.each{|u|
-            num = u.scan(/[0-9]+/)[0]
-            source = sources.find{|r| r.scan(/[0-9]+/)[0] == num }
+          compressed.each{|url|
+            num = url.scan(/[0-9]+/)[0]
             referrer = referrers.find{|r| r.scan(/[0-9]+/)[0] == num }
-            f = {}
-            f[:filename] = File.basename(req.query[u][0][:filename])
-            f[:io] = req.query[u][0][:tempfile]
-            next if f[:io].size == 0
-            fd = f[:io]
-            def fd.filename
-              @filename
-            end
-            fd.instance_variable_set("@filename", f[:filename])
-            f[:source] = req.query[source][0] if source
-            f[:referrer] = req.query[referrer][0] if referrer
-            Future::Uploader.upload_archive(common_fields.merge(f))
+            source = sources.find{|r| r.scan(/[0-9]+/)[0] == num }
+            req.query[url].each{|u|
+              next unless u[:tempfile]
+              f = {}
+              f[:filename] = File.basename(u[:filename])
+              f[:io] = u[:tempfile]
+              next if f[:io].size == 0
+              fd = f[:io]
+              def fd.filename
+                @filename
+              end
+              fd.instance_variable_set("@filename", f[:filename])
+              f[:source] = f[:filename]
+              f[:source] = req.query[source][0] if source
+              f[:referrer] = req.query[referrer][0] if referrer
+              Future::Uploader.upload_archive(common_fields.merge(f))
+            }
           }
           changed
         end
@@ -145,8 +256,13 @@ module MuryuDispatch
           res['Content-type'] = "text/plain"
           res.body = "Got it, thanks!"
         else
-          res.status = 302
-          res['Location'] = '/'
+          res.body = Builder::XmlMarkup.new.html do |b|
+            b.head { b.title("Got it, thanks!") }
+            b.body {
+              b.h1("Got it, thanks!")
+              b.a("Close window", :href => "javascript:window.close()")
+            }
+          end
         end
       else
         res.body = <<-EOF

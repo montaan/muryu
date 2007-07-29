@@ -30,7 +30,6 @@ E = function(tag, content, id, klass, style, attributes){
   if (attributes) Object.forceExtend(e, attributes)
   return e
 }
-Elem = E
 
 A = function(href, content, id, klass, style, attributes){
   var a = E('a', content, id, klass, style, attributes)
@@ -40,6 +39,18 @@ A = function(href, content, id, klass, style, attributes){
 
 T = function(text) {
   return document.createTextNode(text)
+}
+
+F = function(action, method, attributes) {
+  return E('form', null, null, null, null, Object.extend({
+    action: action, method: method
+  }, attributes))
+}
+
+I = function(type, name, attributes) {
+  return E('input', null, null, null, null, Object.extend({
+    type: type, name: name
+  }, attributes))
 }
 
 // Find the key with the minimum value according to iterator.
@@ -250,6 +261,40 @@ Desk.ElementUtils = {
 
   byTag : function(elem, tag) {
     return elem.getElementsByTagName(tag)
+  },
+
+  duplicateNode : function(elem) {
+    var new_node = elem.cloneNode(true)
+    Object.forceExtend(new_node.style, elem.style)
+    return new_node
+  },
+
+  duplicateInput : function(i) {
+    if (i.value.length > 0) {
+      clearInterval(i.monitor)
+      i.onchange = null
+      var new_input = Desk.ElementUtils.duplicateNode(i)
+      new_input.name += '0'
+      new_input.value = ''
+      new_input.style.marginTop = '2px'
+      i.parentNode.insertBefore(new_input, i.nextSibling)
+      i.parentNode.insertBefore(document.createElement("br"), i.nextSibling)
+      var dup = function(){ Desk.ElementUtils.duplicateInput(this) }.bind(new_input)
+      new_input.monitor = setInterval(dup, 100)
+      new_input.onchange = dup
+    }
+  },
+
+  initMultiplyForm : function(f) {
+    var inputs = f.getElementsByTagName("input")
+    for (var j = 0; j<inputs.length; j++) {
+      var i = inputs[j]
+      if(i.multiply || i.getAttribute("multiply")) {
+        var dup = function(){ Desk.ElementUtils.duplicateInput(this) }.bind(i)
+        i.monitor = setInterval(dup, 100)
+        i.onchange = dup
+      }
+    }
   },
 
   $ : function(elem, id){

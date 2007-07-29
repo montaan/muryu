@@ -832,6 +832,7 @@ Mimetype = {
       tr.appendChild(td)
       td.appendChild(E('h4', Tr('Item.item')))
       var dd = E('div')
+      dd.style.textAlign = 'center'
       dd.style.minWidth = "256px"
       td.appendChild(dd)
       dd.appendChild(E("img", null, null, null, {display:'block'}, {src:'/items/' + info.path+'/thumbnail'}))
@@ -1172,36 +1173,27 @@ Mimetype = {
     mimetype : 'html',
     makeEmbed : function(src) {
       var container = E('div')
-      var cover = E('div')
       var e = E('iframe')
       e.style.display = 'block'
       e.style.backgroundColor = 'white'
       e.src = src
-      cover.style.width = e.style.width = '100%'
-      cover.style.height = e.style.height = '400px'
+      e.style.width = '100%'
+      e.style.height = '400px'
       e.style.zIndex = 0
-      cover.style.position = 'absolute'
-      cover.style.display = 'block'
-      cover.style.zIndex = -1
-      this.cover = cover
       this.embed = e
-      // container.style.lineHeight = '0px'
-      container.appendChild(cover)
       container.appendChild(e)
       return container
     },
     init : function(src, win) {
       win.addListener('resize', function(e){
-        this.cover.style.width = this.embed.style.width = win.contentElement.offsetWidth + 'px'
-        var restheight = win.content.offsetHeight - parseInt(this.cover.style.height)
-        var newheight = parseInt(win.contentElement.style.height) - restheight
-        this.cover.style.height = this.embed.style.height = newheight + 'px'
+        this.embed.style.width = win.contentElement.style.width
+        this.embed.style.height = win.contentElement.style.height
       }.bind(this))
       win.addListener('dragStart', function() {
-        this.cover.style.zIndex = 1
+        this.embed.style.visibility = 'hidden'
       }.bind(this))
       win.addListener('dragEnd', function() {
-        this.cover.style.zIndex = -1
+        this.embed.style.visibility = 'visible'
       }.bind(this))
     }
   },
