@@ -5,7 +5,6 @@ require 'iconv'
 require 'time'
 require 'future/base'
 require 'future/models/items'
-require 'UniversalDetector' # gem install chardet
 
 class Pathname
 
@@ -79,6 +78,7 @@ extend self
 
   def application_pdf(fname, charset)
     h = pdfinfo_extract_info(fname)
+    txt = `pdftotext #{fname.dump} - | head -c 65536`
     h['words'] = `pdftotext #{fname.dump} - | wc -w 2>/dev/null`.strip.to_i
     {
       :title, enc_utf8(h['title'], charset),
@@ -89,7 +89,8 @@ extend self
       :height, h['height'],
       :dimensions_unit, 'mm',
       :page_size, h['page size'],
-      :words, h['words']
+      :words, h['words'],
+      :charset, UniversalDetector.chardet(txt)['encoding']
     }
   end
 
@@ -106,15 +107,19 @@ extend self
 
   def text_html(fname, charset)
     words = `html2text #{fname.dump} | wc -w 2>/dev/null`.strip.to_i
+    charset = UniversalDetector.chardet(File.open(fname){|f| f.read 65536 })['encoding']
     {
-      :words => words
+      :words => words,
+      :charset => charset
     }
   end
 
   def text(fname, charset)
     words = `wc -w #{fname.dump} 2>/dev/null`.strip.to_i
+    charset = UniversalDetector.chardet(File.open(fname){|f| f.read 65536 })['encoding']
     {
-      :words => words
+      :words => words,
+      :charset => charset
     }
   end
 

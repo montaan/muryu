@@ -82,6 +82,12 @@ module Mimetype
     elsif to_s =~ /image|postscript/
       page ||= 0
       image_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+    elsif to_s =~ /^text/
+      page ||= 0
+      paps_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+    elsif to_s =~ /powerpoint|opendocument|msword|ms-excel|rtf|x-tex|template|stardivision|comma-separated-values|dbf/
+      page ||= 0
+      unoconv_thumbnail(filename, thumb_filename, thumb_size, page, crop)
     end or icon_thumbnail(filename, thumb_filename, thumb_size, crop)
   end
 
@@ -177,6 +183,32 @@ module Mimetype
     ".jpg" => "pnmtojpeg",
     ".png" => "pnmtopng"
   }
+
+  def paps_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+    tfn = thumb_filename.to_pn
+    tmp_filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}-paps.pdf"
+    charset = filename.to_pn.metadata.charset
+    system("iconv -f #{charset} -t utf8 #{filename.to_s.dump} | paps --font_scale 11 --columns 1 | ps2pdf - #{tmp_filename.to_s.dump}")
+    rv = false
+    if tmp_filename.exist?
+      rv = pdf_thumbnail(tmp_filename, thumb_filename, thumb_size, page, crop)
+      tmp_filename.unlink
+    end
+    rv
+  end
+  
+  def unoconv_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+    tfn = thumb_filename.to_pn
+    tmp_filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}-unoconv.pdf"
+    charset = filename.to_pn.metadata.charset
+    system("unoconv -s #{filename.to_s.dump} > #{tmp_filename.to_s.dump}")
+    rv = false
+    if tmp_filename.exist?
+      rv = pdf_thumbnail(tmp_filename, thumb_filename, thumb_size, page, crop)
+      tmp_filename.unlink
+    end
+    rv
+  end
   
   def pdf_thumbnail(filename, thumb_filename, thumb_size, page, crop)
     w,h,x,y = crop.scan(/[+-]?[0-9]+/).map{|i|i.to_i}

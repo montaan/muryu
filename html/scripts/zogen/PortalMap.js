@@ -2146,6 +2146,7 @@ TileNode.prototype = {
         shadow.style.color = 'black'
         shadow.style.marginTop = '1px'
         shadow.style.marginLeft = '1px'
+        shadow.style.marginRight = '-1px'
         title.style.marginTop = -title.offsetHeight - 1 + 'px'
         titleContainer.insertBefore(shadow, title)
         if (this.z > 7) {
