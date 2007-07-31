@@ -81,6 +81,7 @@ class MuryuQuery
   relative_path = "(#{username}/[0-9]{4}/[0-9]{2}-[0-9]{2}/#{filename})"
   items_query = '(.*)'
   itemkey = "(#{uint}|#{relative_path})"
+  pagesize = "(2048|1024|128|64|32)"
   setname = '(.{1,80})'
   tagname = '(\S{1,80})'
   setkey = "(#{username}/#{setname})"
@@ -182,9 +183,13 @@ class MuryuQuery
       'thumbnail' => up,
       'json' => {
         'columns' => list_of[field_names]
-      }.merge(up)
+      }
     },
     'files' => {
+      'page' => {
+        'number' => e(uint),
+        'size' => e(pagesize)
+      },
       'view' => up,
       'item' => up
     },

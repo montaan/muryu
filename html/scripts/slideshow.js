@@ -1,3 +1,11 @@
+Tr.addTranslations('en-US', {
+  'Slideshow' : 'Slideshow',
+  'Reader' : 'Reader'
+})
+Tr.addTranslations('fi-FI', {
+  'Slideshow' : 'Kuvaesitys',
+  'Reader' : 'Lukija'
+})
 
 // config object should have index, images, container
 // can also have fillWindow, pollForNewImages, changeDocumentTitle
@@ -149,8 +157,66 @@ Suture.make = function(w, index, query){
   w.setContent(c)
   return w
 }
+Suture.makePDF = function(w, index, path, pages){
+  if (!w.width) w.setSize(600,400)
+  var wasShaded = w.shaded
+  if (w.shaded) {
+    w.shade()
+  }
+  w.setTitle(Tr('Reader'))
+  var c = E('div')
+  c.style.width = '100%'
+  c.style.height = '100%'
+  var infos = {}
+  for (var i=0; i<pages-1; i++) {
+    infos[i] = {path: path+'/page?number='+i}
+  }
+  var s = new Suture({
+    container: c,
+    fillWindow: true,
+    index: index,
+    infos: infos,
+    query: {q:''},
+    itemCount: pages,
+    filePrefix : '/files/',
+    window: w,
+    isSupported : function(){ return true },
+    setQuery : function(){ return true }
+  })
+  w.slideshow = s
+  var resizer = function() {
+    if (!w.shaded) s.resize()
+    if (wasShaded) {
+      wasShaded = false
+      w.shade()
+    }
+  }
+  w.addListener('resize', resizer)
+  var minProg = false
+  w.addListener('close', function() {
+    minProg = false
+    if (s.autoProgressTimer)
+      s.toggleAutoProgress()
+  })
+  w.addListener('minimizeChange', function() {
+    if (s.autoProgressTimer) {
+      s.toggleAutoProgress()
+      minProg = true
+    } else if (minProg) {
+      s.toggleAutoProgress()
+      minProg = false
+    }
+  })
+  w.addListener('containerChange', resizer)
+  w.addListener('shadeChange', resizer)
+  w.setContent(c)
+  return w
+}
 Suture.loadWindow = function(win, params) {
   document.slideshowWindow = Suture.make(win, win.parameters.index, win.parameters.query)
+}
+Suture.Reader = function(win, params) {
+  Suture.makePDF(win, win.parameters.index, win.parameters.path, win.parameters.pages)
 }
 
 
@@ -221,9 +287,8 @@ Suture.prototype = {
   },
   
   showIndex : function(idx, dir) {
-    if (idx < 0 && idx >= this.itemCount && !this.newQuery) return
+    if (idx < 0 || (idx >= this.itemCount && !this.newQuery)) return
     if (dir == undefined) dir = 1
-    var params = Object.clone(this.query)
     this.index = idx
     if (this.window)
       this.window.parameters.index = this.index
@@ -244,6 +309,7 @@ Suture.prototype = {
         this.request(this.filePrefix + info.path, this.index)
       }
     } else {
+      var params = Object.clone(this.query)
       var f = Math.max(0, idx - 100)
       var l = idx + 100
       if (!params.q || params.q.toString().length == 0) delete params.q

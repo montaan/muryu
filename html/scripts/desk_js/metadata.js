@@ -1173,22 +1173,26 @@ Mimetype = {
     mimetype : 'html',
     makeEmbed : function(src) {
       var container = E('div')
+      container.style.lineHeight = '0px'
       var e = E('iframe')
       e.style.display = 'block'
       e.style.backgroundColor = 'white'
       e.src = src
-      e.style.width = '100%'
+      e.style.width = '600px'
       e.style.height = '400px'
       e.style.zIndex = 0
       this.embed = e
+      this.container = container
       container.appendChild(e)
       return container
     },
     init : function(src, win) {
-      win.addListener('resize', function(e){
+      this.resizer = function(e){
         this.embed.style.width = win.contentElement.style.width
-        this.embed.style.height = win.contentElement.style.height
-      }.bind(this))
+        this.embed.style.height = parseInt(win.contentElement.style.height) - (this.container.offsetTop-win.contentElement.offsetTop) + 'px'
+      }
+      win.addListener('resize', this.resizer.bind(this))
+      win.addListener('containerChange', this.resizer.bind(this))
       win.addListener('dragStart', function() {
         this.embed.style.visibility = 'hidden'
       }.bind(this))

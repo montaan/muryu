@@ -1,51 +1,58 @@
 #!/usr/bin/ruby
 
-$MEMCACHE_USE_POOL = true
-$DB_USE_POOL = true
-$SWIFTIPLY = false
-$EVENTED_MONGREL = false
+require 'rack'
+require 'rack/showexceptions'
+default_port = 4000
+port = (ARGV.shift || default_port).to_i
+processes = (ARGV.shift || 1).to_i
+$SERVER_ID = (ARGV.shift || 0).to_i
+procs = (1..processes).map{|i|
+  sid = i-1
+  fork {
+    $MEMCACHE_USE_POOL = true
+    $DB_USE_POOL = true
+    $SWIFTIPLY = false
+    $EVENTED_MONGREL = false
 
-require 'future/web/rack'
-require 'future/web/webapi_1'
-require 'future/utils'
+    require 'future'
+    require 'future/web/rack'
+    require 'future/web/webapi_1'
+    require 'future/utils'
 
-$PRINT_QUERY_PROFILE = true
+    $PRINT_QUERY_PROFILE = true
 
-$CACHE_INFO = true
-$USE_DIPUS_IMAGE_CACHE = true
-$PRINT_QUERY_PROFILE = true
-$NO_TILE_DRAWING = true
-$USE_DIPUS_TILE_INFO = false
+    $CACHE_INFO = true
+    $USE_DIPUS_IMAGE_CACHE = true
+    $PRINT_QUERY_PROFILE = true
+    $NO_TILE_DRAWING = true
+    $USE_DIPUS_TILE_INFO = false
 
-class ThreadedMuryuRack < MuryuRack
-  def call(env)
-    DB::Conn.reserve do |conn|
-      super
+    class ThreadedMuryuRack < MuryuRack
+      def call(env)
+        begin
+          DB::Conn.reserve do |conn|
+            super
+          end
+        rescue Exception => e
+          puts e, e.message, e.backtrace
+        end
+      end
     end
-  end
-end
 
-if __FILE__ == $0
-  require 'rack'
-  require 'rack/showexceptions'
-  default_port = 4000
-  port = (ARGV.shift || default_port).to_i
-  processes = (ARGV.shift || 1).to_i
-  $SERVER_ID = (ARGV.shift || 0).to_i
-  procs = (1..processes).map{|i|
-    sid = i-1
-    fork {
-      update_loaded_features
-      $SERVER_ID = sid
+    update_loaded_features
+    $SERVER_ID = sid
+
+    begin
       Rack::Handler::Mongrel.run(
         ThreadedMuryuRack.new,
         :Port => port+i-1)
-      exit
-    }
+    rescue Exception => e
+      puts e, e.message, e.backtrace
+    end
+    exit
   }
-  procs.each{|pr| Process.wait(pr) }
-  trap "SIGINT" do
-    procs.each{|pr| Process.kill(pr) }
-  end
+}
+procs.each{|pr| Process.wait(pr) }
+trap "SIGINT" do
+  procs.each{|pr| Process.kill(pr) }
 end
-

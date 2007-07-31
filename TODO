@@ -13,7 +13,9 @@ Important:
 * bug: map title positioning fails if font size differs from hardcoded expectation
 * bug: window resize handles don't work, only bottom left works
 * bug: player playlist sucks
-NO 1.0 * PDF reader
+* simulated http workload with a configurable amount of users
+  - plus user generator
+NO 1.0 * less crappy PDF reader, slideshow is a bit lacking as one
 
 Somewhat important:
 * deleting folders

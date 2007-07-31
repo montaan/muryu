@@ -682,6 +682,7 @@ module MuryuDispatch
           res.status = 304
         else
           res['Last-Modified-At'] = lm
+          res['Expires'] = (Time.now + 86400*30).httpdate
           res.body = @target.thumbnail.open('rb')
           res.content_type = 'image/png'
         end
