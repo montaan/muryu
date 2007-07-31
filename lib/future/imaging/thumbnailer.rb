@@ -85,7 +85,7 @@ module Mimetype
     elsif to_s =~ /^text/
       page ||= 0
       paps_thumbnail(filename, thumb_filename, thumb_size, page, crop)
-    elsif to_s =~ /powerpoint|opendocument|msword|ms-excel|rtf|x-tex|template|stardivision|comma-separated-values|dbf/
+    elsif to_s =~ /powerpoint|vnd\.oasis\.opendocument|msword|ms-excel|rtf|x-tex|template|stardivision|comma-separated-values|dbf|vnd\.sun\.xml/
       page ||= 0
       unoconv_thumbnail(filename, thumb_filename, thumb_size, page, crop)
     end or icon_thumbnail(filename, thumb_filename, thumb_size, crop)

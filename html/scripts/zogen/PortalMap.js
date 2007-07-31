@@ -1342,15 +1342,8 @@ TileMap = function(config) {
 TileMap.loadSession = Zoomable.loadSession
 TileMap.prototype = Object.extend({}, Zoomable)
 Object.extend(TileMap.prototype, {
-  tileServers : [
-    'http://t0.manifold.fhtr.org:8080/tile/',
-    'http://t1.manifold.fhtr.org:8080/tile/',
-    'http://t2.manifold.fhtr.org:8080/tile/',
-    'http://t3.manifold.fhtr.org:8080/tile/'
-  ],
-  tileInfoServers : [
-    '/tile_info/'
-  ],
+  tileServers : ['/tile/'],
+  tileInfoServers : ['/tile_info/'],
   
   tileSize : 256,
   query : false,

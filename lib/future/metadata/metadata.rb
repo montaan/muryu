@@ -185,7 +185,7 @@ extend self
 
   def extract_text(filename, mimetype=MimeInfo.get(filename.to_s), charset=nil)
     filename = filename.to_s
-    major,minor = mimetype.to_s.gsub("-","_").split("/")
+    major,minor = mimetype.to_s.gsub(/[^\/a-z0-9]/i,"_").split("/")
     mn = [major,minor,"_gettext"].join("_")
     mm = [major,"_gettext"].join("_")
     new_methods = public_methods(false)
@@ -215,6 +215,67 @@ extend self
   def application_postscript__gettext(filename, charset)
     enc_utf8(`ps2ascii #{filename.dump}`, charset)
   end
+
+  def application_msword__gettext(filename, charset)
+    enc_utf8(`antiword #{filename.dump}`, charset)
+  end
+  
+  def application_vnd_ms_powerpoint__gettext(filename, charset)
+    enc_utf8(`catppt #{filename.dump}`, charset)
+  end
+
+  open_office_types = %w(
+  application/vnd.oasis.opendocument.text
+  application/vnd.oasis.opendocument.text-template
+  application/vnd.oasis.opendocument.text-web
+  application/vnd.oasis.opendocument.text-master
+  application/vnd.oasis.opendocument.graphics
+  application/vnd.oasis.opendocument.graphics-template
+  application/vnd.oasis.opendocument.presentation
+  application/vnd.oasis.opendocument.presentation-template
+  application/vnd.oasis.opendocument.spreadsheet
+  application/vnd.oasis.opendocument.spreadsheet-template
+  application/vnd.oasis.opendocument.presentation
+  application/vnd.oasis.opendocument.chart
+  application/vnd.oasis.opendocument.formula
+  application/vnd.oasis.opendocument.database
+  
+  application/vnd.sun.xml.writer
+  application/vnd.sun.xml.writer.template
+  application/vnd.sun.xml.calc
+  application/vnd.sun.xml.calc.template
+  application/vnd.sun.xml.impress
+  application/vnd.sun.xml.impress.template
+  application/vnd.sun.xml.writer.global
+  application/vnd.sun.xml.math
+
+  application/vnd.stardivision.writer
+  application/vnd.stardivision.writer-global
+  application/vnd.stardivision.calc
+  application/vnd.stardivision.impress
+  application/vnd.stardivision.impress-packed
+  application/vnd.stardivision.math
+  application/vnd.stardivision.chart
+  application/vnd.stardivision.mail
+
+  application/x-starwriter
+  application/x-starcalc
+  application/x-stardraw
+  application/x-starimpress
+  application/x-starmath
+  application/x-starchart)
+
+  def self.create_text_extractor(mimetype, command)
+    major,minor = mimetype.to_s.gsub(/[^\/a-z0-9]/i,"_").split("/")
+    mn = [major,minor,"_gettext"].join("_")
+    define_method(mn) do |filename, charset|
+      
+    end
+  end
+
+#   open_office_types.each{|t|
+#     create_text_extractor(t, 'magic')
+#   }
   
   private
 

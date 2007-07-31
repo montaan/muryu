@@ -144,7 +144,6 @@ module MuryuDispatch
     
     def create(user, req, res)
       user = user
-      server_name = 'http://manifold.fhtr.org:8080'
       if user != Future::Users.anonymous
         common_fields = {
           :groups => req.query['groups'],
@@ -152,7 +151,7 @@ module MuryuDispatch
           :sets => req.query['sets'],
           :tags => req.query['tags']
         }
-        if req.headers['Referer'] != server_name+"/items"
+        if req.headers['Referer'] != Future.server_name+"/items"
           common_fields[:referrer] = req.headers['Referer']
         end
         common_fields.delete_if{|k,v| v.nil? or v.empty? }

@@ -537,7 +537,7 @@ module MuryuDispatch
     end
     cookies.delete_at(cookies.index(cookie)) if cookies.index(cookie)
     if user and new_cookie
-      res["Set-Cookie"] = "future_session_id=#{new_cookie};Domain=.fhtr.org;Path=/;Max-Age=#{86400*7};Version=1"
+      res["Set-Cookie"] = "future_session_id=#{new_cookie};Domain=#{Future.domain};Path=/;Max-Age=#{86400*7};Version=1"
     elsif not user
       session_id = nil
     elsif req.request_method.downcase == 'post' and

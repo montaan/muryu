@@ -44,7 +44,7 @@ end
 
 class << self
   attr_accessor :salt
-  attr_accessor :paths
+  attr_accessor :paths, :domain, :server_name, :secure_server_name, :tile_servers
   attr_accessor :empty_tile, :image_cache
   attr_reader   :environment
   attr_accessor :logger, :log_level, :database_configuration
@@ -83,6 +83,15 @@ class << self
 
     self.database_configuration  ||= default_database_configuration
     self.logger ||= default_logger
+    self.domain ||= '.fhtr.org'
+    self.server_name ||= 'http://manifold.fhtr.org:8080'
+    self.secure_server_name ||= 'https://manifold.fhtr.org:8081'
+    self.tile_servers ||= [
+      'http://t0.manifold.fhtr.org:8080/tile/',
+      'http://t1.manifold.fhtr.org:8080/tile/',
+      'http://t2.manifold.fhtr.org:8080/tile/',
+      'http://t3.manifold.fhtr.org:8080/tile/'
+    ]
   end
 end
 

@@ -187,7 +187,7 @@ Applets.Session = function(wm) {
 
   var loginform = E('form')
   loginform.method='POST'
-  loginform.action='https://manifold.fhtr.org:8081/users/login'
+  loginform.action='https://localhost:8081/users/login'
   loginform.appendChild(E('h5', Tr('Applets.Session.LogIn'), null, 'windowGroupTitle'))
   loginform.appendChild(E('h5', Tr('Applets.Session.AccountName'), null, 'taskbarFormTitle'))
   var username = E('input', null, null, 'taskbarTextInput')
