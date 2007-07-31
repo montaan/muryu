@@ -1,19 +1,20 @@
 #!/usr/bin/ruby
 
 $USE_DIPUS_IMAGE_CACHE = true
-$PRINT_QUERY_PROFILE = false
+$PRINT_QUERY_PROFILE = true
 $NO_TILE_DRAWING = false
 $DB_USE_POOL = false
 $MEMCACHE_USE_POOL = false
 
 count = ARGV[0].to_i
 
-pids = (0...count).map do
+pids = (0...count).map do |i|
   fork do
     require 'future/imaging'
-    require 'dipus'
+    require 'socket'
 
-    socket = DIPUS.create_service("tile_drawer", "/tile_args/to/tile")
+    socket = TCPServer.new('localhost', 5000+i)
+    # DIPUS.create_service("tile_drawer", "/tile_args/to/tile")
 
     while conn = socket.accept
       begin

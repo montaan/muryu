@@ -3,9 +3,10 @@
 $NO_TILE_DRAWING = false
 
 require 'future/imaging/tile_drawer'
-require 'dipus'
+require 'socket'
 
-socket = DIPUS.create_service("image_cache", "/image_index_array/to/image_array")
+socket = TCPServer.new('localhost', 6000)
+# DIPUS.create_service("image_cache", "/image_index_array/to/image_array")
 
 while c = socket.accept
   Thread.new(c){|conn|

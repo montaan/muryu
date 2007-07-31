@@ -92,8 +92,8 @@ extend self
 
   def read(user, query, time, *tile_args)
     if $NO_TILE_DRAWING
-      require 'dipus'
-      return DIPUS.open_address("tile_drawer.*.*.#{$SERVER_ID}") do |conn|
+      require 'socket'
+      return TCPSocket.open("localhost", 5000+$SERVER_ID.to_i) do |conn|
         conn.write(
           Marshal.dump([user,query,time]+tile_args)
         )
@@ -386,7 +386,7 @@ class TileDrawer
       return if @@sw_init
       @@sw_init = true
       if $USE_DIPUS_IMAGE_CACHE or $NO_TILE_DRAWING
-        require 'dipus'
+        require 'socket'
       else
         puts "#{Time.now.to_f}: Reading #{@image_cache.max_index+1} thumbs of cache to RAM."
         init_mem_image_cache
@@ -408,8 +408,8 @@ class TileDrawer
   end
 
   def fetch_texture(z, index_int_string)
-    d = if ($USE_DIPUS_IMAGE_CACHE or $NO_TILE_DRAWING) and defined? DIPUS
-      DIPUS.open_address('image_cache'){|conn|
+    d = if ($USE_DIPUS_IMAGE_CACHE or $NO_TILE_DRAWING) #and defined? DIPUS
+      TCPSocket.open('localhost', 6000){|conn|
         conn.write([z].pack("I"))
         conn.write(index_int_string)
         conn.close_write
