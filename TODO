@@ -10,12 +10,12 @@ Important:
   - save playlist somewhere else than session
   - save map setup somewhere else than session
   - save notes somewhere else than session
+* simulated http workload with a configurable amount of users
+  - plus user generator
+* page numbers for ppt, text, odp, etc. types that go through the pdf thumbnailer
 * bug: map title positioning fails if font size differs from hardcoded expectation
 * bug: window resize handles don't work, only bottom left works
 * bug: player playlist sucks
-* simulated http workload with a configurable amount of users
-  - plus user generator
-NO 1.0 * less crappy PDF reader, slideshow is a bit lacking as one
 
 Somewhat important:
 * deleting folders
@@ -23,14 +23,16 @@ Somewhat important:
 * bug: video embed doesn't have correct dimensions
 * bug: no feedback on add-to-folder menu
 * bug: new folder/group positioning bad
-NO 1.0 * bug: filenames not visible if top-left tile not visible
 NO 1.0 * itunes-like management view for player
+NO 1.0 * less crappy PDF reader, slideshow is a bit lacking as one
+NO 1.0 * bug: filenames not visible if top-left tile not visible
 
 Not important:
 * player to get artist and title from db
 * keep (non-z0) tiles loaded if less than four needed to fill map area
   - i.e. keep toplevel tiles loaded
 * image thumbnailing is slow
+* ppt thumbnailing is slower
 * bug: content overflows window borders
 * bug: creating new folders in add-to-folder makes the main menu go bye
 NO 1.0 * show item infos overlay at z9+
