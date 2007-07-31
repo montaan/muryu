@@ -168,8 +168,8 @@ Suture.makePDF = function(w, index, path, pages){
   c.style.width = '100%'
   c.style.height = '100%'
   var infos = {}
-  for (var i=0; i<pages-1; i++) {
-    infos[i] = {path: path+'/page?number='+i}
+  for (var i=0; i<pages; i++) {
+    infos[i] = {path: path+'/page?number='+(i+1)}
   }
   var s = new Suture({
     container: c,
@@ -180,6 +180,7 @@ Suture.makePDF = function(w, index, path, pages){
     itemCount: pages,
     filePrefix : '/files/',
     window: w,
+    newQuery : false,
     isSupported : function(){ return true },
     setQuery : function(){ return true }
   })

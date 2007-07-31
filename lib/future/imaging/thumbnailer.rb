@@ -199,13 +199,14 @@ module Mimetype
   
   def unoconv_thumbnail(filename, thumb_filename, thumb_size, page, crop)
     tfn = thumb_filename.to_pn
-    tmp_filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}-unoconv.pdf"
-    charset = filename.to_pn.metadata.charset
-    system("unoconv -s #{filename.to_s.dump} > #{tmp_filename.to_s.dump}")
+    tmp_filename = tfn.dirname + "#{File.basename(filename)}-unoconv-temp.pdf"
+    unless tmp_filename.exist?
+      system("unoconv -s #{filename.to_s.dump} > #{tmp_filename.to_s.dump}")
+    end
     rv = false
     if tmp_filename.exist?
       rv = pdf_thumbnail(tmp_filename, thumb_filename, thumb_size, page, crop)
-      tmp_filename.unlink
+#       tmp_filename.unlink
     end
     rv
   end

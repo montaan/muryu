@@ -39,7 +39,7 @@ module MuryuDispatch
         pg = req.query['number'][0].to_i
         sz = (req.query['size'] || [1024])[0].to_i
         thumbdir = @target.thumbnail.dirname
-        pagefile = thumbdir + "#{pg}_#{sz}.png"
+        pagefile = thumbdir + "page_#{pg}_#{sz}.png"
         lm = @target.modified_at.httpdate
         if req['If-Modified-Since'] == lm
           res.status = 304
@@ -47,8 +47,8 @@ module MuryuDispatch
           res['Last-Modified-At'] = lm
           res['Expires'] = (Time.now + 86400*30).httpdate
           unless pagefile.exist?
-            if @target.pages and @target.pages > pg
-              Mimetype[@target.mimetype].thumbnail(@target.internal_path, pagefile, sz, pg)
+            if @target.pages and pg > 0 and @target.pages >= pg
+              Mimetype[@target.mimetype].thumbnail(@target.internal_path, pagefile, sz, pg-1)
             else
               raise(MuryuQuery::NotFound, "Tried to get page #{pg}, but document has only #{@target.pages} pages")
             end
