@@ -569,11 +569,11 @@ module MuryuDispatch
             target.rset_tags(user, tags)
           end
         end
-        if req.query.has_key?('groups')
+        if req.query.has_key?('groups') or req.query.has_key?('groups.new')
           gs = req.query['groups'] || []
           target.rset_groups(user, gs.find_all{|g|g.strip.length > 0})
         end
-        if req.query.has_key?('sets')
+        if req.query.has_key?('sets') or req.query.has_key?('sets.new')
           gs = req.query['sets'] || []
           target.rset_sets(user, gs.find_all{|g|g.strip.length > 0})
         end

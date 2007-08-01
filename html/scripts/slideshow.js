@@ -157,13 +157,7 @@ Suture.make = function(w, index, query){
   w.setContent(c)
   return w
 }
-Suture.makePDF = function(w, index, path, pages){
-  if (!w.width) w.setSize(600,400)
-  var wasShaded = w.shaded
-  if (w.shaded) {
-    w.shade()
-  }
-  w.setTitle(Tr('Reader'))
+Suture.makePDF = function(index, path, pages){
   var c = E('div')
   c.style.width = '100%'
   c.style.height = '100%'
@@ -179,27 +173,40 @@ Suture.makePDF = function(w, index, path, pages){
     query: {q:''},
     itemCount: pages,
     filePrefix : '/files/',
-    window: w,
     newQuery : false,
     isSupported : function(){ return true },
     setQuery : function(){ return true }
   })
-  w.slideshow = s
+  return s
+}
+Suture.loadWindow = function(win, params) {
+  document.slideshowWindow = Suture.make(win, win.parameters.index, win.parameters.query)
+}
+Suture.Reader = function(win, params) {
+  if (!win.width) win.setSize(600,400)
+  var wasShaded = win.shaded
+  if (win.shaded) {
+    win.shade()
+  }
+  win.setTitle(Tr('Reader'))
+  var s = Suture.makePDF(win.parameters.index, win.parameters.path, win.parameters.pages)
+  s.window = win
+  win.slideshow = s
   var resizer = function() {
-    if (!w.shaded) s.resize()
+    if (!win.shaded) s.resize()
     if (wasShaded) {
       wasShaded = false
-      w.shade()
+      win.shade()
     }
   }
-  w.addListener('resize', resizer)
+  win.addListener('resize', resizer)
   var minProg = false
-  w.addListener('close', function() {
+  win.addListener('close', function() {
     minProg = false
     if (s.autoProgressTimer)
       s.toggleAutoProgress()
   })
-  w.addListener('minimizeChange', function() {
+  win.addListener('minimizeChange', function() {
     if (s.autoProgressTimer) {
       s.toggleAutoProgress()
       minProg = true
@@ -208,16 +215,10 @@ Suture.makePDF = function(w, index, path, pages){
       minProg = false
     }
   })
-  w.addListener('containerChange', resizer)
-  w.addListener('shadeChange', resizer)
-  w.setContent(c)
-  return w
-}
-Suture.loadWindow = function(win, params) {
-  document.slideshowWindow = Suture.make(win, win.parameters.index, win.parameters.query)
-}
-Suture.Reader = function(win, params) {
-  Suture.makePDF(win, win.parameters.index, win.parameters.path, win.parameters.pages)
+  win.addListener('containerChange', resizer)
+  win.addListener('shadeChange', resizer)
+  win.setContent(s.container)
+  return win
 }
 
 

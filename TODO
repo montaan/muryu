@@ -12,7 +12,6 @@ Important:
   - save notes somewhere else than session
 * simulated http workload with a configurable amount of users
   - plus user generator
-* page numbers for ppt, text, odp, etc. types that go through the pdf thumbnailer
 * bug: map title positioning fails if font size differs from hardcoded expectation
 * bug: window resize handles don't work, only bottom left works
 * bug: player playlist sucks

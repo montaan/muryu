@@ -205,6 +205,14 @@ class Items < DB::Tables::Items
     Future.thumbnail_dir.join(*sha1_hash.scan(/(..)(..)(.*)/)[0]) + "fullsize.jpg"
   end
 
+  def update_metadata(charset=nil)
+    ext_metadata = MetadataExtractor[ internal_path, mimetype.to_s, charset ] || {}
+    md = self.metadata
+    DB.transaction do
+      ext_metadata.each{|k,v| md[k] = v }
+    end
+  end
+
   def update_thumbnail(update_image_cache_too=true, force_update=false)
     tn = thumbnail
     full_res = full_size_image

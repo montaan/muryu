@@ -195,7 +195,7 @@ class Uploader
     unless options[:io]
       if options[:text]
         options[:io] = StringIO.new(options[:text])
-        options[:filename] ||= "note"
+        options[:filename] ||= "note.txt"
       elsif options[:source]
         is_remote = true
       else
@@ -455,7 +455,9 @@ class Uploader
     unless mimetype
       tmp = File.join(
               File.dirname(handle.full_path.to_s),
-              Time.now.to_f.to_s + File.basename(preferred_filename).reverse[0,64].reverse)
+              "#{Process.pid}-#{Thread.object_id}-#{
+                File.basename(preferred_filename).reverse[0,64].reverse
+              }")
       begin
         FileUtils.ln(handle.full_path, tmp)
         mimetype = MimeInfo.get(tmp)
@@ -466,21 +468,20 @@ class Uploader
       end
     end
     major, minor = mimetype.to_s.split("/")
-    metadata = MetadataExtractor[ handle.full_path, mimetype.to_s, charset ] || {}
     item = nil
     attemps = MAX_ATTEMPS
     begin
       DB.transaction do
         mimetype_id = Mimetypes.find_or_create(:major => major, :minor => minor)
         # create new metadata to avoid nasty surprises with metadata edits
-        metadata_id = Metadata.create(metadata)
+        metadata = Metadata.create
         path = create_unique_filename(preferred_filename, owner, mimetype.extnames)
         item = Items.create(
                             :path => path, :size => handle.size,
                             :internal_path => handle.full_path,
                             :source => metadata_info[:source], :referrer => metadata_info[:referrer],
                             :sha1_hash => handle.sha1digest, :deleted => false,
-                            :mimetype_id => mimetype_id, :metadata_id => metadata_id,
+                            :mimetype_id => mimetype_id, :metadata_id => metadata,
                             :owner_id => owner.id, :created_at => Time.now.to_s)
         ([[owner.group, true]] + groups).each do |group, cm|
           cm = can_modify if cm.nil?
@@ -494,7 +495,10 @@ class Uploader
             :can_modify => cm ? true : false)
         end
       end
+      # update_thumbnail creates pdf version of unoconved files,
+      # which is used for some metadata extraction and fts text extraction
       item.update_thumbnail
+      item.update_metadata(charset)
       item.update_full_text_search
     rescue => e
       retry if filename_violation?(e) && (attemps -= 1) > 0

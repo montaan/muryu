@@ -104,7 +104,7 @@ Tr.addTranslations('en-US', {
   'WindowGroup.videos' : 'videos',
   'WindowGroup.text' : 'text',
   'WindowGroup.HTML' : 'HTML',
-  'WindowGroup.document' : 'documents',
+  'WindowGroup.documents' : 'documents',
   'WindowGroup.other' : 'others'
 })
 Tr.addTranslations('en-GB', {
@@ -196,7 +196,7 @@ Tr.addTranslations('fi-FI', {
   'WindowGroup.videos' : 'videot',
   'WindowGroup.text' : 'tekstit',
   'WindowGroup.HTML' : 'HTML',
-  'WindowGroup.document' : 'asiakirjat',
+  'WindowGroup.documents' : 'asiakirjat',
   'WindowGroup.other' : 'muut'
 })
 Tr.addTranslations('de-DE', {
@@ -253,6 +253,7 @@ Mimetype = {
             win.content.appendChild(this.parseUserInfo(info, win))
             win.content.appendChild(this.createViewer(info, win))
             win.content.appendChild(this.parseItemMetadata(info, win))
+            win.newEvent('contentChange', {value: win.content})
           } catch(e) { console.log(e) }
         }.bind(this)
       })
@@ -503,6 +504,9 @@ Mimetype = {
         } else if (info.mimetype.split("/")[0] == 'text') {
           viewer = this.makeTextViewer(info,win)
           group = 'text'
+        } else if (info.mimetype.match(/pdf|postscript|powerpoint|vnd\.oasis\.opendocument|msword|ms-excel|rtf|x-tex|template|stardivision|comma-separated-values|dbf|vnd\.sun\.xml/)) {
+          viewer = this.makeDocumentViewer(info,win)
+          group = 'documents'
         } else {
           viewer = this.makeThumbViewer(info,win)
           group = 'other'
@@ -752,7 +756,50 @@ Mimetype = {
     },
 
     makeTextViewer : function(info, win) {
-      return this.makeHTMLViewer(info, win)
+      this.text = Object.extend({}, Mimetype['text'])
+      this.embed = this.text.makeEmbed('/files/' + info.path)
+      this.text.init('/files/' + info.path, win)
+      return this.embed
+    },
+
+    makeDocumentViewer : function(info, win) {
+      var s = this.slideshow = Suture.makePDF((win.parameters && win.parameters.index) || 0, info.path, info.metadata.pages)
+      if (!win.width) win.setSize(600,400)
+      win.parameters = {index: 0}
+      s.window = win
+      win.slideshow = s
+      var wasShaded = win.shaded
+      var embed = E('div')
+      embed.append(this.slideshow.container)
+      var resizer = function() {
+        var other = embed.parentNode.clientHeight - embed.clientHeight
+        embed.style.height = (win.contentElement.clientHeight - other) + 'px'
+        if (!win.shaded) s.resize()
+        if (wasShaded) {
+          wasShaded = false
+          win.shade()
+        }
+      }
+      win.addListener('resize', resizer)
+      var minProg = false
+      win.addListener('close', function() {
+        minProg = false
+        if (s.autoProgressTimer)
+          s.toggleAutoProgress()
+      })
+      win.addListener('minimizeChange', function() {
+        if (s.autoProgressTimer) {
+          s.toggleAutoProgress()
+          minProg = true
+        } else if (minProg) {
+          s.toggleAutoProgress()
+          minProg = false
+        }
+      })
+      win.addListener('containerChange', resizer)
+      win.addListener('contentChange', resizer)
+      win.addListener('shadeChange', resizer)
+      return embed
     },
 
     makeThumbViewer : function(info, win) {
@@ -1199,6 +1246,39 @@ Mimetype = {
       win.addListener('dragEnd', function() {
         this.embed.style.visibility = 'visible'
       }.bind(this))
+    }
+  },
+
+  text : {
+    mimetype : 'text',
+    makeEmbed : function(src) {
+      var e = E('textarea')
+      e.style.display = 'block'
+      e.style.backgroundColor = 'white'
+      e.style.fontWeight = 'normal'
+      e.style.border = '0px'
+      e.style.color = 'black'
+      e.style.margin = '0px'
+      e.style.padding = '2px'
+      e.style.width = '600px'
+      e.style.height = '400px'
+      new Ajax.Request( src, {
+        method:'get',
+        onSuccess : function(res) {
+          e.append(T(res.responseText))
+        }
+      })
+      this.embed = e
+      return e
+    },
+    init : function(src, win) {
+      this.resizer = function(e){
+        this.embed.style.width = parseInt(win.contentElement.style.width) - 4 + 'px'
+        this.embed.style.height = parseInt(win.contentElement.style.height) - (this.embed.offsetTop-win.contentElement.offsetTop) - 4 + 'px'
+      }
+      this.resizer()
+      win.addListener('resize', this.resizer.bind(this))
+      win.addListener('containerChange', this.resizer.bind(this))
     }
   },
 

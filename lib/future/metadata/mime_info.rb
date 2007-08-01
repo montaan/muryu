@@ -88,11 +88,29 @@ public
       ft = `file -ib #{filename.dump}`.strip
       # if ft and nrv disagree, use lmrv || nrv || ft
       if nrv and ft != nrv
-        rv = lmrv || nrv || ft
+        if generic_type?(lmrv)
+          rv = nrv || lmrv || ft
+        else
+          rv = lmrv || nrv || ft
+        end
       end
     end
     return nil unless rv
     Mimetype[ rv ]
+  end
+
+  GENERIC_TYPES = %(
+    application/x-ole-storage
+    application/zip
+    application/x-gzip
+    application/x-tar
+    application/x-bzip
+    application/x-compressed-tar
+    application/x-bzip-compressed-tar
+  )
+
+  def generic_type?(t)
+    GENERIC_TYPES.include?(t)
   end
 
   # check if we are dealing with a special node
@@ -133,7 +151,11 @@ public
       @globs.each { |k, v| return v if File.fnmatch(k, f) }
 
       # no luck. try again with @globs_ext
-      v = @globs_ext[File.extname(f)]
+      parts = f.to_s.split(".")
+      v = nil
+      (1...parts.size).find{|i|
+        v = @globs_ext["." + parts[i..-1].join(".")]
+      }
       return v if v
     end
     return 'inode/directory' if filename[-1,File::SEPARATOR.size] == File::SEPARATOR

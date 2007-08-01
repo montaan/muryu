@@ -171,7 +171,7 @@ extend self
 
   def extract(filename, mimetype=MimeInfo.get(filename.to_s), charset=nil)
     filename = filename.to_s
-    major,minor = mimetype.to_s.gsub("-","_").split("/")
+    major,minor = mimetype.to_s.gsub(/[^\/a-z0-9]/i,"_").split("/")
     mn = [major,minor].join("_")
     new_methods = public_methods(false)
     if new_methods.include?( mn )
@@ -179,7 +179,7 @@ extend self
     elsif new_methods.include?( major )
       __send__ major, filename, charset
     else
-      {}
+      extract_extract_info(filename)
     end
   end
 
@@ -220,9 +220,19 @@ extend self
     enc_utf8(`antiword #{filename.dump}`, charset)
   end
   
+  def application_rtf__gettext(filename, charset)
+    enc_utf8(`catdoc #{filename.dump}`, charset)
+  end
+  
   def application_vnd_ms_powerpoint__gettext(filename, charset)
     enc_utf8(`catppt #{filename.dump}`, charset)
   end
+
+  def application_vnd_ms_excel__gettext(filename, charset)
+    enc_utf8(`xls2csv -d UTF-8 #{filename.dump}`, charset)
+  end
+
+  
 
   open_office_types = %w(
   application/vnd.oasis.opendocument.text
@@ -265,17 +275,46 @@ extend self
   application/x-starmath
   application/x-starchart)
 
-  def self.create_text_extractor(mimetype, command)
+  office_types = %w(
+  application/msword
+  application/vnd.ms-powerpoint
+  application/vnd.ms-excel
+  application/rtf
+  )
+
+  def self.create_text_extractor(mimetype, &block)
     major,minor = mimetype.to_s.gsub(/[^\/a-z0-9]/i,"_").split("/")
     mn = [major,minor,"_gettext"].join("_")
-    define_method(mn) do |filename, charset|
-      
-    end
+    define_method(mn, &block)
   end
 
-#   open_office_types.each{|t|
-#     create_text_extractor(t, 'magic')
-#   }
+  def self.create_info_extractor(mimetype, &block)
+    major,minor = mimetype.to_s.gsub(/[^\/a-z0-9]/i,"_").split("/")
+    mn = [major,minor].join("_")
+    define_method(mn, &block)
+  end
+
+  open_office_types.each{|t|
+    create_text_extractor(t) do |filename, charset|
+      pdf = File.join(File.dirname(filename.to_s), File.basename(filename.to_s)+"-temp.pdf")
+      if File.exist?(pdf)
+        application_pdf__gettext(pdf, charset)
+      else
+        ''
+      end
+    end
+  }
+  
+  (open_office_types + office_types).each{|t|
+    create_info_extractor(t) do |filename, charset|
+      pdf = File.join(File.dirname(filename.to_s), File.basename(filename.to_s)+"-temp.pdf")
+      if File.exist?(pdf)
+        extract_extract_info(filename).merge(application_pdf(pdf, charset))
+      else
+        extract_extract_info(filename)
+      end
+    end
+  }
   
   private
 
@@ -295,6 +334,19 @@ extend self
       [k,v]
     }
     Hash[*ids.flatten]
+  end
+
+  def extract_extract_info(fname)
+    h = `extract #{fname.dump}`.strip.split("\n").map{|s| s.split(" - ",2) }.to_hash
+    {
+      :title, enc_utf8(h['title'] || h['subject'], nil),
+#       :language, enc_utf8(h['language'], nil),
+      :author, enc_utf8(h['creator'], nil),
+      :publish_time, parse_time(h['date'] || h['creation date']),
+      :description, enc_utf8(h['description'], nil),
+#       :software, enc_utf8(h['software'], nil),
+      :words, h['word count']
+    }
   end
 
   def extract_exif(fname)

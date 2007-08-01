@@ -103,7 +103,7 @@ module Mimetype
 
   def image_thumbnail(filename, thumb_filename, thumb_size, page=0, crop='0x0+0+0')
     tfn = thumb_filename.to_pn
-    tmp_filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.object_id}#{tfn.extname}"
+    tmp_filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.current.object_id}#{tfn.extname}"
     if to_s =~ /^image/
       img = Imlib2::Image.load(filename.to_s)
       begin
@@ -145,7 +145,7 @@ module Mimetype
     else
 #       puts "going to non-image fork"
       original_filename = filename
-      filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.object_id}-src#{extname}"
+      filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.current.object_id}-src#{extname}"
       begin
         FileUtils.ln_s(original_filename.to_s, filename.to_s)
         filename.mimetype = self
@@ -185,28 +185,28 @@ module Mimetype
   }
 
   def paps_thumbnail(filename, thumb_filename, thumb_size, page, crop)
-    tfn = thumb_filename.to_pn
-    tmp_filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}-paps.pdf"
+    tfn = filename.to_pn
+    tmp_filename = tfn.dirname + "#{File.basename(filename)}-temp.pdf"
     charset = filename.to_pn.metadata.charset
-    system("iconv -f #{charset} -t utf8 #{filename.to_s.dump} | paps --font_scale 11 --columns 1 | ps2pdf - #{tmp_filename.to_s.dump}")
+    unless tmp_filename.exist?
+      system("iconv -f #{charset} -t utf8 #{filename.to_s.dump} | paps --font_scale 11 --columns 1 | ps2pdf - #{tmp_filename.to_s.dump}")
+    end
     rv = false
     if tmp_filename.exist?
       rv = pdf_thumbnail(tmp_filename, thumb_filename, thumb_size, page, crop)
-      tmp_filename.unlink
     end
     rv
   end
   
   def unoconv_thumbnail(filename, thumb_filename, thumb_size, page, crop)
-    tfn = thumb_filename.to_pn
-    tmp_filename = tfn.dirname + "#{File.basename(filename)}-unoconv-temp.pdf"
+    tfn = filename.to_pn
+    tmp_filename = tfn.dirname + "#{File.basename(filename)}-temp.pdf"
     unless tmp_filename.exist?
       system("unoconv -s #{filename.to_s.dump} > #{tmp_filename.to_s.dump}")
     end
     rv = false
     if tmp_filename.exist?
       rv = pdf_thumbnail(tmp_filename, thumb_filename, thumb_size, page, crop)
-#       tmp_filename.unlink
     end
     rv
   end
@@ -234,7 +234,7 @@ module Mimetype
 
   def html_thumbnail(filename, thumb_filename, thumb_size, page, crop)
     tfn = thumb_filename.to_pn
-    tmp_filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}-moz.png"
+    tmp_filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.current.object_id}-#{Time.now.to_f}-moz.png"
     system('ruby',
       File.join(File.dirname(__FILE__), 'moz-snapshooter.rb'),
       "file://" + File.expand_path(filename),
@@ -247,7 +247,7 @@ module Mimetype
 
   def web_thumbnail(url, thumb_filename, thumb_size=nil, page=0, crop='0x0+0+0')
     tfn = thumb_filename.to_pn
-    tmp_filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}-moz.png"
+    tmp_filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.current.object_id}-#{Time.now.to_f}-moz.png"
     system('ruby',
       File.join(File.dirname(__FILE__), 'moz-snapshooter.rb'),
       url.to_s,
@@ -261,7 +261,7 @@ module Mimetype
   def ffmpeg_thumbnail(filename, thumb_filename, thumb_size, page, crop)
     ffmpeg = `which ffmpeg`.strip
     ffmpeg = "ffmpeg" if ffmpeg.empty?
-    tmp_filename = thumb_filename.to_pn.dirname + ".tmp#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}-ffmpeg.png"
+    tmp_filename = thumb_filename.to_pn.dirname + ".tmp#{Process.pid}-#{Thread.current.object_id}-#{Time.now.to_f}-ffmpeg.png"
     system(ffmpeg, "-i", filename, "-vcodec", "png", "-f", "rawvideo", "-ss", page.to_s, "-an", "-r", "1", "-vframes", "1", "-y", tmp_filename.to_s)
     if tmp_filename.exist?
       Mimetype['image/png'].image_thumbnail(tmp_filename, thumb_filename, thumb_size, 0, crop)
@@ -271,7 +271,7 @@ module Mimetype
   end
 
   def video_thumbnail(filename, thumb_filename, thumb_size, page, crop)
-    video_cache_dir = Future.cache_dir + "videotemp-#{Process.pid}-#{Thread.object_id}-#{Time.now.to_f}"
+    video_cache_dir = Future.cache_dir + "videotemp-#{Process.pid}-#{Thread.current.object_id}-#{Time.now.to_f}"
     video_cache_dir.mkdir_p
     mplayer = `which mplayer32`.strip
     mplayer = `which mplayer`.strip if mplayer.empty?

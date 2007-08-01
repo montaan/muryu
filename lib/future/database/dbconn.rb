@@ -959,9 +959,9 @@ module DB
 
     def method_missing(c, *args)
       c = c.to_s
-      if c[-1,1] == "="
+      if c[-1,1] == "=" and column?(c[0..-2])
         c = c[0..-2]
-        super if args.empty? or not column?(c)
+        raise(ArgumentError, "No arguments given to setter #{c}") if args.empty?
         set_column(c, args[0])
       elsif column?(c)
         get_column(c, args[0])

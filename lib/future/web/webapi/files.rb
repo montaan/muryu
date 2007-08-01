@@ -35,23 +35,38 @@ module MuryuDispatch
         end
       end
 
+      def generate_page_image(item, pg, sz)
+        thumbdir = item.thumbnail.dirname
+        pagefile = thumbdir + "page_#{pg}_#{sz}.png"
+        unless pagefile.exist?
+          if item.pages and pg > 0 and item.pages >= pg
+            tempfile = thumbdir +
+              "page_#{Process.pid}_#{Thread.current.object_id}_#{pg}_#{sz}.png"
+            Mimetype[item.mimetype].thumbnail(item.internal_path, tempfile, sz, pg-1)
+            tempfile.rename(pagefile) if tempfile.exist?
+            raise(MuryuQuery::NotFound, "Failed to create page image") unless pagefile.exist?
+          end
+        end
+        pagefile.exist? ? pagefile : false
+      end
+
       def page(req, res)
         pg = req.query['number'][0].to_i
         sz = (req.query['size'] || [1024])[0].to_i
-        thumbdir = @target.thumbnail.dirname
-        pagefile = thumbdir + "page_#{pg}_#{sz}.png"
         lm = @target.modified_at.httpdate
         if req['If-Modified-Since'] == lm
           res.status = 304
         else
           res['Last-Modified-At'] = lm
           res['Expires'] = (Time.now + 86400*30).httpdate
-          unless pagefile.exist?
-            if @target.pages and pg > 0 and @target.pages >= pg
-              Mimetype[@target.mimetype].thumbnail(@target.internal_path, pagefile, sz, pg-1)
-            else
-              raise(MuryuQuery::NotFound, "Tried to get page #{pg}, but document has only #{@target.pages} pages")
-            end
+          pagefile = generate_page_image(@target, pg, sz)
+          if pagefile
+            Thread.new(@target){|t|
+              generate_page_image(t, pg+1, sz)
+              generate_page_image(t, pg-1, sz)
+            }
+          else
+            raise(MuryuQuery::NotFound, "Tried to get page #{pg}, but document has only #{@target.pages} pages")
           end
           res.body = pagefile.open('rb')
           res.content_type = 'image/png'
