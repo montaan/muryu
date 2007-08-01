@@ -253,6 +253,7 @@ Mimetype = {
             win.content.appendChild(this.parseUserInfo(info, win))
             win.content.appendChild(this.createViewer(info, win))
             win.content.appendChild(this.parseItemMetadata(info, win))
+            win.setSize(win.element.clientWidth, win.element.clientHeight)
             win.newEvent('contentChange', {value: win.content})
           } catch(e) { console.log(e) }
         }.bind(this)
@@ -764,12 +765,12 @@ Mimetype = {
 
     makeDocumentViewer : function(info, win) {
       var s = this.slideshow = Suture.makePDF((win.parameters && win.parameters.index) || 0, info.path, info.metadata.pages)
-      if (!win.width) win.setSize(600,400)
       win.parameters = {index: 0}
       s.window = win
       win.slideshow = s
       var wasShaded = win.shaded
       var embed = E('div')
+      embed.style.height = '400px'
       embed.append(this.slideshow.container)
       var resizer = function() {
         var other = embed.parentNode.clientHeight - embed.clientHeight
