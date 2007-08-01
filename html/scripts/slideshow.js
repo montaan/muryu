@@ -238,6 +238,7 @@ Suture.prototype = {
   noSpaceBar : false,
   focused : true,
   fading : false,
+  newQuery : true,
   loader : document.createElement("div"),
   indexElement : document.createElement("div"),
   nameElement : document.createElement("div"),
