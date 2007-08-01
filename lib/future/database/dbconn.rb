@@ -515,7 +515,7 @@ module DB
         @table_name ||= to_s.split('::').last.to_table_name
       end
 
-      def find_or_create(h)
+      def find_or_create(h={})
         find(h) or create(h)
       end
 
@@ -528,7 +528,7 @@ module DB
         raise ArgumentError, "Invalid column name #{column_name} for #{table_name}"
       end
 
-      def create(h)
+      def create(h={})
         i = conn.exec(%Q(SELECT nextval(#{quote( table_name + "_id_seq")}) ))[0][0].to_i
         h[:id] = i
         sql = %Q[INSERT INTO #{escape table_name}

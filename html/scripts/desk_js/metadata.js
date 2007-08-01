@@ -770,10 +770,12 @@ Mimetype = {
       win.slideshow = s
       var wasShaded = win.shaded
       var embed = E('div')
+      embed.style.width = '600px'
       embed.style.height = '400px'
       embed.append(this.slideshow.container)
       var resizer = function() {
         var other = embed.parentNode.clientHeight - embed.clientHeight
+        embed.style.width = (win.contentElement.clientWidth) + 'px'
         embed.style.height = (win.contentElement.clientHeight - other) + 'px'
         if (!win.shaded) s.resize()
         if (wasShaded) {

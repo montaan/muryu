@@ -12,19 +12,28 @@ Important:
   - save notes somewhere else than session
 * simulated http workload with a configurable amount of users
   - plus user generator
+* doubleclick not obvious
 * bug: map title positioning fails if font size differs from hardcoded expectation
 * bug: window resize handles don't work, only bottom left works
 * bug: player playlist sucks
 
+
 Somewhat important:
 * deleting folders
 * deleting groups
+* presentation & slideshow controls too invisible
 * bug: video embed doesn't have correct dimensions
 * bug: no feedback on add-to-folder menu
 * bug: new folder/group positioning bad
 NO 1.0 * itunes-like management view for player
 NO 1.0 * less crappy PDF reader, slideshow is a bit lacking as one
 NO 1.0 * bug: filenames not visible if top-left tile not visible
+* keep container hierarchy in breadcrumb trail at top
+* have some circles with arrows emanating from (0,0)?
+* refuse to zoom into the empty void between the planes of existence
+* named arrows to other areas on the map
+  - click to go there
+
 
 Not important:
 * player to get artist and title from db
