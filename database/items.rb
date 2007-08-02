@@ -19,7 +19,8 @@ tables["items"] = {
 
 tables["itemtexts"] = {
   :item_id => [['items'], 'unique', 'not null'],
-  :text => [:text]
+  :text => [:text],
+  :volatile => [:boolean, 'not null', 'default false']
 }
 
 tables["tokens"] = {

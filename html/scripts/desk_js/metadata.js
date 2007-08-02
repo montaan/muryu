@@ -92,6 +92,18 @@ Tr.addTranslations('en-US', {
   'Item.item' : 'Item',
   'Item.organization' : 'Organization',
   'Item.metadata' : 'Metadata',
+  'Item.dimensions.undefined' : function(w,h) {
+    return parseInt(w) + 'x' + parseInt(h)
+  },
+  'Item.dimensions.mm' : function(w,h) {
+    return parseInt(w) + 'x' + parseInt(h) + 'mm'
+  },
+  'Item.dimensions.px' : function(w,h) {
+    return parseInt(w) + 'x' + parseInt(h) + 'px'
+  },
+  'Item.dimensions.pt' : function(w,h) {
+    return parseInt(w) + 'x' + parseInt(h) + 'pt'
+  },
   
   'Item.Editing' : 'Editing ',
   'Item.Deleting' : 'Deleting ',
@@ -318,8 +330,9 @@ Mimetype = {
         if (info.metadata.page_size)
           mda.push(info.metadata.page_size)
         else if (info.metadata.width && info.metadata.height)
-          mda.push(info.metadata.width+"x"+info.metadata.height +
-                   (info.metadata.dimensions_unit || ""))
+          mda.push(
+            Tr('Item.dimensions.'+info.metadata.dimensions_unit,
+               info.metadata.width, info.metadata.height))
         mda.push(Number.mag(info.size, Tr('Item.byte_abbr'), 1))
       }
       metadata.appendChild(T(" ("+mda.join(", ")+") "))
@@ -885,7 +898,7 @@ Mimetype = {
       dd.style.textAlign = 'center'
       dd.style.minWidth = "256px"
       td.appendChild(dd)
-      dd.appendChild(E("img", null, null, null, {display:'block'}, {src:'/items/' + info.path+'/thumbnail'}))
+      dd.appendChild(E("img", null, null, null, null, {src:'/items/' + info.path+'/thumbnail'}))
       dd.appendChild(E("h5", Tr('Item.filename')))
       dd.appendChild(E("input", null,null,null,null,
         { type: 'text',

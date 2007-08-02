@@ -1,55 +1,81 @@
 Current list of buggy things, small-minded usability stuff:
 -----------------------------------------------------------
 Important:
-* uploading n-hundred image zips sucks because
-  - no indication of progress
-  - nginx errors out with "The page you are looking for is temporarily unavailable."
-    because of the timeout
-* search query editor with clickable sort: user: type: etc.
+NOW:
+* bug: map title positioning fails if font size differs from hardcoded expectation
+* bug: window resize handles don't work, only bottom left works
+* doubleclick not obvious
+* the sidebars for groups and sets suck
 * split session in several parts. In particular:
   - save playlist somewhere else than session
   - save map setup somewhere else than session
   - save notes somewhere else than session
+* no "copy url to clipboard" in item context menu
+
+LATER:
+* search query editor with clickable sort: user: type: etc.
 * simulated http workload with a configurable amount of users
   - plus user generator
-* doubleclick not obvious
-* bug: map title positioning fails if font size differs from hardcoded expectation
-* bug: window resize handles don't work, only bottom left works
-* bug: player playlist sucks
+* player playlist sucks
 
 
 Somewhat important:
-* deleting folders
-* deleting groups
-* presentation & slideshow controls too invisible
+NOW:
 * bug: video embed doesn't have correct dimensions
 * bug: no feedback on add-to-folder menu
 * bug: new folder/group positioning bad
-NO 1.0 * itunes-like management view for player
-NO 1.0 * less crappy PDF reader, slideshow is a bit lacking as one
-NO 1.0 * bug: filenames not visible if top-left tile not visible
+* bug: filenames not visible if top-left tile not visible
+* bug: after going to fullscreen mode, map extents not updated
+  => stuff disappears before it should
+* deleting folders
+* deleting groups
+* image viewers don't resize
+* presentation & slideshow controls too invisible
+* sending bug reports
+* no "refresh map" in item context menu
+* state page dimensions in ints, not floats
+
+LATER:
+* messaging between users
+* less crappy PDF reader, slideshow is a bit lacking as one
+  - disable find until it works
+  - make bottom page title invisible, enlarge number
+  - make first part of number editable
+  - list of page thumbs on side
+* uploading n-hundred image zips sucks because
+  - no indication of progress
+* update view after changes
+* itunes-like management view for player
 * keep container hierarchy in breadcrumb trail at top
-* have some circles with arrows emanating from (0,0)?
 * refuse to zoom into the empty void between the planes of existence
 * named arrows to other areas on the map
   - click to go there
+* have some circles with arrows emanating from (0,0)?
 
 
 Not important:
+NOW:
+* bug: content overflows window borders
+* bug: creating new folders in add-to-folder makes the main menu go bye
 * player to get artist and title from db
 * keep (non-z0) tiles loaded if less than four needed to fill map area
   - i.e. keep toplevel tiles loaded
+* slideshow resize is slow. seriously slow.
+* can't select text from map
+
+LATER:
 * image thumbnailing is slow
 * ppt thumbnailing is slower
-* bug: content overflows window borders
-* bug: creating new folders in add-to-folder makes the main menu go bye
-NO 1.0 * show item infos overlay at z9+
-NO 1.0 * collapse-button for sidebar titles
-NO 1.0 * sidebar hiding
-NO 1.0 * create containers from menu
-NO 1.0 * create searches inside containers
-NO 1.0 * player playlist context menu for items (nick from ItemArea)
-NO 1.0 * sha1 challenge-response login for no https
+* detect license of uploaded things, use to determine public access
+  - if free, allow copy, view, etc, like private
+  - otherwise, link to referrer
+* show item infos overlay at z9+
+* collapse-button for sidebar titles
+* sidebar hiding
+* create containers from menu
+* create searches inside containers
+* player playlist context menu for items (nick from ItemArea)
+* sha1 challenge-response login for no https
   onsubmit= "this.password_hash.value=hex_sha1(hex_sha1(this.password.value+this.salt.value)+document.cookie.split(/[;=]/)[1]);this.password.value=''"
 
 
