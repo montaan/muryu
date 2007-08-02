@@ -70,24 +70,29 @@ module Mimetype
   #
   def thumbnail(filename, thumb_filename, thumb_size=nil, page=nil, crop='0x0+0+0')
 #     puts "called thumbnail for #{filename} (#{to_s})"
-    if to_s =~ /video/
-      page ||= [[5.7, filename.to_pn.length * 0.5].max, filename.to_pn.length * 0.75].min
-      ffmpeg_thumbnail(filename, thumb_filename, thumb_size, page, crop)
-    elsif to_s =~ /html/
-      page ||= 0
-      html_thumbnail(filename, thumb_filename, thumb_size, page, crop)
-    elsif to_s =~ /pdf/
-      page ||= 0
-      pdf_thumbnail(filename, thumb_filename, thumb_size, page, crop)
-    elsif to_s =~ /image|postscript/
-      page ||= 0
-      image_thumbnail(filename, thumb_filename, thumb_size, page, crop)
-    elsif to_s =~ /^text/
-      page ||= 0
-      paps_thumbnail(filename, thumb_filename, thumb_size, page, crop)
-    elsif to_s =~ /powerpoint|vnd\.oasis\.opendocument|msword|ms-excel|rtf|x-tex|template|stardivision|comma-separated-values|dbf|vnd\.sun\.xml/
-      page ||= 0
-      unoconv_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+    begin
+      if to_s =~ /video/
+        page ||= [[5.7, filename.to_pn.length * 0.5].max, filename.to_pn.length * 0.75].min
+        ffmpeg_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+      elsif to_s =~ /html/
+        page ||= 0
+        html_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+      elsif to_s =~ /pdf/
+        page ||= 0
+        pdf_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+      elsif to_s =~ /image|postscript/
+        page ||= 0
+        image_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+      elsif to_s =~ /^text/
+        page ||= 0
+        paps_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+      elsif to_s =~ /powerpoint|vnd\.oasis\.opendocument|msword|ms-excel|rtf|x-tex|template|stardivision|comma-separated-values|dbf|vnd\.sun\.xml/
+        page ||= 0
+        unoconv_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+      end
+    rescue Exception => e
+      puts e, e.message, e.backtrace
+      false
     end or icon_thumbnail(filename, thumb_filename, thumb_size, crop)
   end
 

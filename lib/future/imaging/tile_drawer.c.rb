@@ -140,13 +140,16 @@ void colorize
       color[1] = (color[1]*sa) >> 8;
       color[2] = (color[2]*sa) >> 8;
       if (sz >= 64) {
-        for(j=0; j<16; j++) {
+        // oil_composite_over_argb_const_src does not like being called with
+        // length 0
+        for(j=0; j<15; j++) {
           oil_composite_over_argb_const_src(
             (uint32_t*)&thumbs[i*sz24+j*sz*4],
             (uint32_t*)&colors[i],
             15-j);
           *(uint32_t*)&thumbs[i*sz24+j*sz*4+(15-j)*4] = 0;
         }
+        *(uint32_t*)&thumbs[i*sz24+j*sz*4+(15-j)*4] = 0;
       } else {
         oil_composite_over_argb_const_src((uint32_t*)&thumbs[i*sz24], (uint32_t*)&colors[i], sz*sz);
       }

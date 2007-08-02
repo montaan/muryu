@@ -53,6 +53,7 @@ include Future
     end
     raws = (0..10).map{|i| @image_cache.read_images_as_string(3, [i]) }
     jpegs = (0..10).map{|i| @image_cache.read_images_as_jpeg(5, [i]) }
+    jpegs7 = (0..10).map{|i| @image_cache.read_images_as_jpeg(7, [i]) }
     (0..20).each do |i|
       ts << Thread.new do
         @image_cache.update_cache_at(
@@ -65,13 +66,72 @@ include Future
         assert_equal(
           jpegs[i % 11], @image_cache.read_images_as_jpeg(5, [i*100])
         )
+        assert_equal(
+          jpegs7[i % 11], @image_cache.read_images_as_jpeg(7, [i*100])
+        )
       end
     end
     ts.each{|t| t.join }
   end
 
+  def test_raw_start
+    cache_setup 'raw_start'
+    @image_cache.use_db = false
+    (0..10).each do |i|
+      @image_cache.update_cache_at(
+        i,
+        item(File.join(File.dirname(__FILE__), "data/images/#{i}.png"), false)
+      )
+    end
+    raws = (0..10).map{|i| @image_cache.read_images_as_string(3, [i]) }
+    assert_equal(
+      raws.join.size, 
+      @image_cache.read_span_as_string(3, 0, 10).size
+    )
+    assert_equal(
+      Digest::MD5.hexdigest(raws.join), 
+      Digest::MD5.hexdigest(@image_cache.read_span_as_string(3, 0, 10))
+    )
+    assert_equal(
+      raws.join.size, 
+      @image_cache.read_images_as_string(3, (0..10).to_a).size
+    )
+    assert_equal(
+      Digest::MD5.hexdigest(raws.join), 
+      Digest::MD5.hexdigest(@image_cache.read_images_as_string(3, (0..10).to_a))
+    )
+  end
+
+  def test_jpeg_start
+    cache_setup 'jpeg_start'
+    @image_cache.use_db = false
+    (0..10).each do |i|
+       @image_cache.update_cache_at(
+        i,
+        item(File.join(File.dirname(__FILE__), "data/images/#{i}.png"), false)
+      )
+    end
+    jpegs = (0..10).map{|i| @image_cache.read_images_as_jpeg(7, [i]) }
+    assert_equal(
+      jpegs.join.size, 
+      @image_cache.read_span_as_jpeg(7, 0, 10).size
+    )
+    assert_equal(
+      Digest::MD5.hexdigest(jpegs.join), 
+      Digest::MD5.hexdigest(@image_cache.read_span_as_jpeg(7, 0, 10))
+    )
+    assert_equal(
+      jpegs.join.size, 
+      @image_cache.read_images_as_jpeg(7, (0..10).to_a).size
+    )
+    assert_equal(
+      Digest::MD5.hexdigest(jpegs.join), 
+      Digest::MD5.hexdigest(@image_cache.read_images_as_jpeg(7, (0..10).to_a))
+    )
+  end
+
   def test_jpeg_span
-    cache_setup 'threads'
+    cache_setup 'jpeg_span'
     ts = []
     @image_cache.use_db = false
     @image_cache.batch do

@@ -470,19 +470,24 @@ class Uploader
     major, minor = mimetype.to_s.split("/")
     item = nil
     attemps = MAX_ATTEMPS
-    begin
       DB.transaction do
         mimetype_id = Mimetypes.find_or_create(:major => major, :minor => minor)
         # create new metadata to avoid nasty surprises with metadata edits
         metadata = Metadata.create
-        path = create_unique_filename(preferred_filename, owner, mimetype.extnames)
-        item = Items.create(
-                            :path => path, :size => handle.size,
-                            :internal_path => handle.full_path,
-                            :source => metadata_info[:source], :referrer => metadata_info[:referrer],
-                            :sha1_hash => handle.sha1digest, :deleted => false,
-                            :mimetype_id => mimetype_id, :metadata_id => metadata,
-                            :owner_id => owner.id, :created_at => Time.now.to_s)
+        begin
+          path = create_unique_filename(preferred_filename, owner, mimetype.extnames)
+          item = Items.create(
+                              :path => path, :size => handle.size,
+                              :internal_path => handle.full_path,
+                              :source => metadata_info[:source], :referrer => metadata_info[:referrer],
+                              :sha1_hash => handle.sha1digest, :deleted => false,
+                              :mimetype_id => mimetype_id, :metadata_id => metadata,
+                              :owner_id => owner.id, :created_at => Time.now.to_s)
+        rescue => e
+          puts e, e.message, e.backtrace
+          retry if filename_violation?(e) && (attemps -= 1) > 0
+          raise
+        end
         ([[owner.group, true]] + groups).each do |group, cm|
           cm = can_modify if cm.nil?
           unless group.is_a? DB::Table
@@ -500,10 +505,6 @@ class Uploader
       item.update_thumbnail
       item.update_metadata(charset)
       item.update_full_text_search
-    rescue => e
-      retry if filename_violation?(e) && (attemps -= 1) > 0
-      raise
-    end
     item
   end
 end # Uploader
