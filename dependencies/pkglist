@@ -485,3 +485,7 @@ xutils-dev
 xvfb
 zlib1g
 zlib1g-dev
+zip
+unzip
+unrar-free
+p7zip-full
