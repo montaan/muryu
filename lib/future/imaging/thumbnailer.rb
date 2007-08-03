@@ -199,6 +199,7 @@ module Mimetype
     rv = false
     if tmp_filename.exist?
       rv = pdf_thumbnail(tmp_filename, thumb_filename, thumb_size, page, crop)
+      tmp_filename.unlink unless rv
     end
     rv
   end
@@ -212,6 +213,7 @@ module Mimetype
     rv = false
     if tmp_filename.exist?
       rv = pdf_thumbnail(tmp_filename, thumb_filename, thumb_size, page, crop)
+      tmp_filename.unlink unless rv
     end
     rv
   end
