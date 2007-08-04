@@ -1,4 +1,4 @@
-user  kig;
+user  <%= ENV['USER'] %>;
 worker_processes  2;
 worker_cpu_affinity 01 10;
 #error_log  logs/error.log debug;
@@ -43,10 +43,8 @@ http {
     listen <%= $https_port %>;
     server_name  <%= $host %>;
     ssl on;
-    ssl_certificate /etc/apache2/ssl/apache.pem;
-    ssl_certificate_key /etc/apache2/ssl/apache.pem;
-#    ssl_certificate /usr/local/nginx/conf/cert.pem;
-#    ssl_certificate_key /usr/local/nginx/conf/cert.key;
+    ssl_certificate     <%= $cert_file %>;
+    ssl_certificate_key <%= $key_file  %>;
     keepalive_timeout 70;
     location ~ ^\/users\/ {
       proxy_set_header  X-Real-IP  $remote_addr;
@@ -59,14 +57,14 @@ http {
       break;
     }
     location / {
-      rewrite ^(.*)$  http://$server_name:<%= $https_port %>$1  permanent;
+      rewrite ^(.*)$  http://$server_name<%= $http_port != 80 ? ":#$http_port" : "" %>$1  permanent;
       break;
     }
   }
   server {
     listen       <%= $http_port %>;
     server_name  <%= $host %>;
-    root /home/kig/code/repos/future/html;
+    root <%= ENV['PWD'] %>/html;
     index  index.html index.htm;
     location / {
       expires 30d;
@@ -109,7 +107,7 @@ http {
       break;
     }
     location ~ ^\/users {
-      rewrite ^(.*)$  https://$server_name:<%= $https_port %>$1  permanent;
+      rewrite ^(.*)$  https://$server_name<%= $https_port != 443 ? ":#$https_port" : "" %>$1  permanent;
       break;
     }
     error_page   500 502 503 504  /50x.html;

@@ -7,6 +7,9 @@ require 'open-uri'
 options = {
   :http_port => 80,
   :https_port => 443,
+  :tile_subdomains => nil,
+  :cert_file => File.join(ENV['PWD'], 'etc', 'muryu_cert.pem'),
+  :key_file => File.join(ENV['PWD'], 'etc', 'muryu_key.pem')
 }
 opts = OptionParser.new do |opts|
   opts.banner = "future_setup [options] [hostname]"
@@ -14,6 +17,9 @@ opts = OptionParser.new do |opts|
   opts.separator ""
   opts.on("--http-port PORT", "HTTP port to use"){|p| options[:http_port] = p.to_i}
   opts.on("--https-port PORT", "HTTPS port to use"){|p| options[:https_port] = p.to_i}
+  opts.on("--tile-subdomains S1,S2,...", "Tile server subdomains"){|p| options[:tile_subdomains] = p.strip.split(",").map{|s|s.strip} }
+  opts.on("--cert-file FILE", "CA certificate filename"){|p| options[:cert_file] = p}
+  opts.on("--key-file FILE", "CA private key filename"){|p| options[:key_file] = p}
 end
 
 opts.parse!(ARGV)
@@ -28,6 +34,12 @@ determine it.
   end
 else
   host = ARGV[0]
+end
+
+$cert_file = options[:cert_file]
+$key_file = options[:key_file]
+unless File.exist?($cert_file) 
+  system( *(%w(openssl req -x509 -new -days 3650 -out) + [ $cert_file ] + %w(-keyout) + [ $key_file ]) )
 end
 
 nginx_template = ERB.new(File.read("etc/nginx.conf.erb"))
