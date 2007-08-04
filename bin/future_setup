@@ -2,6 +2,7 @@
 
 require 'erb'
 require 'optparse'
+require 'open-uri'
 
 options = {
   :http_port => 80,
