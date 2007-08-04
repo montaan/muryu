@@ -26,10 +26,10 @@ Future.configuration do |c|
   c.tile_servers = <%= 
     (if $tile_subdomains
       $tile_subdomains.map{|ts| 
-        c.server_name.sub(/^http:\/\//, "http://#{ts}.") + "/tile/" 
+        "http://#{ts}.#$host#{ $http_port  != 80  ? ":#$http_port"  : "" }/tile/" 
       }
     else
-      [ c.server_name + "/tile/" ]
+      [ "http://#$host#{ $http_port  != 80  ? ":#$http_port"  : "" }/tile/" ]
     end).inspect
   %>
 end
