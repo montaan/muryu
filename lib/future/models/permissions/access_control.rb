@@ -19,6 +19,7 @@ module AccessControl
   end
 
   def readable_by(user)
+    return true if columns['owner_id'] and user.id == owner_id
     (groups & user.groups).size > 0
   end
 
@@ -216,6 +217,29 @@ end
 class Items < DB::Tables::Items
 include AccessControl
 extend AccessControlClass
+
+  def rfind_all(user, h={})
+    h = find_parse_args(user, h)
+    h["sets"] = [h["sets"]] if h["sets"] and not h["sets"][0].is_a? Array
+    h["sets"] ||= []
+    h["sets"] << Sets.rfind_all(user)
+    find_all(h)
+  end
+  
+  def readable_by(user)
+    return true if columns['owner_id'] and user.id == owner_id
+    (sets & Sets.rfind_all(user)).size > 0
+  end
+
+  def writable_by(user)
+    return true if columns['owner_id'] and user.id == owner_id
+    user_sets = SetsGroups.find_all(
+      :group_id => user.groups, :can_modify => true, :columns => ['set_id']
+    ).map{|sg| sg.set }
+    grs = (sets & user_sets)
+    return false if grs.empty?
+    true
+  end
 
   def rdelete(user)
     write(user) do
