@@ -1,7 +1,5 @@
 #!/usr/bin/ruby
 
-require 'rack'
-require 'rack/showexceptions'
 default_port = 4000
 port = (ARGV.shift || default_port).to_i
 processes = (ARGV.shift || 1).to_i
