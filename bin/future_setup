@@ -36,8 +36,8 @@ else
   host = ARGV[0]
 end
 
-$cert_file = options[:cert_file]
-$key_file = options[:key_file]
+$cert_file = File.expand_path(options[:cert_file])
+$key_file = File.expand_path(options[:key_file])
 unless File.exist?($cert_file) 
   system( *(%w(openssl req -x509 -new -days 3650 -out) + [ $cert_file ] + %w(-keyout) + [ $key_file ]) )
 end
