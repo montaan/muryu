@@ -6,7 +6,7 @@ elsif $EVENTED_MONGREL
 end
 require 'rack/request'
 require 'rack/response'
-
+require 'rack'
 
 class Rack::Request
 
