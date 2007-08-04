@@ -23,11 +23,13 @@ Future.configuration do |c|
   c.domain = "<%= $host %>"
   c.server_name        =  "http://<%= $host %><%= $http_port  != 80  ? ":#$http_port"  : "" %>"
   c.secure_server_name = "https://<%= $host %><%= $https_port != 443 ? ":#$https_port" : "" %>"
-  if $tile_subdomains
-    c.tile_servers = $tile_subdomains.map{|ts| 
-      c.server_name.sub(/^http:\/\//, "http://#{ts}.") + "/tile/" 
-    }
-  else
-    c.tile_servers = [ c.server_name + "/tile/" ]
-  end
+  c.tile_servers = <%= 
+    (if $tile_subdomains
+      $tile_subdomains.map{|ts| 
+        c.server_name.sub(/^http:\/\//, "http://#{ts}.") + "/tile/" 
+      }
+    else
+      [ c.server_name + "/tile/" ]
+    end).inspect
+  %>
 end
