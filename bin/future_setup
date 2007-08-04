@@ -1,0 +1,49 @@
+#!/usr/bin/ruby
+
+require 'erb'
+require 'optparse'
+
+options = {
+  :http_port => 80,
+  :https_port => 443,
+}
+opts = OptionParser.new do |opts|
+  opts.banner = "future_setup [options] [hostname]"
+
+  opts.separator ""
+  opts.on("--http-port PORT", "HTTP port to use"){|p| options[:http_port] = p.to_i}
+  opts.on("--https-port PORT", "HTTPS port to use"){|p| options[:https_port] = p.to_i}
+end
+
+opts.parse!(ARGV)
+if ARGV.empty?
+  host = open("http://169.254.169.254/latest/meta-data/public-ipv4"){|f| f.read} rescue nil
+  unless host
+    puts <<-EOF
+You didn't specify a hostname, and I'm not running on an EC2 node so I cannot
+determine it.
+    EOF
+    exit(1)
+  end
+else
+  host = ARGV[0]
+end
+
+nginx_template = ERB.new(File.read("etc/nginx.conf.erb"))
+config_template = ERB.new(File.read("config.rb.erb"))
+
+def empty_binding; binding end
+
+$host = host
+$http_port = options[:http_port]
+$https_port = options[:https_port]
+
+# first generate, then write, so nothing changes if the template bombs
+config_out = config_template.result(empty_binding)
+nginx_out = nginx_template.result(empty_binding)
+
+File.open("config.rb", "w"){|f| f.puts config_out}
+File.open("etc/nginx.conf", "w"){|f| f.puts nginx_out}
+
+puts "Running bundle.rb"
+load "bundle.rb"
