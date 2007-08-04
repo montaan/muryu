@@ -59,7 +59,7 @@ http {
       break;
     }
     location / {
-      rewrite ^(.*)$  http://$server_name:<%= $host %>$1  permanent;
+      rewrite ^(.*)$  http://$server_name:<%= $https_port %>$1  permanent;
       break;
     }
   }
