@@ -202,6 +202,14 @@ extend AccessControlClass
     UsersGroups.delete(:user_id => removed_user.id, :group_id => id)
   end
 
+  def add_item(item)
+    ItemsGroups.find_or_create(:item_id => item, :group_id => id)
+  end
+
+  def remove_item(item)
+    ItemsGroups.delete(:item_id => item, :group_id => id)
+  end
+
 end
 
 
@@ -256,6 +264,14 @@ extend AccessControlClass
 
   def remove_group(group)
     SetsGroups.delete(:group_id => group, :set_id => id)
+  end
+
+  def add_item(item)
+    ItemsSets.find_or_create(:item_id => item, :set_id => id)
+  end
+
+  def remove_item(item)
+    ItemsSets.delete(:item_id => item, :set_id => id)
   end
 
 end

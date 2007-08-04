@@ -96,7 +96,7 @@ class Thread
     self.last_time = Time.now.to_f
     t ||= self.last_time
     ms = (self.last_time - t) * 1000
-    "[#{("#"*((ms*2).round)).rjust(16)[0,16]}] %.3fms" % [ms]
+    "[#{("#"*([16, (ms*2).round].max)).rjust(16)[0,16]}] %.3fms" % [ms]
   end
   
 end
