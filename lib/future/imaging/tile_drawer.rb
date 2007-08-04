@@ -465,6 +465,8 @@ class TileDrawer
   
   inline do |builder|
     builder.include "<tile_drawer.c.rb>"
+    builder.include "<stdlib.h>"
+    builder.include "<math.h>"
     builder.add_compile_flags "-I#{File.expand_path(File.dirname(__FILE__))}"
     builder.add_compile_flags "-ljpeg"
     builder.add_compile_flags "-Wall -Os"

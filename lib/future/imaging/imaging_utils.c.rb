@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <math.h>
 
 #include <stb_image.c.rb>
 #include <liboil/liboil.h>

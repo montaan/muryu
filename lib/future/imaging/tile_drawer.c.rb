@@ -1,6 +1,8 @@
+#define _XOPEN_SOURCE 600
+
 #include <imaging_utils.c.rb>
-
-
+#include <stdlib.h>
+#include <math.h>
 
 char*** icache = NULL;
 int icache_levels = 0;
