@@ -23,7 +23,11 @@ class Pathname
   end
 
   def metadata
-    @metadata ||= OpenStruct.new(Future::MetadataExtractor[self, mimetype])
+    @metadata ||= OpenStruct.new(metadata_hash)
+  end
+
+  def metadata_hash
+    @metadata_hash ||= Future::MetadataExtractor[self, mimetype]
   end
 
   def length
@@ -169,33 +173,62 @@ extend self
     info
   end
 
+  def image_x_dcraw(fname, charset)
+    exif = extract_exiv2(fname)
+    exif.delete("Filename")
+    dcraw = extract_dcraw(fname)
+    dcraw.delete("Filename")
+    w, h = dcraw["Output size"].split("x",2).map{|s| s.strip }
+    info = {
+      :width => parse_val(w),
+      :height => parse_val(h),
+      :dimensions_unit => 'px',
+      :frames => 1,
+      :exif => enc_utf8(dcraw.merge(exif).map{|r| r.join("\t")}.join("\n"), charset)
+    }
+    if t = exif["Image timestamp"]
+      info[:publish_time] = parse_time(t.split(":",3).join("-"))
+    end
+    info
+  end
+
   def extract(filename, mimetype=MimeInfo.get(filename.to_s), charset=nil)
     filename = filename.to_s
-    major,minor = mimetype.to_s.gsub(/[^\/a-z0-9]/i,"_").split("/")
-    mn = [major,minor].join("_")
+    mimetype = Mimetype[mimetype] unless mimetype.is_a?( Mimetype )
+    mts = mimetype.ancestors
+    mt = mts.shift
     new_methods = public_methods(false)
-    if new_methods.include?( mn )
-      __send__ mn, filename, charset
-    elsif new_methods.include?( major )
-      __send__ major, filename, charset
-    else
-      extract_extract_info(filename)
+    while mt.is_a?(Mimetype)
+      mn = mt.to_s.gsub(/[^a-z0-9]/i,"_")
+      if new_methods.include?( mn )
+        begin
+          return __send__( mn, filename, charset )
+        rescue => e
+          puts e, e.message, e.backtrace
+        end
+      end
+      mt = mts.shift
     end
+    extract_extract_info(filename)
   end
 
   def extract_text(filename, mimetype=MimeInfo.get(filename.to_s), charset=nil)
     filename = filename.to_s
-    major,minor = mimetype.to_s.gsub(/[^\/a-z0-9]/i,"_").split("/")
-    mn = [major,minor,"_gettext"].join("_")
-    mm = [major,"_gettext"].join("_")
+    mimetype = Mimetype[mimetype] unless mimetype.is_a?( Mimetype )
+    mt = mimetype
     new_methods = public_methods(false)
-    if new_methods.include?( mn )
-      __send__ mn, filename, charset
-    elsif new_methods.include?( mm )
-      __send__ mm, filename, charset
-    else
-      ""
+    while mt.is_a?(Mimetype)
+      mn = mt.to_s.gsub(/[^a-z0-9]/i,"_") + "__gettext"
+      if new_methods.include?( mn )
+        begin
+          return __send__( mn, filename, charset )
+        rescue => e
+          puts e, e.message, e.backtrace
+        end
+      end
+      mt = mt.ancestors[1]
     end
+    ""
   end
 
   alias_method :[], :extract
@@ -352,7 +385,25 @@ extend self
   def extract_exif(fname)
     h = {}
     `exif -m #{fname.dump}`.strip.split("\n").each do |t|
-      k,v = t.split("\t")
+      k,v = t.split("\t", 2)
+      h[k] = v
+    end
+    h
+  end
+
+  def extract_exiv2(fname)
+    h = {}
+    `exiv2 #{fname.dump}`.strip.split("\n").each do |t|
+      k,v = t.split(/\s*:\s*/, 2)
+      h[k] = v
+    end
+    h
+  end
+
+  def extract_dcraw(fname)
+    h = {}
+    `dcraw -i -v #{fname.dump}`.strip.split("\n").each do |t|
+      k,v = t.split(/:\s*/, 2)
       h[k] = v
     end
     h

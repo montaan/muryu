@@ -23,11 +23,5 @@ Future.configuration do |c|
   c.domain = "manifold.fhtr.org"
   c.server_name        =  "http://manifold.fhtr.org:8080"
   c.secure_server_name = "https://manifold.fhtr.org:8081"
-  if $tile_subdomains
-    c.tile_servers = $tile_subdomains.map{|ts| 
-      c.server_name.sub(/^http:\/\//, "http://#{ts}.") + "/tile/" 
-    }
-  else
-    c.tile_servers = [ c.server_name + "/tile/" ]
-  end
+  c.tile_servers = ["http://manifold.fhtr.org:8080/tile/"]
 end

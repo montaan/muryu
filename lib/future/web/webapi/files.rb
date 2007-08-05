@@ -52,7 +52,16 @@ module MuryuDispatch
 
       def page(req, res)
         pg = req.query['number'][0].to_i
-        sz = (req.query['size'] || [1024])[0].to_i
+        default_sz = 1024
+#         default_sz = 640
+#         if target.metadata.width and target.metadata.height
+#           w = target.metadata.width
+#           h = target.metadata.height
+#           if w > h
+#             default_sz *= (w / h)
+#           end
+#         end
+        sz = (req.query['size'] || [default_sz])[0].to_i
         lm = @target.modified_at.httpdate
         if req['If-Modified-Since'] == lm
           res.status = 304
@@ -67,6 +76,18 @@ module MuryuDispatch
             }
           else
             raise(MuryuQuery::NotFound, "Tried to get page #{pg}, but document has only #{@target.pages} pages")
+          end
+          fsz = File.size(pagefile.to_s)
+          if fsz > 100_000
+            jpg = pagefile.to_s + '.jpg'
+            unless File.exist?(jpg)
+              pagefile.thumbnail(jpg)
+            end
+            if File.exist?(jpg) and File.size(jpg)*1.5 < fsz
+              res.body = File.open(jpg, 'rb')
+              res.content_type = 'image/jpeg'
+              return
+            end
           end
           res.body = pagefile.open('rb')
           res.content_type = 'image/png'

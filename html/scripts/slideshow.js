@@ -169,6 +169,7 @@ Suture.makePDF = function(index, path, pages){
     container: c,
     fillWindow: true,
     index: index,
+    documentFade: true,
     infos: infos,
     query: {q:''},
     itemCount: pages,
@@ -420,18 +421,28 @@ Suture.prototype = {
       if (!this.fadeStartTime) {
         this.fadeStartTime = new Date().getTime()
         this.loadingIndicator.style.visibility = "hidden"
-        this.hiddenImage.setOpacity(0)
-        this.hiddenImage.show()
-        this.hiddenImage.down()
-        this.visibleImage.setOpacity(1)
-        this.visibleImage.show()
-        this.visibleImage.up()
+        if (this.documentFade) {
+          this.visibleImage.setOpacity(1)
+          this.visibleImage.up()
+          this.visibleImage.show()
+          this.hiddenImage.setOpacity(1)
+          this.hiddenImage.down()
+          this.hiddenImage.show()
+        } else {
+          this.hiddenImage.setOpacity(0)
+          this.hiddenImage.show()
+          this.hiddenImage.down()
+          this.visibleImage.setOpacity(1)
+          this.visibleImage.show()
+          this.visibleImage.up()
+        }
       }
       var currentTime = new Date().getTime()
       var elapsed = currentTime - this.fadeStartTime
       if (elapsed < this.fadeDuration) {
         var opacity = elapsed / this.fadeDuration
-        this.hiddenImage.setOpacity(this.ease(opacity))
+        if (!this.documentFade)
+          this.hiddenImage.setOpacity(this.ease(opacity))
         this.visibleImage.setOpacity(this.ease(1 - opacity))
       } else { // done fading
         this.hiddenImage.setOpacity(1)

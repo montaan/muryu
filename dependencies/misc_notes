@@ -1,0 +1,6 @@
+shared-mime-info needs to be 0.22+
+
+To fix ImageMagick identify & convert with raw files:
+sudo sed -i 's/"dcraw" -3/"dcraw" -q 3/' $(locate delegates.xml)
+
+nginx 0.5.*: remember to ./configure --with-http_ssl_module

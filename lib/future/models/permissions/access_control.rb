@@ -259,7 +259,16 @@ extend AccessControlClass
   end
 
   def add_group(group, can_modify=false)
-    SetsGroups.find_or_create(:group_id => group, :set_id => id, :can_modify => can_modify)
+    DB.transaction do
+      SetsGroups.find_or_create(:group_id => group, :set_id => id, :can_modify => can_modify)
+      items([]).each{|it|
+        ItemsGroups.find_or_create(
+          'item_id' => it.id,
+          'group_id' => group.id,
+          :columns => []
+        )
+      }
+    end
   end
 
   def remove_group(group)
@@ -267,7 +276,16 @@ extend AccessControlClass
   end
 
   def add_item(item)
-    ItemsSets.find_or_create(:item_id => item, :set_id => id)
+    DB.transaction do
+      ItemsSets.find_or_create(:item_id => item, :set_id => id)
+      sets_groups(['group_id']).each{|sg|
+        ItemsGroups.find_or_create(
+          'item_id' => item,
+          'group_id' => sg.group_id,
+          :columns => []
+        )
+      }
+    end
   end
 
   def remove_item(item)

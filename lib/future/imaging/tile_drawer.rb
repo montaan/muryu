@@ -242,7 +242,8 @@ extend self
           t << nidxs.transpose.map{|ix| ix.pack("I*") }.join
         end
 
-        if palette(true, 0).size != mts.size
+        pt = palette(true, 0)
+        unless mts.all?{|k,v| pt[k] }
           @@palette = @@transparent_palette = nil
         end
 

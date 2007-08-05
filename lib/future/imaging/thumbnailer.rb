@@ -80,6 +80,9 @@ module Mimetype
       elsif to_s =~ /pdf/
         page ||= 0
         pdf_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+      elsif is_a?(Mimetype['image/x-dcraw'])
+        page = 0
+        dcraw_thumbnail(filename, thumb_filename, thumb_size, page, crop)
       elsif to_s =~ /image|postscript/
         page ||= 0
         image_thumbnail(filename, thumb_filename, thumb_size, page, crop)
@@ -110,71 +113,78 @@ module Mimetype
     tfn = thumb_filename.to_pn
     tmp_filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.current.object_id}#{tfn.extname}"
     if to_s =~ /^image/
-      img = Imlib2::Image.load(filename.to_s)
       begin
-        ow, oh = img.width, img.height
-        larger = [ow, oh].max
-        wr = img.width.to_f / larger
-        hr = img.height.to_f / larger
-        thumb_size ||= larger
-        sr = larger / thumb_size.to_f
-        w,h,x,y = crop.scan(/[+-]?[0-9]+/).map{|i|i.to_i}
-        w = thumb_size * wr if w == 0
-        h = thumb_size * hr if h == 0
-        rx,ry,rw,rh = [x,y,w,h].map{|i| i * sr }
-        ctx = Imlib2::Context.get
-        ctx.blend = false
-        ctx.color = Imlib2::Color::TRANSPARENT
-        ctx.op = Imlib2::Op::COPY
-        if rx > ow or ry > oh
-          nimg = Imlib2::Image.new(w, h)
-          nimg.has_alpha = true
-          nimg.fill_rectangle([0, 0, w, h])
-        else
-          nimg = img.crop_scaled(rx,ry,rw,rh, w, h)
-          nimg.has_alpha = true
-          if rx+rw > ow
-            d = rx+rw - ow
-            nimg.fill_rectangle([w - d / sr, 0, w, h])
-          elsif ry+rh > oh
-            d = ry+rh - oh
-            nimg.fill_rectangle([0, h - d / sr, w, h])
+        img = Imlib2::Image.load(filename.to_s)
+        begin
+          ow, oh = img.width, img.height
+          larger = [ow, oh].max
+          wr = img.width.to_f / larger
+          hr = img.height.to_f / larger
+          thumb_size ||= larger
+          sr = larger / thumb_size.to_f
+          w,h,x,y = crop.scan(/[+-]?[0-9]+/).map{|i|i.to_i}
+          w = thumb_size * wr if w == 0
+          h = thumb_size * hr if h == 0
+          rx,ry,rw,rh = [x,y,w,h].map{|i| i * sr }
+          ctx = Imlib2::Context.get
+          ctx.blend = false
+          ctx.color = Imlib2::Color::TRANSPARENT
+          ctx.op = Imlib2::Op::COPY
+          if rx > ow or ry > oh
+            nimg = Imlib2::Image.new(w, h)
+            nimg.has_alpha = true
+            nimg.fill_rectangle([0, 0, w, h])
+          else
+            nimg = img.crop_scaled(rx,ry,rw,rh, w, h)
+            nimg.has_alpha = true
+            if rx+rw > ow
+              d = rx+rw - ow
+              nimg.fill_rectangle([w - d / sr, 0, w, h])
+            elsif ry+rh > oh
+              d = ry+rh - oh
+              nimg.fill_rectangle([0, h - d / sr, w, h])
+            end
           end
+          ctx.blend = true
+          nimg.save(tmp_filename.to_s)
+        ensure
+          img.delete!
+          nimg.delete!(true) if nimg
         end
-        ctx.blend = true
-        nimg.save(tmp_filename.to_s)
-      ensure
-        img.delete!
-        nimg.delete!(true) if nimg
+      rescue Exception
+        # failed to load image
       end
-    else
+    end
+    if tmp_filename.exist?
+      tmp_filename.rename(tfn)
+      return true
+    end
 #       puts "going to non-image fork"
-      original_filename = filename
-      filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.current.object_id}-src#{extname}"
-      begin
-        FileUtils.ln_s(original_filename.to_s, filename.to_s)
-        filename.mimetype = self
-        dims = filename.dimensions
-        return false unless dims[0] and dims[1]
-        larger = dims.max
-        thumb_size ||= 2048
-        case filename.metadata.dimensions_unit
-        when 'mm'
-          scale_fac = larger.mm_to_points / 72
-        else
-          scale_fac = larger / 72
-        end
-        density = thumb_size / scale_fac
-        args = ["-density", density.to_s,
-                "#{filename}[#{page}]",
-                "-scale", "#{thumb_size}x#{thumb_size}",
-                "-crop", crop.to_s,
-                tmp_filename.to_s]
-        log_debug('convert ' + args.join(" "))
-        system("convert", *args)
-      ensure
-        filename.unlink if filename.exist?
+    original_filename = filename
+    filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.current.object_id}-src#{extname}"
+    begin
+      FileUtils.ln_s(original_filename.to_s, filename.to_s)
+      filename.mimetype = self
+      dims = filename.dimensions
+      return false unless dims[0] and dims[1]
+      larger = dims.max
+      thumb_size ||= 2048
+      case filename.metadata.dimensions_unit
+      when 'mm'
+        scale_fac = larger.mm_to_points / 72
+      else
+        scale_fac = larger / 72
       end
+      density = thumb_size / scale_fac
+      args = ["-density", density.to_s,
+              "#{filename}[#{page}]",
+              "-scale", "#{thumb_size}x#{thumb_size}",
+              "-crop", crop.to_s,
+              tmp_filename.to_s]
+      log_debug('convert ' + args.join(" "))
+      system("convert", *args)
+    ensure
+      filename.unlink if filename.exist?
     end
     if tmp_filename.exist?
       tmp_filename.rename(tfn)
@@ -239,6 +249,15 @@ module Mimetype
     end
   end
 
+  def dcraw_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+    tfn = thumb_filename.to_pn
+    tmp_filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.current.object_id}-#{Time.now.to_f}-dcraw.ppm"
+    system("dcraw -c #{File.expand_path(filename).dump} > #{tmp_filename.expand_path.to_s.dump}")
+    rv = Mimetype['image/x-portable-pixmap'].image_thumbnail(tmp_filename, thumb_filename, thumb_size, page, crop)
+    tmp_filename.unlink if tmp_filename.exist?
+    rv
+  end
+  
   def html_thumbnail(filename, thumb_filename, thumb_size, page, crop)
     tfn = thumb_filename.to_pn
     tmp_filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.current.object_id}-#{Time.now.to_f}-moz.png"

@@ -107,6 +107,7 @@ public
     application/x-bzip
     application/x-compressed-tar
     application/x-bzip-compressed-tar
+    image/tiff
   )
 
   def generic_type?(t)
