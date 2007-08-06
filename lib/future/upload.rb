@@ -275,7 +275,7 @@ class Uploader
     else
       filename = compressed.path
     end
-    ext = File.extname(compressed.filename)
+    ext = File.extname(path)
     ziptemp = tempdir
     p ext, path
     case ext

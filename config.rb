@@ -17,8 +17,9 @@ database_conf =
 
 
 Future.configuration do |c|
-  # c.database_configuration = database_conf[c.environment]
-  # c.logger = Logger.new(c.log_dir + "#{c.environment}.log")
+  c.database_configuration = database_conf[c.environment]
+  FileUtils.mkdir_p(c.log_dir)
+  c.logger = Logger.new(c.log_dir + "#{c.environment}.log")
 
   c.domain = "manifold.fhtr.org"
   c.server_name        =  "http://manifold.fhtr.org:8080"
