@@ -83,7 +83,7 @@ ItemArea = {
     new Desk.Window(this.itemHREF.replace(/json$/, 'edit'))
   },
 
-  imageExts : ['jpeg','jpg','png','gif'],
+  imageExts : ['jpeg','jpg','png','gif','crw','nef','tiff','psd','bmp','cr2','raf','orf','dng','pef'],
   
   defaultAction : function() {
     var ext = this.getExt()
@@ -102,7 +102,7 @@ ItemArea = {
 
   secondaryAction : function() {
     var ext = this.getExt()
-    if (['jpeg','jpg','png','gif'].include(ext)) {
+    if (this.imageExts.include(ext)) {
       this.open()
 //       this.viewInSlideshow()
     } else {

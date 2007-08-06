@@ -13,6 +13,7 @@ NOW:
 * no "copy url to clipboard" in item context menu
 
 LATER:
+* generate item json after edits, store in separate table & memcached for fast access
 * search query editor with clickable sort: user: type: etc.
 * simulated http workload with a configurable amount of users
   - plus user generator

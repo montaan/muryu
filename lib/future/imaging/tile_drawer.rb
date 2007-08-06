@@ -120,7 +120,19 @@ extend self
       deleted_color = (query['deleted'] ? [0,0,0,0] : vbgcolor)
       puts "#{Thread.current.telapsed} for fetching indexes" if $PRINT_QUERY_PROFILE
       pal = palette(colors, deleted_color)
-      tile = tile_drawer.draw_tile(vbgcolor, indexes, pal, r,x,y,z,w,h, bgimage)
+      tile = nil
+      retried = false
+      begin
+        tile = tile_drawer.draw_tile(vbgcolor, indexes, pal, r,x,y,z,w,h, bgimage)
+      rescue e
+        unless retried
+          retried = true
+          @@palette = @@transparent_palette = nil
+          pal = palette(colors, deleted_color)
+          retry
+        end
+        raise
+      end
     end
     if tile
       qtext = sanitize_query(query)

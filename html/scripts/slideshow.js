@@ -32,12 +32,6 @@ Suture = function(config) {
   
   this.loadingIndicator = el.$("slideshow-loading")
   this.nameElement = el.$("slide-name")
-  this.nameElement.addEventListener("click", function(ev) {
-    if (Event.isLeftClick(ev)) {
-      Event.stop(ev)
-      new Desk.Window(this.href.replace("files", "items")+"/json")
-    }
-  }, false)
   this.indexElement = el.$("slideshow-index")
   this.searchIndexElement = el.$("slideshow-search-index")
 
@@ -125,9 +119,18 @@ Suture.make = function(w, index, query){
     index: index,
     query: query,
     listURL : '/items/json',
-    filePrefix : '/files/',
+    filePrefix : '/items/',
+    fileSuffix : '/image',
+    linkPrefix : '/files/',
+    linkSuffix : '',
     window: w
   })
+  s.nameElement.addEventListener("click", function(ev) {
+    if (Event.isLeftClick(ev)) {
+      Event.stop(ev)
+      new Desk.Window(this.href.replace("files", "items")+"/json")
+    }
+  }, false)
   w.slideshow = s
   var resizer = function() {
     if (!w.shaded) s.resize()
@@ -174,10 +177,18 @@ Suture.makePDF = function(index, path, pages){
     query: {q:''},
     itemCount: pages,
     filePrefix : '/files/',
+    fileSuffix : '',
+    linkPrefix : '/files/',
+    linkSuffix : '',
     newQuery : false,
     isSupported : function(){ return true },
-    setQuery : function(){ return true }
+    setQuery : function(){ return true },
+    makeLinkName : function(path){
+      return 'Page ' + path.split("/").last().replace(/[^0-9]/g, "")
+    }
   })
+  s.searchForm.style.display = 'none'
+  s.autoProgressElement.style.marginLeft = '3px'
   return s
 }
 Suture.loadWindow = function(win, params) {
@@ -231,7 +242,10 @@ Suture.prototype = {
   infos : {},
   itemCount : 0,
   listURL : '/items/json',
-  filePrefix : '/files/',
+  filePrefix : '',
+  fileSuffix : '',
+  linkPrefix : '',
+  linkSuffix : '',
   frameTime : 20,
   requestedIndex : null,
   fadeDuration : 500,
@@ -275,7 +289,8 @@ Suture.prototype = {
   },
 
   isSupported : function(fn){
-    return fn.split(".").last().toString().match(/^(jpe?g|png|gif)$/i)
+    return true
+    // fn.split(".").last().toString().match(/^(jpe?g|png|gif)$/i)
   },
 
   rotate : function(offset) {
@@ -288,6 +303,10 @@ Suture.prototype = {
     if (ni < 0 && this.itemCount) ni = this.itemCount+ni
     if (this.itemCount && ni >= this.itemCount) ni -= this.itemCount
     this.showIndex(ni, dir)
+  },
+
+  makeLinkName : function(path) {
+    return path.split("/").last()
   },
   
   showIndex : function(idx, dir) {
@@ -310,7 +329,12 @@ Suture.prototype = {
         this.seek(dir)
       } else {
         this.startIdx = undefined
-        this.request(this.filePrefix + info.path, this.index)
+        this.request(
+          this.filePrefix + info.path + this.fileSuffix,
+          this.index,
+          this.linkPrefix + info.path + this.linkSuffix,
+          this.makeLinkName(info.path)
+        )
       }
     } else {
       var params = Object.clone(this.query)
@@ -369,11 +393,10 @@ Suture.prototype = {
     }
   },
   
-  request : function(imageName, imageIndex) {
+  request : function(imageName, imageIndex, linkHref, linkName) {
     this.requestedImage = imageName
-    var reqImg = imageName.split("/").last()
-    this.nameElement.innerHTML = reqImg
-    this.nameElement.href = imageName
+    this.nameElement.innerHTML = linkName
+    this.nameElement.href = linkHref
     this.indexElement.innerHTML = (imageIndex+1) + "/" + this.itemCount
     this.searchIndexElement.innerHTML = "&nbsp;"
     this.addHistory([imageName, imageIndex])

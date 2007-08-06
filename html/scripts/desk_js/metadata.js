@@ -475,6 +475,7 @@ Mimetype = {
         showExif.style.display = 'block'
         infoDiv.appendChild(showExif)
       }
+      infoDiv.style.width = win.contentElement.offsetWidth + 'px'
       return infoDiv
     },
 
@@ -513,7 +514,7 @@ Mimetype = {
           viewer = this.makeAudioViewer(info,win)
           group = 'music'
         } else if (info.mimetype == 'text/html') {
-          viewer = this.makeThumbViewer(info,win)
+          viewer = this.makeImageViewer(info,win)
           group = 'HTML'
         } else if (info.mimetype.split("/")[0] == 'text') {
           viewer = this.makeTextViewer(info,win)
@@ -522,7 +523,7 @@ Mimetype = {
           viewer = this.makeDocumentViewer(info,win)
           group = 'documents'
         } else {
-          viewer = this.makeThumbViewer(info,win)
+          viewer = this.makeImageViewer(info,win)
           group = 'other'
         }
       } catch(e) {
@@ -544,12 +545,38 @@ Mimetype = {
       // d.style.lineHeight = '0px'
       var i = E('img')
       i.style.display = 'block'
-      var mw = win.container.offsetWidth
-      var mh = win.container.offsetHeight
       var iw = info.metadata.width
       var ih = info.metadata.height
-      i.width = 0
-      i.height = 0
+      if (info.metadata.dimensions_unit && info.metadata.dimensions_unit == 'mm') {
+        var larger = Math.max(iw, ih)
+        iw = 1024*iw / larger
+        ih = 1024*ih / larger
+      } else if (iw && ih) {
+        var larger = Math.max(iw, ih)
+      } else {
+        var t = this
+        i.onload = function() {
+          if (win.closed) return
+          info.metadata.width = this.width
+          info.metadata.height = this.height
+          d.style.display = 'none'
+          var d2 = t.makeImageViewer(info, win)
+          d.parentNode.insertBefore(d2, d)
+          $(d).detachSelf()
+          win.fitContents()
+        }
+        i.src = '/items/' + info.path + '/image'
+        return d
+      }
+      if (larger && larger > 1024) {
+        var imgWidth = 1024*iw / larger
+        var imgHeight = 1024*ih / larger
+      } else {
+        var imgWidth = iw
+        var imgHeight = ih
+      }
+      var mw = win.container.offsetWidth
+      var mh = win.container.offsetHeight
       i.onmousedown = function(e){
         this.downX = e.clientX
         this.downY = e.clientY
@@ -582,27 +609,20 @@ Mimetype = {
           }.bind(this), 500)
         }
       }
-/*      i.ondblclick = function(e){
-        if (Event.isLeftClick(e) &&
-            Math.abs(this.downX - e.clientX) < 3 &&
-            Math.abs(this.downY - e.clientY) < 3) win.close()
-      }*/
-      i.src = '/files/' + info.path
+      i.src = '/items/' + info.path + '/image'
       win.content.appendChild(i)
       if (mw < (iw + 20)) {
         ih *= (mw - 20) / iw
         iw = mw - 20
       }
-      var lh = 16 + win.element.offsetHeight
+      var lh = 140 + win.element.offsetHeight
       if (mh < (ih + lh)) {
         iw *= (mh - lh) / ih
         ih = mh - lh
       }
-      i.width = iw
-      i.height = ih
       i.scaled = false
       var ic = false
-      if (i.width < info.metadata.width || i.height < info.metadata.height) {
+      if (iw && ih && (iw < imgWidth || ih < imgHeight)) {
         i.scaled = true
         if (navigator.userAgent.match(/rv:1\.[78].*Gecko/)) {
           var ic = E('canvas')
@@ -622,20 +642,23 @@ Mimetype = {
           }
         }
       }
+      i.style.width = iw + 'px'
+      i.style.height = ih + 'px'
+      i.width = imgWidth
+      i.height = imgHeight
       i.toggleOriginalSize = function(e) {
         if (!this.scaled) return
-        var fac = info.metadata.width / iw
+        var fac = imgWidth / iw
         if (this.originalSize) {
           var x = e.layerX
           var y = e.layerY - this.offsetTop/fac
           var rx = x/fac
           var ry = y/fac
+          win.setSize(win.width + (iw-imgWidth), win.height + (ih-imgHeight))
           win.setX(win.x - (rx-x))
           win.setY(win.y - (ry-y))
-          this.width = iw
-          this.height = ih
-/*          if (win.x < 0) win.setX(0)
-          if (win.y < 0) win.setY(0)*/
+          this.style.width = iw + 'px'
+          this.style.height = ih + 'px'
           win.setY(win.y+1)
           setTimeout(function(){
             win.setY(win.y-1)
@@ -651,10 +674,11 @@ Mimetype = {
           var y = e.layerY
           var rx = x*fac
           var ry = y*fac
+          win.setSize(win.width - (iw-imgWidth), win.height - (ih-imgHeight))
           win.setX(win.x - (rx-x))
           win.setY(win.y - (ry-y))
-          this.width = info.metadata.width
-          this.height = info.metadata.height
+          this.style.width = imgWidth + 'px'
+          this.style.height = imgHeight + 'px'
           if (ic) {
             ic.style.display = 'none'
             ic.style.position = 'absolute'
@@ -666,6 +690,7 @@ Mimetype = {
       }
       win.content.removeChild(i)
       d.appendChild(i)
+      d.append(E('div', A('/files/' + info.path, info.path.split("/").last())))
       return d
     },
     

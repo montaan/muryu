@@ -4,3 +4,8 @@ To fix ImageMagick identify & convert with raw files:
 sudo sed -i 's/"dcraw" -3/"dcraw" -q 3/' $(locate delegates.xml)
 
 nginx 0.5.*: remember to ./configure --with-http_ssl_module
+
+dcraw: get latest version from http://cybercom.net/~dcoffin/dcraw/
+camera makers keep changing their raw formats
+attached 8.77, as of 2007-08-05
+gcc -o dcraw -O4 dcraw.c -lm -ljpeg -llcms

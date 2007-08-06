@@ -437,6 +437,16 @@ Desk.Window.prototype = {
     this.newEvent('resize', { value : [w,h] })
   },
 
+  fitContents : function() {
+    var w = (this.contentElement.offsetWidth)
+    var h = (this.contentElement.offsetHeight)
+    this.contentElement.style.width = ''
+    this.contentElement.style.height = ''
+    var dw = (this.contentElement.offsetWidth) - w
+    var dh = (this.contentElement.offsetHeight) - h
+    this.setSize(this.element.offsetWidth + dw, this.element.offsetHeight + dh)
+  },
+
   endMove : function(e){
     this.dragEnd = new Vector(Event.pointerX(e), Event.pointerY(e))
     this.dragging = false

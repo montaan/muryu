@@ -205,6 +205,11 @@ class Items < DB::Tables::Items
     Future.thumbnail_dir.join(*sha1_hash.scan(/(..)(..)(.*)/)[0]) + "fullsize.jpg"
   end
 
+  def medium_size_image
+    return nil unless sha1_hash
+    Future.thumbnail_dir.join(*sha1_hash.scan(/(..)(..)(.*)/)[0]) + "mediumsize.jpg"
+  end
+  
   def update_metadata(charset=nil)
     ext_metadata = MetadataExtractor[ internal_path, mimetype.to_s, charset ] || {}
     md = self.metadata
@@ -233,6 +238,9 @@ class Items < DB::Tables::Items
       unless created
         Mimetype[mimetype.to_s].thumbnail(internal_path, full_res.to_s)
         Mimetype[mimetype.to_s].thumbnail(internal_path, tn.to_s, 256)
+        if full_res.exist? and full_res.dimensions.max > 1024
+          full_res.thumbnail(medium_size_image.to_s, 1024)
+        end
       end
     end
     update_image_cache if update_image_cache_too

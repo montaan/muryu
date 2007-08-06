@@ -81,6 +81,7 @@ class MuryuQuery
   relative_path = "(#{username}/[0-9]{4}/[0-9]{2}-[0-9]{2}/#{filename})"
   items_query = '(.*)'
   itemkey = "(#{uint}|#{relative_path})"
+  imagesize = "(full)"
   pagesize = "(2048|1024|128|64|32)"
   setname = '(.{1,80})'
   tagname = '(\S{1,80})'
@@ -179,6 +180,7 @@ class MuryuQuery
   self.type_method_get_validators = {
     'items' => {
       'view' => up,
+      'image' => {'size' => e(imagesize) },
       'file' => up,
       'thumbnail' => up,
       'json' => {

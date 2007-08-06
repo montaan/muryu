@@ -687,6 +687,39 @@ module MuryuDispatch
         end
       end
 
+      def image(q,res)
+        lm = @target.modified_at.httpdate
+        if q['If-Modified-Since'] == lm
+          res.status = 304
+        else
+          res['Last-Modified-At'] = lm
+          res['Expires'] = (Time.now + 86400*30).httpdate
+          if target.mimetype == 'image/gif' and target.width < 2048 and target.height < 2048
+            file(q,res)
+          else
+            if (q.query['size'].to_s == 'full')
+              if target.full_size_image.exist?
+                res.body = target.full_size_image.open('rb')
+                res.content_type = 'image/jpeg'
+                return
+              end
+            else
+              if target.medium_size_image.exist?
+                res.body = target.medium_size_image.open('rb')
+                res.content_type = 'image/jpeg'
+                return
+              elsif target.full_size_image.exist?
+                res.body = target.full_size_image.open('rb')
+                res.content_type = 'image/jpeg'
+                return
+              end
+            end
+            res.body = target.thumbnail.open('rb')
+            res.content_type = 'image/png'
+          end
+        end
+      end
+
       def file(q,res)
         res.status = 302
         res['Location'] = '/files/' + @target.path
