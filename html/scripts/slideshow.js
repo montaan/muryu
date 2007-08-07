@@ -317,11 +317,13 @@ Suture.prototype = {
       this.window.parameters.index = this.index
     if (this.infos[idx]) {
       var info = this.infos[idx]
-      if ((info.deleted == 't' && !this.query.q.match(/\bdeleted:\s*(true|any)\b/i))
+      if ((info.deleted == true &&
+           !this.query.q.match(/\bdeleted:\s*(true|any)\b/i))
           || !this.isSupported(info.path)) {
         if (this.startIdx == undefined) {
           this.startIdx = this.index
-        } else if (this.index == this.startIdx) { // no displayable images in set
+        } else if (this.index == this.startIdx) {
+          // no displayable images in set
           this.search.style.background = "#ff0000"
           this.search.style.color = "#ffffff"
           return

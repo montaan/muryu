@@ -9,3 +9,6 @@ dcraw: get latest version from http://cybercom.net/~dcoffin/dcraw/
 camera makers keep changing their raw formats
 attached 8.77, as of 2007-08-05
 gcc -o dcraw -O4 dcraw.c -lm -ljpeg -llcms
+
+ruby chardet is buggy (direct port from python without unit tests),
+using the python chardet instead, attached as chardet-1.0.tgz

@@ -159,7 +159,6 @@ module Mimetype
       tmp_filename.rename(tfn)
       return true
     end
-#       puts "going to non-image fork"
     original_filename = filename
     filename = tfn.dirname + ".tmp#{Process.pid}-#{Thread.current.object_id}-src#{extname}"
     begin

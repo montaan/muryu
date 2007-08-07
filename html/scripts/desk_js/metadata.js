@@ -65,6 +65,10 @@ Tr.addTranslations('en-US', {
   'Item.filename' : 'Filename',
   'Item.source' : 'Source',
   'Item.referrer' : 'Referrer',
+  'Item.Download' : 'Download',
+  'Item.AsJPEG' : 'as JPEG',
+  'Item.AsText' : 'as text',
+  'Item.AsPDF' : 'as PDF',
   'Item.sets' : 'Folders',
   'Item.groups' : 'Groups',
   'Item.tags' : 'Tags',
@@ -256,6 +260,8 @@ Mimetype = {
     },
     
     init : function(src, win) {
+      var s = src.split("/")
+      win.setTitle("Loading " + s[s.length - 2] + "...")
       new Ajax.Request(src, {
         method : 'get',
         onSuccess : function(res) {
@@ -394,6 +400,32 @@ Mimetype = {
         editDiv.appendChild(deleteButton)
         by.appendChild(editDiv)
       }
+      var links = E('div')
+      links.append(
+        Tr('Item.Download')+': ',
+        A('/files/' + info.path, info.path.split("/").last())
+      )
+      if (info.mimetype != 'image/jpeg') {
+      links.append(
+          ' | ',
+          A("/items/"+info.path+"/image?size=full", Tr('Item.AsJPEG'))
+        )
+      }
+      if ((info.mimetype.match(this.documentRegex) || info.mimetype.match(this.textRegex)) && !(info.mimetype == 'text/plain')) {
+        links.append(
+          ' | ',
+          A("/items/"+info.path+"/text", Tr('Item.AsText'))
+        )
+      }
+      if ((info.mimetype.match(this.documentRegex) || info.mimetype.match(this.textRegex)) && !(info.mimetype == 'application/pdf')) {
+        links.append(
+          ' | ',
+          A("/items/"+info.path+"/pdf", Tr('Item.AsPDF'))
+        )
+      }
+      links.style.marginBottom = '3px'
+      links.style.borderTop = '1px dotted grey'
+      infoDiv.append(links)
       return infoDiv
     },
 
@@ -516,10 +548,10 @@ Mimetype = {
         } else if (info.mimetype == 'text/html') {
           viewer = this.makeImageViewer(info,win)
           group = 'HTML'
-        } else if (info.mimetype.split("/")[0] == 'text') {
+        } else if (info.mimetype.match(this.textRegex)) {
           viewer = this.makeTextViewer(info,win)
           group = 'text'
-        } else if (info.mimetype.match(/pdf|postscript|powerpoint|vnd\.oasis\.opendocument|msword|ms-excel|rtf|x-tex|template|stardivision|comma-separated-values|dbf|vnd\.sun\.xml/)) {
+        } else if (info.mimetype.match(this.documentRegex)) {
           viewer = this.makeDocumentViewer(info,win)
           group = 'documents'
         } else {
@@ -532,6 +564,10 @@ Mimetype = {
       win.setGroup(Tr('WindowGroup.'+group))
       return viewer
     },
+
+    documentRegex : /pdf|postscript|powerpoint|vnd\.oasis\.opendocument|msword|ms-excel|rtf|x-tex|template|stardivision|comma-separated-values|dbf|vnd\.sun\.xml/,
+    
+    textRegex : /^text/,
 
     makeUserInfoDiv : function(info) {
     },
@@ -690,7 +726,6 @@ Mimetype = {
       }
       win.content.removeChild(i)
       d.appendChild(i)
-      d.append(E('div', A('/files/' + info.path, info.path.split("/").last())))
       return d
     },
     
@@ -850,7 +885,6 @@ Mimetype = {
       i.style.border = '0px'
       i.src = '/items/' + info.path + '/thumbnail'
       s.appendChild(i)
-      s.appendChild(T(info.path.split("/").last()))
       s.href = '/files/' + info.path
       return s
     }

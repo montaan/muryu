@@ -124,7 +124,7 @@ extend self
       retried = false
       begin
         tile = tile_drawer.draw_tile(vbgcolor, indexes, pal, r,x,y,z,w,h, bgimage)
-      rescue e
+      rescue => e
         unless retried
           retried = true
           @@palette = @@transparent_palette = nil

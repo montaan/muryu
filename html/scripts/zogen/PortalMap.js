@@ -2112,6 +2112,7 @@ TileNode.prototype = {
         if (info.deleted)
           titleContainer.style.opacity = 0.2
         var title = E('span',str, null, 'infoDivLink')
+        title.style.visibility = 'hidden'
         titleContainer.appendChild(title)
         this.infoElement.appendChild(titleContainer)
         if (title.offsetWidth > info.sz) {
@@ -2135,14 +2136,7 @@ TileNode.prototype = {
           }
         }
         title.style.display = 'block'
-        var shadow = title.cloneNode(true)
-        shadow.style.color = 'black'
-        shadow.style.marginTop = '1px'
-        shadow.style.marginLeft = '1px'
-        shadow.style.marginRight = '-1px'
-        title.style.marginTop = -title.offsetHeight - 1 + 'px'
-        titleContainer.insertBefore(shadow, title)
-        if (this.z > 7) {
+        if (this.z > 6) {
           var infoDiv = E('div')
           infoDiv.append(
             A('/users/'+info.owner, info.owner, null, 'infoDivLink', null, {target:'_tab'})
@@ -2155,8 +2149,18 @@ TileNode.prototype = {
             var ref = A(info.referrer, Tr("Item.referrer"), null, 'infoDivLink', null, {target:'_tab'})
             infoDiv.append(" | ", ref)
           }
-          titleContainer.append(infoDiv)
+          title.append(infoDiv)
         }
+        var shadow = title.cloneNode(true)
+        shadow.style.color = 'black'
+        $A($(shadow).byTag('a')).each(function(e) { e.style.color = 'black' })
+        shadow.style.marginTop = '1px'
+        shadow.style.marginLeft = '1px'
+        shadow.style.marginRight = '-1px'
+        title.style.marginTop = -title.offsetHeight - 1 + 'px'
+        titleContainer.insertBefore(shadow, title)
+        shadow.style.visibility = 'visible'
+        title.style.visibility = 'visible'
       }
     }
     this.image.useMap = '#'+this.image.src

@@ -11,8 +11,6 @@ require 'fileutils'
 require 'ostruct'
 require 'json'
 
-require 'UniversalDetector' # gem install chardet
-
 require 'logger'
 module Kernel
   def __log__(message, subsystem = "", level = Logger::INFO)
@@ -282,10 +280,18 @@ class String
     pn
   end
 
+  def chardet
+    IO.popen("chardet", "r+"){|cd|
+      cd.write(self[0,65536])
+      cd.close_write
+      cd.read.strip
+    }
+  end
+
   def to_utf8(charset=nil)
     us = nil
     charsets = [charset, 'utf-8',
-      UniversalDetector.chardet(self[0,65536])['encoding'],
+      chardet,
       'shift-jis','euc-jp','iso8859-1','cp1252','big-5'].compact
     charsets.find{|c|
       ((us = Iconv.iconv('utf-8', c, self)[0]) rescue false)

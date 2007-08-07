@@ -687,6 +687,49 @@ module MuryuDispatch
         end
       end
 
+      def text(q,res)
+        lm = @target.modified_at.httpdate
+        if q['If-Modified-Since'] == lm
+          res.status = 304
+        else
+          filename = target.path.split("/").last
+          if target.mimetype != 'text/plain'
+            filename += '.txt'
+          end
+          res['Last-Modified-At'] = lm
+          res['Expires'] = (Time.now + 86400*30).httpdate
+          text = Future::Itemtexts.find(:item => @target, :volatile => false)
+          res.body = (text ? text.text : "")
+          res.content_type = 'text/plain; charset=UTF-8'
+          res["Content-Disposition"] =
+            "inline; filename=#{filename.dump}"
+        end
+      end
+
+      def pdf(q,res)
+        filename = target.path.split("/").last
+        if target.mimetype == 'application/pdf'
+          pdf_filename = target.internal_path
+        else
+          pdf_filename = target.internal_path.to_pn.dirname +
+            "#{File.basename(target.internal_path)}-temp.pdf"
+          filename += '.pdf'
+        end
+        lm = @target.modified_at.httpdate
+        if q['If-Modified-Since'] == lm
+          res.status = 304
+        elsif pdf_filename.exist?
+          res['Last-Modified-At'] = lm
+          res['Expires'] = (Time.now + 86400*30).httpdate
+          res.body = pdf_filename.open('rb')
+          res.content_type = 'application/pdf'
+          res["Content-Disposition"] =
+            "inline; filename=#{filename.dump}"
+        else
+          raise(MuryuQuery::NotFound, "Item #{target.path} doesn't have a PDF representation")
+        end
+      end
+
       def image(q,res)
         lm = @target.modified_at.httpdate
         if q['If-Modified-Since'] == lm
@@ -694,6 +737,9 @@ module MuryuDispatch
         else
           res['Last-Modified-At'] = lm
           res['Expires'] = (Time.now + 86400*30).httpdate
+          filename = target.path.split("/").last + ".jpg"
+          res["Content-Disposition"] =
+            "inline; filename=#{filename.dump}"
           if target.mimetype == 'image/gif' and target.width < 2048 and target.height < 2048
             file(q,res)
           else

@@ -94,7 +94,7 @@ extend self
       :dimensions_unit, 'mm',
       :page_size, h['page size'],
       :words, h['words'],
-      :charset, UniversalDetector.chardet(txt)['encoding']
+      :charset, txt.chardet
     }
   end
 
@@ -111,7 +111,7 @@ extend self
 
   def text_html(fname, charset)
     words = `html2text #{fname.dump} | wc -w 2>/dev/null`.strip.to_i
-    charset = UniversalDetector.chardet(File.open(fname){|f| f.read 65536 })['encoding']
+    charset = (File.read(fname, 65536) || "").chardet
     {
       :words => words,
       :charset => charset
@@ -120,7 +120,7 @@ extend self
 
   def text(fname, charset)
     words = `wc -w #{fname.dump} 2>/dev/null`.strip.to_i
-    charset = UniversalDetector.chardet(File.open(fname){|f| f.read 65536 })['encoding']
+    charset = (File.read(fname, 65536) || "").chardet
     {
       :words => words,
       :charset => charset
@@ -234,7 +234,7 @@ extend self
   alias_method :[], :extract
 
   def text__gettext(filename, charset)
-    enc_utf8(File.read(filename), charset)
+    enc_utf8((File.read(filename) || ""), charset)
   end
 
   def text_html__gettext(filename, charset)
@@ -242,7 +242,16 @@ extend self
   end
 
   def application_pdf__gettext(filename, charset)
-    enc_utf8(`pdftotext #{filename.dump} -`, charset)
+    page = 0
+    str = `pdftotext -layout -enc UTF-8 #{filename.dump} -`
+    str.gsub!(/\f/u, "\f\n")
+    str.gsub!(/^/u, " ")
+    str.gsub!(/\A| ?\f/u) {|pg|
+      "\n" + ("-"*40) + " #{page+=1}\n"
+    }
+    str.sub!(/\n+/, "")
+    str.sub!(/1/, "1\n")
+    enc_utf8(str, charset)
   end
   
   def application_postscript__gettext(filename, charset)

@@ -99,9 +99,11 @@ public
     Mimetype[ rv ]
   end
 
-  GENERIC_TYPES = %(
+  GENERIC_TYPES = %w(
     application/x-ole-storage
     application/zip
+    application/xml
+    text/x-csrc
     application/x-gzip
     application/x-tar
     application/x-bzip

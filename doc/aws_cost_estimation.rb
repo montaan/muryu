@@ -16,7 +16,7 @@ img_cache_avg_size = (14 / 50000.0) # GB
 avg_tile_size = 0.00001
 tiles_per_user_per_month = browsing_bw_use_per_month_per_user / avg_tile_size
 
-avg_thumbnailing_time = 0.5
+avg_thumbnailing_time = 1.6
 tile_redundancy_multiplier = 2
 
 seconds_in_month = 86400 * 30
@@ -65,10 +65,10 @@ puts "Total:             #{(total_cost / 1.35).round}e"
 end
 
 [100, 1000].each{|items|
- [0.0004, 0.001, 0.002, 0.010].each{|item_size|
-  [0.005, 0.010, 0.020, 0.030].each{|tile_time|
-   [240 / 50000.0, 440 / 50000.0].each{|memory_use_per_item|
-    [0.3, 1.0, 2.0].each{|browsing|
+ [0.001, 0.010].each{|item_size|
+  [0.025].each{|tile_time|
+   [440 / 50000.0].each{|memory_use_per_item|
+    [0.6].each{|browsing|
      estimate(50_000, items, items / 10, 1000, browsing, item_size, tile_time, memory_use_per_item, 1500)
      puts
      puts "="*72

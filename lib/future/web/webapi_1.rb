@@ -182,6 +182,8 @@ class MuryuQuery
       'view' => up,
       'image' => {'size' => e(imagesize) },
       'file' => up,
+      'text' => up,
+      'pdf' => up,
       'thumbnail' => up,
       'json' => {
         'columns' => list_of[field_names]

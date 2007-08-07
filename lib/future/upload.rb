@@ -305,9 +305,10 @@ class Uploader
   end
 
   # finds user/YYYY/MM-DD/preferred_filename[.n].ext that doesn't exist yet
-  def create_unique_filename(preferred_filename, user, exts)
+  def create_unique_filename(preferred_filename, user, exts=[])
     dir = today(user)
-    unless ext = exts.find{|e| e == File.extname(preferred_filename).downcase }
+    ext = File.extname(preferred_filename).downcase
+    if not exts.include?(ext) and not exts.empty?
       ext = exts.first
     end
     # strip out extname if any
@@ -475,7 +476,11 @@ class Uploader
         # create new metadata to avoid nasty surprises with metadata edits
         metadata = Metadata.create
         begin
-          path = create_unique_filename(preferred_filename, owner, mimetype.extnames)
+          if 'text/plain' == mimetype.to_s
+            path = create_unique_filename(preferred_filename, owner, ['.txt'])
+          else
+            path = create_unique_filename(preferred_filename, owner, mimetype.extnames)
+          end
           item = Items.create(
                               :path => path, :size => handle.size,
                               :internal_path => handle.full_path,
