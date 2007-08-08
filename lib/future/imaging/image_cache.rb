@@ -859,46 +859,47 @@ class JPEGTileStore
   end
 
   def image_thumbnail(img, thumb_size, page=0, crop='0x0+0+0')
-  $imlib_mutex.synchronize do
-    ow, oh = img.width, img.height
-    larger = [ow, oh].max
-    wr = img.width.to_f / larger
-    hr = img.height.to_f / larger
-    sr = larger / thumb_size.to_f
-    w,h,x,y = crop.scan(/[+-]?[0-9]+/).map{|i|i.to_i}
-    w = thumb_size * wr if w == 0
-    h = thumb_size * hr if h == 0
-    rx,ry,rw,rh = [x,y,w,h].map{|i| i * sr }
-    ctx = Imlib2::Context.get
-    ctx.blend = false
-    ctx.color = Imlib2::Color::TRANSPARENT
-    ctx.op = Imlib2::Op::COPY
-    if rx > ow or ry > oh
-      nimg = Imlib2::Image.new(w, h)
-      nimg.has_alpha = true
-      nimg.fill_rectangle([0, 0, w, h])
-    else
-      nimg = Imlib2::Image.new(w,h)
-      nimg.has_alpha = true
-      nimg.fill_rectangle([0,0,w,h])
-      tmp = img.crop_scaled(rx,ry,rw,rh, w, h)
-      nimg.blend!(tmp,0,0,tmp.width,tmp.height,0,0,tmp.width,tmp.height)
-      tmp.delete!(true)
-      if rx+rw > ow
+    $imlib_mutex.synchronize do
+      ow, oh = img.width, img.height
+      larger = [ow, oh].max
+      wr = img.width.to_f / larger
+      hr = img.height.to_f / larger
+      sr = larger / thumb_size.to_f
+      w,h,x,y = crop.scan(/[+-]?[0-9]+/).map{|i|i.to_i}
+      w = thumb_size * wr if w == 0
+      h = thumb_size * hr if h == 0
+      rx,ry,rw,rh = [x,y,w,h].map{|i| i * sr }
+      ctx = Imlib2::Context.get
+      ctx.blend = false
+      ctx.color = Imlib2::Color::TRANSPARENT
+      ctx.op = Imlib2::Op::COPY
+      if rx > ow or ry > oh
+        nimg = Imlib2::Image.new(w, h)
         nimg.has_alpha = true
-        d = rx+rw - ow
-        nimg.fill_rectangle([w - d / sr, 0, w, h])
-      elsif ry+rh > oh
+        nimg.fill_rectangle([0, 0, w, h])
+      else
+        nimg = Imlib2::Image.new(w+2,h+2)
         nimg.has_alpha = true
-        d = ry+rh - oh
-        nimg.fill_rectangle([0, h - d / sr, w, h])
-      elsif !img.has_alpha
-        nimg.has_alpha = false
+        nimg.fill_rectangle([0,0,w+2,h+2])
+        tmp = img.crop_scaled(rx.floor-1,ry.floor-1,rw.floor+2,rh.floor+2, w+2, h+2)
+        nimg.blend!(tmp,0,0,tmp.width,tmp.height,0,0,tmp.width,tmp.height)
+        nimg.crop_scaled!(1, 1, w, h, w, h)
+        tmp.delete!(true)
+        if rx+rw > ow
+          nimg.has_alpha = true
+          d = rx+rw - ow
+          nimg.fill_rectangle([w - d / sr, 0, w, h])
+        elsif ry+rh > oh
+          nimg.has_alpha = true
+          d = ry+rh - oh
+          nimg.fill_rectangle([0, h - d / sr, w, h])
+        elsif !img.has_alpha
+          nimg.has_alpha = false
+        end
       end
+      ctx.blend = true
+      nimg
     end
-    ctx.blend = true
-    nimg
-  end
   end
 
   def clear_cache_at(index)

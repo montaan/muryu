@@ -13,6 +13,7 @@ ENV["DISPLAY"] = ":15"
 
 require 'gtk2'
 require 'gtkmozembed'
+require 'imlib2'
 
 class MozSnapshooter < Gtk::Window
   
@@ -57,6 +58,10 @@ class MozSnapshooter < Gtk::Window
     width -= 16
     pixbuf = Gdk::Pixbuf.from_drawable(nil, gdkw, 0, 0, width, height)
     pixbuf.save(target,"png")
+    img = Imlib2::Image.load(target)
+    img.crop_scaled!(1, 1, 1024, 1024, 1024, 1024)
+    img.save(target)
+    img.delete!(true)
     puts "Wrote #{target}"
   ensure
     Gtk.main_quit
