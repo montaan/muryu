@@ -1,4 +1,6 @@
 
+require 'future/config'
+
 module Future
 
 have_rocstore = begin
@@ -8,7 +10,7 @@ rescue LoadError
   false
 end
 
-if have_rocstore
+if have_rocstore && Future.rocstore_db_path
   module ROCStoreIntegration
     KNOWN_COLUMNS = %w[
       deleted image_index mimetype_id size
@@ -31,14 +33,18 @@ if have_rocstore
     module DB
       include ROCStore
       # TODO: conf the env somewhere
-      DBPATH = "/path/to/rocstore/db/dir"
+      DBPATH = Future.rocstore_db_path
 
       # plain ugly; should read a schema desc dumped by the tuplemover instead
       # of reading anything it can find on disk
       module Reader
         extend self
 
-        ACCESS = {:int => AccessInt, :string => AccessString, :float => AccessFloat}
+        ACCESS = {
+           :int => ROCStore::AccessInt,
+           :string => ROCStore::AccessString,
+           :float => ROCStore::AccessFloat
+        }
         def indexed_access(type, base)
           ACCESS[type].new_with_value_index(base + ".dat",
                                             base + ".pidx",
@@ -77,9 +83,10 @@ if have_rocstore
             Dir["#{DBPATH}/#{name}-*-jindex.dat"].each do |page_file|
               pidx_file = page_file.sub(/dat$/, "pidx")
               idxname = /#{name}-(.+)-jindex\.dat$/.match(page_file).captures
-              ret["JI-#{idxname}"] = AccessInt.new(page_file, pidx_file)
+              ret["JI-#{idxname}"] = ROCStore::AccessInt.new(page_file, pidx_file)
             end
           end
+          #puts "TABLE #{name} access: #{ret.keys.sort.join(" ")}"
           ret
         end
       end # Reader
@@ -100,8 +107,9 @@ if have_rocstore
 
 
     def self.can_handle?(query)
-      unless query[:colums].all?{|c| KNOWN_COLUMNS.include?(c)} &&
-             query.keys.all?{|k| KNOWN_CRITERIA.include?(k)} &&
+      criteria = query.keys - %w[columns order_by].map{|s| s.to_sym}
+      unless query[:columns].all?{|c| KNOWN_COLUMNS.include?(c)} &&
+             criteria.all?{|k| KNOWN_CRITERIA.include?(k)} &&
              query[:order_by].size == 1 &&
              query[:order_by].each{|field, dir| KNOWN_ORDERS.include?(field)}
         return false
@@ -114,8 +122,12 @@ if have_rocstore
       # taken from access_control; refactor or keep in sync
       h["groups"] = [h["groups"]] if h["groups"] and not h["groups"][0].is_a? Array
       h["groups"] ||= []
-      h["groups"] << user.groups
+      h["groups"].concat user.groups
 
+      order = h[:order_by][0]
+=begin
+# the physycal schema doesn't have the required join indexes yet
+# we use image_index and map to the actual projection at the end instead
       case order = h[:order_by][0]
       when "image_index", "mimetype_id", "size", "deleted";
         projection = "items.#{order}"
@@ -123,6 +135,9 @@ if have_rocstore
         # TODO: other orders
         projection = "items.image_index"
       end
+=end
+
+      projection = "items.image_index"
 
       group_ids = ROCStore::StreamInt.literal(h["groups"].sort, true)
       pos1 = DB::GroupsItems["groups.id"]["groups.id"].pos_stream(group_ids)
@@ -132,7 +147,8 @@ if have_rocstore
       if user_name = h["owner.name"]
         p1 = DB::Items["users.name"]["users.name"].value_filtered([:Eq, user_name])
         p2 = DB::Items["JI-users.name-#{projection}"].pos_filtered(p1.to_pos_stream)
-        pos = pos.and(p2)
+
+        pos = pos.and(ROCStore::PosStream.new_from_join_index(p2)).memoize
       end
 
       if size_criterion = h["size"]
@@ -150,9 +166,8 @@ if have_rocstore
         mimetypes = ROCStore::StreamInt.literal(mimetype_ids.sort, true)
         p1 = DB::Items["items.mimetype_id"]["items.mimetype_id"].pos_stream(mimetypes)
         p2 = DB::Items["JI-items.mimetype_id-#{projection}"].pos_filtered(p1)
-        pos = pos.and(ROCStore::PosStream.new_from_join_index(p2))
+        pos = pos.and(ROCStore::PosStream.new_from_join_index(p2)).memoize
       end
-
       # ...
 
       if path_criteria = h[:path]
@@ -166,15 +181,25 @@ if have_rocstore
             txt = r.inspect[%r{/(.)/(i?)}, 1]
           end
           p1 = DB::Items[projection]["items.path"].stream.grep(regexps.join("|"))
-          pos = pos.and(p1.to_pos_stream)
+          pos = pos.and(p1.to_pos_stream).memoize
         end
+      end
+
+      # switch to correct projection
+      case order
+      when "image_index"; # nothing to do
+      else
+        pos2 = DB::Items["JI-items.image_index-#{projection}"].pos_filtered(pos)
+
+        pos = ROCStore::PosStream.new_from_join_index(pos2).sort
       end
 
       pos = pos.memoize
 
       ret = {}
-      h[:colums].each do |c|
-        ret[c] = DB::Items[projection][COLUMNS[c]].pos_filtered(pos.dup)
+      h[:columns].each do |c|
+        col = c.to_sym
+        ret[c] = DB::Items[projection][COLUMNS[col]].pos_filtered(pos.dup)
       end
 
       ret.each{|c| c.reverse!} if h[:order_by][1] == :desc

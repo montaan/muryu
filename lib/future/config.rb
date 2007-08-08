@@ -48,6 +48,7 @@ class << self
   attr_accessor :empty_tile, :image_cache
   attr_reader   :environment
   attr_accessor :logger, :log_level, :database_configuration
+  attr_accessor :rocstore_db_path
 
   delegate_accessor :paths, Paths.constants.map{|c| c.downcase}
 
@@ -77,6 +78,7 @@ class << self
     self.database_configuration = nil # reset so we can see if they were modified
     self.empty_tile = tile_cache_dir + 'empty.jpg'
     self.logger = nil
+    self.rocstore_db_path = nil
     if config_file.exist?
       load config_file
     end
