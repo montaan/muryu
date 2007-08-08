@@ -30,10 +30,21 @@ end
 
 require 'future/config'
 require 'future/database/creator'
+
+task(:setup) do
+  unless File.exist? "config.rb"
+    puts <<-EOF
+WARNING: generating vanilla config.rb.
+    EOF
+    sh "ruby -Ilib bin/future_setup bogushost"
+  end
+end
+
 namespace :db do
   namespace :test do
     desc "Create empty test database and load the schema."
     task(:prepare){ create_new_db("test") }
+    task :prepare => "setup"
   end
 
   desc "Creates an empty development database."
