@@ -1,5 +1,6 @@
+require 'fileutils'
 
-database_conf = 
+database_conf =
 {
   "test" => {
     :host => nil, :port => nil, :options => nil, :database => "future_test",
@@ -17,19 +18,22 @@ database_conf =
 
 
 Future.configuration do |c|
-  # c.database_configuration = database_conf[c.environment]
-  # c.logger = Logger.new(c.log_dir + "#{c.environment}.log")
+  c.database_configuration = database_conf[c.environment]
+  FileUtils.mkdir_p(c.log_dir)
+  c.logger = Logger.new(c.log_dir + "#{c.environment}.log")
+  #c.rocstore_db_path = "/path/to/rocstore/db"
 
   c.domain = "<%= $host %>"
   c.server_name        =  "http://<%= $host %><%= $http_port  != 80  ? ":#$http_port"  : "" %>"
   c.secure_server_name = "https://<%= $host %><%= $https_port != 443 ? ":#$https_port" : "" %>"
-  c.tile_servers = <%= 
+  c.tile_servers = <%=
     (if $tile_subdomains
-      $tile_subdomains.map{|ts| 
-        "http://#{ts}.#$host#{ $http_port  != 80  ? ":#$http_port"  : "" }/tile/" 
+      $tile_subdomains.map{|ts|
+        "http://#{ts}.#$host#{ $http_port  != 80  ? ":#$http_port"  : "" }/tile/"
       }
     else
       [ "http://#$host#{ $http_port  != 80  ? ":#$http_port"  : "" }/tile/" ]
     end).inspect
   %>
 end
+
