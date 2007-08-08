@@ -36,7 +36,7 @@ task(:setup) do
     puts <<-EOF
 WARNING: generating vanilla config.rb.
     EOF
-    sh "ruby -Ilib bin/future_setup bogushost"
+    sh "ruby -Ilib bin/future_setup --no-cert bogushost"
   end
 end
 

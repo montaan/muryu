@@ -9,7 +9,8 @@ options = {
   :https_port => 443,
   :tile_subdomains => nil,
   :cert_file => File.join(ENV['PWD'], 'etc', 'muryu_cert.pem'),
-  :key_file => File.join(ENV['PWD'], 'etc', 'muryu_key.pem')
+  :key_file => File.join(ENV['PWD'], 'etc', 'muryu_key.pem'),
+  :gen_cert => true,
 }
 opts = OptionParser.new do |opts|
   opts.banner = "future_setup [options] [hostname]"
@@ -20,6 +21,8 @@ opts = OptionParser.new do |opts|
   opts.on("--tile-subdomains S1,S2,...", "Tile server subdomains"){|p| options[:tile_subdomains] = p.strip.split(",").map{|s|s.strip} }
   opts.on("--cert-file FILE", "CA certificate filename"){|p| options[:cert_file] = p}
   opts.on("--key-file FILE", "CA private key filename"){|p| options[:key_file] = p}
+  opts.on("--[no-]cert", "Whether to generate certificate and pkey",
+          "(default: yes)") {|b| options[:gen_cert] = b }
 end
 
 opts.parse!(ARGV)
@@ -38,7 +41,7 @@ end
 
 $cert_file = File.expand_path(options[:cert_file])
 $key_file = File.expand_path(options[:key_file])
-unless File.exist?($cert_file) 
+if options[:gen_cert] && !File.exist?($cert_file)
   system( *(%w(openssl req -x509 -new -days 3650 -out) + [ $cert_file ] + %w(-keyout) + [ $key_file ]) )
 end
 
