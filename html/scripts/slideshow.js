@@ -527,28 +527,37 @@ Suture.prototype = {
   clickHandler : function(e){
     if (e.button == 0 || e.button == 1) {
       var fac = this.computeClickFactor(e)
-      this.rotate(fac)
-      if (e.preventDefault) e.preventDefault()
+      if (fac == 0) {
+        this.toggleOriginalSize()
+      } else {
+        this.rotate(fac)
+        if (e.preventDefault) e.preventDefault()
+      }
       return false
     }
+  },
+
+  toggleOriginalSize : function() {
+    this.useOriginalSize = !this.useOriginalSize
+    this.visibleImage.toggleOriginalSize()
+    this.hiddenImage.toggleOriginalSize()
+    this.display.style.cursor = (this.useOriginalSize ? '-moz-zoom-out' : '-moz-zoom-in')
   },
 
   mousemoveHandler : function(e){
     var fac = this.computeClickFactor(e)
     if (fac != this._lastFac) {
       this._lastFac = fac
-      var div = Math.pow(2, 3-(Math.abs(fac).toString().length-1))
       if (fac > 0) {
-/*        var x = parseInt(393 / div)
-        var y = parseInt(107 / div)
-        this.display.style.cursor = 'url(GO_RIGHT_'+Math.abs(fac)+'.png) '+x+' '+y+', e-resize'*/
         this.display.style.cursor = 'e-resize'
-      } else {
-/*        var x = parseInt(11 / div)
-        var y = parseInt(107 / div)
-        this.display.style.cursor = 'url(GO_LEFT_'+Math.abs(fac)+'.png) '+x+' '+y+', w-resize'*/
+      } else if (fac < 0) {
         this.display.style.cursor = 'w-resize'
+      } else {
+        this.display.style.cursor = (this.useOriginalSize ? '-moz-zoom-out' : '-moz-zoom-in')
       }
+    }
+    if (this.useOriginalSize) {
+      
     }
   },
 
@@ -556,6 +565,8 @@ Suture.prototype = {
     var fac = 1
     var hw = e.target.clientWidth / 2
     var cx = e.layerX
+    if (e.target == this.visibleImage.img)
+      return 0
     fac *= (cx < hw ? -1 : 1)
     fac *= (e.shiftKey ? 10 : 1)
 /*    if (Math.abs(hw - cx) > 0.4*hw) fac *= 10 
@@ -990,6 +1001,7 @@ FaderDiv = function(div) {
       this.scratchCanvasB = E('canvas')
     }
   }
+  this.div.addEventListener('mousemove', this.onmousemove.bind(this), false)
   this.shadow = document.createElement("div")
   this.shadow.style.height = "10px"
   this.shadow.style.width = "0px"
@@ -1001,82 +1013,120 @@ FaderDiv = function(div) {
 
 FaderDiv.prototype = {
   loaded : false,
-  
+  useOriginalSize : false,
+
+  toggleOriginalSize : function() {
+    this.useOriginalSize = !this.useOriginalSize
+    this.fitParent()
+  },
+
+  onmousemove : function(ev) {
+    if (this.useOriginalSize) {
+      var lx = ev.layerX - (this.div.offsetWidth / 3)
+      var ly = ev.layerY - (this.div.offsetHeight / 3)
+      if (ev.target == this.img) {
+        lx += this.img.offsetLeft
+        ly += this.img.offsetTop
+      }
+      var x = (lx / this.div.offsetWidth) * this.img.width
+      var y = (ly / this.div.offsetHeight) * this.img.height
+      var dw = this.img.parentNode.offsetWidth
+      var dh = this.img.parentNode.offsetHeight
+      var w = this.img.width
+      var h = this.img.height
+      var ox = Math.ceil((dw - w) / 2)
+      var oy = Math.ceil((dh - h) / 2)
+      x = (ox > 0 ? -ox : Math.max(0, Math.min( x, this.img.width-this.div.offsetWidth)))
+      y = (oy > 0 ? -oy : Math.max(0, Math.min( y, this.img.height-this.div.offsetHeight)))
+      this.img.style.left = -x + 'px'
+      this.img.style.top = -y + 'px'
+    }
+  },
+
   fitParent : function() {
     var f = this.img
     var w,h,dw,dh,fw,fh
-    var d = f.parentNode
-    dw = d.offsetWidth
-    dh = d.offsetHeight
     f.style.width = null
     f.style.height = null
     fw = f.width
     fh = f.height
-    if (fw <= dw && fh <= dh) {
+    var d = f.parentNode
+    dw = d.offsetWidth
+    dh = d.offsetHeight
+    if (this.useOriginalSize) {
       w = fw
       h = fh
-    } else if (fw > fh) {
-      w = dw
-      h = fh * (dw / fw)
-    } else {
-      w = fw * (dh / fh)
-      h = dh
-    }
-    if (w > dw) {
-      w = dw
-      h = fh * (dw / fw)
-    } else if (h > dh) {
-      w = fw * (dh / fh)
-      h = dh
-    }
-    if ((fw > w || fh > h) && fw*fh < 3000*4000) { // don't canvas-scale huge images
-      this.setElementOpacity(f, 0)
-      f.style.zIndex = 2
-      f.parentNode.insertAfter(this.canvas, f)
-      this.canvas.style.top = Math.ceil((dh - h) / 2) + 'px'
-      this.canvas.style.left = Math.ceil((dw - w) / 2) + 'px'
-      this.canvas.width = Math.ceil(w)
-      this.canvas.height = Math.ceil(h)
-      if (w > 0 && w < fw / 2) {
-      // hacky multi-level downscaling that produces marginally better results
-      // than a single bi-linear downscale (but still craps out with 1px glows
-      // surrounding linework (i.e. high amplitude&freq line: -^_-))
-        var a = this.scratchCanvasA
-        var b = this.scratchCanvasB
-        var tmp
-        var sw = fw * 0.6
-        var sh = fh * 0.6
-        a.width = Math.ceil(sw)
-        a.height = Math.ceil(sh)
-        var ac = a.getContext('2d')
-        var bc = b.getContext('2d')
-        ac.clearRect(0,0,a.width,a.height)
-        ac.drawImage(f,0,0,sw,sh)
-        while (w < sw * 0.5) {
-          sw *= 0.6
-          sh *= 0.6
-          b.width = Math.ceil(sw)
-          b.height = Math.ceil(sh)
-          bc.clearRect(0,0,b.width,b.height)
-          bc.drawImage(a,0,0,sw,sh)
-          tmp = a
-          a = b
-          b = tmp
-          tmp = ac
-          ac = bc
-          bc = tmp
-        }
-        var c = this.canvas.getContext('2d')
-        c.drawImage(a,0,0,Math.ceil(w),Math.ceil(h))
-        a.width = a.height = b.width = b.height = 0
-      } else {
-        var c = this.canvas.getContext('2d')
-        c.drawImage(f,0,0,Math.ceil(w),Math.ceil(h))
+      if (this.canvas.parentNode) {
+        $(this.canvas).detachSelf()
+        this.setElementOpacity(f, this.opacity)
       }
-      this.setElementOpacity(this.canvas, this.opacity)
-    } else if (this.canvas.parentNode) {
-      $(this.canvas).detachSelf()
-      this.setElementOpacity(f, this.opacity)
+    } else {
+      if (fw <= dw && fh <= dh) {
+        w = fw
+        h = fh
+      } else if (fw > fh) {
+        w = dw
+        h = fh * (dw / fw)
+      } else {
+        w = fw * (dh / fh)
+        h = dh
+      }
+      if (w > dw) {
+        w = dw
+        h = fh * (dw / fw)
+      } else if (h > dh) {
+        w = fw * (dh / fh)
+        h = dh
+      }
+      if ((fw > w || fh > h) && fw*fh < 3000*4000) { // don't canvas-scale huge images
+        this.setElementOpacity(f, 0)
+        f.style.zIndex = 2
+        f.parentNode.insertAfter(this.canvas, f)
+        this.canvas.style.top = Math.ceil((dh - h) / 2) + 'px'
+        this.canvas.style.left = Math.ceil((dw - w) / 2) + 'px'
+        this.canvas.width = Math.ceil(w)
+        this.canvas.height = Math.ceil(h)
+        if (w > 0 && w < fw / 2) {
+        // hacky multi-level downscaling that produces marginally better results
+        // than a single bi-linear downscale (but still craps out with 1px glows
+        // surrounding linework (i.e. high amplitude&freq line: -^_-))
+          var a = this.scratchCanvasA
+          var b = this.scratchCanvasB
+          var tmp
+          var sw = fw * 0.6
+          var sh = fh * 0.6
+          a.width = Math.ceil(sw)
+          a.height = Math.ceil(sh)
+          var ac = a.getContext('2d')
+          var bc = b.getContext('2d')
+          ac.clearRect(0,0,a.width,a.height)
+          ac.drawImage(f,0,0,sw,sh)
+          while (w < sw * 0.5) {
+            sw *= 0.6
+            sh *= 0.6
+            b.width = Math.ceil(sw)
+            b.height = Math.ceil(sh)
+            bc.clearRect(0,0,b.width,b.height)
+            bc.drawImage(a,0,0,sw,sh)
+            tmp = a
+            a = b
+            b = tmp
+            tmp = ac
+            ac = bc
+            bc = tmp
+          }
+          var c = this.canvas.getContext('2d')
+          c.drawImage(a,0,0,Math.ceil(w),Math.ceil(h))
+          a.width = a.height = b.width = b.height = 0
+        } else {
+          var c = this.canvas.getContext('2d')
+          c.drawImage(f,0,0,Math.ceil(w),Math.ceil(h))
+        }
+        this.setElementOpacity(this.canvas, this.opacity)
+      } else if (this.canvas.parentNode) {
+        $(this.canvas).detachSelf()
+        this.setElementOpacity(f, this.opacity)
+      }
     }
     f.style.top = Math.ceil((dh - h) / 2) + 'px'
     f.style.left = Math.ceil((dw - w) / 2) + 'px'

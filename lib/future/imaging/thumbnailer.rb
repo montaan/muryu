@@ -71,9 +71,10 @@ module Mimetype
   def thumbnail(filename, thumb_filename, thumb_size=nil, page=nil, crop='0x0+0+0')
 #     puts "called thumbnail for #{filename} (#{to_s})"
     begin
-      if to_s =~ /video/
-        page ||= [[5.7, filename.to_pn.length * 0.5].max, filename.to_pn.length * 0.75].min
-        ffmpeg_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+      if to_s =~ /video|matroska|realmedia/
+        fancy_video_thumbnail(filename, thumb_filename, thumb_size, page)
+#         page ||= [[5.7, filename.to_pn.length * 0.5].max, filename.to_pn.length * 0.75].min
+#         ffmpeg_thumbnail(filename, thumb_filename, thumb_size, page, crop)
       elsif to_s =~ /html/
         page ||= 0
         html_thumbnail(filename, thumb_filename, thumb_size, page, crop)
@@ -283,11 +284,70 @@ module Mimetype
     rv
   end
 
+  def fancy_video_thumbnail(filename, thumb_filename, thumb_size, page)
+    fn = filename.to_pn
+    fn.mimetype = self
+    page ||= [[5.7, fn.length * 0.07].max, fn.length * 0.75].min
+    thumb_size ||= 2048
+    dims = fn.dimensions
+    method = :mplayer_thumbnail
+    if to_s =~ /flash/
+      method = :ffmpeg_thumbnail
+    end
+    tmp_dir = thumb_filename.to_pn.dirname + ".tmp-#{Process.pid}-#{Thread.current.object_id}-#{Time.now.to_f}-fancy"
+    tmp_dir.mkdir_p
+    tmp_main = tmp_dir + "cover.png"
+    offset = fn.length / 57.0
+    temps = (1..8).map{|i| [offset+(i-1)*(fn.length / 8.0), tmp_dir + "#{i}.png"] }
+    if dims[0] >= dims[1]
+      main_size = thumb_size
+    else
+      main_size = (dims[0] / dims[1].to_f) * thumb_size
+    end
+    __send__(method, fn, tmp_main, main_size, page, '0x0+0+0')
+    return false unless tmp_main.exist?
+    ctx = Imlib2::Context.get
+    ctx.blend = false
+    ctx.color = Imlib2::Color::TRANSPARENT
+    ctx.op = Imlib2::Op::COPY
+    main_img = Imlib2::Image.load(tmp_main)
+    th_w = main_img.width / 4.0
+    th_h = th_w / (dims[0] / dims[1].to_f)
+    th_size = [th_w, th_h].max
+    x_offset = 0
+    y_offset = main_img.height
+    w = main_img.width
+    h = main_img.height + 2*th_h
+    img = Imlib2::Image.new(w, h)
+    img.has_alpha = true
+    img.fill_rectangle(0,0, thumb_size, h)
+    img.blend!(main_img,
+      0,0,
+      main_img.width, main_img.height,
+      (img.width-main_img.width) / 2, 0,
+      main_img.width, main_img.height)
+    main_img.delete!(true)
+    temps.each_with_index{|(time, tmp), i|
+      __send__(method, fn, tmp, th_size, time, '0x0+0+0')
+      next unless tmp.exist?
+      th_img = Imlib2::Image.load(tmp)
+      img.blend!(th_img,
+      0,0, th_img.width, th_img.height,
+      x_offset + (i % 4) * th_img.width,
+      y_offset + (i / 4) * th_img.height,
+      th_img.width, th_img.height)
+      th_img.delete!(true)
+    }
+    img.save(thumb_filename)
+    FileUtils.rm_r(tmp_dir)
+    true
+  end
+
   def ffmpeg_thumbnail(filename, thumb_filename, thumb_size, page, crop)
     ffmpeg = `which ffmpeg`.strip
     ffmpeg = "ffmpeg" if ffmpeg.empty?
-    tmp_filename = thumb_filename.to_pn.dirname + ".tmp#{Process.pid}-#{Thread.current.object_id}-#{Time.now.to_f}-ffmpeg.png"
-    system(ffmpeg, "-i", filename, "-vcodec", "png", "-f", "rawvideo", "-ss", page.to_s, "-an", "-r", "1", "-vframes", "1", "-y", tmp_filename.to_s)
+    tmp_filename = thumb_filename.to_pn.dirname + ".tmp-#{Process.pid}-#{Thread.current.object_id}-#{Time.now.to_f}-ffmpeg.png"
+    `ffmpeg -i #{filename.to_s.dump} -vcodec png -f rawvideo -ss  #{page.to_s} -r 1 -an -vframes 1 -y #{tmp_filename.to_s.dump} 2>/dev/null`
     if tmp_filename.exist?
       Mimetype['image/png'].image_thumbnail(tmp_filename, thumb_filename, thumb_size, 0, crop)
       tmp_filename.unlink
@@ -295,14 +355,16 @@ module Mimetype
     File.exist?(thumb_filename)
   end
 
-  def video_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+  def mplayer_thumbnail(filename, thumb_filename, thumb_size, page, crop)
     video_cache_dir = Future.cache_dir + "videotemp-#{Process.pid}-#{Thread.current.object_id}-#{Time.now.to_f}"
     video_cache_dir.mkdir_p
     mplayer = `which mplayer32`.strip
     mplayer = `which mplayer`.strip if mplayer.empty?
     mplayer = "mplayer" if mplayer.empty?
-    system(mplayer, "-really-quiet", "-nosound", "-ss", page.to_s, "-vf", "scale",
-           "-vo", "jpeg:outdir=#{video_cache_dir}", "-frames", "10", filename)
+    fn = filename.to_pn
+    fn.mimetype = self
+    aspect = fn.width / fn.height.to_f
+    system(mplayer, "-really-quiet", "-aspect", aspect.to_s, "-nosound", "-ss", page.to_s, "-vo", "jpeg:outdir=#{video_cache_dir}", "-frames", "10", filename)
     j = video_cache_dir.glob("*.jpg").sort.last
     Mimetype['image/jpeg'].image_thumbnail(j, thumb_filename, thumb_size, 0, crop) if j
     video_cache_dir.rmtree

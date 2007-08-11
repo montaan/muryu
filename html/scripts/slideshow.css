@@ -165,6 +165,8 @@
   padding-top: 9px;
   padding-bottom: 13px;
   border: 1px solid #383838;
+  position: relative;
+  overflow: hidden;
 }
 #slideshow-loading {
   visibility: hidden;

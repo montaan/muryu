@@ -29,7 +29,8 @@ module MuryuDispatch
             res['Location'] = "/files/#{@target.path}"
           else
             res['Expires'] = (Time.now+86400*365).httpdate
-            res.body = File.open(@target.internal_path, 'rb')
+            f = File.open(@target.internal_path, 'rb')
+            res.body = f
             res.content_type = @target.mimetype
           end
         end

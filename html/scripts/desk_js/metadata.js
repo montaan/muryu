@@ -581,28 +581,14 @@ Mimetype = {
       // d.style.lineHeight = '0px'
       var i = E('img')
       i.style.display = 'block'
-      var iw = info.metadata.width
-      var ih = info.metadata.height
+      var iw = info.metadata.width || 1024
+      var ih = info.metadata.height || 1024
       if (info.metadata.dimensions_unit && info.metadata.dimensions_unit == 'mm') {
         var larger = Math.max(iw, ih)
         iw = 1024*iw / larger
         ih = 1024*ih / larger
-      } else if (iw && ih) {
-        var larger = Math.max(iw, ih)
       } else {
-        var t = this
-        i.onload = function() {
-          if (win.closed) return
-          info.metadata.width = this.width
-          info.metadata.height = this.height
-          d.style.display = 'none'
-          var d2 = t.makeImageViewer(info, win)
-          d.parentNode.insertBefore(d2, d)
-          $(d).detachSelf()
-          win.fitContents()
-        }
-        i.src = '/items/' + info.path + '/image'
-        return d
+        var larger = Math.max(iw, ih)
       }
       if (larger && larger > 1024) {
         var imgWidth = 1024*iw / larger
@@ -613,45 +599,11 @@ Mimetype = {
       }
       var mw = win.container.offsetWidth
       var mh = win.container.offsetHeight
-      i.onmousedown = function(e){
-        this.downX = e.clientX
-        this.downY = e.clientY
-      }
-      i.onclick = function(e) {
-        if (Event.isLeftClick(e) &&
-            Math.abs(this.downX - e.clientX) < 3 &&
-            Math.abs(this.downY - e.clientY) < 3 &&
-            this.scaled
-        ) {
-          i.toggleOriginalSize(e)
-          if (this.originalSize) {
-            this.style.cursor = '-moz-zoom-out'
-          } else {
-            this.style.cursor = '-moz-zoom-in'
-          }
-        }
-      }
-      i.style.cursor = 'move'
-      i.onmousemove = function(e) {
-        if (this.scaled) {
-          i.style.cursor = 'move'
-          if (this.cursorTimeout) clearTimeout(this.cursorTimeout)
-          this.cursorTimeout = setTimeout(function() {
-            if (this.originalSize) {
-              this.style.cursor = '-moz-zoom-out'
-            } else {
-              this.style.cursor = '-moz-zoom-in'
-            }
-          }.bind(this), 500)
-        }
-      }
-      i.src = '/items/' + info.path + '/image'
-      win.content.appendChild(i)
       if (mw < (iw + 20)) {
         ih *= (mw - 20) / iw
         iw = mw - 20
       }
-      var lh = 140 + win.element.offsetHeight
+      var lh = 200
       if (mh < (ih + lh)) {
         iw *= (mh - lh) / ih
         ih = mh - lh
@@ -682,49 +634,8 @@ Mimetype = {
       i.style.height = ih + 'px'
       i.width = imgWidth
       i.height = imgHeight
-      i.toggleOriginalSize = function(e) {
-        if (!this.scaled) return
-        var fac = imgWidth / iw
-        if (this.originalSize) {
-          var x = e.layerX
-          var y = e.layerY - this.offsetTop/fac
-          var rx = x/fac
-          var ry = y/fac
-          win.setSize(win.width + (iw-imgWidth), win.height + (ih-imgHeight))
-          win.setX(win.x - (rx-x))
-          win.setY(win.y - (ry-y))
-          this.style.width = iw + 'px'
-          this.style.height = ih + 'px'
-          win.setY(win.y+1)
-          setTimeout(function(){
-            win.setY(win.y-1)
-          }, 0)
-          if (ic) {
-            ic.style.display = 'block'
-            ic.style.position = 'static'
-            this.style.position = 'absolute'
-            this.style.opacity = 0
-          }
-        } else {
-          var x = e.layerX
-          var y = e.layerY
-          var rx = x*fac
-          var ry = y*fac
-          win.setSize(win.width - (iw-imgWidth), win.height - (ih-imgHeight))
-          win.setX(win.x - (rx-x))
-          win.setY(win.y - (ry-y))
-          this.style.width = imgWidth + 'px'
-          this.style.height = imgHeight + 'px'
-          if (ic) {
-            ic.style.display = 'none'
-            ic.style.position = 'absolute'
-            this.style.position = 'static'
-            this.style.opacity = 1
-          }
-        }
-        this.originalSize = !this.originalSize
-      }
-      win.content.removeChild(i)
+      i.style.cursor = 'move'
+      i.src = '/items/' + info.path + '/image'
       d.appendChild(i)
       return d
     },

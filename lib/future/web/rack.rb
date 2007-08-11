@@ -25,6 +25,19 @@ class Rack::Request
 end
 
 
+class File
+
+  def each
+    each_data ||= ""
+    until eof?
+      each_data.replace(read(262144))
+      yield each_data
+    end
+    self
+  end
+
+end
+
 class MuryuRequest
 
   attr_reader :relative_path, :get, :post, :cookies, :request_method, :headers

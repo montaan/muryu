@@ -217,7 +217,6 @@ module MuryuDispatch
                 @filename
               end
               fd.instance_variable_set("@filename", f[:filename])
-              f[:source] = f[:filename]
               f[:source] = req.query[source][0] if source
               f[:referrer] = req.query[referrer][0] if referrer
               Future::Uploader.upload(common_fields.merge(f))
@@ -238,7 +237,6 @@ module MuryuDispatch
                 @filename
               end
               fd.instance_variable_set("@filename", f[:filename])
-              f[:source] = f[:filename]
               f[:source] = req.query[source][0] if source
               f[:referrer] = req.query[referrer][0] if referrer
               Future::Uploader.upload_archive(common_fields.merge(f))
