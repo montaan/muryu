@@ -80,8 +80,8 @@ iframe {
 }
 .windowButtons {
   text-align: right;
-  position: relative;
-  left: -1px;
+/*   position: relative; */
+/*   left: -1px; */
   z-index: 0;
 }
 .windowButtons a {

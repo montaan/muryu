@@ -28,10 +28,8 @@ end
 class File
 
   def each
-    each_data ||= ""
     until eof?
-      each_data.replace(read(262144))
-      yield each_data
+      yield read(65536)
     end
     self
   end

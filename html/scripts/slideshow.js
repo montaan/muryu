@@ -528,24 +528,24 @@ Suture.prototype = {
     if (e.button == 0 || e.button == 1) {
       var fac = this.computeClickFactor(e)
       if (fac == 0) {
-        this.toggleOriginalSize()
+        this.toggleOriginalSize(e)
       } else {
         this.rotate(fac)
-        if (e.preventDefault) e.preventDefault()
       }
+      Event.stop(e)
       return false
     }
   },
 
-  toggleOriginalSize : function() {
+  toggleOriginalSize : function(e) {
     this.useOriginalSize = !this.useOriginalSize
-    this.visibleImage.toggleOriginalSize()
-    this.hiddenImage.toggleOriginalSize()
+    this.visibleImage.toggleOriginalSize(e)
+    this.hiddenImage.toggleOriginalSize(e)
     this.display.style.cursor = (this.useOriginalSize ? '-moz-zoom-out' : '-moz-zoom-in')
   },
 
-  mousemoveHandler : function(e){
-    var fac = this.computeClickFactor(e)
+  mousemoveHandler : function(ev){
+    var fac = this.computeClickFactor(ev)
     if (fac != this._lastFac) {
       this._lastFac = fac
       if (fac > 0) {
@@ -556,16 +556,25 @@ Suture.prototype = {
         this.display.style.cursor = (this.useOriginalSize ? '-moz-zoom-out' : '-moz-zoom-in')
       }
     }
-    if (this.useOriginalSize) {
-      
+    var lx = ev.layerX
+    var ly = ev.layerY
+    if (ev.target == this.visibleImage.img) {
+      lx += this.visibleImage.img.offsetLeft
+      ly += this.visibleImage.img.offsetTop
+    } else if (ev.target == this.visibleImage.shadow) {
+      lx += this.visibleImage.shadow.offsetLeft
+      ly += this.visibleImage.shadow.offsetTop
     }
+    this.hiddenImage.lastMoveEvent = this.visibleImage.lastMoveEvent = {layerX: lx, layerY: ly}
+    this.visibleImage.onmousemove(ev)
+    this.hiddenImage.onmousemove(ev)
   },
 
   computeClickFactor : function(e){
     var fac = 1
     var hw = e.target.clientWidth / 2
     var cx = e.layerX
-    if (e.target == this.visibleImage.img)
+    if (Math.abs(hw-cx) < 150 || (this.useOriginalSize && e.target == this.visibleImage.img))
       return 0
     fac *= (cx < hw ? -1 : 1)
     fac *= (e.shiftKey ? 10 : 1)
@@ -1001,7 +1010,6 @@ FaderDiv = function(div) {
       this.scratchCanvasB = E('canvas')
     }
   }
-  this.div.addEventListener('mousemove', this.onmousemove.bind(this), false)
   this.shadow = document.createElement("div")
   this.shadow.style.height = "10px"
   this.shadow.style.width = "0px"
@@ -1015,35 +1023,45 @@ FaderDiv.prototype = {
   loaded : false,
   useOriginalSize : false,
 
-  toggleOriginalSize : function() {
+  toggleOriginalSize : function(e) {
     this.useOriginalSize = !this.useOriginalSize
     this.fitParent()
+    if (this.useOriginalSize) {
+      this.onmousemove({layerX: e.layerX, layerY: e.layerY})
+    }
   },
 
   onmousemove : function(ev) {
     if (this.useOriginalSize) {
-      var lx = ev.layerX - (this.div.offsetWidth / 3)
-      var ly = ev.layerY - (this.div.offsetHeight / 3)
+      var dw = this.div.offsetWidth
+      var dh = this.div.offsetHeight
+      var lx = ev.layerX - (dw / 3)
+      var ly = ev.layerY - (dh / 3)
       if (ev.target == this.img) {
         lx += this.img.offsetLeft
         ly += this.img.offsetTop
+      } else if (ev.target == this.shadow) {
+        lx += this.shadow.offsetLeft
+        ly += this.shadow.offsetTop
       }
-      var x = (lx / this.div.offsetWidth) * this.img.width
-      var y = (ly / this.div.offsetHeight) * this.img.height
-      var dw = this.img.parentNode.offsetWidth
-      var dh = this.img.parentNode.offsetHeight
+      var x = (lx / dw) * this.img.width
+      var y = (ly / dh) * this.img.height
       var w = this.img.width
       var h = this.img.height
       var ox = Math.ceil((dw - w) / 2)
       var oy = Math.ceil((dh - h) / 2)
-      x = (ox > 0 ? -ox : Math.max(0, Math.min( x, this.img.width-this.div.offsetWidth)))
-      y = (oy > 0 ? -oy : Math.max(0, Math.min( y, this.img.height-this.div.offsetHeight)))
+      x = (ox > 0 ? -ox : Math.max(0, Math.min( x, this.img.width-dw)))
+      y = (oy > 0 ? -oy : Math.max(0, Math.min( y, this.img.height-dh)))
       this.img.style.left = -x + 'px'
       this.img.style.top = -y + 'px'
+      var f = this.img
+      this.shadow.style.top = parseInt(f.style.height) + parseInt(f.style.top) + 'px'
+      this.shadow.style.left = f.style.left
+      this.shadow.style.width = parseInt(f.style.width) + 2  + 'px'
     }
   },
 
-  fitParent : function() {
+  fitParent : function(e) {
     var f = this.img
     var w,h,dw,dh,fw,fh
     f.style.width = null
@@ -1053,6 +1071,7 @@ FaderDiv.prototype = {
     var d = f.parentNode
     dw = d.offsetWidth
     dh = d.offsetHeight
+    this.scaled = (fw > dw || fh > dh)
     if (this.useOriginalSize) {
       w = fw
       h = fh
@@ -1132,17 +1151,19 @@ FaderDiv.prototype = {
     f.style.left = Math.ceil((dw - w) / 2) + 'px'
     f.style.width = Math.ceil(w) + 'px'
     f.style.height = Math.ceil(h) + 'px'
-    this.shadow.style.top = Math.ceil(h) + parseInt(f.style.top) + 'px'
-    this.shadow.style.left = parseInt(f.style.left) + 'px'
-    this.shadow.style.width = Math.ceil(w) + 2  + 'px'
+    this.shadow.style.top = parseInt(f.style.height) + parseInt(f.style.top) + 'px'
+    this.shadow.style.left = f.style.left
+    this.shadow.style.width = parseInt(f.style.width) + 2  + 'px'
+    if (this.lastMoveEvent)
+      this.onmousemove(this.lastMoveEvent)
   },
   
   up: function() {
-    this.div.style.zIndex = 2
+    this.div.style.zIndex = 20
   },
   
   down: function() {
-    this.div.style.zIndex = 1
+    this.div.style.zIndex = 19
   },
   
   hide : function() {
