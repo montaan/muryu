@@ -138,9 +138,10 @@ extend AccessControlClass
   end
 
   def self.rcreate(h)
-    h = h.clone.merge(:namespace => 'groups')
+    h = h.clone
     h.delete('namespace')
     user = (h[:owner] || Users.find(:id => h[:owner_id]))
+    h = h.merge(:namespace => user.name)
     if h[:public]
       anon = Users.anonymous
     end
@@ -155,7 +156,7 @@ extend AccessControlClass
   end
 
   def self.rdelete(user, h={})
-    h = h.clone.merge(:namespace => 'groups')
+    h = h.clone.merge(:namespace => user.name)
     g = find(h)
     g.delete(user)
     nil
@@ -316,7 +317,6 @@ extend AccessControlClass
   end
 
   def self.rdelete(user, h={})
-    h = h.clone.merge(:namespace => 'groups')
     g = find(h)
     g.delete(user)
     nil

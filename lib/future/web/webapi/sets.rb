@@ -93,7 +93,7 @@ module MuryuDispatch
             can_modify = req.query['can_modify'].to_s == 'true'
             groups = req.query['groups'] || []
             groups += req.query['groups.new'].join(",").split(",")
-            groups.map!{|n| n.strip.split("/") }
+            groups.map!{|n| n.strip.split("/",2) }
             groups.delete_if{|n| n.size != 2 }
             group_idx = Hash.new{|h,k| h[k] = {}}
             groups.each{|ns,n| group_idx[ns][n] = true }
@@ -101,7 +101,7 @@ module MuryuDispatch
             old_groups.delete_if{|og| group_idx[og.namespace][og.name] }
             old_groups.each{|og| 
               next if og.namespace == 'users' and og.name == @target.owner.name
-              @target.remove_group(og) 
+              @target.remove_group(og)
             }
             groups.each{|ns, n|
               next if ns == 'users' and n == @target.owner.name
@@ -150,7 +150,11 @@ module MuryuDispatch
       end
 
       def delete(req,res)
-        @target.rdelete(@user)
+        @target.write(@user) do
+          Future::Sets.delete(:id => @target)
+        end
+        res.content_type = "text/plain"
+        res.body = "OK"
       end
 
     end

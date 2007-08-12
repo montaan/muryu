@@ -86,7 +86,7 @@ class MuryuQuery
   setname = '(.{1,80})'
   tagname = '(\S{1,80})'
   setkey = "(#{username}/#{setname})"
-  groupname = "([^/,]{1,80})" #"((users/#{username})|(groups/#{username}/[^/,]+)|(public/[^/,]+))"
+  groupname = setkey
   tile = "(x#{uint}y#{uint}z#{uint}(w#{uint}h#{uint})?)"
   boolean = '(true|false)'
   url = '(.*)'

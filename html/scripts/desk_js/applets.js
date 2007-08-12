@@ -59,6 +59,14 @@ Tr.addTranslations('en-US', {
   'Button.VolumeDown' : 'Volume down',
   'Button.Mute' : 'Mute',
 
+  'Sets.Create' : 'Create folder',
+  'Groups.Create' : 'Create group',
+  'edit' : 'edit',
+  'Name' : 'Name',
+  'Access control' : 'Members',
+  'Users' : 'People',
+  'Groups' : 'Groups',
+
   'Colors.flint' : 'flint',
   'Colors.blue' : 'blue',
   'Colors.purple' : 'purple',
@@ -101,7 +109,15 @@ Tr.addTranslations('fi-FI', {
   'Applets.Groups' : 'Ryhmät',
   'Groups.Editing' : 'Muokkain ryhmälle: ',
   'Sets.Editing' : 'Muokkain kansiolle: ',
-  'Applets.Tags' : 'Tagit',
+  'Applets.Tags' : 'Asiasanat',
+
+  'Sets.Create' : 'Luo kansio',
+  'Groups.Create' : 'Luo ryhmä',
+  'edit' : 'muokkaa',
+  'Name' : 'Nimi',
+  'Access control' : 'Jäsenet',
+  'Users' : 'Ihmiset',
+  'Groups' : 'Ryhmät',
 
   'Colors.flint' : 'piikivi',
   'Colors.blue' : 'sininen',
@@ -985,18 +1001,18 @@ Object.extend(Sets, {
   
   updateAccessList : function(accessList){
     var list = []
-    list.push({title:'Users'})
-    list = list.concat( Users.map(
-      function(g){ 
-        return {value: 'users/'+g, title:g, disabled:(g == accessList.owner)}
-      }) 
-    )
-    list.push({title:'Groups'})
+    list.push({title:Tr('Groups')})
     list = list.concat( Groups.map(
       function(g){
         if (g.namespace == 'users') return null
         return {value:g.namespace+'/'+g.name, title:g.name + ' ('+g.owner+')'}
       }).compact()
+    )
+    list.push({title:Tr('Users')})
+    list = list.concat( Users.map(
+      function(g){ 
+        return {value: 'users/'+g, title:g, disabled:(g == accessList.owner)}
+      }) 
     )
     var accessEditor = Editors.listOrNew('groups', accessList.groups, [
       list,
@@ -1010,7 +1026,7 @@ Object.extend(Sets, {
   editor : function(win) {
     var set = win.parameters
     win.setTitle(Tr('Sets.Editing', set.name + ' ('+ set.owner+')'))
-    win.setContent('Loading...')
+    win.setContent(Tr('Loading')+'...')
     win.setGroup(Tr('WindowGroup.editors'))
     new Ajax.Request('/sets/'+set.owner+'/'+set.name+'/json', {
       method: 'get',
@@ -1024,9 +1040,9 @@ Object.extend(Sets, {
           $(this).request({
             onSuccess : function(res){
               Sets.update()
-              win.close()
             }
           })
+          win.close()
         }, false)
         var nameEditor = E('input')
         nameEditor.type = 'text'
@@ -1039,18 +1055,69 @@ Object.extend(Sets, {
         this.editors.push(accessEditor)
         this.updateAccessList(accessEditor)
         win.addListener('close', function(){this.editors.deleteFirst(accessEditor)}.bind(this))
+        var deleteButton = E('input', null, null, null, null, {type:'reset', value: Tr('Button.Item.delete_item')})
+        deleteButton.onclick = function(ev){
+          Event.stop(ev)
+          new Ajax.Request('/sets/'+set.owner+'/'+set.name+'/delete', {
+            onSuccess : function(res){
+              Sets.update()
+            }
+          })
+          win.close()
+        }
+        var buttons = E('div')
+        buttons.style.textAlign = 'center'
+        buttons.append(deleteButton, submit)
         editForm.append(
           E('h5', Tr('Name')),
           nameEditor,
           E('h5', Tr('Access control')),
           accessEditor,
-          submit
+          buttons
         )
         var div = E('div', null, null, 'editor')
         div.append(editForm)
         win.setContent(div)
       }.bind(this)
     })
+  },
+  
+  creator : function(win) {
+    win.setTitle(Tr('Sets.Create'))
+    win.setGroup(Tr('WindowGroup.editors'))
+    var editForm = E('form')
+    editForm.action = '/sets/create'
+    editForm.method = 'POST'
+    editForm.addEventListener('submit', function(ev){
+      Event.stop(ev)
+      $(this).request({
+        onSuccess : function(res){
+          Sets.update()
+          win.close()
+        }
+      })
+    }, false)
+    var nameEditor = E('input')
+    nameEditor.type = 'text'
+    nameEditor.name = 'name'
+    nameEditor.value = ''
+    var submit = E('input', null, null, null, null, {type:'submit', value: Tr('Item.done')})
+/*    var accessEditor = E('span')
+    accessEditor.owner = Session.storage.info.name
+    accessEditor.groups = []
+    this.editors.push(accessEditor)
+    this.updateAccessList(accessEditor)
+    win.addListener('close', function(){this.editors.deleteFirst(accessEditor)}.bind(this))*/
+    editForm.append(
+      E('h5', Tr('Name')),
+      nameEditor,
+/*      E('h5', Tr('Access control')),
+      accessEditor,*/
+      submit
+    )
+    var div = E('div', null, null, 'editor')
+    div.append(editForm)
+    win.setContent(div)
   },
   
   viewer : function(win) {
@@ -1093,7 +1160,7 @@ Object.extend(Groups, {
   
   updateAccessList : function(accessList){
     var accessEditor = Editors.listOrNew('users', accessList.members, [
-      [{title:'Users'}].concat( Users.map(function(u){
+      [{title:Tr('Users')}].concat( Users.map(function(u){
         var d = {value:u, title:u}
         if (u == accessList.owner)
           d.disabled = true
@@ -1109,14 +1176,14 @@ Object.extend(Groups, {
   editor : function(win) {
     var group = win.parameters
     win.setTitle(Tr('Groups.Editing', group.name + ' ('+ group.owner+')'))
-    win.setContent('Loading...')
+    win.setContent(Tr('Loading')+'...')
     win.setGroup(Tr('WindowGroup.editors'))
-    new Ajax.Request('/groups/'+group.name+'/json', {
+    new Ajax.Request('/groups/'+group.owner+'/'+group.name+'/json', {
       method: 'get',
       onSuccess : function(res) {
         var group_info = res.responseText.evalJSON()
         var editForm = E('form')
-        editForm.action = '/groups/'+group.name+'/edit'
+        editForm.action = '/groups/'+group.owner+'/'+group.name+'/edit'
         editForm.method = 'POST'
         editForm.addEventListener('submit', function(ev){
           Event.stop(ev)
@@ -1138,18 +1205,61 @@ Object.extend(Groups, {
         this.updateAccessList(accessEditor)
         win.addListener('close', function(){this.editors.deleteFirst(accessEditor)}.bind(this))
         var submit = E('input', null, null, null, null, {type:'submit', value: Tr('Item.done')})
+        var deleteButton = E('input', null, null, null, null, {type:'reset', value: Tr('Button.Item.delete_item')})
+        deleteButton.onclick = function(ev){
+          Event.stop(ev)
+          new Ajax.Request('/groups/'+group.owner+'/'+group.name+'/delete', {
+            onSuccess : function(res){
+              Sets.update()
+            }
+          })
+          win.close()
+        }
+        var buttons = E('div')
+        buttons.style.textAlign = 'center'
+        buttons.append(deleteButton, submit)
         editForm.append(
           E('h5', Tr('Name')),
           nameEditor,
           E('h5', Tr('Access control')),
           accessEditor,
-          submit
+          buttons
         )
         var div = E('div', null, null, 'editor')
         div.append(editForm)
         win.setContent(div)
       }.bind(this)
     })
+  },
+
+  creator : function(win) {
+    win.setTitle(Tr('Groups.Create'))
+    win.setGroup(Tr('WindowGroup.editors'))
+    var editForm = E('form')
+    editForm.action = '/groups/create'
+    editForm.method = 'POST'
+    editForm.addEventListener('submit', function(ev){
+      Event.stop(ev)
+      $(this).request({
+        onSuccess : function(res){
+          Groups.update()
+          win.close()
+        }
+      })
+    }, false)
+    var nameEditor = E('input')
+    nameEditor.type = 'text'
+    nameEditor.name = 'name'
+    nameEditor.value = ''
+    var submit = E('input', null, null, null, null, {type:'submit', value: Tr('Item.done')})
+    editForm.append(
+      E('h5', Tr('Name')),
+      nameEditor,
+      submit
+    )
+    var div = E('div', null, null, 'editor')
+    div.append(editForm)
+    win.setContent(div)
   },
   
   viewer : function(win) {
@@ -1166,13 +1276,19 @@ Session.addListener('init', Groups.init.bind(Groups))
 Applets.Groups = function(wm) {
  if (!wm) wm = Desk.Windows
   var c = Applets.create('Groups')
+  var create = A('/groups', Tr('Groups.Create'))
+  create.onclick = function(ev) {
+    new Desk.Window('app:Groups.creator')
+    Event.stop(ev)
+  }
+  c.contentElement.appendChild(create)
   var d = E('ul', null, null, 'setList')
   c.contentElement.appendChild(d)
   c.update = function(){
     while (d.firstChild) d.removeChild(d.firstChild)
     Groups.each(function(it){
       var li = E('li')
-      var key = '/groups/'+it.name
+      var key = '/groups/'+it.owner+'/'+it.name
       var itemLink = A(key, it.name)
       itemLink.onclick = function(ev) {
         if (Event.isLeftClick(ev)) {
@@ -1180,12 +1296,13 @@ Applets.Groups = function(wm) {
           new Desk.Window('app:Groups.viewer', {parameters : it})
         }
       }
-      var userLink = A('/users/'+it.owner, it.owner)
+      li.append(itemLink)
+/*      var userLink = A('/users/'+it.owner, it.owner)
       li.append(
-        itemLink,' ( ', userLink
-      )
+        ' ( ', userLink
+      )*/
       if (it.writable) {
-        var editLink = A(key, 'edit')
+        var editLink = A(key, Tr('edit'))
         editLink.onclick = function(ev) {
           if (Event.isLeftClick(ev)) {
             Event.stop(ev)
@@ -1196,12 +1313,14 @@ Applets.Groups = function(wm) {
           ' - ', editLink
         )
       }
-      li.append(' )')
+//       li.append(' )')
       it.members.each(function(m){
-        var userLink = A('/users/'+m, m)
-        var p = E('p', null, null, null, {marginLeft: '10px'})
-        p.append('- ', userLink)
-        li.append(p)
+        if (m != Session.storage.info.name) {
+          var userLink = A('/users/'+m, m)
+          var p = E('p', null, null, null, {marginLeft: '10px'})
+          p.append('- ', userLink)
+          li.append(p)
+        }
       })
       d.appendChild(li)
     })
@@ -1215,6 +1334,12 @@ Applets.Groups = function(wm) {
 Applets.Sets = function(wm) {
  if (!wm) wm = Desk.Windows
   var c = Applets.create('Sets')
+  var create = A('/sets', Tr('Sets.Create'))
+  create.onclick = function(ev) {
+    Event.stop(ev)
+    new Desk.Window('app:Sets.creator')
+  }
+  c.contentElement.appendChild(create)
   var d = E('ul', null, null, 'setList')
   c.contentElement.appendChild(d)
   c.update = function(){
@@ -1229,12 +1354,13 @@ Applets.Sets = function(wm) {
           new Desk.Window('app:Sets.viewer', {parameters : it})
         }
       }
-      var userLink = A('/users/'+it.owner, it.owner)
+      li.append(itemLink)
+/*      var userLink = A('/users/'+it.owner, it.owner)
       li.append(
-        itemLink,' ( ', userLink
-      )
+        ' ( ', userLink
+      )*/
       if (it.writable) {
-        var editLink = A(key, 'edit')
+        var editLink = A(key, Tr('edit'))
         editLink.onclick = function(ev) {
           if (Event.isLeftClick(ev)) {
             Event.stop(ev)
@@ -1245,7 +1371,7 @@ Applets.Sets = function(wm) {
           ' - ', editLink
         )
       }
-      li.append(' )')
+//       li.append(' )')
       d.appendChild(li)
     })
   }

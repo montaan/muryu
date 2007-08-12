@@ -169,7 +169,7 @@ Tr.addTranslations('fi-FI', {
   'Item.referrer' : 'Viittaaja',
   'Item.sets' : 'Kansiot',
   'Item.groups' : 'Ryhmät',
-  'Item.tags' : 'Tagit',
+  'Item.tags' : 'Asiasanat',
   'Item.mimetype' : 'Tiedostomuoto',
   'Item.deleted' : 'Poistettu',
   'Item.title' : 'Nimeke',

@@ -25,6 +25,9 @@ iframe {
 .window {
   min-width: 100px;
   min-height: 20px;
+  border-top: 1px solid #444444;
+  border-left: 1px solid #222222;
+  border-right: 1px solid #222222;
   border-bottom: 1px solid black;
 }
 .focused .windowTitle {

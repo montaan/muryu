@@ -71,6 +71,7 @@ class Users < DB::Tables::Users
   end
 
   def self.register(username, password)
+    raise if ['users','public'].include?( username )
     password_hash = Digest::SHA1.hexdigest(password+Future.salt).to_s
     u = find_or_create(
       :name => username,
