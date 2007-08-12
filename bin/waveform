@@ -1,0 +1,20 @@
+#!/usr/bin/tclsh
+
+if { $argc != 2 } {
+  puts "USAGE: waveform SOUNDFILE PSFILE
+} else {
+  package require Tk
+  package require snack
+
+  lower .
+
+  canvas .c -bg white -width 512 -height 100
+
+  snack::sound s -load [lindex $argv 0]
+
+  .c create waveform 0 0 -sound s -width 512 -height 100
+  update
+
+  .c postscript -file [lindex $argv 1] -width 512 -height 100 -x 0.0 -y 0.0
+}
+exit

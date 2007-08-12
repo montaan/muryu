@@ -1055,25 +1055,32 @@ Object.extend(Sets, {
         this.editors.push(accessEditor)
         this.updateAccessList(accessEditor)
         win.addListener('close', function(){this.editors.deleteFirst(accessEditor)}.bind(this))
-        var deleteButton = E('input', null, null, null, null, {type:'reset', value: Tr('Button.Item.delete_item')})
-        deleteButton.onclick = function(ev){
-          Event.stop(ev)
-          new Ajax.Request('/sets/'+set.owner+'/'+set.name+'/delete', {
-            onSuccess : function(res){
-              Sets.update()
-            }
-          })
-          win.close()
-        }
-        var buttons = E('div')
-        buttons.style.textAlign = 'center'
-        buttons.append(deleteButton, submit)
+        var deleteButton = Desk.Button(
+          "Item.delete_item",
+          function(){
+            Event.stop(ev)
+            new Ajax.Request('/sets/'+set.owner+'/'+set.name+'/delete', {
+              onSuccess : function(res){
+                Sets.update()
+              }
+            })
+            win.close()
+          }, {
+          className: 'editButton',
+          normal_image: 'images/delete_grey.png',
+          hover_image: 'images/delete_yellow.png',
+          down_image: 'images/delete_yellow.png',
+          showText: true,
+          textSide: 'right'
+        })
+        var deleteDiv = E('div', deleteButton, null, 'infoDiv', {textAlign:'right'})
         editForm.append(
           E('h5', Tr('Name')),
           nameEditor,
           E('h5', Tr('Access control')),
           accessEditor,
-          buttons
+          deleteDiv,
+          submit
         )
         var div = E('div', null, null, 'editor')
         div.append(editForm)
@@ -1190,9 +1197,9 @@ Object.extend(Groups, {
           $(this).request({
             onSuccess : function(res){
               Groups.update()
-              win.close()
             }
           })
+          win.close()
         }, false)
         var nameEditor = E('input')
         nameEditor.type = 'text'
@@ -1205,25 +1212,32 @@ Object.extend(Groups, {
         this.updateAccessList(accessEditor)
         win.addListener('close', function(){this.editors.deleteFirst(accessEditor)}.bind(this))
         var submit = E('input', null, null, null, null, {type:'submit', value: Tr('Item.done')})
-        var deleteButton = E('input', null, null, null, null, {type:'reset', value: Tr('Button.Item.delete_item')})
-        deleteButton.onclick = function(ev){
-          Event.stop(ev)
-          new Ajax.Request('/groups/'+group.owner+'/'+group.name+'/delete', {
-            onSuccess : function(res){
-              Sets.update()
-            }
-          })
-          win.close()
-        }
-        var buttons = E('div')
-        buttons.style.textAlign = 'center'
-        buttons.append(deleteButton, submit)
+        var deleteButton = Desk.Button(
+          "Item.delete_item",
+          function(){
+            Event.stop(ev)
+            new Ajax.Request('/groups/'+group.owner+'/'+group.name+'/delete', {
+              onSuccess : function(res){
+                Groups.update()
+              }
+            })
+            win.close()
+          }, {
+          className: 'editButton',
+          normal_image: 'images/delete_grey.png',
+          hover_image: 'images/delete_yellow.png',
+          down_image: 'images/delete_yellow.png',
+          showText: true,
+          textSide: 'right'
+        })
+        var deleteDiv = E('div', deleteButton, null, 'infoDiv', {textAlign:'right'})
         editForm.append(
           E('h5', Tr('Name')),
           nameEditor,
           E('h5', Tr('Access control')),
           accessEditor,
-          buttons
+          deleteDiv,
+          submit
         )
         var div = E('div', null, null, 'editor')
         div.append(editForm)
@@ -1296,11 +1310,13 @@ Applets.Groups = function(wm) {
           new Desk.Window('app:Groups.viewer', {parameters : it})
         }
       }
+      if (it.owner != Session.storage.info.name) {
+        var userLink = A('/users/'+it.owner, it.owner)
+        li.append(
+          userLink, '/'
+        )
+      }
       li.append(itemLink)
-/*      var userLink = A('/users/'+it.owner, it.owner)
-      li.append(
-        ' ( ', userLink
-      )*/
       if (it.writable) {
         var editLink = A(key, Tr('edit'))
         editLink.onclick = function(ev) {
@@ -1313,7 +1329,6 @@ Applets.Groups = function(wm) {
           ' - ', editLink
         )
       }
-//       li.append(' )')
       it.members.each(function(m){
         if (m != Session.storage.info.name) {
           var userLink = A('/users/'+m, m)
@@ -1354,11 +1369,13 @@ Applets.Sets = function(wm) {
           new Desk.Window('app:Sets.viewer', {parameters : it})
         }
       }
+      if (it.owner != Session.storage.info.name) {
+        var userLink = A('/users/'+it.owner, it.owner)
+        li.append(
+          userLink, '/'
+        )
+      }
       li.append(itemLink)
-/*      var userLink = A('/users/'+it.owner, it.owner)
-      li.append(
-        ' ( ', userLink
-      )*/
       if (it.writable) {
         var editLink = A(key, Tr('edit'))
         editLink.onclick = function(ev) {
@@ -1371,7 +1388,6 @@ Applets.Sets = function(wm) {
           ' - ', editLink
         )
       }
-//       li.append(' )')
       d.appendChild(li)
     })
   }
