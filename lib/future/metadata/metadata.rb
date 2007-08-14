@@ -8,7 +8,7 @@ require 'future/models/items'
 
 class Pathname
 
-  attr_accessor :mimetype
+  attr_accessor 'mimetype'
 
   def mimetype
     @mimetype ||= MimeInfo.get(to_s)
@@ -34,7 +34,7 @@ class Pathname
     @length ||= (metadata.length or metadata.words.to_i / 250.0)
   end
 
-  delegate :metadata, :width, :height
+  delegate 'metadata', 'width', 'height'
 
 end
 
@@ -66,16 +66,16 @@ extend self
     Mp3Info.open(fn) do |m|
       t = m.tag
       md = {
-        :bitrate => m.bitrate.to_i*1000,
-        :length => m.length.to_f,
-        :samplerate => m.samplerate.to_i,
-        :vbr => m.vbr,
-        :author => enc_utf8(t['artist'], charset),
-        :genre => enc_utf8(t['genre_s'], charset),
-        :publish_time => parse_time(t['year']),
-        :album => enc_utf8(t['album'], charset),
-        :title => enc_utf8(t['title'], charset),
-        :tracknum => parse_num(t['tracknum'])
+        'bitrate' => m.bitrate.to_i*1000,
+        'length' => m.length.to_f,
+        'samplerate' => m.samplerate.to_i,
+        'vbr' => m.vbr,
+        'author' => enc_utf8(t['artist'], charset),
+        'genre' => enc_utf8(t['genre_s'], charset),
+        'publish_time' => parse_time(t['year']),
+        'album' => enc_utf8(t['album'], charset),
+        'title' => enc_utf8(t['title'], charset),
+        'tracknum' => parse_num(t['tracknum'])
       }
     end
   end
@@ -85,36 +85,34 @@ extend self
     txt = `pdftotext #{fname.dump} - | head -c 65536`
     h['words'] = `pdftotext #{fname.dump} - | wc -w 2>/dev/null`.strip.to_i
     {
-      :title, enc_utf8(h['title'], charset),
-      :author, enc_utf8(h['author'], charset),
-      :publish_time, parse_time(h['moddate'] || h['creationdate']),
-      :pages, h['pages'],
-      :width, h['width'],
-      :height, h['height'],
-      :dimensions_unit, 'mm',
-      :page_size, h['page size'],
-      :words, h['words'],
-      :charset, txt.chardet
+      'title', enc_utf8(h['title'], charset),
+      'author', enc_utf8(h['author'], charset),
+      'publish_time', parse_time(h['moddate'] || h['creationdate']),
+      'pages', h['pages'],
+      'width', h['width'],
+      'height', h['height'],
+      'dimensions_unit', 'mm',
+      'page_size', h['page size'],
+      'words', h['words'],
+      'charset', txt.chardet
     }
   end
 
-  def application_ps(fname, charset)
-    i = image(fname)
-    i[:'width'] = i[:'width'].points_to_mm
-    i[:'height'] = i[:'height'].points_to_mm
-    i[:'dimensions_unit'] = 'mm'
-    i[:'pages'] = i[:'frames']
-    i.delete :'frames'
-    i[:words] = `ps2ascii #{fname.dump} | wc -w 2>/dev/null`.strip.to_i
-    i
+  def application_postscript(filename, charset)
+    pdf = File.join(File.dirname(filename.to_s), File.basename(filename.to_s)+"-temp.pdf")
+    if File.exist?(pdf)
+      extract_extract_info(filename).merge(application_pdf(pdf, charset))
+    else
+      extract_extract_info(filename)
+    end
   end
 
   def text_html(fname, charset)
     words = `html2text #{fname.dump} | wc -w 2>/dev/null`.strip.to_i
     charset = (File.read(fname, 65536) || "").chardet
     {
-      :words => words,
-      :charset => charset
+      'words' => words,
+      'charset' => charset
     }
   end
 
@@ -122,29 +120,29 @@ extend self
     words = `wc -w #{fname.dump} 2>/dev/null`.strip.to_i
     charset = (File.read(fname, 65536) || "").chardet
     {
-      :words => words,
-      :charset => charset
+      'words' => words,
+      'charset' => charset
     }
   end
 
   def video(fname, charset)
     h = mplayer_extract_info(fname)
     info = {
-      :length, (h['length'].to_i > 0) ? h['length'] : nil,
-      :width, h['video_width'],
-      :height, h['video_height'],
-      :dimensions_unit, 'px',
-      :fps, h['video_fps'],
-      :audio_bitrate, h['audio_bitrate'],
-      :video_bitrate, h['video_bitrate'],
-      :bitrate, (h['video_bitrate'].to_i + h['audio_bitrate'].to_i),
-      :video_format, h['video_format'].to_s,
-      :audio_format, h['audio_format'].to_s,
-      :samplerate, h['audio_rate']
+      'length', (h['length'].to_i > 0) ? h['length'] : nil,
+      'width', h['video_width'],
+      'height', h['video_height'],
+      'dimensions_unit', 'px',
+      'fps', h['video_fps'],
+      'audio_bitrate', h['audio_bitrate'],
+      'video_bitrate', h['video_bitrate'],
+      'bitrate', (h['video_bitrate'].to_i + h['audio_bitrate'].to_i),
+      'video_format', h['video_format'].to_s,
+      'audio_format', h['audio_format'].to_s,
+      'samplerate', h['audio_rate']
     }
   end
 
-  alias_method(:application_x_flash_video, :video)
+  alias_method('application_x_flash_video', 'video')
 
   def image(fname, charset)
     begin
@@ -159,16 +157,16 @@ extend self
     end
     exif = extract_exif(fname)
     info = {
-      :width => parse_val(w),
-      :description => enc_utf8(exif["Image Description"], charset),
-      :author => enc_utf8(exif["Artist"], charset),
-      :height => parse_val(h),
-      :dimensions_unit => 'px',
-      :frames => id_out.split("\n").size,
-      :exif => enc_utf8(exif.map{|r| r.join("\t")}.join("\n"), charset)
+      'width' => parse_val(w),
+      'description' => enc_utf8(exif["Image Description"], charset),
+      'author' => enc_utf8(exif["Artist"], charset),
+      'height' => parse_val(h),
+      'dimensions_unit' => 'px',
+      'frames' => id_out.split("\n").size,
+      'exif' => enc_utf8(exif.map{|r| r.join("\t")}.join("\n"), charset)
     }
     if t = exif["Date and Time"]
-      info[:publish_time] = parse_time(t.split(":",3).join("-"))
+      info['publish_time'] = parse_time(t.split(":",3).join("-"))
     end
     info
   end
@@ -180,14 +178,14 @@ extend self
     dcraw.delete("Filename")
     w, h = dcraw["Output size"].split("x",2).map{|s| s.strip }
     info = {
-      :width => parse_val(w),
-      :height => parse_val(h),
-      :dimensions_unit => 'px',
-      :frames => 1,
-      :exif => enc_utf8(dcraw.merge(exif).map{|r| r.join("\t")}.join("\n"), charset)
+      'width' => parse_val(w),
+      'height' => parse_val(h),
+      'dimensions_unit' => 'px',
+      'frames' => 1,
+      'exif' => enc_utf8(dcraw.merge(exif).map{|r| r.join("\t")}.join("\n"), charset)
     }
     if t = exif["Image timestamp"]
-      info[:publish_time] = parse_time(t.split(":",3).join("-"))
+      info['publish_time'] = parse_time(t.split(":",3).join("-"))
     end
     info
   end
@@ -212,7 +210,7 @@ extend self
     extract_extract_info(filename)
   end
 
-  def extract_text(filename, mimetype=MimeInfo.get(filename.to_s), charset=nil)
+  def extract_text(filename, mimetype=MimeInfo.get(filename.to_s), charset=nil, layout=false)
     filename = filename.to_s
     mimetype = Mimetype[mimetype] unless mimetype.is_a?( Mimetype )
     mt = mimetype
@@ -221,7 +219,7 @@ extend self
       mn = mt.to_s.gsub(/[^a-z0-9]/i,"_") + "__gettext"
       if new_methods.include?( mn )
         begin
-          return __send__( mn, filename, charset )
+          return __send__( mn, filename, charset, layout )
         rescue => e
           puts e, e.message, e.backtrace
         end
@@ -231,46 +229,59 @@ extend self
     ""
   end
 
-  alias_method :[], :extract
+  alias_method :[], 'extract'
 
-  def text__gettext(filename, charset)
+  def text__gettext(filename, charset, layout=false)
     enc_utf8((File.read(filename) || ""), charset)
   end
 
-  def text_html__gettext(filename, charset)
+  def text_html__gettext(filename, charset, layout=false)
     enc_utf8(`unhtml #{filename.dump}`, charset)
   end
 
-  def application_pdf__gettext(filename, charset)
+  def application_pdf__gettext(filename, charset, layout=false)
     page = 0
-    str = `pdftotext -layout -enc UTF-8 #{filename.dump} -`
-    str.gsub!(/\f/u, "\f\n")
-    str.gsub!(/^/u, " ")
-    str.gsub!(/\A| ?\f/u) {|pg|
-      "\n" + ("-"*40) + " #{page+=1}\n"
-    }
-    str.sub!(/\n+/, "")
-    str.sub!(/1/, "1\n")
-    enc_utf8(str, charset)
+    str = `pdftotext #{layout ? "-layout " : ""}-enc UTF-8 #{filename.dump} -`
+    if layout
+      str.gsub!(/\f/u, "\f\n")
+      str.gsub!(/^/u, " ")
+      str.gsub!(/\A| ?\f/u) {|pg|
+        "\nPage #{page+=1}.\n"
+      }
+      str.sub!(/\n+/, "")
+      str.sub!(/1\./, "1.\n")
+    end
+    enc_utf8(str, "UTF-8")
   end
   
-  def application_postscript__gettext(filename, charset)
-    enc_utf8(`ps2ascii #{filename.dump}`, charset)
+  def application_postscript__gettext(filename, charset, layout=false)
+    page = 0
+    str = `pstotext #{filename.dump}`
+    if layout
+      str.gsub!(/\f/u, "\f\n")
+      str.gsub!(/^/u, " ")
+      str.gsub!(/\A| ?\f/u) {|pg|
+        "\nPage #{page+=1}.\n"
+      }
+      str.sub!(/\n+/, "")
+      str.sub!(/1\./, "1.\n")
+    end
+    enc_utf8(str, "ISO-8859-1") # pstotext outputs iso-8859-1
   end
 
-  def application_msword__gettext(filename, charset)
+  def application_msword__gettext(filename, charset, layout=false)
     enc_utf8(`antiword #{filename.dump}`, charset)
   end
   
-  def application_rtf__gettext(filename, charset)
+  def application_rtf__gettext(filename, charset, layout=false)
     enc_utf8(`catdoc #{filename.dump}`, charset)
   end
   
-  def application_vnd_ms_powerpoint__gettext(filename, charset)
+  def application_vnd_ms_powerpoint__gettext(filename, charset, layout=false)
     enc_utf8(`catppt #{filename.dump}`, charset)
   end
 
-  def application_vnd_ms_excel__gettext(filename, charset)
+  def application_vnd_ms_excel__gettext(filename, charset, layout=false)
     enc_utf8(`xls2csv -d UTF-8 #{filename.dump}`, charset)
   end
 
@@ -336,11 +347,11 @@ extend self
     define_method(mn, &block)
   end
 
-  open_office_types.each{|t|
-    create_text_extractor(t) do |filename, charset|
+  (open_office_types + office_types).each{|t|
+    create_text_extractor(t) do |filename, charset, layout|
       pdf = File.join(File.dirname(filename.to_s), File.basename(filename.to_s)+"-temp.pdf")
       if File.exist?(pdf)
-        application_pdf__gettext(pdf, charset)
+        application_pdf__gettext(pdf, charset, layout)
       else
         ''
       end
@@ -381,13 +392,13 @@ extend self
   def extract_extract_info(fname)
     h = `extract #{fname.dump}`.strip.split("\n").map{|s| s.split(" - ",2) }.to_hash
     {
-      :title, enc_utf8(h['title'] || h['subject'], nil),
-#       :language, enc_utf8(h['language'], nil),
-      :author, enc_utf8(h['creator'], nil),
-      :publish_time, parse_time(h['date'] || h['creation date']),
-      :description, enc_utf8(h['description'], nil),
-#       :software, enc_utf8(h['software'], nil),
-      :words, h['word count']
+      'title', enc_utf8(h['title'] || h['subject'], nil),
+#       'language', enc_utf8(h['language'], nil),
+      'author', enc_utf8(h['creator'], nil),
+      'publish_time', parse_time(h['date'] || h['creation date']),
+      'description', enc_utf8(h['description'], nil),
+#       'software', enc_utf8(h['software'], nil),
+      'words', h['word count']
     }
   end
 
@@ -427,10 +438,10 @@ extend self
     }
     i = Hash[*ids.flatten]
     if i['page size']
-      w,h = i['page size'].gsub(/[^0-9.]/, ' ').strip.split(/\s+/)
+      w,h = i['page size'].gsub(/[^0-9.]/, ' ').strip.split(/\s+/,2)
       wmm = w.to_f.points_to_mm
       hmm = h.to_f.points_to_mm
-      i['page size'] = i['page size'].scan(/\(([^)]+)\)/)[0].to_s
+      i['page_size'] = i['page size'].scan(/\(([^)]+)\)/)[0].to_s
       i['width'] = wmm
       i['height'] = hmm
       i['dimensions_unit'] = 'mm'

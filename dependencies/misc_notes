@@ -13,8 +13,10 @@ gcc -o dcraw -O4 dcraw.c -lm -ljpeg -llcms
 ruby chardet is buggy (direct port from python without unit tests),
 using the python chardet instead, attached as chardet-1.0.tgz
 
-moz-snapshooter requires x server at display :15, use Xvfb,
+moz-snapshooter requires x server at display :15, use Xvfb
+waveform requires x server at display :16
 unoconv requires running ooffice instance:
   Xvfb -ac -screen 0 1024x1024x24 :15
-  ooffice -headless "-accept=socket,host=localhost,port=2002;urp;" :15
+  Xvfb -ac -screen 0 514x514x24 :16
+  ooffice -headless "-accept=socket,host=localhost,port=2002;urp;" -display :15
 

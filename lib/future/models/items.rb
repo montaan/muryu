@@ -250,11 +250,26 @@ class Items < DB::Tables::Items
   NON_FTS_METADATA = {}
   NON_FTS_METADATA_FIELDS.each{|f| NON_FTS_METADATA[f] = true }
 
+  def text_file(layout=false)
+    txtfile = thumbnail.dirname + "text_content-#{layout ? "layout" : "plain"}.txt"
+    unless txtfile.exist?
+      txtfile.open("wb"){|f|
+        f.write(MetadataExtractor.extract_text(internal_path, mimetype, metadata.charset, layout))
+      }
+    end
+    rv = tx = (txtfile.exist? ? txtfile.open("rb") : StringIO.new(""))
+    if block_given?
+      rv = yield tx
+      tx.close
+    end
+    rv
+  end
+
   def update_full_text_search
     str = ""
     text = []
     begin
-      text << MetadataExtractor.extract_text(internal_path, mimetype, metadata.charset)
+      text << text_file{|f| f.read }
     rescue => e
       log_error([e, e.message, e.backtrace].join("\n"))
     end

@@ -492,4 +492,7 @@ p7zip-full
 dcraw
 exiv2
 libsnack2
-
+festival
+festlex-poslex
+festlex-cmu
+festvox-kallpc16k

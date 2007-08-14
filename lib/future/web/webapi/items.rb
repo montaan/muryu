@@ -1,4 +1,41 @@
 require 'future/upload'
+require 'iconv'
+
+class String
+
+  def mp3_stream
+    Mp3TextStream.new(self)
+  end
+  
+end
+
+
+class Mp3TextStream
+  
+  def initialize(text)
+    @text = text
+  end
+
+  def each
+    tmpf = Tempfile.new("mp3_stream")
+    tmpf.close
+    tmp = tmpf.path
+    @text.each("."){|s|
+      IO.popen("text2wave -o #{tmp} >/dev/null; lame #{tmp} - 2>/dev/null", "rb+"){|enc|
+        s.gsub!(/ﬁ/u, 'fi')
+        s.gsub!(/’/u, "'")
+        s.gsub!(/—/u, " - ")
+        s.gsub!(/-\s+/mu, "-")
+        enc.write(s)
+        enc.close_write
+        yield enc.read
+      }
+    }
+    tmpf.unlink
+  end
+
+end
+
 
 module MuryuDispatch
 
@@ -696,8 +733,7 @@ module MuryuDispatch
           end
           res['Last-Modified-At'] = lm
           res['Expires'] = (Time.now + 86400*30).httpdate
-          text = Future::Itemtexts.find(:item => @target, :volatile => false)
-          res.body = (text ? text.text : "")
+          res.body = target.text_file(true)
           res.content_type = 'text/plain; charset=UTF-8'
           res["Content-Disposition"] =
             "inline; filename=#{filename.dump}"
@@ -726,6 +762,16 @@ module MuryuDispatch
         else
           raise(MuryuQuery::NotFound, "Item #{target.path} doesn't have a PDF representation")
         end
+      end
+      
+      def speech(q,res)
+        filename = target.path.split("/").last
+        filename += ".speech.mp3"
+        txt = target.text_file{|f| f.read }
+        res.content_type = 'audio/mpeg'
+        res.body = txt.mp3_stream
+        res["Content-Disposition"] =
+            "inline; filename=#{filename.dump}"
       end
 
       def image(q,res)

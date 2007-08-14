@@ -6,6 +6,7 @@ elsif $EVENTED_MONGREL
 end
 require 'rack/request'
 require 'rack/response'
+require 'rack/handler/mongrel'
 require 'rack'
 
 class Rack::Request
@@ -22,6 +23,63 @@ class Rack::Request
     )
   end
   
+end
+
+module Rack
+  module Handler
+    class Mongrel < ::Mongrel::HttpHandler
+
+      def process(request, response)
+        env = {}.replace(request.params)
+        env.delete "HTTP_CONTENT_TYPE"
+        env.delete "HTTP_CONTENT_LENGTH"
+
+        env["SCRIPT_NAME"] = ""  if env["SCRIPT_NAME"] == "/"
+
+        env.update({"rack.version" => [0,1],
+                     "rack.input" => request.body || StringIO.new(""),
+                     "rack.errors" => STDERR,
+
+                     "rack.multithread" => false,
+                     "rack.multiprocess" => false, # ???
+                     "rack.run_once" => false,
+
+                     "rack.url_scheme" => "http",
+                   })
+        env["QUERY_STRING"] ||= ""
+        env.delete "PATH_INFO"  if env["PATH_INFO"] == ""
+
+        status, headers, body = @app.call(env)
+
+        begin
+          response.status = status.to_i
+          headers.each { |k, vs|
+            vs.each { |v|
+              response.header[k] = v
+            }
+          }
+          if body.respond_to? :size
+            sz = body.size
+          elsif body.respond_to? :stat
+            st = body.stat
+            sz = st.size unless st.pipe?
+          end
+          response.send_status(headers["Content-Length"] || sz)
+          response.send_header
+          body.each { |part|
+            response.socket.write(part)
+          }
+          response.send_body
+        rescue => e
+          puts e.class, e.message, e.backtrace
+          raise e
+        ensure
+          body.close  if body.respond_to? :close
+        end
+      end
+
+    end
+  end
 end
 
 
@@ -76,9 +134,7 @@ class MuryuRack
     t0 = time(t0, "created muryu request")
     r = MuryuDispatch.dispatch(mr)
     t0 = time(t0, "dispatch done")
-    res = Rack::Response.new(r.body, r.status, {"Content-Type" => r.content_type}.merge(r.headers))
-    t0 = time(t0, "response created")
-    a = res.finish
+    a = [r.status, {"Content-Type" => r.content_type}.merge(r.headers), r.body]
     t0 = time(t0, "request done")
     puts "Total time: #{Time.now.to_f - t}s" if $PRINT_QUERY_PROFILE
     a

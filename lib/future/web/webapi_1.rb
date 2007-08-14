@@ -184,6 +184,7 @@ class MuryuQuery
       'file' => up,
       'text' => up,
       'pdf' => up,
+      'speech' => up,
       'thumbnail' => up,
       'json' => {
         'columns' => list_of[field_names]

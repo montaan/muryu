@@ -9,6 +9,7 @@ raw = !ARGV.delete("--no-raw")
 jpeg = !ARGV.delete("--no-jpeg")
 tiles = !ARGV.delete("--no-tiles")
 force_thumbnail_update = !!ARGV.delete("--regen-thumbs")
+update_metadata = !!ARGV.delete("--update-metadata")
 from = ARGV.shift
 
 if from and not from =~ /\A[0-9]+\Z/
@@ -16,6 +17,10 @@ if from and not from =~ /\A[0-9]+\Z/
   items.each{|it|
     puts "Updating image cache at #{it.image_index} (#{it.path})"
     ic.update_cache_at(it.image_index, it, raw, jpeg, tiles, force_thumbnail_update)
+    if update_metadata
+      it.update_metadata
+      it.update_full_text_search
+    end
   }
 else
   ic.regenerate!(from.to_i, raw, jpeg, tiles, force_thumbnail_update)

@@ -84,15 +84,21 @@ module Mimetype
       elsif is_a?(Mimetype['image/x-dcraw'])
         page = 0
         dcraw_thumbnail(filename, thumb_filename, thumb_size, page, crop)
-      elsif to_s =~ /image|postscript/
+      elsif to_s =~ /image/
         page ||= 0
         image_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+      elsif to_s =~ /postscript/
+        page ||= 0
+        postscript_thumbnail(filename, thumb_filename, thumb_size, page, crop)
       elsif to_s =~ /^text/
         page ||= 0
         paps_thumbnail(filename, thumb_filename, thumb_size, page, crop)
       elsif to_s =~ /powerpoint|vnd\.oasis\.opendocument|msword|ms-excel|rtf|x-tex|template|stardivision|comma-separated-values|dbf|vnd\.sun\.xml/
         page ||= 0
         unoconv_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+      elsif to_s =~ /^audio/
+        page ||= 0
+        waveform_thumbnail(filename, thumb_filename, thumb_size, page, crop)
       end
     rescue Exception => e
       puts e, e.message, e.backtrace
@@ -199,12 +205,47 @@ module Mimetype
     ".png" => "pnmtopng"
   }
 
+  def waveform_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+    tfn = filename.to_pn
+    tmp_filename = tfn.dirname + ".tmp-#{Process.pid}-#{Thread.current.object_id}-#{Time.now.to_f}-waveform.png"
+    tmp2_filename = tfn.dirname + ".tmp-#{Process.pid}-#{Thread.current.object_id}-#{Time.now.to_f}-waveform2.png"
+    File.open('/tmp/.waveform.lock','w') {|f|
+      f.flock(File::LOCK_EX)
+      system("waveform -display :16 #{filename.to_s.dump} #{tmp_filename.to_s.dump}")
+      f.flock(File::LOCK_UN)
+    }
+    rv = false
+    if tmp_filename.exist?
+      w,h = tmp_filename.dimensions
+      system("convert #{tmp_filename.to_s.dump} -crop #{w-2}x#{h-2}+1+1 #{tmp2_filename.to_s.dump}")
+      rv = Mimetype['image/png'].image_thumbnail(tmp2_filename, thumb_filename, thumb_size, page, crop)
+      tmp_filename.unlink
+      tmp2_filename.unlink
+    end
+    rv
+  end
+
   def paps_thumbnail(filename, thumb_filename, thumb_size, page, crop)
     tfn = filename.to_pn
     tmp_filename = tfn.dirname + "#{File.basename(filename)}-temp.pdf"
     charset = filename.to_pn.metadata.charset
     unless tmp_filename.exist?
       system("iconv -f #{charset} -t utf8 #{filename.to_s.dump} | paps --font_scale 11 --columns 1 | ps2pdf - #{tmp_filename.to_s.dump}")
+    end
+    rv = false
+    if tmp_filename.exist?
+      rv = pdf_thumbnail(tmp_filename, thumb_filename, thumb_size, page, crop)
+      tmp_filename.unlink unless rv
+    end
+    rv
+  end
+
+  def postscript_thumbnail(filename, thumb_filename, thumb_size, page, crop)
+    tfn = filename.to_pn
+    tmp_filename = tfn.dirname + "#{File.basename(filename)}-temp.pdf"
+    charset = filename.to_pn.metadata.charset
+    unless tmp_filename.exist?
+      system("ps2pdf #{filename.to_s.dump} #{tmp_filename.to_s.dump}")
     end
     rv = false
     if tmp_filename.exist?
