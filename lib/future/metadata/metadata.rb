@@ -92,7 +92,7 @@ extend self
       'width', h['width'],
       'height', h['height'],
       'dimensions_unit', 'mm',
-      'page_size', h['page size'],
+      'page_size', h['page_size'],
       'words', h['words'],
       'charset', txt.chardet
     }
