@@ -10,3 +10,8 @@ Slideshow for images.
 Read documents inline.
 
 Scales to a few hundred thousand files without much trouble.
+
+License
+===
+
+MIT for parts without explicit license.
